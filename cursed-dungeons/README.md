@@ -24,9 +24,22 @@ Play: <https://hoai2k.github.io/francis/cursed-dungeons/>
      freezes every curse in a starry void, and for 8 seconds every
      attack hits automatically.
 
-At the training dummy, press **E** at the talisman to summon waves of
-curses. Procedural levels, bosses, loot, the hub and the other sorcerers
-come next.
+4. **Procedural missions** across five biomes: Jujutsu High, Ruined Tokyo,
+   the Cursed Forest, the Flooded Subway and Shibuya Station.
+   - Levels are built from hand-designed room pieces: courtyards, pit
+     bridges, multi-level ledges with waterfalls, pillared halls, glowing
+     pools, groves, shrines, streets, subway platforms and concourses.
+   - Each level has a main path, side rooms and a secret room behind a
+     cracked wall.
+   - Objectives: exorcise N curses, rescue trapped students, or seal
+     cursed objects.
+   - A minimap and a Tab map reveal rooms as you explore.
+   - Three multi-phase Special Grade bosses (Volcano, Grove and Patchwork
+     curses) telegraph their attacks with red ground markers.
+
+In the training shrine, press **E** at the talisman to summon waves of
+curses, or at the lanterns to open the mission board. Loot, the hub,
+saving and the other sorcerers come next.
 
 ## Controls
 

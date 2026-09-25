@@ -79,7 +79,7 @@ def('shadow_floor', 'shadow_floor', { rough: 0.05, metal: 0.3 });
 def('vending', { top: 'concrete', side: 'vending' }, { emit: 0.9, hp: 30, step: 'metal', light: [0xff6a8a, 2.5, 6] });
 def('sign', { top: 'concrete', side: 'sign' }, { emit: 1.2 });
 def('neon_pink', 'neon_pink', { emit: 2.5, light: [0xff5fb0, 3, 8] });
-def('blue_energy', 'blue_energy', { emit: 3.0, light: [0x5ad8ff, 4, 8] });
+def('blue_energy', 'blue_energy', { emit: 0.45, light: [0x5ad8ff, 3, 7] });
 def('rail', { top: 'rail', side: 'concrete' }, { step: 'metal' });
 def('bark_dark', { top: 'log_top', side: 'bark_dark' }, { step: 'wood' });
 def('dirt_path', { top: 'cobble', side: 'dirt' });

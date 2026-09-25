@@ -23,6 +23,11 @@ import { Environment, BIOMES } from './world/biomes.js';
 import { makePropMaterials } from './world/deco.js';
 import { BLOCKS } from './world/blocks.js';
 import { buildTestRoom } from './world/testroom.js';
+import { generateLevel } from './world/levelgen.js';
+import { Mission } from './mission.js';
+import { Pickups } from './pickups.js';
+import { Minimap } from './ui/minimap.js';
+import { BOSS_IDS } from './entities/bosses.js';
 import { Player } from './entities/player.js';
 import { Enemy } from './entities/enemy.js';
 import { TrainingDummy } from './entities/dummy.js';
@@ -91,6 +96,9 @@ class Game {
     this.projectiles = new Projectiles(this);
     this.hazards = new Hazards(this);
     this.hud = new HUD(this);
+    this.pickups = new Pickups(this);
+    this.minimap = new Minimap(this);
+    this.coins = 0;
     this.domainSys = new DomainSystem(this);
     this.updaters = [];
     this.targetDof = 0;
@@ -124,31 +132,132 @@ class Game {
     this.gr.buildPipeline();
     this.setReadout(settings.showFps);
   }
-  // ---------------------------------------------------------------- level
-  loadTestRoom() {
-    const L = buildTestRoom();
-    this.level = L;
-    this.world = L.world;
-    this.biome = BIOMES.jujutsu_high;
+  // ---------------------------------------------------------------- level lifecycle
+  clearLevel() {
+    this.domainSys?.end();
+    if (this.world) { this.scene.remove(this.world.group); this.world.group.traverse((o) => o.geometry?.dispose()); }
+    if (this.shafts) this.scene.remove(this.shafts.group);
+    for (const e of this.enemies) this.scene.remove(e.object);
+    for (const a of this.allies) { a.dispose?.(); this.scene.remove(a.object); }
+    this.enemies = []; this.allies = [];
+    this.projectiles.clear(); this.hazards.clear(); this.pickups.clear();
+    for (const m of this.markers.items) this.markers.cancel(m);
+    this.updaters = []; this.interactables = [];
+    this.mission?.dispose(); this.mission = null;
+    this.exitPortal = null; this.objectiveDone = false;
+    this.lights.dynamic = this.lights.dynamic.filter((d) => this.players.some((p) => p.heroLight === d));
+    Trench.glow.value = 0; this.trenchFade = 0;
+    this.hud.setBoss(null); this.hud.setObjective(null);
+    this.hitstop = 0; this.slowmo = 0; this.frozen = false;
+  }
+  loadWorld(level, biome) {
+    this.level = level; this.world = level.world; this.biome = biome;
     this.world.init(this.materials);
     this.scene.add(this.world.group);
-    L.deco.build(this.world, this.materials, this.gr.preset.decoDensity);
-    this.shafts = L.shafts; this.scene.add(L.shafts.group);
+    level.deco.build(this.world, this.materials, this.gr.preset.decoDensity);
+    this.shafts = level.shafts; this.scene.add(level.shafts.group);
     this.shafts.group.visible = !!this.gr.preset.shafts;
     this.lights.setStatic(this.world.staticLights);
-    this.env.set(this.biome);
-    this.env.buildProbe(this.gr.renderer, this.biome);
+    this.env.set(biome);
+    this.env.buildProbe(this.gr.renderer, biome);
     U.bakeStrength.value = this.gr.preset.bake;
-    U.wind.value = this.biome.wind;
-    this.audio.setAmbience(this.biome.ambience);
+    U.wind.value = biome.wind;
+    this.audio.setAmbience(biome.ambience);
+  }
+  placePlayers(at) {
+    this.players.forEach((p, i) => {
+      p.spawn(at.clone().add(new THREE.Vector3((i % 2) * 1.4 - 0.7 * (i > 0), 0, Math.floor(i / 2) * 1.4)));
+      p.hp = p.maxHp; p.dead = false; p.downed = false; p.deadT = 0; p.action = null; p.healCharges = p.healMax;
+      p.rig.hips.rotation.x = 0;
+    });
+    this.rig.snap(at);
+  }
+  loadTestRoom() {
+    this.clearLevel();
+    const L = buildTestRoom();
+    this.loadWorld(L, BIOMES.jujutsu_high);
     this.audio.setMusic('shrine');
-    this.addPlayer(isMobile ? 'touch' : 'kbm', 'gojo');
-    this.rig.snap(this.players[0].pos);
+    if (!this.players.length) this.addPlayer(isMobile ? 'touch' : 'kbm', 'gojo');
+    this.placePlayers(L.spawn);
     const dummy = new TrainingDummy(this, L.dummy);
     this.scene.add(dummy.object); this.enemies.push(dummy);
     this.interactables.push({ id: 'summon', pos: L.dummy.clone().add(new THREE.Vector3(1.6, 0, 0)), radius: 2.2, label: 'Summon curses', action: () => this.spawnWave() });
+    this.interactables.push({ id: 'board', pos: new THREE.Vector3(18.5, L.spawn.y, 19.5), radius: 2.6, label: 'Mission board', action: () => this.openMissionSelect() });
     this.wave = 0;
+    this.minimap.level = null;
+    this.hud.mini.classList.add('hidden');
+    this.hud.setObjective('Training Shrine', isMobile ? 'Tap the talisman by the dummy to summon curses · Mission board by the lanterns' : 'E at the talisman: summon curses · E at the lanterns: mission board');
+    this.mode = 'hub';
   }
+  startMission(def) {
+    this.ui.closeAll(); this.paused = false;
+    this.clearLevel();
+    const L = generateLevel(def);
+    this.loadWorld(L, L.biome);
+    this.audio.setMusic(L.biome.music);
+    this.placePlayers(L.spawn);
+    this.minimap.build(L);
+    this.hud.mini.classList.remove('hidden');
+    this.mission = new Mission(this, def, L);
+    this.mission.setup();
+    this.mode = 'mission';
+    toast(`${L.biome.name} · ${L.biome.sub}`, 'big');
+  }
+  completeMission() {
+    const m = this.mission; if (!m || m.complete) return;
+    m.complete = true;
+    this.audio.levelUp();
+    this.showResults(true);
+  }
+  showResults(victory) {
+    const m = this.mission; const st = m?.stats ?? {};
+    this.paused = true;
+    this.ui.open('results', (el) => {
+      const mins = Math.floor((st.time ?? 0) / 60), secs = Math.floor((st.time ?? 0) % 60);
+      el.appendChild(h('div', { class: 'panel', style: 'min-width:min(460px,94vw);text-align:center' },
+        h('h2', { style: `font-size:34px;color:${victory ? '#ffd23a' : '#ff5a6a'}` }, victory ? 'MISSION COMPLETE' : 'DEFEATED'),
+        h('div', { class: 'stat-line' }, 'Curses exorcised', h('b', {}, String(st.kills ?? 0))),
+        h('div', { class: 'stat-line' }, 'Time', h('b', {}, `${mins}:${String(secs).padStart(2, '0')}`)),
+        h('div', { class: 'stat-line' }, 'Coins collected', h('b', {}, String(st.coins ?? 0))),
+        h('div', { class: 'stat-line' }, 'Secrets found', h('b', {}, String(st.secrets ?? 0))),
+        h('div', { class: 'loot-list', id: 'results-loot' }),
+        h('div', { class: 'row', style: 'justify-content:center;margin-top:10px' },
+          !victory ? h('button', { class: 'btn primary', 'data-autofocus': true, onclick: () => { const d = m.def; this.ui.close('results'); this.startMission(d); } }, 'Retry') : null,
+          h('button', { class: 'btn' + (victory ? ' primary' : ''), 'data-autofocus': victory, onclick: () => { this.ui.close('results'); this.paused = false; this.returnToHub(); } }, 'Return to Jujutsu High'))));
+      this.onResultsShown?.(el, victory);
+    }, { dim: true });
+  }
+  returnToHub() { this.loadTestRoom(); }
+  openMissionSelect() {
+    const biomes = Object.keys(BIOMES);
+    const state = this.msState ?? (this.msState = { biome: 'jujutsu_high', objective: 'exorcise', boss: 'jogo', difficulty: 1 });
+    this.paused = true;
+    this.ui.open('missions', (el) => {
+      const opt = (key, list, label) => h('div', { class: 'setting' }, h('label', {}, label), (() => {
+        const sel = h('select', {}, ...list.map(([v, t]) => { const o = h('option', { value: v }, t); if (state[key] == v) o.selected = true; return o; }));
+        sel.addEventListener('change', () => { state[key] = isNaN(+sel.value) ? sel.value : +sel.value; });
+        return sel;
+      })());
+      el.appendChild(h('div', { class: 'panel', style: 'width:min(520px,94vw)' }, h('h2', {}, 'Mission Board'),
+        opt('biome', biomes.map((b) => [b, BIOMES[b].name]), 'Location'),
+        opt('objective', [['exorcise', 'Exorcise the curses'], ['rescue', 'Rescue students'], ['seal', 'Seal cursed objects']], 'Objective'),
+        opt('boss', [['jogo', 'Volcano Curse'], ['hanami', 'Grove Curse'], ['mahito', 'Patchwork Curse']], 'Special Grade'),
+        opt('difficulty', [[1, 'Grade 3'], [2, 'Grade 2'], [3, 'Grade 1'], [4, 'Special Grade']], 'Threat'),
+        h('div', { class: 'row', style: 'justify-content:flex-end;margin-top:12px' },
+          h('button', { class: 'btn', onclick: () => { this.ui.close('missions'); this.paused = false; } }, 'Back'),
+          h('button', { class: 'btn primary', 'data-autofocus': true, onclick: () => this.startMission({ ...state, seed: (Math.random() * 1e9) | 0 }) }, 'Deploy'))));
+    }, { dim: true, onBack: () => { this.ui.close('missions'); this.paused = false; } });
+  }
+  openMap() {
+    if (!this.minimap.level) return;
+    this.paused = true;
+    this.ui.open('map', (el) => {
+      const cv = h('canvas', { class: 'mapview', width: 640, height: 640 });
+      el.appendChild(h('div', { class: 'panel', style: 'text-align:center' }, h('h2', {}, 'Map'), cv, h('div', { class: 'hint' }, '■ objective  ■ chest  ● curse  ■ boss arena  ● exit'), h('button', { class: 'btn', 'data-autofocus': true, onclick: () => { this.ui.close('map'); this.paused = false; } }, 'Close')));
+      this.minimap.draw(cv, { full: true });
+    }, { dim: true, onBack: () => { this.ui.close('map'); this.paused = false; } });
+  }
+  addCoins(n) { this.coins += n; if (this.mission) this.mission.stats.coins += n; }
   addPlayer(device, sorcerer) {
     const i = this.players.length;
     const p = new Player(this, i, device, sorcerer);
@@ -197,9 +306,20 @@ class Game {
   hitStop(s) { if (settings.hitstop) this.hitstop = Math.max(this.hitstop, Math.min(0.2, s)); }
   shake(a) { this.rig.addTrauma(a * settings.shake); }
   slowMo(dur, scale = 0.3) { if (!settings.slowmo) return; this.slowmo = Math.max(this.slowmo, dur); this.slowmoScale = scale; }
-  onEnemyKilled(e) { this.stats && this.stats.kills++; }
+  onEnemyKilled(e) {
+    this.mission?.onKill(e);
+    if (!e.isDummy) {
+      const [a, b] = e.def.coins ?? [1, 2];
+      this.pickups.drop('coin', e.pos, a + Math.floor(Math.random() * (b - a + 1)));
+      if (Math.random() < 0.08) this.pickups.drop('heal', e.pos, 1);
+      if (Math.random() < 0.12) this.pickups.drop('ce', e.pos, 1);
+    }
+  }
+  onBossKilled(b) { this.mission?.onBossKilled(b); }
   onPlayerDied(p) {
-    if (this.players.every((q) => q.dead)) setTimeout(() => { for (const q of this.players) { q.dead = false; q.hp = q.maxHp; q.spawn(this.level.spawn); q.deadT = 0; q.rig.hips.rotation.x = 0; } toast('Revived'); }, 2500);
+    if (!this.players.every((q) => q.dead)) return;
+    if (this.mode === 'mission') setTimeout(() => this.showResults(false), 1800);
+    else setTimeout(() => { this.placePlayers(this.level.spawn); toast('Revived'); }, 2500);
   }
 
   setReadout(on) { this.readoutOn = on; document.getElementById('readout').classList.toggle('hidden', !on); }
@@ -211,6 +331,7 @@ class Game {
         h('h2', {}, 'Paused'),
         h('button', { class: 'btn primary', 'data-autofocus': true, onclick: () => this.resume() }, 'Resume'),
         h('button', { class: 'btn', onclick: () => openSettings(this) }, 'Settings'),
+        this.mode === 'mission' ? h('button', { class: 'btn danger', onclick: () => { this.ui.close('pause'); this.paused = false; this.returnToHub(); } }, 'Abandon mission') : null,
       ));
     }, { dim: true, onBack: () => this.resume() });
   }
@@ -233,14 +354,24 @@ class Game {
       }
     }
   }
-  updateInteract() {
+  updateInteract(dt) {
     for (const it of this.interactables) {
+      if (it.enabled && !it.enabled()) continue;
       let near = null;
-      for (const p of this.players) if (!p.dead && p.pos.distanceTo(it.pos) < it.radius) near = p;
-      if (near) {
-        const key = near.device === 'kbm' ? 'E' : near.device === 'touch' ? '👆' : 'X';
+      for (const p of this.players) if (!p.dead && !p.downed && p.pos.distanceTo(it.pos) < it.radius) near = p;
+      if (!near) { it.progress = 0; it.touchHold = false; continue; }
+      const key = near.device === 'kbm' ? 'E' : near.device === 'touch' ? '👆' : 'X';
+      const inp = this.input.get(near.device);
+      if (it.hold) {
+        const holding = inp.held.interact || it.touchHold;
+        if (holding && !it.progress) it.onHoldStart?.();
+        it.progress = holding ? (it.progress ?? 0) + dt / it.hold : Math.max(0, (it.progress ?? 0) - dt);
+        const bar = '▮'.repeat(Math.round((it.progress ?? 0) * 8)).padEnd(8, '▯');
+        this.hud.prompt(it.id, it.pos.clone().setY(it.pos.y + 2.4), `${key}  ${it.label}  ${it.progress > 0 ? bar : '(hold)'}`, () => { it.touchHold = true; });
+        if (it.progress >= 1) { it.progress = 0; it.touchHold = false; it.action(near); }
+      } else {
         this.hud.prompt(it.id, it.pos.clone().setY(it.pos.y + 2.2), `${key}  ${it.label}`, () => it.action(near));
-        if (this.input.get(near.device).pressed.interact) it.action(near);
+        if (inp.pressed.interact) it.action(near);
       }
     }
   }
@@ -253,8 +384,10 @@ class Game {
     const gr = this.gr;
     gr.trackFps(realDt, now / 1000);
     const anyPause = this.players.some((p) => this.input.get(p.device).pressed.pause);
-    if (this.ui.stack.length) this.ui.update();
+    const anyMap = this.players.some((p) => this.input.get(p.device).pressed.map);
+    if (this.ui.stack.length) { this.ui.update(); if (anyMap && this.ui.isOpen('map')) { this.ui.close('map'); this.paused = false; } }
     else if (anyPause) this.pause();
+    else if (anyMap) this.openMap();
     let dt = realDt;
     if (this.paused) dt = 0;
     else if (this.hitstop > 0) { this.hitstop -= realDt; dt = 0; }
@@ -274,7 +407,9 @@ class Game {
       for (let i = this.updaters.length - 1; i >= 0; i--) if (this.updaters[i](dt, realDt) === false) this.updaters.splice(i, 1);
       this.projectiles.update(dt);
       this.hazards.update(dt);
-      this.updateInteract();
+      this.updateInteract(dt);
+      this.pickups.update(dt);
+      this.mission?.update(dt);
     }
     this.domainSys.update(dt, this.paused ? 0 : realDt);
     if (this.trenchFade > 0) { this.trenchFade -= dt; Trench.glow.value = Math.min(1.4, this.trenchFade / 6); }
@@ -297,6 +432,7 @@ class Game {
     this.fx.update(dt, realDt);
     this.particles.upload();
     this.hud.update(realDt);
+    if (this.minimap.level && (this.frameN = (this.frameN ?? 0) + 1) % 3 === 0) this.minimap.draw(this.hud.mini);
     gr.render();
     if (this.readoutOn) this.updateReadout();
   }

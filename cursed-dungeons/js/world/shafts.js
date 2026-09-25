@@ -22,13 +22,13 @@ export class LightShafts {
   }
   // A shaft from `from` along `dir` with length and width.
   add(from, dir, length, width, color = 0xb8c8ff) {
-    const d = dir.clone().normalize();
+    const d = new THREE.Vector3(dir.x, dir.y, dir.z).normalize();
     const mat = this.material(color);
     for (let i = 0; i < 2; i++) {
       const g = new THREE.PlaneGeometry(width, length).translate(0, -length / 2, 0);
       // plane's +Y is the start; rotate so that -Y follows dir
       const m = new THREE.Mesh(g, mat);
-      m.position.copy(from);
+      m.position.set(from.x, from.y, from.z);
       m.quaternion.setFromUnitVectors(new THREE.Vector3(0, -1, 0), d);
       m.rotateY(i * Math.PI / 2);
       m.renderOrder = 5;

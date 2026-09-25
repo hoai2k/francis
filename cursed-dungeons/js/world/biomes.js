@@ -8,7 +8,7 @@ import { Grade } from '../gfx/renderer.js';
 export const BIOMES = {
   jujutsu_high: {
     name: 'Jujutsu High', sub: 'School Grounds · Night',
-    skyTop: 0x0a1030, skyHorizon: 0x3a3a6a, fog: 0x1c2040, fogDensity: 0.018,
+    skyTop: 0x0a1030, skyHorizon: 0x2a2a52, fog: 0x1c2040, fogDensity: 0.018,
     hemiSky: 0x6a78b8, hemiGround: 0x2a2018, hemiI: 0.5, sun: 0xa8b8ff, sunI: 1.0,
     grade: { tint: [1.0, 0.98, 1.04], lift: [0.0, 0.0, 0.015], sat: 1.08, contrast: 1.06, vignette: 0.32 },
     floor: B.stone_brick, floor2: B.cobble, path: B.dirt_path, wall: B.stone_brick, wall2: B.mossy_brick, trim: B.dark_planks, pillar: B.pillar_red, roof: B.roof, ground: B.grass, accent: B.lantern, pit: B.stone,
@@ -16,7 +16,7 @@ export const BIOMES = {
   },
   tokyo_night: {
     name: 'Ruined Tokyo', sub: 'Streets at Night',
-    skyTop: 0x05060e, skyHorizon: 0x40203a, fog: 0x20141e, fogDensity: 0.022,
+    skyTop: 0x05060e, skyHorizon: 0x2e1a2c, fog: 0x20141e, fogDensity: 0.022,
     hemiSky: 0x6070a0, hemiGround: 0x201418, hemiI: 0.7, sun: 0x8898d8, sunI: 0.8,
     grade: { tint: [1.02, 0.96, 1.06], lift: [0.01, 0.0, 0.02], sat: 1.15, contrast: 1.1, vignette: 0.38 },
     floor: B.asphalt, floor2: B.asphalt_line, path: B.concrete, wall: B.concrete, wall2: B.red_brick, trim: B.window_dark, pillar: B.concrete_pillar, roof: B.concrete, ground: B.asphalt, accent: B.neon_pink, pit: B.concrete,
@@ -24,7 +24,7 @@ export const BIOMES = {
   },
   cursed_forest: {
     name: 'Cursed Forest', sub: 'Where the Curses Nest',
-    skyTop: 0x06080a, skyHorizon: 0x1a2a22, fog: 0x14201c, fogDensity: 0.03,
+    skyTop: 0x06080a, skyHorizon: 0x14201a, fog: 0x14201c, fogDensity: 0.03,
     hemiSky: 0x6a8a7a, hemiGround: 0x1a1420, hemiI: 0.75, sun: 0x9ab8a8, sunI: 0.7,
     grade: { tint: [0.96, 1.02, 0.98], lift: [0.0, 0.01, 0.005], sat: 0.95, contrast: 1.12, vignette: 0.45 },
     floor: B.moss_floor, floor2: B.cursed_grass, path: B.dirt, wall: B.bark_dark, wall2: B.mossy_brick, trim: B.log, pillar: B.log, roof: B.dead_leaves, ground: B.cursed_grass, accent: B.cursed_pool, pit: B.dirt,
@@ -40,7 +40,7 @@ export const BIOMES = {
   },
   shibuya: {
     name: 'Shibuya Station', sub: 'Halloween · The Incident',
-    skyTop: 0x0c0408, skyHorizon: 0x5a1a1a, fog: 0x2a1014, fogDensity: 0.02,
+    skyTop: 0x0c0408, skyHorizon: 0x3a1214, fog: 0x2a1014, fogDensity: 0.02,
     hemiSky: 0xa06a6a, hemiGround: 0x201010, hemiI: 0.75, sun: 0xff8a6a, sunI: 0.9,
     grade: { tint: [1.06, 0.96, 0.94], lift: [0.02, 0.0, 0.0], sat: 1.12, contrast: 1.12, vignette: 0.4 },
     floor: B.polished, floor2: B.subway_floor, path: B.concrete, wall: B.concrete, wall2: B.window, trim: B.sign, pillar: B.concrete_pillar, roof: B.concrete, ground: B.asphalt, accent: B.lava, pit: B.concrete,
@@ -65,7 +65,9 @@ export class Environment {
     this.skyTop = uniform(new THREE.Color()); this.skyHor = uniform(new THREE.Color());
     const dir = normalize(positionWorldDirection);
     const h = max(dir.y, float(0));
-    scene.backgroundNode = mix(this.skyHor, this.skyTop, pow(h, 0.6));
+    // sky above the horizon, a dark fogged abyss below it (levels float over the void)
+    const abyss = mix(this.skyHor.mul(0.35), vec3(0.004, 0.004, 0.008), smoothstep(-0.05, -0.75, dir.y));
+    scene.backgroundNode = mix(abyss, mix(this.skyHor, this.skyTop, pow(h, 0.6)), smoothstep(-0.04, 0.02, dir.y));
     this.fog = new THREE.FogExp2(0x000000, 0.02);
     scene.fog = this.fog;
     this.cur = null; this.from = null; this.to = null; this.k = 1;
