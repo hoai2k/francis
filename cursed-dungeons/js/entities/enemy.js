@@ -152,7 +152,7 @@ export class Enemy {
       this.rig.animate({ dt, speed: 0, vel: this.vel, action: { type: 'death', t: Math.min(1, this.deathT * 2) } });
       return this.deathT < 0.5;
     }
-    if (g.frozen) { // Unlimited Void: everything stops
+    if (g.frozen && g.domainSys.inside(this.pos)) { // Unlimited Void: everything stops
       this.rig.swap(this.flashT > 0 ? FLASH_MATERIAL : null); this.flashT -= dt;
       this.moveBody(dt, tmp.set(0, 0, 0));
       return true;

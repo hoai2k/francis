@@ -28,6 +28,9 @@ import { Enemy } from './entities/enemy.js';
 import { TrainingDummy } from './entities/dummy.js';
 import { FLASH_MATERIAL } from './entities/character.js';
 import { SORCERER_IDS } from './sorcerers/index.js';
+import './sorcerers/gojo.js';
+import { DomainSystem } from './domain.js';
+import { Trench } from './gfx/materials.js';
 import { isMobile } from './util.js';
 
 const loadFill = document.getElementById('load-fill');
@@ -88,6 +91,9 @@ class Game {
     this.projectiles = new Projectiles(this);
     this.hazards = new Hazards(this);
     this.hud = new HUD(this);
+    this.domainSys = new DomainSystem(this);
+    this.updaters = [];
+    this.targetDof = 0;
     progress(0.45, 'Building the shrine…');
     await nextFrame();
     this.loadTestRoom();
@@ -177,6 +183,9 @@ class Game {
     this.audio.energy('summon');
     toast(`Wave ${this.wave}`);
   }
+  // per-frame callbacks for technique effects; return false to finish
+  addUpdater(fn) { this.updaters.push(fn); }
+  startDomain(p, def) { return this.domainSys.start(p, def); }
   hostileTargets() { return this.allies.length ? [...this.players, ...this.allies] : this.players; }
   surfaceAt(pos) { const id = this.world.get(Math.floor(pos.x), Math.floor(pos.y - 0.1), Math.floor(pos.z)); return id ? BLOCKS[id].step : 'stone'; }
   nearestEnemy(pos, range) {
@@ -262,10 +271,14 @@ class Game {
         const e = this.enemies[i];
         if (!e.update(dt)) { this.scene.remove(e.object); this.enemies.splice(i, 1); }
       }
+      for (let i = this.updaters.length - 1; i >= 0; i--) if (this.updaters[i](dt, realDt) === false) this.updaters.splice(i, 1);
       this.projectiles.update(dt);
       this.hazards.update(dt);
       this.updateInteract();
     }
+    this.domainSys.update(dt, this.paused ? 0 : realDt);
+    if (this.trenchFade > 0) { this.trenchFade -= dt; Trench.glow.value = Math.min(1.4, this.trenchFade / 6); }
+    Grade.dofAmount.value += (this.targetDof - Grade.dofAmount.value) * Math.min(1, realDt * 4);
     this.markers.update(dt);
     this.debris.update(dt);
     this.bolts.update(realDt);

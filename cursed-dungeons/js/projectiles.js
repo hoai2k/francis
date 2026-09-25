@@ -53,6 +53,7 @@ export class Projectiles {
     const g = this.game, w = g.world;
     for (let i = this.list.length - 1; i >= 0; i--) {
       const p = this.list[i];
+      if (g.frozen && p.team === 'enemy') continue;
       p.t += dt;
       if (p.homing && p.target && !p.target.dead) {
         tmp.subVectors(p.target.pos, p.pos); tmp.y += (p.target.height ?? 1.5) * 0.5;

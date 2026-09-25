@@ -8,13 +8,25 @@ with an automatic **WebGL2** fallback.
 
 Play: <https://hoai2k.github.io/francis/cursed-dungeons/>
 
-**Status:** in development, built in stages. Live so far: the renderer,
-quality auto-detection, camera and test shrine (stage 1), plus movement,
-dodge roll, melee combos with hit-stop and knockback, six curse archetypes
-with telegraphed attacks, elites, destructible scenery, sound, the HUD and
-drop-in co-op (stage 2). At the training dummy, press **E** at the talisman
-to summon waves of curses. The sorcerer techniques, procedural levels,
-bosses and loot come next.
+**Status:** in development, built in stages. Live so far:
+
+1. The renderer, quality auto-detection, camera and test shrine.
+2. Movement, dodge roll, melee combos with hit-stop and knockback, six
+   curse archetypes with telegraphed attacks, elites, destructible
+   scenery, sound, the HUD and drop-in co-op.
+3. **Gojo**:
+   - Red (RMB) detonates in a repulsion blast.
+   - Blue (1) is a pulling singularity.
+   - Infinity (2) makes you untouchable.
+   - Hollow Purple (3) fires an erasing beam that carves a glowing
+     trench through walls.
+   - The Domain Expansion, **Unlimited Void** (F with a full CE bar),
+     freezes every curse in a starry void, and for 8 seconds every
+     attack hits automatically.
+
+At the training dummy, press **E** at the talisman to summon waves of
+curses. Procedural levels, bosses, loot, the hub and the other sorcerers
+come next.
 
 ## Controls
 

@@ -101,7 +101,7 @@ export class HUD {
         let frac = 0, ready = true, cnt = '';
         if (slot === 'heal') { frac = p.healCharges > 0 ? p.healCd / 1.2 : 1; ready = p.healCharges > 0; cnt = String(p.healCharges); }
         else if (slot === 'domain') { frac = 1 - p.ce / p.maxCe; ready = p.ce >= p.maxCe && !g.domain; }
-        else { const ab = p.kit.slots[slot]; frac = ab.cdLeft / Math.max(0.01, ab.cd * p.kit.cdr); ready = ab.cdLeft <= 0 && p.ce >= (ab.ce ?? 0); if (ab.charges > 1 || ab.maxCharges) cnt = String(ab.chargesLeft ?? ''); }
+        else { const ab = p.kit.slots[slot]; frac = ab.cdLeft / Math.max(0.01, ab.cd * p.kit.cdr); ready = ab.cdLeft <= 0 && p.ce >= (ab.ce ?? 0); if (ab.maxCharges > 1) cnt = String(ab.chargesLeft ?? ''); }
         e.cd.style.height = (Math.min(1, frac) * 100).toFixed(0) + '%';
         e.el.classList.toggle('ready', ready);
         if (e.cnt.textContent !== cnt) e.cnt.textContent = cnt;

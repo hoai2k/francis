@@ -59,7 +59,13 @@ export class Combat {
   meleeStrike(p, step) {
     const g = this.game;
     const dir = v2.set(Math.sin(p.facing), 0, Math.cos(p.facing));
-    const targets = this.query(p.pos, dir, step.range * (p.stats.reach ?? 1), step.arc);
+    let targets = this.query(p.pos, dir, step.range * (p.stats.reach ?? 1), step.arc);
+    const sure = g.domainSys?.sureHit(p);
+    if (sure) {
+      // Domain: every attack lands on every curse inside
+      targets = g.enemies.filter((e) => !e.dead && !e.isDummy && g.domainSys.inside(e.pos));
+      for (const e of targets) g.fx.sureHitStrike(e, p);
+    }
     let hit = 0;
     const bf = p.blackFlashReady?.(step) ?? false;
     for (const e of targets) {

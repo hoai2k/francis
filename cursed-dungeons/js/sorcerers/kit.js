@@ -19,10 +19,18 @@ export class Kit {
   update(dt, inp) {
     for (const k in this.slots) {
       const s = this.slots[k];
-      s.cdLeft = Math.max(0, s.cdLeft - dt);
+      if (s.maxCharges) {
+        // charge-based ability: recharges one charge at a time
+        if (s.chargesLeft < s.maxCharges) { s.recharge = (s.recharge ?? 0) + dt; if (s.recharge >= s.cd * this.cdr) { s.recharge = 0; s.chargesLeft++; } }
+        s.gate = Math.max(0, (s.gate ?? 0) - dt);
+        s.cdLeft = s.chargesLeft > 0 ? s.gate : s.cd * this.cdr - (s.recharge ?? 0);
+      } else s.cdLeft = Math.max(0, s.cdLeft - dt);
       const pressed = s.hold ? inp.held[k] : inp.pressed[k];
       if (pressed && s.cdLeft <= 0 && this.p.ce >= (s.ce ?? 0) && this.canCast(s)) {
-        if (s.use() !== false) { s.cdLeft = s.cd * this.cdr; this.p.ce -= s.ce ?? 0; }
+        if (s.use() !== false) {
+          if (s.maxCharges) { s.chargesLeft--; s.gate = s.gateTime ?? 0.3; } else s.cdLeft = s.cd * this.cdr;
+          this.p.ce -= s.ce ?? 0;
+        }
       }
       if (s.onRelease && inp.released[k]) s.onRelease();
     }

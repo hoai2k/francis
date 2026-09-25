@@ -141,6 +141,12 @@ export class Effects {
     this.darkRings.spawn(tmp.set(at.x, this.groundY(at) + 0.08, at.z), { color: 0x000000, r1: 4.5, dur: 0.45, thick: 0.3 });
     this.rings.spawn(tmp.set(at.x, this.groundY(at) + 0.1, at.z), { color: 0xff1020, r1: 5, dur: 0.5, thick: 0.08 });
   }
+  sureHitStrike(e, p) {
+    const c = tmp.set(e.pos.x, e.pos.y + e.height * 0.6, e.pos.z);
+    const col = new THREE.Color(p.rig.look?.accent ?? 0xffffff);
+    this.p.burst(c, { count: 10, color: col, speed: 7, life: 0.3, size: 0.1, drag: 4, shape: 1, intensity: 3 });
+    this.arcs.spawn(c, { color: col, r0: 0.9, r1: 1.3, dur: 0.14, thick: 0.3, arc: 0.3, rotY: Math.random() * Math.PI * 2 });
+  }
   heal(pos, color = 0x6aff9a) {
     this.p.burst(tmp.set(pos.x, pos.y + 0.2, pos.z), { count: 30, color, speed: 1.5, up: 3, life: 1, size: 0.18, drag: 2, gravity: -3, shape: 1 });
     this.rings.spawn(tmp.set(pos.x, pos.y + 0.06, pos.z), { color, r0: 0.3, r1: 1.8, dur: 0.6, thick: 0.15 });
