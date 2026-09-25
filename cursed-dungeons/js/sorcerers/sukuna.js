@@ -70,7 +70,7 @@ class SukunaKit extends Kit {
   shrineProp(g, d) {
     const grp = new THREE.Group();
     const mk = (o) => { const m = new THREE.MeshStandardNodeMaterial(o); m.maskNode = ditherMask(occlusionAmount()); return m; };
-    const wood = mk({ color: 0x2a0a0a, roughness: 0.6 }), bone = mk({ color: 0xe8dcc0, roughness: 0.8 }), mouth = mk({ color: 0x100000, emissive: 0xff2010, emissiveIntensity: 0.9 });
+    const wood = mk({ color: 0x2a0a0a, roughness: 0.6 }), bone = mk({ color: 0xe8dcc0, roughness: 0.8 }), mouth = mk({ color: 0x080000, emissive: 0x801008, emissiveIntensity: 0.6 });
     const b = (w, h, dd, x, y, z, m) => { const mm = new THREE.Mesh(new THREE.BoxGeometry(w, h, dd), m); mm.position.set(x, y, z); mm.castShadow = true; grp.add(mm); };
     for (const x of [-3, 3]) b(0.8, 7, 0.8, x, 3.5, 0, wood);
     b(9, 0.8, 2.6, 0, 7.2, 0, wood); b(10.5, 0.5, 3.2, 0, 7.9, 0, wood); b(6, 3.6, 1.5, 0, 3, -0.6, mouth);

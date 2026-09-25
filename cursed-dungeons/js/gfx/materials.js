@@ -35,8 +35,8 @@ function domainLook(albedo) {
   const voidC = vec3(0.006, 0.008, 0.02).add(vec3(0.01, 0.015, 0.04).mul(lum));
   const voidE = vec3(0.8, 0.9, 1.4).mul(step(0.994, h)).mul(sin(U.time.mul(3).add(h.mul(40))).mul(0.5).add(0.5)).mul(3).add(vec3(0.05, 0.12, 0.35).mul(edge).mul(0.18));
   // 2: Malevolent Shrine — blood-red stone, black seams
-  const shrC = vec3(0.35, 0.03, 0.03).mul(lum.mul(1.4).add(0.3)).mul(float(1).sub(edge.mul(0.8)));
-  const shrE = vec3(0.5, 0.02, 0.0).mul(step(0.985, h)).add(vec3(0.25, 0.0, 0.0).mul(edge));
+  const shrC = vec3(0.16, 0.012, 0.012).mul(lum.mul(1.2).add(0.25)).mul(float(1).sub(edge.mul(0.85)));
+  const shrE = vec3(0.6, 0.03, 0.0).mul(step(0.99, h)).add(vec3(0.05, 0.0, 0.0).mul(edge));
   // 3: Chimera Shadow Garden — glossy black liquid shadow
   const garC = vec3(0.01, 0.01, 0.015);
   const garE = vec3(0.1, 0.1, 0.25).mul(smoothstep(0.6, 1.0, sin(p.x.mul(0.8).add(p.z.mul(0.6)).add(U.time.mul(1.5))))).mul(0.4);

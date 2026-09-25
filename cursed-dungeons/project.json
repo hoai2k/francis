@@ -3,5 +3,9 @@
   "description": "A 3D Minecraft Dungeons-style action dungeon crawler with Jujutsu Kaisen sorcerers, cursed techniques and Domain Expansions. WebGPU renderer with WebGL2 fallback, auto-detected quality up to ray-traced-style Ultra, and 4-player local co-op.",
   "date": "2026-09-25",
   "tag": "GAME · 3D ACTION",
-  "accent": "#a05aff"
+  "accent": "#a05aff",
+  "posters": [
+    "poster-1.jpg",
+    "poster-2.jpg"
+  ]
 }
