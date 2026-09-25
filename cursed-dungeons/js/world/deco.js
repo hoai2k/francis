@@ -4,6 +4,7 @@
 // props (shrine lanterns, stone lanterns) are merged into a second mesh.
 import * as THREE from 'three/webgpu';
 import { spriteUV, SPRITE_INDEX as SI } from '../gfx/textures.js';
+import { ditherMask, occlusionAmount } from '../gfx/materials.js';
 
 export class Decorations {
   constructor() { this.items = []; this.props = []; this.mesh = null; this.propMesh = null; }
@@ -117,7 +118,7 @@ export class Decorations {
 }
 
 export function makePropMaterials() {
-  const S = (c, o = {}) => new THREE.MeshStandardNodeMaterial({ color: c, roughness: 0.8, ...o });
+  const S = (c, o = {}) => { const m = new THREE.MeshStandardNodeMaterial({ color: c, roughness: 0.8, ...o }); m.maskNode = ditherMask(occlusionAmount()); return m; };
   return {
     stone: S(0x8a8a88), dark: S(0x1c1814), wood: S(0x6a4a2a), red: S(0xb5281f, { roughness: 0.4 }), metal: S(0x4a4e55, { metalness: 0.8, roughness: 0.35 }),
     wax: S(0xefe6cc), glass: S(0x223344, { roughness: 0.05, metalness: 0.6 }),

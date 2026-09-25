@@ -79,7 +79,8 @@ export function makeCharMaterial(map, opts = {}) {
   const tex = texture(map, uv());
   // bright pixels (eyes, markings) glow a little when emitStrength > 0
   const bright = step(0.92, tex.r.max(tex.g).max(tex.b));
-  m.emissiveNode = mix(tex.rgb.mul(bright).mul(emitMask).add(glow), vec3(1, 1, 1).mul(2.2), flash);
+  const fill = uniform(opts.fill ?? 0.06);
+  m.emissiveNode = mix(tex.rgb.mul(bright).mul(emitMask).add(glow).add(tex.rgb.mul(fill)), vec3(1, 1, 1).mul(2.2), flash);
   const n = interleavedGradientNoise(screenCoordinate.xy);
   m.maskNode = n.greaterThan(dissolve);
   m.userData = { flash, glow, dissolve, emitMask };

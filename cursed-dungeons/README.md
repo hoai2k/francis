@@ -8,9 +8,13 @@ with an automatic **WebGL2** fallback.
 
 Play: <https://hoai2k.github.io/francis/cursed-dungeons/>
 
-**Status:** in development, built in stages. Stage 1 (renderer, quality
-auto-detection, camera and a detailed test shrine) is live; combat,
-sorcerers, enemies, levels and loot come next.
+**Status:** in development, built in stages. Live so far: the renderer,
+quality auto-detection, camera and test shrine (stage 1), plus movement,
+dodge roll, melee combos with hit-stop and knockback, six curse archetypes
+with telegraphed attacks, elites, destructible scenery, sound, the HUD and
+drop-in co-op (stage 2). At the training dummy, press **E** at the talisman
+to summon waves of curses. The sorcerer techniques, procedural levels,
+bosses and loot come next.
 
 ## Controls
 

@@ -71,7 +71,7 @@ export class Effects {
     this.p.burst(pos, { count: 1, color: c, speed: 0, life: 0.14, size: big ? 2.6 : 1.6, drag: 0, sizeEnd: 1.6, intensity: 2.2 });
     if (crit) this.p.burst(pos, { count: 10, color: 0xffffff, speed: 6, life: 0.3, size: 0.09, gravity: 0, drag: 5, shape: 1 });
     const ground = pos.clone(); ground.y = Math.floor(pos.y - 0.9) + 0.05 + (this.game.world ? 0 : 0);
-    this.rings.spawn(tmp.set(pos.x, this.groundY(pos) + 0.06, pos.z), { color: c, r1: big ? 2.6 : 1.5, dur: 0.3, thick: 0.18 });
+    this.rings.spawn(tmp.set(pos.x, this.groundY(pos) + 0.06, pos.z), { color: c, r0: 0.3, r1: big ? 2.2 : 1.1, dur: 0.22, thick: 0.12 });
   }
   groundY(pos) { const g = this.game.world.groundBelow(pos.x, pos.z, pos.y + 0.5); return isFinite(g) ? g : pos.y; }
   shockwave(pos, color = 0xffffff, radius = 4, dur = 0.45) {
@@ -103,6 +103,50 @@ export class Effects {
   debris(pos, color, n = 8) {
     this.p.burst(pos, { count: n * 2, color, additive: false, speed: 4, up: 0.8, life: 0.5, size: 0.3, drag: 3, sizeEnd: 1.4, intensity: 0.6 });
   }
+  // ---------------- curse fx
+  curseSmoke(e, color) {
+    const c = color ? new THREE.Color(color) : null;
+    const x = e.pos.x + (Math.random() - 0.5) * e.radius * 1.6, z = e.pos.z + (Math.random() - 0.5) * e.radius * 1.6, y = e.pos.y + Math.random() * e.height;
+    if (c) this.p.glow.emit(x, y, z, 0, 0.6 + Math.random() * 0.5, 0, 0.9, c.r * 1.5, c.g * 1.5, c.b * 1.5, 0.35, -0.5, 1.5, 0.2, 0);
+    else if (Math.random() < 0.5) this.p.smoke.emit(x, y, z, (Math.random() - 0.5) * 0.3, 0.5 + Math.random() * 0.4, (Math.random() - 0.5) * 0.3, 1.2, 0.08, 0.02, 0.12, 0.35, -0.3, 1.2, 2.2, 0);
+    else this.p.glow.emit(x, y, z, 0, 0.5, 0, 1.0, 0.45, 0.12, 0.7, 0.3, -0.3, 1.5, 0.1, 0);
+  }
+  curseDeath(pos, h = 1.5, color = 0x7a3aa8) {
+    this.p.burst(pos, { count: 26, color: 0x151018, additive: false, speed: 3.5, life: 0.9, size: 0.55, drag: 3, sizeEnd: 2.4, up: 0.6 });
+    this.p.burst(pos, { count: 22, color, speed: 6, life: 0.6, size: 0.18, drag: 4, up: 0.8, shape: 1 });
+    this.p.burst(pos, { count: 1, color, speed: 0, life: 0.18, size: 3 * h, drag: 0, sizeEnd: 1.5, intensity: 1.6 });
+    this.rings.spawn(tmp.set(pos.x, this.groundY(pos) + 0.06, pos.z), { color, r1: 2.2, dur: 0.4, thick: 0.25 });
+    this.game.lights.flash(pos, color, 5, 6, 0.3);
+  }
+  explosion(pos, color = 0xff6a2a, r = 3) {
+    const c = pos.clone(); c.y += 0.6;
+    this.p.burst(c, { count: 40, color, speed: r * 4, life: 0.5, size: 0.3, drag: 4, gravity: 6, up: 0.5, shape: 1 });
+    this.p.burst(c, { count: 1, color: 0xffe0a0, speed: 0, life: 0.2, size: r * 2.4, sizeEnd: 1.3, drag: 0, intensity: 3 });
+    this.p.burst(c, { count: 24, color: 0x2a1a14, additive: false, speed: r * 2, life: 1.1, size: 0.8, drag: 3, sizeEnd: 2.6, up: 0.8 });
+    this.shockwave(pos, color, r + 1, 0.4);
+    this.game.lights.flash(c, color, 16, r * 4, 0.4);
+    this.flash(color, 0.18, 0.1);
+  }
+  splat(pos, color) { this.p.burst(pos, { count: 14, color, speed: 4, life: 0.5, size: 0.14, gravity: 18, drag: 1, shape: 1, up: 1 }); }
+  summonCircle(pos, color) { this.rings.spawn(tmp.set(pos.x, pos.y + 0.06, pos.z), { color, r0: 1.4, r1: 0.2, dur: 0.6, thick: 0.2 }); this.p.burst(tmp.set(pos.x, pos.y + 0.2, pos.z), { count: 18, color, speed: 2, up: 2, life: 0.7, size: 0.2, drag: 2 }); }
+  blinkPuff(pos, color) {
+    const c = tmp.set(pos.x, pos.y + 1, pos.z);
+    this.p.burst(c, { count: 20, color: 0x0a0610, additive: false, speed: 3, life: 0.6, size: 0.6, sizeEnd: 2, drag: 4 });
+    this.p.burst(c, { count: 16, color, speed: 5, life: 0.4, size: 0.15, drag: 5, shape: 1 });
+  }
+  blackLightning(at) {
+    this.game.bolts?.spawn(at, { count: 8, length: 3.6, life: 0.4 });
+    this.p.burst(at, { count: 30, color: 0xff1a1a, speed: 12, life: 0.35, size: 0.12, drag: 5, shape: 1, intensity: 4 });
+    this.p.burst(at, { count: 12, color: 0x000000, additive: false, speed: 6, life: 0.5, size: 0.5, drag: 5, sizeEnd: 1.5 });
+    this.darkRings.spawn(tmp.set(at.x, this.groundY(at) + 0.08, at.z), { color: 0x000000, r1: 4.5, dur: 0.45, thick: 0.3 });
+    this.rings.spawn(tmp.set(at.x, this.groundY(at) + 0.1, at.z), { color: 0xff1020, r1: 5, dur: 0.5, thick: 0.08 });
+  }
+  heal(pos, color = 0x6aff9a) {
+    this.p.burst(tmp.set(pos.x, pos.y + 0.2, pos.z), { count: 30, color, speed: 1.5, up: 3, life: 1, size: 0.18, drag: 2, gravity: -3, shape: 1 });
+    this.rings.spawn(tmp.set(pos.x, pos.y + 0.06, pos.z), { color, r0: 0.3, r1: 1.8, dur: 0.6, thick: 0.15 });
+  }
+  hurtVignette() { this.flash(0x8a0010, 0.22, 0.18); }
+
   // ---------------- screen fx
   flash(color = 0xffffff, amount = 0.6, dur = 0.12) { Grade.flash.value.set(...new THREE.Color(color).toArray(), amount); this.flashT = dur; this.flashDur = dur; this.flashAmt = amount; }
   blackFlash(dur = 0.28) { this.bfT = dur; Grade.blackFlash.value = 1; }

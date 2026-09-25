@@ -1,4 +1,4 @@
-// Cursed Dungeons — entry point and game loop.
+// Cursed Dungeons — entry point, game states and the main loop.
 import * as THREE from 'three/webgpu';
 import { GameRenderer, QUALITY_LABEL, Grade } from './gfx/renderer.js';
 import { buildBlockAtlas, buildSpriteAtlas } from './gfx/textures.js';
@@ -6,9 +6,16 @@ import { createBlockMaterial, createRoofMaterial, createWaterMaterial, createGlo
 import { LightManager } from './gfx/lights.js';
 import { Particles } from './gfx/particles.js';
 import { Effects } from './gfx/effects.js';
+import { Debris, Bolts } from './gfx/debris.js';
+import { Markers } from './gfx/markers.js';
 import { CameraRig } from './camera.js';
 import { Input } from './input.js';
+import { Audio } from './audio.js';
+import { Combat } from './combat.js';
+import { Projectiles } from './projectiles.js';
+import { Hazards } from './hazards.js';
 import { UI, h, toast } from './ui/ui.js';
+import { HUD } from './ui/hud.js';
 import { openSettings } from './ui/settingsScreen.js';
 import { TouchControls } from './ui/touch.js';
 import { settings, saveSettings } from './settings.js';
@@ -17,7 +24,10 @@ import { makePropMaterials } from './world/deco.js';
 import { BLOCKS } from './world/blocks.js';
 import { buildTestRoom } from './world/testroom.js';
 import { Player } from './entities/player.js';
-import { buildDummy } from './entities/models.js';
+import { Enemy } from './entities/enemy.js';
+import { TrainingDummy } from './entities/dummy.js';
+import { FLASH_MATERIAL } from './entities/character.js';
+import { SORCERER_IDS } from './sorcerers/index.js';
 import { isMobile } from './util.js';
 
 const loadFill = document.getElementById('load-fill');
@@ -28,11 +38,12 @@ const nextFrame = () => new Promise((r) => requestAnimationFrame(() => r()));
 class Game {
   constructor() {
     this.settings = settings;
-    this.players = [];
-    this.enemies = [];
-    this.time = 0; this.timeScale = 1; this.hitstop = 0; this.slowmo = 0; this.slowmoScale = 1;
-    this.paused = false;
-    this.state = 'loading';
+    this.players = []; this.enemies = []; this.allies = [];
+    this.time = 0; this.hitstop = 0; this.slowmo = 0; this.slowmoScale = 1;
+    this.paused = false; this.state = 'loading';
+    this.interactables = [];
+    this.flashMaterial = FLASH_MATERIAL;
+    this.toast = toast;
   }
   async boot() {
     progress(0.05, 'Detecting GPU…');
@@ -47,6 +58,10 @@ class Game {
     this.rig.shakeScale = settings.shake; this.rig.zoomTarget = settings.cameraZoom;
     this.input = new Input(this.gr.renderer.domElement);
     this.ui = new UI(this);
+    this.audio = new Audio();
+    const startAudio = () => { this.audio.start(); if (this.audio.pendingAmb) { this.audio.setAmbience(this.audio.pendingAmb); this.audio.pendingAmb = null; } if (this.audio.pendingMusic) { this.audio.setMusic(this.audio.pendingMusic); this.audio.pendingMusic = null; } };
+    for (const ev of ['pointerdown', 'keydown', 'touchstart']) window.addEventListener(ev, startAudio, { passive: true });
+    window.addEventListener('gamepadconnected', startAudio);
     progress(0.3, 'Painting textures…');
     await nextFrame();
     const atlas = buildBlockAtlas();
@@ -64,7 +79,15 @@ class Game {
     this.lights.configure(this.gr.preset);
     this.env = new Environment(this.scene, this.lights);
     this.particles = new Particles(this.scene, this.gr.preset.particles);
+    this.particles.budget = this.gr.quality === 'low' ? 0.5 : this.gr.quality === 'medium' ? 0.75 : 1;
     this.fx = new Effects(this);
+    this.debris = new Debris(this);
+    this.bolts = new Bolts(this.scene);
+    this.markers = new Markers(this.scene);
+    this.combat = new Combat(this);
+    this.projectiles = new Projectiles(this);
+    this.hazards = new Hazards(this);
+    this.hud = new HUD(this);
     progress(0.45, 'Building the shrine…');
     await nextFrame();
     this.loadTestRoom();
@@ -74,15 +97,17 @@ class Game {
     try { await this.gr.renderer.compileAsync(this.scene, this.rig.camera); } catch (e) { console.warn(e); }
     progress(1, 'Ready');
     window.addEventListener('resize', () => this.gr.resize());
-    this.bindGlobalKeys();
+    window.addEventListener('keydown', (e) => { if (e.code === 'F3') { settings.showFps = !settings.showFps; saveSettings(); this.setReadout(settings.showFps); } });
     if (isMobile) { document.body.classList.add('is-touch'); this.touch = new TouchControls(this); this.touch.show(true); }
     this.setReadout(settings.showFps);
     document.getElementById('loading').classList.add('fade');
     setTimeout(() => document.getElementById('loading').remove(), 600);
     this.state = 'playing';
+    this.hud.show(true);
     this.last = performance.now();
     this.gr.renderer.setAnimationLoop(() => this.frame());
-    toast('Jujutsu High · Test Shrine', 'big');
+    toast('Jujutsu High · Training Shrine', 'big');
+    this.hud.setObjective('Training', isMobile ? 'Tap the talisman by the dummy to summon curses' : 'Press E at the talisman by the dummy to summon curses');
   }
   applyQuality(q) {
     this.gr.setQualityPreset(q === 'auto' ? this.gr.info.tier : q, false);
@@ -93,6 +118,7 @@ class Game {
     this.gr.buildPipeline();
     this.setReadout(settings.showFps);
   }
+  // ---------------------------------------------------------------- level
   loadTestRoom() {
     const L = buildTestRoom();
     this.level = L;
@@ -108,32 +134,66 @@ class Game {
     this.env.buildProbe(this.gr.renderer, this.biome);
     U.bakeStrength.value = this.gr.preset.bake;
     U.wind.value = this.biome.wind;
-    // player
-    const dev = isMobile ? 'touch' : 'kbm';
-    const p = new Player(this, 0, dev, 'gojo');
-    p.spawn(L.spawn);
-    this.scene.add(p.object);
-    this.players = [p];
-    this.rig.snap(p.pos);
-    // training dummy
-    const d = buildDummy(); d.root.position.copy(L.dummy); d.root.rotation.y = Math.PI * 0.1;
-    this.scene.add(d.root); this.dummy = d;
+    this.audio.setAmbience(this.biome.ambience);
+    this.audio.setMusic('shrine');
+    this.addPlayer(isMobile ? 'touch' : 'kbm', 'gojo');
+    this.rig.snap(this.players[0].pos);
+    const dummy = new TrainingDummy(this, L.dummy);
+    this.scene.add(dummy.object); this.enemies.push(dummy);
+    this.interactables.push({ id: 'summon', pos: L.dummy.clone().add(new THREE.Vector3(1.6, 0, 0)), radius: 2.2, label: 'Summon curses', action: () => this.spawnWave() });
+    this.wave = 0;
   }
+  addPlayer(device, sorcerer) {
+    const i = this.players.length;
+    const p = new Player(this, i, device, sorcerer);
+    const base = this.players[0]?.pos ?? this.level.spawn;
+    p.spawn(base.clone().add(new THREE.Vector3(i ? (i - 1.5) * 1.2 : 0, 0, i ? 1.2 : 0)));
+    this.scene.add(p.object);
+    this.players.push(p);
+    this.hud?.rebuildCards();
+    return p;
+  }
+  spawnEnemy(kind, pos, opts = {}) {
+    const cap = this.gr.preset.enemyCap;
+    if (this.enemies.filter((e) => !e.dead && !e.isDummy).length >= cap && opts.summoned) return null;
+    const e = new Enemy(this, kind, pos, opts);
+    this.scene.add(e.object);
+    this.enemies.push(e);
+    return e;
+  }
+  spawnWave() {
+    this.wave++;
+    const kinds = [['swarmer', 'swarmer', 'swarmer', 'swarmer'], ['swarmer', 'swarmer', 'spitter', 'blob', 'swarmer'], ['tank', 'swarmer', 'swarmer', 'spitter', 'teleporter'], ['summoner', 'tank', 'teleporter', 'blob', 'spitter', 'swarmer', 'swarmer']][(this.wave - 1) % 4];
+    const c = this.level.dummy;
+    kinds.forEach((k, i) => {
+      const a = (i / kinds.length) * Math.PI * 2 + Math.random();
+      const pos = new THREE.Vector3(c.x + Math.cos(a) * 7, c.y, c.z + 4 + Math.sin(a) * 5);
+      const gy = this.world.groundBelow(pos.x, pos.z, pos.y + 3); if (!isFinite(gy)) return;
+      pos.y = gy;
+      const elite = this.wave >= 3 && i === 0 ? ['swift', 'armored', 'vampiric', 'explosive', 'shadow'][this.wave % 5] : null;
+      this.spawnEnemy(k, pos, { elite });
+      this.fx.summonCircle(pos, 0xb05aff);
+    });
+    this.audio.energy('summon');
+    toast(`Wave ${this.wave}`);
+  }
+  hostileTargets() { return this.allies.length ? [...this.players, ...this.allies] : this.players; }
   surfaceAt(pos) { const id = this.world.get(Math.floor(pos.x), Math.floor(pos.y - 0.1), Math.floor(pos.z)); return id ? BLOCKS[id].step : 'stone'; }
   nearestEnemy(pos, range) {
     let best = null, bd = range * range;
-    for (const e of this.enemies) { if (e.dead) continue; const d = e.pos.distanceToSquared(pos); if (d < bd) { bd = d; best = e; } }
+    for (const e of this.enemies) { if (e.dead || e.untargetable) continue; const d = e.pos.distanceToSquared(pos); if (d < bd) { bd = d; best = e; } }
     return best;
   }
-  bindGlobalKeys() {
-    window.addEventListener('keydown', (e) => {
-      if (e.code === 'F3') { settings.showFps = !settings.showFps; saveSettings(); this.setReadout(settings.showFps); }
-    });
+  // ---------------------------------------------------------------- feel
+  hitStop(s) { if (settings.hitstop) this.hitstop = Math.max(this.hitstop, Math.min(0.2, s)); }
+  shake(a) { this.rig.addTrauma(a * settings.shake); }
+  slowMo(dur, scale = 0.3) { if (!settings.slowmo) return; this.slowmo = Math.max(this.slowmo, dur); this.slowmoScale = scale; }
+  onEnemyKilled(e) { this.stats && this.stats.kills++; }
+  onPlayerDied(p) {
+    if (this.players.every((q) => q.dead)) setTimeout(() => { for (const q of this.players) { q.dead = false; q.hp = q.maxHp; q.spawn(this.level.spawn); q.deadT = 0; q.rig.hips.rotation.x = 0; } toast('Revived'); }, 2500);
   }
-  setReadout(on) {
-    this.readoutOn = on;
-    document.getElementById('readout').classList.toggle('hidden', !on);
-  }
+
+  setReadout(on) { this.readoutOn = on; document.getElementById('readout').classList.toggle('hidden', !on); }
   pause() {
     if (this.paused) return;
     this.paused = true;
@@ -147,36 +207,68 @@ class Game {
   }
   resume() { this.ui.close('pause'); this.paused = false; this.last = performance.now(); }
 
+  // Drop-in co-op: an unassigned controller pressing Start/A joins.
+  checkJoin() {
+    if (isMobile || this.players.length >= 4) return;
+    for (const pad of this.input.pads()) {
+      const id = 'pad' + pad.index;
+      if (this.players.some((p) => p.device === id)) continue;
+      if (pad.buttons[9]?.pressed || pad.buttons[0]?.pressed) {
+        // the keyboard player keeps P1; if P1 is idle on keyboard and this is the only pad, still add
+        const used = new Set(this.players.map((p) => p.sorcerer));
+        const pick = SORCERER_IDS.find((s) => !used.has(s)) ?? 'gojo';
+        const p = this.addPlayer(id, pick);
+        this.fx.summonCircle(p.pos, 0x6ad8ff);
+        toast(`Player ${p.index + 1} joined`);
+        this.audio.ui('buy');
+      }
+    }
+  }
+  updateInteract() {
+    for (const it of this.interactables) {
+      let near = null;
+      for (const p of this.players) if (!p.dead && p.pos.distanceTo(it.pos) < it.radius) near = p;
+      if (near) {
+        const key = near.device === 'kbm' ? 'E' : near.device === 'touch' ? '👆' : 'X';
+        this.hud.prompt(it.id, it.pos.clone().setY(it.pos.y + 2.2), `${key}  ${it.label}`, () => it.action(near));
+        if (this.input.get(near.device).pressed.interact) it.action(near);
+      }
+    }
+  }
+
   frame() {
     const now = performance.now();
-    let realDt = Math.min(0.05, (now - this.last) / 1000);
+    const realDt = Math.min(0.05, (now - this.last) / 1000);
     this.last = now;
     this.input.poll();
     const gr = this.gr;
     gr.trackFps(realDt, now / 1000);
-    // pause toggle
-    const p0 = this.players[0];
-    const anyPause = [...this.players.map((p) => this.input.get(p.device).pressed.pause)].some(Boolean);
-    if (this.ui.stack.length) { this.ui.update(); }
-    else if (anyPause) { this.pause(); }
-    // time scale: hit-stop freezes, slow-mo scales
+    const anyPause = this.players.some((p) => this.input.get(p.device).pressed.pause);
+    if (this.ui.stack.length) this.ui.update();
+    else if (anyPause) this.pause();
     let dt = realDt;
     if (this.paused) dt = 0;
-    else {
-      if (this.hitstop > 0) { this.hitstop -= realDt; dt = 0; }
-      else if (this.slowmo > 0) { this.slowmo -= realDt; dt *= this.slowmoScale; }
-    }
+    else if (this.hitstop > 0) { this.hitstop -= realDt; dt = 0; }
+    else if (this.slowmo > 0) { this.slowmo -= realDt; dt *= this.slowmoScale; }
     this.time += dt;
     U.time.value = this.time;
     if (!this.paused) {
+      this.checkJoin();
       const z = this.input.takeZoom(); if (z) this.rig.zoom(z * 1.6);
-      if (settings.cameraRotate) {
-        const ip = this.input.get(p0.device);
-        if (ip.pressed.rotL) this.rig.rotate(-1); if (ip.pressed.rotR) this.rig.rotate(1);
-      }
+      const p0 = this.players[0];
+      if (settings.cameraRotate && p0) { const ip = this.input.get(p0.device); if (ip.pressed.rotL) this.rig.rotate(-1); if (ip.pressed.rotR) this.rig.rotate(1); }
       for (const p of this.players) p.update(dt);
-      if (this.dummy) this.dummy.animate({ dt, speed: 0, vel: new THREE.Vector3() });
+      for (let i = this.enemies.length - 1; i >= 0; i--) {
+        const e = this.enemies[i];
+        if (!e.update(dt)) { this.scene.remove(e.object); this.enemies.splice(i, 1); }
+      }
+      this.projectiles.update(dt);
+      this.hazards.update(dt);
+      this.updateInteract();
     }
+    this.markers.update(dt);
+    this.debris.update(dt);
+    this.bolts.update(realDt);
     // camera + world
     this.rig.update(dt, this.players, realDt);
     U.camPos.value.copy(this.rig.camera.position);
@@ -191,6 +283,7 @@ class Game {
     if (!this.paused) this.fx.ambient(dt, this.biome.particles, this.rig.focus);
     this.fx.update(dt, realDt);
     this.particles.upload();
+    this.hud.update(realDt);
     gr.render();
     if (this.readoutOn) this.updateReadout();
   }
@@ -199,9 +292,10 @@ class Game {
     if (this.readoutT % 15) return;
     const gr = this.gr;
     const info = gr.renderer.info;
+    const dummy = this.enemies.find((e) => e.isDummy);
     document.getElementById('readout').textContent =
       `${QUALITY_LABEL[gr.quality]} · ${gr.backend}\n${gr.fps.toFixed(0)} FPS · ${(gr.pixelRatio).toFixed(2)}x res` +
-      `\n${info.render.drawCalls ?? info.render.calls ?? 0} draws · ${this.lights.pool.length} lights`;
+      `\n${info.render.drawCalls ?? info.render.calls ?? 0} draws · ${this.lights.pool.length} lights` + (dummy && dummy.dps > 0 ? `\nDummy DPS ${dummy.dps.toFixed(0)}` : '');
   }
 }
 

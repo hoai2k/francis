@@ -6,6 +6,8 @@ import * as THREE from 'three/webgpu';
 import { moveEntity } from '../physics.js';
 import { buildSorcererModel } from './models.js';
 import { damp, dampAngle, clamp } from '../util.js';
+import { BASE_COMBO } from '../combat.js';
+import { createKit } from '../sorcerers/index.js';
 
 export const PLAYER_COLORS = ['#4fc8ff', '#ff5a6a', '#7aff7a', '#ffc94a'];
 
@@ -31,6 +33,110 @@ export class Player {
     this.object.userData.player = this;
     this.stepT = 0;
     this.onLand = (v) => { if (v > 12) game.fx?.landDust(this.pos, v); };
+    this.isPlayer = true;
+    this.combo = BASE_COMBO; this.comboStep = 0; this.comboT = 0; this.attackBuffer = 0; this.struck = false;
+    this.healCharges = 3; this.healMax = 3; this.healCd = 0;
+    this.downT = 0; this.reviveProgress = 0;
+    this.slowT = 0;
+    this.kit = createKit(this);
+    this.heroLight = game.lights.attach(this.object, 0xffe8d0, 1.6, 7, { offsetY: 2.2, priority: 6 });
+  }
+  // ---------------------------------------------------------------- vitals
+  gainCE(a) { if (this.domainActive) return; this.ce = Math.min(this.maxCe, this.ce + a * this.stats.ceGain); }
+  heal(a, silent = false) {
+    if (this.dead || this.downed) return;
+    this.hp = Math.min(this.maxHp, this.hp + a);
+    if (!silent) this.game.fx.damageNumber(this.pos, a, { color: '#6aff9a', text: '+' + Math.round(a) });
+  }
+  takeDamage(amount, src, o = {}) {
+    const g = this.game;
+    if (this.dead || this.downed) return 0;
+    if (!o.pure && (this.iframes > 0 || this.invulnerable)) return 0;
+    if (this.kit.onIncoming) { const r = this.kit.onIncoming(amount, src, o); if (r === 0) return 0; if (typeof r === 'number') amount = r; }
+    const dmg = amount * (o.pure ? 1 : (1 - this.stats.armor)) * (g.difficultyDamageDealt ?? 1);
+    this.hp -= dmg;
+    this.hurtT = 0.12;
+    this.rig.swap(g.flashMaterial);
+    if (o.knock && !o.noKnock) { this.knock = (this.knock || new THREE.Vector3()).add(o.knock); }
+    if (!o.dot) {
+      this.action = this.action && this.action.type !== 'attack' ? this.action : { type: 'hit', dur: 0.25, elapsed: 0, t: 0, moveScale: 0.5 };
+      g.shake(Math.min(0.5, 0.15 + dmg / 60));
+      g.fx.hurtVignette();
+      g.audio?.hurt();
+      this.iframes = Math.max(this.iframes, 0.25);
+    }
+    g.fx.damageNumber(this.pos, dmg, { color: '#ff5a6a' });
+    if (this.hp <= 0) this.goDown();
+    return dmg;
+  }
+  goDown() {
+    const g = this.game;
+    this.hp = 0;
+    const others = g.players.filter((p) => p !== this && !p.dead && !p.downed);
+    if (others.length) { this.downed = true; this.downT = 25; this.reviveProgress = 0; this.action = null; g.toast?.(`Player ${this.index + 1} is down! Stand close to revive`); }
+    else { this.dead = true; this.deadT = 0; g.onPlayerDied?.(this); }
+    this.domainActive = false;
+    g.audio?.enemyDie(true);
+  }
+  revive(frac = 0.4) { this.downed = false; this.dead = false; this.hp = this.maxHp * frac; this.iframes = 2; this.action = null; this.game.fx.heal(this.pos); this.game.audio?.energy('heal'); }
+  useHeal() {
+    if (this.healCharges <= 0 || this.healCd > 0 || this.hp >= this.maxHp) return;
+    this.healCharges--; this.healCd = 1.2;
+    this.healOverTime = { left: this.maxHp * (0.45 + (this.stats.healBonus ?? 0)), t: 1.2 };
+    this.game.fx.heal(this.pos, 0x9affd8);
+    this.game.audio?.energy('heal');
+    this.action = { type: 'sign', dur: 0.6, elapsed: 0, t: 0, moveScale: 0.6, cancelable: true };
+    this.game.toast?.('Reverse Cursed Technique');
+  }
+  // ---------------------------------------------------------------- combat
+  updateCombat(dt, inp) {
+    const g = this.game;
+    this.comboT -= dt; this.healCd = Math.max(0, this.healCd - dt);
+    if (this.healOverTime) { const r = this.healOverTime; const k = Math.min(r.left, (r.left / Math.max(0.05, r.t)) * dt); this.hp = Math.min(this.maxHp, this.hp + k); r.left -= k; r.t -= dt; if (r.t <= 0 || r.left <= 0) this.healOverTime = null; }
+    if (inp.pressed.attack || (inp.held.attack && !inp.mouse && this.autoRepeat)) this.attackBuffer = 0.28;
+    else this.attackBuffer -= dt;
+    if (inp.held.attack) this.attackHeldT = (this.attackHeldT ?? 0) + dt; else this.attackHeldT = 0;
+    if (inp.pressed.heal) this.useHeal();
+    const a = this.action;
+    // chain / start melee
+    const canChain = !a || a.type === 'hit' || (a.type === 'attack' && a.t >= (a.step.chainAt ?? 0.62)) || a.type === 'sign';
+    if (this.attackBuffer > 0 && canChain && this.dodgeT <= 0 && !this.kit.blocksMelee?.()) {
+      if ((!a || a.type !== 'attack') && this.comboT < 0) this.comboStep = 0;   // combo window expired
+      const combo = this.kit.combo || this.combo;
+      const step = combo[this.comboStep % combo.length];
+      this.startAttack(step, this.comboStep % combo.length);
+      this.comboStep = (this.comboStep + 1) % combo.length;
+      this.attackBuffer = 0;
+    }
+    if (this.comboT < -0.45 && (!this.action || this.action.type !== 'attack')) this.comboStep = 0;
+    // strike moment
+    if (this.action && this.action.type === 'attack' && !this.action.struck && this.action.t >= this.action.step.strike) {
+      this.action.struck = true;
+      this.kit.onStrike?.(this.action.step);
+      if (!this.action.step.custom) g.combat.meleeStrike(this, this.action.step);
+      g.fx.slashArc(this.pos, this.facing, this.action.step.trail ?? this.rig.look?.accent ?? 0xffffff, this.action.step.range * 0.9, this.action.step.arc > 2 ? 1 : 0.28, 0.16, this.action.step.style === 'swingL');
+    }
+    if (this.action && this.action.type === 'attack') {
+      const st = this.action.step, k = this.action.t;
+      // lunge during strike window
+      const lunge = k > st.windup * 0.8 && k < st.strike + 0.1 ? st.lunge : 0;
+      this.action.root = new THREE.Vector3(Math.sin(this.facing), 0, Math.cos(this.facing)).multiplyScalar(lunge).addScaledVector(this.moveIntent || new THREE.Vector3(), 1.4);
+    }
+    this.kit.update?.(dt, inp);
+  }
+  startAttack(step, idx) {
+    // snap facing to aim; melee "magnetises" toward a curse in front of you
+    this.facing = Math.atan2(this.aimDir.x, this.aimDir.z);
+    let best = null, bd = 4.5;
+    for (const e of this.game.enemies) {
+      if (e.dead || e.untargetable) continue;
+      const dx = e.pos.x - this.pos.x, dz = e.pos.z - this.pos.z, d = Math.hypot(dx, dz);
+      if (d < bd && Math.abs(Math.atan2(Math.sin(Math.atan2(dx, dz) - this.facing), Math.cos(Math.atan2(dx, dz) - this.facing))) < 0.9) { bd = d; best = e; }
+    }
+    if (best) { this.facing = Math.atan2(best.pos.x - this.pos.x, best.pos.z - this.pos.z); step = { ...step, lunge: step.lunge * Math.min(1.6, Math.max(0.2, (bd - 1.2) / 1.6)) }; }
+    this.action = { type: 'attack', step, style: step.style, dur: step.dur / (this.stats.attackSpeed ?? 1), elapsed: 0, t: 0, windup: step.windup, strike: step.strike, struck: false, step: step, idx, moveScale: 0.25 };
+    this.comboT = step.dur + 0.35;
+    this.game.audio?.swing(idx);
   }
   spawn(p) { this.pos.copy(p); this.vel.set(0, 0, 0); this.visY = p.y; this.safePos.copy(p); this.object.position.copy(p); }
   input() { return this.game.input.get(this.device); }
@@ -62,6 +168,14 @@ export class Player {
   update(dt) {
     const g = this.game, inp = this.input();
     if (this.dead) { this.animate(dt); return; }
+    if (this.downed) {
+      this.downT -= dt;
+      const helper = g.players.find((p) => p !== this && !p.dead && !p.downed && p.pos.distanceTo(this.pos) < 2.2);
+      this.reviveProgress = helper ? this.reviveProgress + dt / 2.2 : Math.max(0, this.reviveProgress - dt);
+      if (this.reviveProgress >= 1) this.revive(0.4);
+      else if (this.downT <= 0) { this.downed = false; this.dead = true; this.deadT = 0; g.onPlayerDied?.(this); }
+      this.vel.set(0, this.vel.y, 0); moveEntity(this, g.world, dt); this.animate(dt); return;
+    }
     this.updateAim(inp);
     // movement intent
     const mv = g.rig.screenToWorldDir(inp.move.x, inp.move.y, new THREE.Vector3());
@@ -71,8 +185,11 @@ export class Player {
     this.iframes = Math.max(0, this.iframes - dt);
     this.dodgeCd = Math.max(0, this.dodgeCd - dt);
     // dodge roll
-    if (inp.pressed.dodge && this.dodgeCd <= 0 && !this.downed && (!this.action || this.action.cancelable !== false || this.action.type === 'attack')) this.startDodge(mv);
-    let speed = this.speed * this.stats.speed * (this.inLiquid === 'water' ? 0.7 : 1) * (this.slow ?? 1);
+    if (inp.pressed.dodge && this.dodgeCd <= 0 && !this.downed && (!this.action || this.action.cancelable !== false) && !this.kit.blocksDodge?.()) this.startDodge(mv);
+    if (!this.downed) this.updateCombat(dt, inp);
+    if (this.hurtT > 0) { this.hurtT -= dt; if (this.hurtT <= 0) this.rig.swap(null); }
+    this.slowT = Math.max(0, this.slowT - dt);
+    let speed = this.speed * this.stats.speed * (this.inLiquid === 'water' ? 0.7 : 1) * (this.slowT > 0 ? 0.6 : 1) * (this.kit.speedMul ?? 1);
     const want = new THREE.Vector3();
     if (this.dodgeT > 0) {
       this.dodgeT -= dt;
