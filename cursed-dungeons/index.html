@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#07060d">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Cursed Dungeons</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600;700&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="./style.css">
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.webgpu.js",
+    "three/webgpu": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.webgpu.js",
+    "three/tsl": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.tsl.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/",
+    "three-classic": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js",
+    "three-gpu-pathtracer": "https://cdn.jsdelivr.net/npm/three-gpu-pathtracer@0.0.24/build/index.module.js",
+    "three-mesh-bvh": "https://cdn.jsdelivr.net/npm/three-mesh-bvh@0.9.15/build/index.module.js"
+  },
+  "scopes": {
+    "https://cdn.jsdelivr.net/npm/three-gpu-pathtracer@0.0.24/": { "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js", "three/examples/jsm/": "https://cdn.jsdelivr.net/gh/mrdoob/three.js@r186/examples/jsm/" },
+    "https://cdn.jsdelivr.net/gh/mrdoob/three.js@r186/": { "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js" },
+    "https://cdn.jsdelivr.net/npm/three-mesh-bvh@0.9.15/": { "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js" },
+    "https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/": { "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.webgpu.js" }
+  }
+}
+</script>
+</head>
+<body>
+<div id="app"></div>
+<div id="dmg-layer" aria-hidden="true"></div>
+<div id="hud" class="hidden"></div>
+<div id="readout" class="hidden"></div>
+<div id="toast-layer" aria-live="polite"></div>
+<div id="touch" class="hidden"></div>
+<div id="screens"></div>
+<div id="loading">
+  <div class="load-inner">
+    <div class="logo small">CURSED<span>DUNGEONS</span></div>
+    <div class="load-bar"><div id="load-fill"></div></div>
+    <div id="load-text">Detecting GPU…</div>
+  </div>
+</div>
+<noscript><p class="noscript">Cursed Dungeons needs JavaScript and a WebGPU or WebGL2 capable browser.</p></noscript>
+<script type="module" src="./js/main.js"></script>
+</body>
+</html>
