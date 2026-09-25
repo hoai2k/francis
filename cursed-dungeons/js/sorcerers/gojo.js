@@ -63,7 +63,7 @@ class GojoKit extends Kit {
     this.infT = 0;
     this.shell = new THREE.Mesh(new THREE.IcosahedronGeometry(1.25, 3), infinityMaterial());
     this.shell.visible = false; this.shell.renderOrder = 23;
-    this.game.scene.add(this.shell);
+    this.own(this.shell);
     this.auraT = 0;
     this.beamMats = [beamMaterial(PURPLE), beamMaterial(0xffd8ff, true)];
   }
@@ -331,4 +331,4 @@ class GojoKit extends Kit {
     return grp;
   }
 }
-registerKit('gojo', GojoKit);
+registerKit('gojo', GojoKit, GOJO_SKILLS);

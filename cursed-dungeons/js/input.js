@@ -3,13 +3,13 @@
 // (mouse point, right stick or auto-aim) and edge-triggered buttons.
 import { isMobile } from './util.js';
 
-const ACTIONS = ['attack', 'ranged', 'dodge', 't1', 't2', 't3', 'domain', 'interact', 'heal', 'map', 'pause', 'rotL', 'rotR'];
+const ACTIONS = ['attack', 'ranged', 'dodge', 't1', 't2', 't3', 'domain', 'interact', 'heal', 'map', 'pause', 'rotL', 'rotR', 'art1', 'art2', 'inv'];
 const KEYMAP = {
   Space: 'dodge', Digit1: 't1', Digit2: 't2', Digit3: 't3', KeyF: 'domain', KeyE: 'interact', KeyQ: 'heal',
-  Tab: 'map', Escape: 'pause', KeyP: 'pause', KeyZ: 'rotL', KeyC: 'rotR', ShiftLeft: 'dodge',
+  Tab: 'map', Escape: 'pause', KeyP: 'pause', KeyZ: 'rotL', KeyC: 'rotR', ShiftLeft: 'dodge', KeyR: 'art1', KeyT: 'art2', KeyI: 'inv',
 };
 // Standard gamepad mapping
-const PADMAP = { 0: 'attack', 1: 'dodge', 2: 'interact', 3: 't3', 4: 't1', 5: 't2', 6: 'domain', 7: 'ranged', 8: 'map', 9: 'pause', 12: 'heal' };
+const PADMAP = { 0: 'attack', 1: 'dodge', 2: 'interact', 3: 't3', 4: 't1', 5: 't2', 6: 'domain', 7: 'ranged', 8: 'map', 9: 'pause', 12: 'heal', 13: 'inv', 14: 'art1', 15: 'art2' };
 
 function blank() { const o = {}; for (const a of ACTIONS) o[a] = false; return o; }
 
@@ -32,14 +32,14 @@ export class Input {
     window.addEventListener('keydown', (e) => {
       if (e.code === 'Tab') e.preventDefault();
       if (e.target && /INPUT|SELECT|TEXTAREA/.test(e.target.tagName)) return;
-      this.keys.add(e.code); this.lastDevice = 'kbm';
+      this.keys.add(e.code); this.lastDevice = 'kbm'; this.kbmActivity = performance.now();
     });
     window.addEventListener('keyup', (e) => this.keys.delete(e.code));
     window.addEventListener('blur', () => { this.keys.clear(); this.mouse.left = this.mouse.right = false; });
     const c = this.canvas;
     c.addEventListener('mousemove', (e) => this.setMouse(e));
     window.addEventListener('mousemove', (e) => this.setMouse(e));
-    c.addEventListener('mousedown', (e) => { this.setMouse(e); if (e.button === 0) this.mouse.left = true; if (e.button === 2) this.mouse.right = true; this.lastDevice = 'kbm'; });
+    c.addEventListener('mousedown', (e) => { this.setMouse(e); if (e.button === 0) this.mouse.left = true; if (e.button === 2) this.mouse.right = true; this.lastDevice = 'kbm'; this.kbmActivity = performance.now(); });
     window.addEventListener('mouseup', (e) => { if (e.button === 0) this.mouse.left = false; if (e.button === 2) this.mouse.right = false; });
     c.addEventListener('contextmenu', (e) => e.preventDefault());
     c.addEventListener('wheel', (e) => { e.preventDefault(); this.wheel += Math.sign(e.deltaY) * Math.min(3, Math.abs(e.deltaY) / 60 + 0.5); }, { passive: false });
@@ -82,8 +82,6 @@ export class Input {
       p.buttons.forEach((b, i) => { const a = PADMAP[i]; if (a && (b.pressed || b.value > 0.5)) held[a] = true; });
       const dz = (x, y) => { const l = Math.hypot(x, y); if (l < 0.2) return { x: 0, y: 0 }; const s = Math.min(1, (l - 0.2) / 0.75) / l; return { x: x * s, y: y * s }; };
       const move = dz(p.axes[0] || 0, -(p.axes[1] || 0));
-      if (p.buttons[14]?.pressed) move.x = -1; if (p.buttons[15]?.pressed) move.x = 1;
-      if (p.buttons[13]?.pressed) move.y = -1;
       const aim = dz(p.axes[2] || 0, -(p.axes[3] || 0));
       held.rotL = false; held.rotR = false;
       this.setState(id, { move, aimStick: (aim.x || aim.y) ? aim : null, mouse: false, held });

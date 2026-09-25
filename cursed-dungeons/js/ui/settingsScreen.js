@@ -51,9 +51,9 @@ export function openSettings(game, onClose) {
         `<h3>Keyboard + Mouse</h3>
         <span class="kbd">WASD</span> move · <span class="kbd">Mouse</span> aim · <span class="kbd">LMB</span> attack · <span class="kbd">RMB</span> ranged / technique ·
         <span class="kbd">Space</span> dodge · <span class="kbd">1</span><span class="kbd">2</span><span class="kbd">3</span> techniques · <span class="kbd">F</span> Domain Expansion ·
-        <span class="kbd">Q</span> Reverse Cursed Technique (heal) · <span class="kbd">E</span> interact · <span class="kbd">Tab</span> map · <span class="kbd">I</span> inventory · <span class="kbd">Esc</span> pause · <span class="kbd">Wheel</span> zoom
+        <span class="kbd">Q</span> Reverse Cursed Technique (heal) · <span class="kbd">R</span><span class="kbd">T</span> cursed-tool artifacts · <span class="kbd">E</span> interact · <span class="kbd">Tab</span> map · <span class="kbd">I</span> inventory · <span class="kbd">Esc</span> pause · <span class="kbd">Wheel</span> zoom · <span class="kbd">F3</span> FPS readout
         <h3>Gamepad</h3>
-        Left stick move · Right stick aim · <b>A</b> attack · <b>RT</b> ranged · <b>B</b> dodge · <b>LB / RB / Y</b> techniques · <b>LT</b> Domain · <b>X</b> interact · <b>D-pad ↑</b> heal · <b>View</b> map · <b>Menu</b> pause
+        Left stick move · Right stick aim · <b>A</b> attack · <b>RT</b> ranged · <b>B</b> dodge · <b>LB / RB / Y</b> techniques · <b>LT</b> Domain · <b>X</b> interact · <b>D-pad ↑</b> heal · <b>D-pad ← →</b> artifacts · <b>D-pad ↓</b> inventory · <b>View</b> map · <b>Menu</b> pause
         <h3>Local co-op</h3>
         Up to 4 players on one screen: keyboard+mouse plus gamepads. Press <b>A</b> or <b>Start</b> on a controller at character select (or <b>Start</b> during a mission) to drop in.
         <h3>Touch</h3>

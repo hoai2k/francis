@@ -6,8 +6,8 @@ import { h } from './ui.js';
 import { SORCERERS } from '../sorcerers/index.js';
 import { isMobile } from '../util.js';
 
-const KEYS = { ranged: 'RMB', t1: '1', t2: '2', t3: '3', heal: 'Q', domain: 'F' };
-const PADKEYS = { ranged: 'RT', t1: 'LB', t2: 'RB', t3: 'Y', heal: '↑', domain: 'LT' };
+const KEYS = { ranged: 'RMB', t1: '1', t2: '2', t3: '3', heal: 'Q', domain: 'F', art1: 'R', art2: 'T' };
+const PADKEYS = { ranged: 'RT', t1: 'LB', t2: 'RB', t3: 'Y', heal: '↑', domain: 'LT', art1: '←', art2: '→' };
 const tmp = new THREE.Vector3();
 
 export class HUD {
@@ -57,6 +57,7 @@ export class HUD {
     const k = p.kit;
     for (const slot of ['ranged', 't1', 't2', 't3']) if (k.slots[slot]) mk(slot, k.slots[slot]);
     mk('heal', { name: 'Reverse CT', icon: '✚' });
+    p.artifacts.forEach((a, i) => mk('art' + (i + 1), { name: a.base.name.split(' ').slice(-1)[0], icon: a.base.icon }));
     if (k.domain) mk('domain', { name: k.domain.name, icon: k.domain.icon ?? '領' }, true);
     this.abEls = { p, els, device: p.device };
   }
@@ -93,13 +94,15 @@ export class HUD {
     }
     // ability bar tracks the keyboard player (or P1)
     const main = g.players.find((p) => p.device === 'kbm') || g.players[0];
-    if (main && (!this.abEls || this.abEls.p !== main || this.abEls.device !== main.device || this.abEls.kit !== main.kit)) { this.buildAbilities(main); this.abEls.kit = main.kit; }
+    const sig = main ? main.artifacts.map((a) => a.it.uid).join() : '';
+    if (main && (!this.abEls || this.abEls.p !== main || this.abEls.device !== main.device || this.abEls.kit !== main.kit || this.abEls.sig !== sig)) { this.buildAbilities(main); this.abEls.kit = main.kit; this.abEls.sig = sig; }
     if (this.abEls) {
       const p = this.abEls.p;
       for (const slot in this.abEls.els) {
         const e = this.abEls.els[slot];
         let frac = 0, ready = true, cnt = '';
         if (slot === 'heal') { frac = p.healCharges > 0 ? p.healCd / 1.2 : 1; ready = p.healCharges > 0; cnt = String(p.healCharges); }
+        else if (slot.startsWith('art')) { const a = p.artifacts[+slot[3] - 1]; if (!a) continue; frac = a.cdLeft / (a.cd * (1 - p.stats.cdr)); ready = a.cdLeft <= 0; }
         else if (slot === 'domain') { frac = 1 - p.ce / p.maxCe; ready = p.ce >= p.maxCe && !g.domain; }
         else { const ab = p.kit.slots[slot]; frac = ab.cdLeft / Math.max(0.01, ab.cd * p.kit.cdr); ready = ab.cdLeft <= 0 && p.ce >= (ab.ce ?? 0); if (ab.maxCharges > 1) cnt = String(ab.chargesLeft ?? ''); }
         e.cd.style.height = (Math.min(1, frac) * 100).toFixed(0) + '%';

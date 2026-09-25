@@ -103,8 +103,21 @@ export function buildTestRoom() {
   // tall grass along the courtyard edges
   k.scatter(3, 3, 37, 49, { density: 0.0 });
 
+  // ---- hub stations: map table, merchant stall, stash, skill shrine
+  const mapTable = new THREE.Vector3(26.5, FY, 24.5);
+  W.fill(26, FY, 24, 27, FY, 25, B.dark_planks);
+  deco.add('paper', 26.9, FY + 1.02, 24.9, { mode: 'flat', scale: 1.8, emit: 0.3 });
+  deco.prop('candle_cluster', 26.2, FY + 1, 24.2); W.addLight(26.5, FY + 2, 24.5, 0xffc070, 3, 7);
+  const shop = new THREE.Vector3(9.5, FY, 15.5);
+  W.fill(8, FY, 16, 11, FY, 16, B.planks); W.fill(8, FY + 3, 15, 11, FY + 3, 17, B.red_lacquer);
+  for (const [x, z] of [[8, 17], [11, 17], [8, 15], [11, 15]]) { W.set(x, FY, z, B.log); W.set(x, FY + 1, z, B.log); W.set(x, FY + 2, z, B.log); }
+  W.set(9, FY + 1, 16, B.barrel); W.set(10, FY + 1, 16, B.crate);
+  deco.prop('paper_lantern', 8.5, FY + 2.8, 14.6); deco.prop('paper_lantern', 11.5, FY + 2.8, 14.6); W.addLight(10, FY + 2.2, 14.5, 0xff6a2a, 4, 8);
+  const stash = new THREE.Vector3(12.5, FY, 22.5);
+  const skills = new THREE.Vector3(18.5, FY, 18.2);
   world.collectBlockLights();
   const spawn = new THREE.Vector3(20.5, FY, 30.5);
   const dummy = new THREE.Vector3(20.5, FY, 22.5);
-  return { world, deco, shafts, spawn, dummy, kit: k };
+  const stage = new THREE.Vector3(18.5, FY, 33.5);
+  return { world, deco, shafts, spawn, dummy, kit: k, mapTable, shop, stash, skills, stage };
 }

@@ -157,6 +157,13 @@ export class Enemy {
       this.moveBody(dt, tmp.set(0, 0, 0));
       return true;
     }
+    if (this.sealT > 0) { // Prison Realm: sealed in place
+      this.sealT -= dt; this.flashT -= dt;
+      if (Math.random() < 0.3) g.particles.glow.emit(this.pos.x + (Math.random() - 0.5), this.pos.y + Math.random() * this.height, this.pos.z + (Math.random() - 0.5), 0, 0.3, 0, 0.6, 1.2, 1.1, 1.8, 0.12, 0, 1, 1, 1);
+      this.rig.swap(this.flashT > 0 ? FLASH_MATERIAL : null);
+      this.moveBody(dt, tmp2.set(0, 0, 0));
+      return true;
+    }
     this.spawnT = Math.max(0, this.spawnT - dt);
     this.stateT += dt; this.cd -= dt; this.flashT -= dt; this.slowT = (this.slowT ?? 0) - dt;
     this.blinkCd -= dt;
@@ -232,6 +239,7 @@ export class Enemy {
       const gy = g.world.groundBelow(this.pos.x, this.pos.z, this.pos.y + 1.5);
       if (isFinite(gy)) this.floorY = gy; else { this.noGravity = false; }
     }
+    if (!Number.isFinite(this.pos.x + this.pos.y + this.pos.z)) { this.pos.copy(this.home); this.vel.set(0, 0, 0); this.knock.set(0, 0, 0); }
     if (this.pos.y < -6) { this.hp = 0; this.die({ pit: true }); g.onPitKill?.(this); }
   }
   animate(dt) {

@@ -14,6 +14,8 @@ export class Kit {
     this.skills = {};   // skill-tree ranks, filled from save
   }
   ability(o) { return { cdLeft: 0, charges: 1, ...o }; }
+  dispose() { for (const o of this.owned ?? []) this.game.scene.remove(o); }
+  own(o) { (this.owned || (this.owned = [])).push(o); this.game.scene.add(o); return o; }
   rank(id) { return this.p.skills?.[id] ?? 0; }
   get cdr() { return 1 - (this.p.stats.cdr ?? 0); }
   update(dt, inp) {

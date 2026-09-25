@@ -11,7 +11,8 @@ export const SORCERERS = {
 export const SORCERER_IDS = Object.keys(SORCERERS);
 
 const KITS = {};
-export function registerKit(id, cls) { KITS[id] = cls; }
+export const SKILL_TREES = {};
+export function registerKit(id, cls, skills = []) { KITS[id] = cls; SKILL_TREES[id] = skills; }
 export function createKit(player) {
   const K = KITS[player.sorcerer] || Kit;
   return new K(player);

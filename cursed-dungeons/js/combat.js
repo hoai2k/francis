@@ -37,6 +37,12 @@ export class Combat {
     const g = this.game;
     if (!e || e.dead) return 0;
     let dmg = base * (src?.stats?.damage ?? 1) * (o.mult ?? 1);
+    if (src?.isPlayer) {
+      dmg *= o.melee ? (src.stats.meleeMult ?? 1) : (src.stats.techMult ?? 1);
+      if (src.stats.committed && e.maxHp) dmg *= 1 + src.stats.committed * (1 - Math.max(0, e.hp) / e.maxHp);
+      if (src.weaponPierce && o.melee) o.unblockable = true;
+      if (src.rampageT > 0 && o.melee) dmg *= 1.05;
+    }
     const crit = o.crit ?? (Math.random() < (src?.stats?.crit ?? 0.05));
     if (crit) dmg *= o.critMult ?? 2;
     if (o.blackFlash) dmg *= 2.5;
@@ -44,7 +50,10 @@ export class Combat {
     const dealt = e.takeDamage(dmg, src, { ...o, crit });
     if (dealt > 0) {
       g.stats && (g.stats.damage += dealt);
+      e.lastAttacker = src; e.lastHitT = g.time;
       if (src && src.isPlayer) {
+        (e.hitBy || (e.hitBy = new Map())).set(src, g.time);
+        if (src.procs?.freeze && o.melee) e.slowT = 1 + src.procs.freeze * 0.4;
         src.gainCE?.(o.ceGain ?? dealt * 0.08);
         if (src.stats.lifesteal) src.heal?.(dealt * src.stats.lifesteal, true);
         src.onHitEnemy?.(e, dealt, o);
@@ -67,7 +76,7 @@ export class Combat {
       for (const e of targets) g.fx.sureHitStrike(e, p);
     }
     let hit = 0;
-    const bf = p.blackFlashReady?.(step) ?? false;
+    const bf = p.kit?.blackFlashReady?.(step) ?? false;
     for (const e of targets) {
       const kdir = v1.subVectors(e.pos, p.pos).setY(0).normalize();
       const dealt = this.damageEnemy(e, step.dmg * (p.weaponMult ?? 1), p, {
@@ -75,13 +84,19 @@ export class Combat {
       });
       if (dealt > 0) {
         hit++;
+        if (p.weaponTwin && !e.dead) { const ee = e; setTimeout(() => { if (!ee.dead) this.damageEnemy(ee, step.dmg * 0.45, p, { melee: true, stagger: 0.05, color: '#bfe8ff' }); }, 90); }
         const hp = e.pos.clone(); hp.y += e.height * 0.55;
         g.fx.hitSpark(hp, kdir, { color: bf ? 0xff2020 : step.sparkColor ?? p.rig.look?.accent ?? 0xffe0a0, big: step.ring || bf, crit: false });
-        p.onMeleeHit?.(e, step, dealt, bf);
+        p.kit?.onMeleeHit?.(e, step, dealt, bf);
       }
     }
     // destructible scenery in the arc
     this.hitBlocks(p.pos, dir, step.range, step.arc, step.dmg * 1.5, p);
+    p.meleeCount = (p.meleeCount ?? 0) + (hit ? 1 : 0);
+    if (hit && p.procs?.swirl && p.meleeCount % 3 === 0) {
+      this.aoe(p.pos, 3.2, step.dmg * (0.4 + p.procs.swirl * 0.2), p, { melee: true, knock: 5, stagger: 0.2, blocks: false });
+      g.fx.slashArc(p.pos, p.facing, 0xbfe8ff, 3.2, 1, 0.25);
+    }
     if (hit) {
       g.hitStop(step.stop * (bf ? 3 : 1) + Math.min(0.03, hit * 0.006));
       g.shake(step.shake * (bf ? 2.2 : 1));

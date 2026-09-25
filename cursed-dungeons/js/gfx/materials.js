@@ -42,9 +42,9 @@ function domainLook(albedo) {
   const garE = vec3(0.1, 0.1, 0.25).mul(smoothstep(0.6, 1.0, sin(p.x.mul(0.8).add(p.z.mul(0.6)).add(U.time.mul(1.5))))).mul(0.4);
   // 4: fire / 5: resonance
   const fireC = vec3(0.12, 0.03, 0.02).mul(lum.add(0.4));
-  const fireE = vec3(1.6, 0.5, 0.1).mul(edge).mul(sin(U.time.mul(4).add(h.mul(20))).mul(0.3).add(0.7));
-  const resC = vec3(0.5, 0.32, 0.18).mul(lum.add(0.4));
-  const resE = vec3(1.2, 0.6, 0.2).mul(step(0.99, h)).add(vec3(0.3, 0.12, 0.02).mul(edge));
+  const fireE = vec3(0.7, 0.2, 0.04).mul(edge).mul(sin(U.time.mul(4).add(h.mul(20))).mul(0.3).add(0.7)).add(vec3(1.2, 0.4, 0.1).mul(step(0.993, h)));
+  const resC = vec3(0.16, 0.08, 0.05).mul(lum.add(0.5));
+  const resE = vec3(1.4, 0.5, 0.15).mul(step(0.992, h)).mul(sin(U.time.mul(5).add(h.mul(30))).mul(0.5).add(0.5)).add(vec3(0.18, 0.05, 0.01).mul(edge));
   const sel = (i) => step(i - 0.5, t).mul(step(t, i + 0.5));
   const col = voidC.mul(sel(1)).add(shrC.mul(sel(2))).add(garC.mul(sel(3))).add(fireC.mul(sel(4))).add(resC.mul(sel(5)));
   const emi = voidE.mul(sel(1)).add(shrE.mul(sel(2))).add(garE.mul(sel(3))).add(fireE.mul(sel(4))).add(resE.mul(sel(5)));

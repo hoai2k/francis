@@ -8,6 +8,8 @@ import { buildSorcererModel } from './models.js';
 import { damp, dampAngle, clamp } from '../util.js';
 import { BASE_COMBO } from '../combat.js';
 import { createKit } from '../sorcerers/index.js';
+import { applyGear } from '../loot.js';
+import { useArtifact } from '../artifacts.js';
 
 export const PLAYER_COLORS = ['#4fc8ff', '#ff5a6a', '#7aff7a', '#ffc94a'];
 
@@ -38,8 +40,20 @@ export class Player {
     this.healCharges = 3; this.healMax = 3; this.healCd = 0;
     this.downT = 0; this.reviveProgress = 0;
     this.slowT = 0;
+    this.procs = {}; this.artifacts = [];
+    this.skills = game.save ? game.save.sorc(sorcerer).skills : {};
+    applyGear(this, game.save ? game.save.gearFor(sorcerer) : []);
+    this.hp = this.maxHp;
     this.kit = createKit(this);
     this.heroLight = game.lights.attach(this.object, 0xffe8d0, 1.6, 7, { offsetY: 2.2, priority: 6 });
+  }
+  // Re-apply gear/skills (after inventory or skill-tree changes).
+  refreshLoadout() {
+    const g = this.game;
+    this.skills = g.save ? g.save.sorc(this.sorcerer).skills : {};
+    applyGear(this, g.save ? g.save.gearFor(this.sorcerer) : []);
+    this.kit.dispose?.();
+    this.kit = createKit(this);
   }
   // ---------------------------------------------------------------- vitals
   gainCE(a) { if (this.domainActive) return; this.ce = Math.min(this.maxCe, this.ce + a * this.stats.ceGain); }
@@ -53,7 +67,7 @@ export class Player {
     if (this.dead || this.downed) return 0;
     if (!o.pure && (this.iframes > 0 || this.invulnerable)) return 0;
     if (this.kit.onIncoming) { const r = this.kit.onIncoming(amount, src, o); if (r === 0) return 0; if (typeof r === 'number') amount = r; }
-    const dmg = amount * (o.pure ? 1 : (1 - this.stats.armor)) * (g.difficultyDamageDealt ?? 1);
+    const dmg = amount * (o.pure ? 1 : (1 - this.stats.armor)) * (g.difficultyDamageDealt ?? 1) * (this.barrierT > 0 ? 0.5 : 1);
     this.hp -= dmg;
     this.hurtT = 0.12;
     this.rig.swap(g.flashMaterial);
@@ -97,6 +111,12 @@ export class Player {
     else this.attackBuffer -= dt;
     if (inp.held.attack) this.attackHeldT = (this.attackHeldT ?? 0) + dt; else this.attackHeldT = 0;
     if (inp.pressed.heal) this.useHeal();
+    this.barrierT = Math.max(0, (this.barrierT ?? 0) - dt); this.rampageT = Math.max(0, (this.rampageT ?? 0) - dt);
+    this.artifacts.forEach((art, i) => {
+      art.cdLeft = Math.max(0, art.cdLeft - dt);
+      if (inp.pressed['art' + (i + 1)] && art.cdLeft <= 0 && this.dodgeT <= 0 && !(this.action && this.action.lock)) { art.cdLeft = art.cd * (1 - this.stats.cdr); useArtifact(g, this, art); }
+    });
+    if (this.barrierT > 0 && Math.random() < 0.4) g.particles.glow.emit(this.pos.x + (Math.random() - 0.5) * 1.2, this.pos.y + Math.random() * 2, this.pos.z + (Math.random() - 0.5) * 1.2, 0, 0.5, 0, 0.6, 2, 1.8, 0.8, 0.1, 0, 1, 1, 1);
     const a = this.action;
     // chain / start melee
     const canChain = !a || a.type === 'hit' || (a.type === 'attack' && a.t >= (a.step.chainAt ?? 0.62)) || a.type === 'sign';
@@ -119,7 +139,7 @@ export class Player {
     if (this.action && this.action.type === 'attack') {
       const st = this.action.step, k = this.action.t;
       // lunge during strike window
-      const lunge = k > st.windup * 0.8 && k < st.strike + 0.1 ? st.lunge : 0;
+      const lunge = k > (st.windup ?? 0.3) * 0.8 && k < (st.strike ?? 0.5) + 0.1 ? (st.lunge ?? 0) : 0;
       this.action.root = new THREE.Vector3(Math.sin(this.facing), 0, Math.cos(this.facing)).multiplyScalar(lunge).addScaledVector(this.moveIntent || new THREE.Vector3(), 1.4);
     }
     this.kit.update?.(dt, inp);
@@ -134,7 +154,7 @@ export class Player {
       if (d < bd && Math.abs(Math.atan2(Math.sin(Math.atan2(dx, dz) - this.facing), Math.cos(Math.atan2(dx, dz) - this.facing))) < 0.9) { bd = d; best = e; }
     }
     if (best) { this.facing = Math.atan2(best.pos.x - this.pos.x, best.pos.z - this.pos.z); step = { ...step, lunge: step.lunge * Math.min(1.6, Math.max(0.2, (bd - 1.2) / 1.6)) }; }
-    this.action = { type: 'attack', step, style: step.style, dur: step.dur / (this.stats.attackSpeed ?? 1), elapsed: 0, t: 0, windup: step.windup, strike: step.strike, struck: false, step: step, idx, moveScale: 0.25 };
+    this.action = { type: 'attack', step, style: step.style, dur: step.dur / ((this.stats.attackSpeed ?? 1) * (this.rampageT > 0 ? 1 + (this.procs.rampage ?? 0) * 0.1 : 1)), elapsed: 0, t: 0, windup: step.windup, strike: step.strike, struck: false, step: step, idx, moveScale: 0.25 };
     this.comboT = step.dur + 0.35;
     this.game.audio?.swing(idx);
   }
@@ -207,6 +227,7 @@ export class Player {
     this.vel.x = damp(this.vel.x, want.x, accel, dt);
     this.vel.z = damp(this.vel.z, want.z, accel, dt);
     moveEntity(this, g.world, dt);
+    if (!Number.isFinite(this.pos.x + this.pos.y + this.pos.z + this.vel.x + this.vel.z)) { this.pos.copy(this.safePos); this.vel.set(0, 0, 0); this.knock?.set(0, 0, 0); }
     // pits: fell out of the world → respawn at last safe spot
     if (this.pos.y < -6) this.fellOff();
     if (this.grounded && !this.inLiquid) {

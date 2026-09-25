@@ -50,10 +50,49 @@ class RingPool {
   }
 }
 
+// Thin additive quads for Dismantle/Cleave slashes and sure-hit cuts.
+class SlashPool {
+  constructor(scene, n = 32) {
+    this.items = [];
+    for (let i = 0; i < n; i++) {
+      const col = uniform(new THREE.Color()), a = uniform(0);
+      const m = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false });
+      const v = uv();
+      const edge = smoothstep(0.5, 0.0, abs(v.y.sub(0.5))).mul(smoothstep(0.0, 0.15, v.x)).mul(smoothstep(1.0, 0.7, v.x));
+      m.colorNode = vec4(vec3(col).mul(edge.mul(a).mul(4)), 1);
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1).translate(0.5, 0, 0), m);
+      mesh.visible = false; mesh.frustumCulled = false; mesh.renderOrder = 25;
+      scene.add(mesh);
+      this.items.push({ mesh, col, a, t: 0, dur: 0.2, active: false });
+    }
+    this.i = 0;
+  }
+  spawn(from, dir, len, width, color, dur = 0.2, roll = 0) {
+    const it = this.items[this.i]; this.i = (this.i + 1) % this.items.length;
+    it.active = true; it.t = 0; it.dur = dur; it.col.value.set(color);
+    const m = it.mesh; m.visible = true;
+    m.position.copy(from);
+    m.scale.set(len, width, 1);
+    m.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), dir.clone().normalize());
+    m.rotateX(Math.PI / 2 + roll);
+    return it;
+  }
+  update(dt) {
+    for (const it of this.items) {
+      if (!it.active) continue;
+      it.t += dt; const k = it.t / it.dur;
+      it.a.value = Math.max(0, 1 - k) * Math.min(1, k * 8);
+      it.mesh.scale.y *= 0.9;
+      if (k >= 1) { it.active = false; it.mesh.visible = false; }
+    }
+  }
+}
+
 export class Effects {
   constructor(game) {
     this.game = game;
     const scene = game.scene;
+    this.slashes = new SlashPool(scene, 40);
     this.rings = new RingPool(scene, 24, true);
     this.arcs = new RingPool(scene, 16, true);
     this.darkRings = new RingPool(scene, 8, false);
@@ -141,6 +180,14 @@ export class Effects {
     this.darkRings.spawn(tmp.set(at.x, this.groundY(at) + 0.08, at.z), { color: 0x000000, r1: 4.5, dur: 0.45, thick: 0.3 });
     this.rings.spawn(tmp.set(at.x, this.groundY(at) + 0.1, at.z), { color: 0xff1020, r1: 5, dur: 0.5, thick: 0.08 });
   }
+  slashLine(from, dir, len, color = 0xffffff, width = 0.35, dur = 0.2, roll = 0) { return this.slashes.spawn(from, dir, len, width, color, dur, roll); }
+  // An X of two slashes across a target (Cleave / Malevolent Shrine)
+  slashX(center, size, color = 0xff3a3a) {
+    for (const r of [0.8, -0.8]) {
+      const d = new THREE.Vector3(Math.cos(r), 0.9 * Math.sign(r), Math.sin(r)).normalize();
+      this.slashes.spawn(center.clone().addScaledVector(d, -size / 2), d, size, 0.25, color, 0.22);
+    }
+  }
   sureHitStrike(e, p) {
     const c = tmp.set(e.pos.x, e.pos.y + e.height * 0.6, e.pos.z);
     const col = new THREE.Color(p.rig.look?.accent ?? 0xffffff);
@@ -180,7 +227,7 @@ export class Effects {
   }
 
   update(dt, realDt) {
-    this.rings.update(dt); this.arcs.update(dt); this.darkRings.update(dt);
+    this.rings.update(dt); this.arcs.update(dt); this.darkRings.update(dt); this.slashes.update(dt);
     // screen grading pulses use real time so they still play during hit-stop
     if (this.flashT > 0) { this.flashT -= realDt; Grade.flash.value.w = Math.max(0, this.flashT / this.flashDur) * this.flashAmt; } else Grade.flash.value.w = 0;
     if (this.bfT > 0) { this.bfT -= realDt; Grade.blackFlash.value = this.bfT > 0 ? 1 : 0; }
