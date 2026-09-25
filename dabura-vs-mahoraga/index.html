@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Dabura vs Mahoraga</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@900&display=swap&text=%E3%82%AB%E3%83%80%E3%83%90%E3%83%96%E3%83%A9%E3%83%BB%E5%85%AB%E5%89%A3%E5%8D%81%E5%8F%8D%E5%9F%9F%E5%B0%86%E5%B1%95%E5%BD%B1%E6%88%92%E6%8F%A1%E6%B3%95%E7%95%B0%E7%A5%9E%E7%A8%AE%E7%BE%85%E8%99%9A%E8%A1%93%E8%BB%A2%E9%96%8B%E9%A0%98%E9%AD%94" rel="stylesheet">
+<link rel="stylesheet" href="./style.css">
+</head>
+<body>
+<main>
+  <h1>Dabura vs Mahoraga</h1>
+  <div id="stage">
+    <canvas id="c" aria-label="Minecraft-style Dabura vs Mahoraga fight animation"></canvas>
+    <div id="overlay">
+      <button id="bigPlay" class="mc-btn big">▶ PLAY</button>
+      <p id="hint">2 minute fan animation, alternate ending · turn your sound up 🔊</p>
+    </div>
+  </div>
+  <div id="controls">
+    <button id="play" class="mc-btn" aria-label="Play or pause">▶</button>
+    <input id="scrub" type="range" min="0" max="120" step="0.01" value="0" aria-label="Timeline">
+    <span id="time">0:00</span>
+    <button id="mute" class="mc-btn" aria-label="Toggle sound">🔊</button>
+    <button id="fs" class="mc-btn" aria-label="Fullscreen">⛶</button>
+  </div>
+  <p class="keys">Space play/pause · ←/→ seek · R restart · M mute · F fullscreen</p>
+</main>
+<script src="./js/core.js"></script>
+<script src="./js/models.js"></script>
+<script src="./js/audio.js"></script>
+<script src="./js/chars.js"></script>
+<script src="./js/shots.js"></script>
+<script src="./js/main.js"></script>
+</body>
+</html>
