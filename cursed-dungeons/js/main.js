@@ -58,6 +58,7 @@ class Game {
     this.players = []; this.enemies = []; this.allies = [];
     this.time = 0; this.hitstop = 0; this.slowmo = 0; this.slowmoScale = 1;
     this.paused = false; this.state = 'loading';
+    this.wipeLeft = 0;
     this.interactables = [];
     this.flashMaterial = FLASH_MATERIAL;
     this.toast = toast;
@@ -136,6 +137,7 @@ class Game {
   // ---------------------------------------------------------------- front-end flow
   toTitle() {
     this.state = 'title';
+    this.wipeLeft = 0;
     this.hud.show(false); this.touch?.show(false);
     for (const p of this.players) this.removePlayer(p);
     this.players = [];
@@ -186,6 +188,7 @@ class Game {
   }
   // ---------------------------------------------------------------- level lifecycle
   clearLevel() {
+    this.wipeLeft = 0;
     this.domainSys?.end();
     if (this.world) { this.scene.remove(this.world.group); this.world.group.traverse((o) => o.geometry?.dispose()); }
     if (this.shafts) this.scene.remove(this.shafts.group);
@@ -218,9 +221,12 @@ class Game {
     this.audio.setAmbience(biome.ambience);
   }
   placePlayers(at) {
+    this.wipeLeft = 0;
     this.players.forEach((p, i) => {
       p.spawn(at.clone().add(new THREE.Vector3((i % 2) * 1.4 - 0.7 * (i > 0), 0, Math.floor(i / 2) * 1.4)));
-      p.hp = p.maxHp; p.dead = false; p.downed = false; p.deadT = 0; p.action = null; p.healCharges = p.healMax;
+      p.hp = p.maxHp; p.dead = false; p.downed = false; p.deadT = 0; p.downT = 0; p.reviveProgress = 0;
+      p.action = null; p.healCharges = p.healMax; p.iframes = 2; p.knock?.set(0, 0, 0);
+      p.hurtT = 0; p.rig.swap(null);
       p.rig.hips.rotation.x = 0;
     });
     this.rig.snap(at);
@@ -416,9 +422,15 @@ class Game {
     this.save.write();
   }
   onPlayerDied(p) {
-    if (!this.players.every((q) => q.dead)) return;
-    if (this.mode === 'mission') setTimeout(() => this.showResults(false), 1800);
-    else setTimeout(() => { this.placePlayers(this.level.spawn); toast('Revived'); }, 2500);
+    if (this.wipeLeft > 0 || !this.players.length || !this.players.every((q) => q.dead || q.downed)) return;
+    for (const q of this.players) if (q.downed) { q.downed = false; q.dead = true; q.deadT = 0; }
+    this.wipeLeft = 2.5;
+    toast('Party defeated — respawning', 'big');
+  }
+  updateWipe(dt) {
+    if (this.wipeLeft <= 0 || this.paused || this.state !== 'playing') return;
+    this.wipeLeft -= dt;
+    if (this.wipeLeft <= 0) { this.placePlayers(this.level.spawn); toast('Revived', 'big'); }
   }
 
   setReadout(on) { this.readoutOn = on; document.getElementById('readout').classList.toggle('hidden', !on); }
@@ -503,6 +515,7 @@ class Game {
     if (this.paused) dt = 0;
     else if (this.hitstop > 0) { this.hitstop -= realDt; dt = 0; }
     else if (this.slowmo > 0) { this.slowmo -= realDt; dt *= this.slowmoScale; }
+    this.updateWipe(realDt);
     this.time += dt;
     U.time.value = this.time;
     if (!this.paused) {

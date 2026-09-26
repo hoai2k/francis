@@ -87,7 +87,8 @@ item.
 **Local co-op:** keyboard + mouse plus up to three controllers (or four
 controllers) share one camera. Press **Start** on a controller at any time
 to drop in. A player who goes down can be revived by a teammate standing
-next to them.
+next to them. If the whole party goes down, everyone respawns together at
+the current board's starting point after a short delay.
 
 Press **F3** to show the corner readout (quality mode, backend, FPS and
 render scale).
