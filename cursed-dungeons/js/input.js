@@ -76,7 +76,16 @@ export class Input {
     const ml = Math.hypot(mx, my) || 1;
     this.setState('kbm', { move: { x: mx / ml, y: my / ml }, aimStick: null, mouse: true, held: kb });
     // gamepads
-    for (const p of this.pads()) {
+    const connected = this.pads();
+    const connectedIds = new Set(connected.map((p) => 'pad' + p.index));
+    for (const [id] of this.state) {
+      if (id.startsWith('pad') && !connectedIds.has(id)) {
+        this.setState(id, { move: { x: 0, y: 0 }, aimStick: null, mouse: false, held: blank() });
+        if (this._padPrev) delete this._padPrev[id];
+      }
+    }
+    if (this.lastDevice.startsWith('pad') && !connectedIds.has(this.lastDevice)) this.lastDevice = 'kbm';
+    for (const p of connected) {
       const id = 'pad' + p.index;
       const held = blank();
       p.buttons.forEach((b, i) => { const a = PADMAP[i]; if (a && (b.pressed || b.value > 0.5)) held[a] = true; });
@@ -110,6 +119,7 @@ export class Input {
     if (edge('ArrowLeft') || edge('KeyA')) out.left = true; if (edge('ArrowRight') || edge('KeyD')) out.right = true;
     if (edge('Enter')) { out.confirm = true; out.device = 'kbm'; }
     if (edge('Escape') || edge('Backspace')) out.back = true;
+    out.keyboard = { up: out.up, down: out.down, left: out.left, right: out.right, confirm: out.confirm, back: out.back };
     this._menuPrevKeys = new Set(k);
     this._padPrev = this._padPrev || {};
     for (const p of this.pads()) {

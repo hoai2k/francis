@@ -28,7 +28,7 @@ export function openTitle(game) {
 // ------------------------------------------------------------------ character select
 export function openSelect(game) {
   const ui = game.ui;
-  const slots = game.selectSlots = game.selectSlots ?? [{ device: game.input.lastDevice === 'touch' || isMobile ? 'touch' : game.input.lastDevice?.startsWith('pad') ? game.input.lastDevice : 'kbm', char: SORCERER_IDS.indexOf(game.save.data.lastSorcerer) < 0 ? 0 : SORCERER_IDS.indexOf(game.save.data.lastSorcerer), ready: false }];
+  const slots = game.selectSlots = [{ device: game.input.lastDevice === 'touch' || isMobile ? 'touch' : game.input.lastDevice?.startsWith('pad') ? game.input.lastDevice : 'kbm', char: SORCERER_IDS.indexOf(game.save.data.lastSorcerer) < 0 ? 0 : SORCERER_IDS.indexOf(game.save.data.lastSorcerer), ready: false }];
   game.enterSelectView?.(slots);
   const render = (el) => {
     const top = h('div', { class: 'select-top' }, 'CHOOSE YOUR SORCERER');
@@ -44,10 +44,11 @@ export function openSelect(game) {
         h('div', { class: 'cn', style: `color:${info.color}` }, info.name.toUpperCase()),
         h('div', { style: 'font-size:12px;color:#ddd' }, info.title + ' · Domain: ' + info.domain),
         h('div', { class: 'cd' }, info.desc),
-        i === 0 ? h('div', { class: 'arrows' },
+        h('div', { class: 'arrows' },
           h('button', { class: 'btn small', onclick: () => { s.char = (s.char + SORCERER_IDS.length - 1) % SORCERER_IDS.length; s.ready = false; game.enterSelectView?.(slots); ui.refresh('select'); } }, '◀'),
           h('span', { style: 'font-size:12px;color:#aaa' }, `Lv ${lvl}`),
-          h('button', { class: 'btn small', onclick: () => { s.char = (s.char + 1) % SORCERER_IDS.length; s.ready = false; game.enterSelectView?.(slots); ui.refresh('select'); } }, '▶')) : h('div', { class: 'hint' }, s.ready ? 'READY' : '◀ ▶ choose · A ready · B leave')));
+          h('button', { class: 'btn small', onclick: () => { s.char = (s.char + 1) % SORCERER_IDS.length; s.ready = false; game.enterSelectView?.(slots); ui.refresh('select'); } }, '▶')),
+        i > 0 ? h('div', { class: 'hint' }, s.ready ? 'READY' : '◀ ▶ choose · A ready · B leave') : null));
     }
     const bottom = h('div', { class: 'row', style: 'justify-content:center' },
       h('button', { class: 'btn', onclick: () => { ui.close('select'); game.exitSelectView?.(); openTitle(game); } }, 'Back'),
@@ -61,26 +62,34 @@ export function openSelect(game) {
     game.beginSession(slots.map((s) => ({ device: s.device, sorcerer: SORCERER_IDS[s.char] })));
   };
   // gamepads: A/Start to join, stick to change, B to leave
-  const prev = {};
+  const readPad = (pad) => ({ a: !!pad.buttons[0]?.pressed, b: !!pad.buttons[1]?.pressed, s: !!pad.buttons[9]?.pressed, l: !!pad.buttons[14]?.pressed || pad.axes[0] < -0.6, r: !!pad.buttons[15]?.pressed || pad.axes[0] > 0.6 });
+  // Carry over buttons held on the title screen so Start cannot immediately
+  // skip character select on the next frame.
+  const prev = Object.fromEntries(game.input.pads().map((pad) => ['pad' + pad.index, readPad(pad)]));
   ui.open('select', render, {
     onNav: (m) => {
+      // The shared menu focus is for keyboard navigation. Each gamepad owns
+      // its slot, including P1; A/B/stick must never click a focused button.
+      Object.assign(m, m.keyboard, { start: false, device: m.keyboard.confirm ? 'kbm' : null });
       for (const pad of game.input.pads()) {
         const id = 'pad' + pad.index;
-        const b = { a: pad.buttons[0]?.pressed, b: pad.buttons[1]?.pressed, s: pad.buttons[9]?.pressed, l: pad.buttons[14]?.pressed || pad.axes[0] < -0.6, r: pad.buttons[15]?.pressed || pad.axes[0] > 0.6 };
+        const b = readPad(pad);
         const p = prev[id] || {}; prev[id] = b;
         let slot = slots.find((s) => s.device === id);
         if (!slot && (b.a && !p.a || b.s && !p.s) && slots.length < 4 && !(slots.length === 1 && slots[0].device === id)) {
-          if (slots.length === 1 && slots[0].device === 'kbm' && game.input.lastDevice === id && !slots[0].touched) { slots[0].device = id; }
-          else slots.push({ device: id, char: slots.length % SORCERER_IDS.length, ready: false });
+          slots.push({ device: id, char: slots.length % SORCERER_IDS.length, ready: false });
           game.audio?.ui('buy'); game.enterSelectView?.(slots); ui.refresh('select'); continue;
         }
-        if (!slot || slots.indexOf(slot) === 0) continue;
+        if (!slot) continue;
         if (b.l && !p.l) { slot.char = (slot.char + SORCERER_IDS.length - 1) % SORCERER_IDS.length; slot.ready = false; game.enterSelectView?.(slots); ui.refresh('select'); }
         if (b.r && !p.r) { slot.char = (slot.char + 1) % SORCERER_IDS.length; slot.ready = false; game.enterSelectView?.(slots); ui.refresh('select'); }
         if (b.a && !p.a) { slot.ready = !slot.ready; ui.refresh('select'); }
-        if (b.b && !p.b) { slots.splice(slots.indexOf(slot), 1); game.enterSelectView?.(slots); ui.refresh('select'); }
+        if (b.b && !p.b) {
+          if (slot === slots[0]) { ui.close('select'); game.exitSelectView?.(); openTitle(game); return; }
+          slots.splice(slots.indexOf(slot), 1); game.enterSelectView?.(slots); ui.refresh('select');
+        }
+        if (b.s && !p.s && slot === slots[0]) { start(); return; }
       }
-      if (m.start && m.device === slots[0].device) start();
     },
     onBack: () => { ui.close('select'); game.exitSelectView?.(); openTitle(game); },
   });

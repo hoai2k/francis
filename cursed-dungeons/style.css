@@ -67,6 +67,8 @@ button { font-family: var(--font); }
 /* ---------- HUD ---------- */
 #hud { position: fixed; inset: 0; pointer-events: none; z-index: 20; }
 .pcards { position: absolute; left: calc(12px + var(--safe-l)); bottom: calc(12px + var(--safe-b)); display: flex; gap: 10px; align-items: flex-end; }
+.pcards.multi { flex-direction: column; align-items: flex-start; gap: 5px; }
+.pcards.multi .pcard { width: 210px; }
 .pcard { width: 250px; background: rgba(8, 6, 16, .72); border: 2px solid rgba(255, 255, 255, .12); padding: 7px 8px 8px; border-left: 4px solid var(--pc, #4fc8ff); }
 .pcard .name { font: 700 12px var(--head); letter-spacing: 1px; display: flex; justify-content: space-between; margin-bottom: 4px; }
 .bar { position: relative; height: 14px; background: #1a0a10; border: 2px solid #000; margin-top: 3px; overflow: hidden; }
@@ -77,6 +79,15 @@ button { font-family: var(--font); }
 @keyframes shimmer { to { background-position: 200% 0; } }
 .bar span { position: relative; z-index: 2; font: 600 10px var(--font); padding-left: 4px; line-height: 10px; text-shadow: 0 1px 0 #000; }
 .abilities { position: absolute; left: 50%; bottom: calc(14px + var(--safe-b)); transform: translateX(-50%); display: flex; gap: 8px; }
+.ability-row { display: flex; align-items: center; gap: 6px; border-left: 3px solid var(--pc); padding-left: 5px; }
+.ability-player { display: none; }
+.ability-icons { display: flex; align-items: center; gap: 8px; }
+.abilities.multi { left: auto; right: calc(12px + var(--safe-r)); bottom: calc(68px + var(--safe-b)); transform: none; flex-direction: column; align-items: flex-end; gap: 4px; }
+.abilities.multi .ability-player { display: block; width: 95px; font: 700 11px var(--head); color: var(--pc); text-align: right; }
+.abilities.multi .ability-icons { gap: 4px; }
+.abilities.multi .ab { width: 42px; height: 42px; font-size: 20px; border-width: 2px; }
+.abilities.multi .ab.ult { width: 48px; height: 48px; }
+.abilities.multi .ab .lbl { font-size: 7px; }
 .ab { position: relative; width: 58px; height: 58px; background: rgba(10, 8, 20, .82); border: 3px solid #2a2140; display: grid; place-items: center; font-size: 26px; overflow: hidden; }
 .ab .cd { position: absolute; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, .7); }
 .ab .key { position: absolute; left: 2px; top: 0; font: 10px var(--font); color: var(--dim); }
@@ -175,6 +186,12 @@ button { font-family: var(--font); }
 
 @media (max-width: 720px), (max-height: 520px) {
   .pcard { width: 170px; padding: 5px; }
+  .pcards.multi .pcard { width: 150px; }
+  .abilities.multi .ability-player { width: 54px; font-size: 9px; }
+  .abilities.multi .ability-icons { gap: 2px; }
+  .abilities.multi .ab { width: 32px; height: 34px; font-size: 16px; }
+  .abilities.multi .ab.ult { width: 36px; height: 38px; }
+  .abilities.multi .ab .lbl { display: none; }
   .ab { width: 44px; height: 44px; font-size: 20px; }
   .ab.ult { width: 52px; height: 52px; }
   .minimap { width: 110px; height: 110px; }

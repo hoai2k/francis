@@ -28,7 +28,7 @@ export class HUD {
     this.join = h('div', { class: 'join-hint' }, isMobile ? '' : 'Controller: press Start to join'); r.appendChild(this.join);
     this.prompts = new Map();
     this.cardEls = [];
-    this.abEls = null;
+    this.abilityRows = new Map();
   }
   show(on) { this.root.classList.toggle('hidden', !on); }
   rebuildCards() {
@@ -41,10 +41,13 @@ export class HUD {
       this.cards.appendChild(card);
       this.cardEls.push({ p, hpI, hpB, ceI, ce: card.children[2], extra, card, last: {} });
     }
-    this.abEls = null;
+    this.abilityRows.clear();
   }
   buildAbilities(p) {
-    this.abBar.innerHTML = '';
+    const row = h('div', { class: 'ability-row', style: `--pc:${p.color}` });
+    row.appendChild(h('div', { class: 'ability-player' }, `P${p.index + 1} · ${SORCERERS[p.sorcerer].name}`));
+    const icons = h('div', { class: 'ability-icons' });
+    row.appendChild(icons); this.abBar.appendChild(row);
     const pad = p.device.startsWith('pad');
     const keys = pad ? PADKEYS : KEYS;
     const els = {};
@@ -52,14 +55,14 @@ export class HUD {
       const cd = h('div', { class: 'cd' });
       const cnt = h('div', { class: 'cnt' });
       const el = h('div', { class: 'ab' + (ult ? ' ult' : ''), title: ab?.name ?? '' }, h('div', { class: 'key' }, keys[slot] ?? ''), h('span', {}, ab?.icon ?? '·'), cnt, cd, h('div', { class: 'lbl' }, ab?.name ?? ''));
-      this.abBar.appendChild(el); els[slot] = { el, cd, cnt, ab };
+      icons.appendChild(el); els[slot] = { el, cd, cnt, ab };
     };
     const k = p.kit;
     for (const slot of ['ranged', 't1', 't2', 't3']) if (k.slots[slot]) mk(slot, k.slots[slot]);
     mk('heal', { name: 'Reverse CT', icon: '✚' });
     p.artifacts.forEach((a, i) => mk('art' + (i + 1), { name: a.base.name.split(' ').slice(-1)[0], icon: a.base.icon }));
     if (k.domain) mk('domain', { name: k.domain.name, icon: k.domain.icon ?? '領' }, true);
-    this.abEls = { p, els, device: p.device };
+    this.abilityRows.set(p, { p, els, device: p.device, kit: p.kit, sig: p.artifacts.map((a) => a.it.uid).join() });
   }
   setObjective(title, desc) {
     this.obj.classList.toggle('hidden', !title);
@@ -92,14 +95,19 @@ export class HUD {
       const ex = p.dead ? '✖ DOWN' : p.downed ? `REVIVE ${Math.ceil(p.downT)}s` : `✚${p.healCharges}`;
       if (c.last.ex !== ex) { c.extra.textContent = ex; c.last.ex = ex; }
     }
-    // ability bar tracks the keyboard player (or P1)
-    const main = g.players.find((p) => p.device === 'kbm') || g.players[0];
-    const sig = main ? main.artifacts.map((a) => a.it.uid).join() : '';
-    if (main && (!this.abEls || this.abEls.p !== main || this.abEls.device !== main.device || this.abEls.kit !== main.kit || this.abEls.sig !== sig)) { this.buildAbilities(main); this.abEls.kit = main.kit; this.abEls.sig = sig; }
-    if (this.abEls) {
-      const p = this.abEls.p;
-      for (const slot in this.abEls.els) {
-        const e = this.abEls.els[slot];
+    const stale = this.abilityRows.size !== g.players.length || g.players.some((p) => {
+      const row = this.abilityRows.get(p);
+      return !row || row.device !== p.device || row.kit !== p.kit || row.sig !== p.artifacts.map((a) => a.it.uid).join();
+    });
+    if (stale) {
+      this.abBar.innerHTML = ''; this.abilityRows.clear();
+      this.abBar.classList.toggle('multi', g.players.length > 1);
+      this.cards.classList.toggle('multi', g.players.length > 1);
+      for (const p of g.players) this.buildAbilities(p);
+    }
+    for (const { p, els } of this.abilityRows.values()) {
+      for (const slot in els) {
+        const e = els[slot];
         let frac = 0, ready = true, cnt = '';
         if (slot === 'heal') { frac = p.healCharges > 0 ? p.healCd / 1.2 : 1; ready = p.healCharges > 0; cnt = String(p.healCharges); }
         else if (slot.startsWith('art')) { const a = p.artifacts[+slot[3] - 1]; if (!a) continue; frac = a.cdLeft / (a.cd * (1 - p.stats.cdr)); ready = a.cdLeft <= 0; }
@@ -108,7 +116,7 @@ export class HUD {
         e.cd.style.height = (Math.min(1, frac) * 100).toFixed(0) + '%';
         e.el.classList.toggle('ready', ready);
         if (e.cnt.textContent !== cnt) e.cnt.textContent = cnt;
-        g.touch?.setCooldown(slot, Math.min(1, frac), ready);
+        if (p.device === 'touch') g.touch?.setCooldown(slot, Math.min(1, frac), ready);
       }
     }
     // boss

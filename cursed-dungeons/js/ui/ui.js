@@ -80,6 +80,11 @@ export class UI {
   update() {
     const s = this.top(); if (!s || s.opts.passive) return;
     const m = this.game.input.menu();
+    // A screen may claim device-specific input before it reaches shared focus.
+    // Character select uses this so one controller cannot click another
+    // player's focused button while joining or choosing a sorcerer.
+    s.opts.onNav?.(m);
+    if (this.top() !== s) return;
     const el = this.focusEl;
     const isRange = el && el.tagName === 'INPUT' && el.type === 'range';
     const isSelect = el && el.tagName === 'SELECT';
@@ -92,7 +97,6 @@ export class UI {
       el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true }));
     } else if (m.left) this.move(-1, 0);
     else if (m.right) this.move(1, 0);
-    if (s.opts.onNav) s.opts.onNav(m);
     if (m.confirm && el) {
       if (el.tagName === 'INPUT' && el.type === 'checkbox') { el.checked = !el.checked; el.dispatchEvent(new Event('change', { bubbles: true })); }
       else if (!isRange && !isSelect) { el.click(); }
