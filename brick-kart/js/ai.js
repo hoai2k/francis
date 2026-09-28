@@ -49,14 +49,19 @@ export class AIDriver {
       const di = (bp.i - i + tr.N) % tr.N;
       if (di > 5 && di < 50) { want = bp.lat / tr.HW[bp.i]; break; }
     }
-    // dodge traps on the line ahead
-    for (let a = 8; a < 40; a += 6) {
+    // dodge traps, hazards and obstacles on the line ahead
+    for (let a = 6; a < 44; a += 5) {
       const j = tr.wrap(i + a);
       const p = tr.at(j, this.lane * tr.HW[j], 0);
-      if (this.race.items.dangerNear(p, 4)) { want = this.lane > 0 ? -0.55 : 0.55; break; }
+      if (this.race.items.dangerNear(p, 4) || (sk > 0.3 && this.race.hazards.near(p, 3)) || tr.obstacleAt(p.x, p.y, p.z, 2.4)) {
+        // pick whichever side is clear
+        const alt = [0.6, -0.6, 0, 0.85, -0.85].find((l) => { const q = tr.at(j, l * tr.HW[j], 0); return !tr.obstacleAt(q.x, q.y, q.z, 2.4) && !this.race.hazards.near(q, 2.5); });
+        want = alt ?? (this.lane > 0 ? -0.55 : 0.55);
+        break;
+      }
     }
-    this.laneTarget = Math.max(-0.75, Math.min(0.75, want));
-    this.lane += (this.laneTarget - this.lane) * Math.min(1, dt * 1.6);
+    this.laneTarget = Math.max(-0.85, Math.min(0.85, want));
+    this.lane += (this.laneTarget - this.lane) * Math.min(1, dt * 2.2);
     // line up straight for ramps
     for (const r of tr.ramps) {
       const di = (r.i - i + tr.N) % tr.N;

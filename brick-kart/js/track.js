@@ -53,6 +53,39 @@ function boostTexture() {
   return arrowTex;
 }
 
+let chevTex = null;
+function chevronTexture() {
+  if (chevTex) return chevTex;
+  chevTex = canvasTex(256, 128, (g, w, h) => {
+    g.fillStyle = '#c91a09'; g.fillRect(0, 0, w, h);
+    g.fillStyle = '#f4f4f4';
+    for (let k = 0; k < 3; k++) {
+      const x = 40 + k * 70;
+      g.beginPath(); g.moveTo(x, h / 2); g.lineTo(x + 40, 14); g.lineTo(x + 62, 14); g.lineTo(x + 22, h / 2); g.lineTo(x + 62, h - 14); g.lineTo(x + 40, h - 14); g.closePath(); g.fill();
+    }
+    g.strokeStyle = '#f4f4f4'; g.lineWidth = 8; g.strokeRect(4, 4, w - 8, h - 8);
+  });
+  chevTex.wrapS = chevTex.wrapT = THREE.ClampToEdgeWrapping;
+  return chevTex;
+}
+let glideTex = null;
+function gliderTexture() {
+  if (glideTex) return glideTex;
+  glideTex = canvasTex(128, 256, (g, w, h) => {
+    const gr = g.createLinearGradient(0, 0, 0, h);
+    gr.addColorStop(0, '#1a8cff'); gr.addColorStop(1, '#6ad8ff');
+    g.fillStyle = gr; g.fillRect(0, 0, w, h);
+    g.fillStyle = '#ffffff';
+    for (let i = 0; i < 2; i++) {
+      const y = i * h / 2 + 30;
+      g.beginPath(); g.moveTo(w / 2, y); g.lineTo(w - 8, y + 40); g.lineTo(w / 2, y + 26); g.lineTo(8, y + 40); g.closePath(); g.fill();
+      g.fillRect(w / 2 - 4, y + 20, 8, 50);
+    }
+    g.strokeStyle = '#0a3a8a'; g.lineWidth = 8; g.strokeRect(0, 0, w, h);
+  });
+  return glideTex;
+}
+
 let qTex = null;
 function questionTexture() {
   if (qTex) return qTex;
@@ -76,6 +109,7 @@ export class Track {
     scene.add(this.group);
     this.theme = def.theme;
     this.groundY = def.theme.groundY ?? 0;
+    this.obstacles = [];
     this.sample();
     this.buildGrid();
     this.buildRoad();
@@ -86,6 +120,7 @@ export class Track {
     this.buildBoosts();
     this.buildRamps();
     this.buildStuds();
+    this.buildSigns();
     this.time = 0;
   }
 
@@ -119,7 +154,9 @@ export class Track {
     this.R = new Float32Array(N * 2);
     this.HW = new Float32Array(N);
     this.SH = new Float32Array(N);
-    this.EDGE = new Uint8Array(N);   // 0 wall, 1 void, 2 open (no wall, ground)
+    this.EDGE = new Uint8Array(N);   // 0 wall, 1 void, 2 open (grass, invisible boundary), 3 fence
+    this.BK = new Float32Array(N);   // banking: surface rises by BK per unit of lateral offset
+    this.CURV = new Float32Array(N);
     this.GAP = new Uint8Array(N);
     this.SURF = [];
     this.SUP = [];
@@ -142,10 +179,12 @@ export class Track {
     this.kToIndex = (k) => (kToRaw(k) - start + N) % N;
     // default per-sample attributes, then sections
     const th = def.theme;
+    const EDGES = { wall: 0, void: 1, open: 2, fence: 3 };
+    const bankMul = new Float32Array(N).fill(def.bank ?? 1);
     for (let i = 0; i < N; i++) {
-      this.HW[i] = def.width / 2;
-      this.SH[i] = def.shoulder ?? 6;
-      this.EDGE[i] = { wall: 0, void: 1, open: 2 }[def.edge || 'wall'];
+      this.HW[i] = (def.width ?? 26) / 2;
+      this.SH[i] = def.shoulder ?? 8;
+      this.EDGE[i] = EDGES[def.edge || 'fence'];
       this.SURF[i] = def.surface || 'road';
       this.SUP[i] = th.support || 'pillar';
     }
@@ -156,7 +195,8 @@ export class Track {
         const i = (a + o) % N;
         if (s.width) this.HW[i] = s.width / 2;
         if (s.shoulder !== undefined) this.SH[i] = s.shoulder;
-        if (s.edge) this.EDGE[i] = { wall: 0, void: 1, open: 2 }[s.edge];
+        if (s.edge) this.EDGE[i] = EDGES[s.edge];
+        if (s.bank !== undefined) bankMul[i] = s.bank;
         if (s.gap) this.GAP[i] = 1;
         if (s.surface) this.SURF[i] = s.surface;
         if (s.support) this.SUP[i] = s.support;
@@ -170,6 +210,44 @@ export class Track {
       this.HW[i] = s / 17;
     }
     for (let i = 0; i < N; i++) if (this.EDGE[i] === 1) this.SH[i] = 0;
+    // curvature (rad per unit, >0 = left turn) and banking
+    const yaw = new Float32Array(N);
+    for (let i = 0; i < N; i++) yaw[i] = Math.atan2(this.T[i * 3], this.T[i * 3 + 2]);
+    const step = len / N;
+    const raw2 = new Float32Array(N);
+    for (let i = 0; i < N; i++) {
+      let d = yaw[(i + 6) % N] - yaw[(i - 6 + N) % N];
+      while (d > Math.PI) d -= Math.PI * 2;
+      while (d < -Math.PI) d += Math.PI * 2;
+      this.CURV[i] = d / (12 * step);
+      raw2[i] = Math.max(-0.26, Math.min(0.26, this.CURV[i] * 6.5)) * bankMul[i];
+    }
+    for (let i = 0; i < N; i++) {
+      let s = 0;
+      for (let o = -16; o <= 16; o++) s += raw2[(i + o + N) % N];
+      this.BK[i] = Math.tan(s / 33);
+      if (this.GAP[i]) this.BK[i] = 0;
+    }
+    // lift banked road so its low edge never dips under the ground
+    if (!th.noGround) {
+      const lift = new Float32Array(N);
+      for (let i = 0; i < N; i++) lift[i] = Math.max(0, this.groundY + 0.06 + this.HW[i] * Math.abs(this.BK[i]) - this.P[i * 3 + 1]);
+      const l2 = new Float32Array(N);
+      for (let i = 0; i < N; i++) { let m = 0; for (let o = -14; o <= 14; o++) m = Math.max(m, lift[(i + o + N) % N]); l2[i] = m; }
+      for (let i = 0; i < N; i++) { let s = 0; for (let o = -10; o <= 10; o++) s += l2[(i + o + N) % N]; this.P[i * 3 + 1] += s / 21; }
+      for (let i = 0; i < N; i++) {
+        const a = (i - 1 + N) % N, b = (i + 1) % N;
+        const tx = this.P[b * 3] - this.P[a * 3], ty = this.P[b * 3 + 1] - this.P[a * 3 + 1], tz = this.P[b * 3 + 2] - this.P[a * 3 + 2];
+        const l = Math.hypot(tx, ty, tz);
+        this.T[i * 3] = tx / l; this.T[i * 3 + 1] = ty / l; this.T[i * 3 + 2] = tz / l;
+      }
+    }
+  }
+
+  // road surface height at sample i and lateral offset (banked, flat beyond the road edge)
+  surfaceY(i, lat) {
+    const hw = this.HW[i];
+    return this.P[i * 3 + 1] + Math.max(-hw, Math.min(hw, lat)) * this.BK[i];
   }
 
   px(i) { return this.P[i * 3]; }
@@ -180,7 +258,7 @@ export class Track {
   // world point at sample i, lateral offset, height above road
   at(i, lat = 0, h = 0, out = new THREE.Vector3()) {
     i = this.wrap(Math.round(i));
-    return out.set(this.P[i * 3] + this.R[i * 2] * lat, this.P[i * 3 + 1] + h, this.P[i * 3 + 2] + this.R[i * 2 + 1] * lat);
+    return out.set(this.P[i * 3] + this.R[i * 2] * lat, this.surfaceY(i, lat) + h, this.P[i * 3 + 2] + this.R[i * 2 + 1] * lat);
   }
   yawAt(i) { i = this.wrap(Math.round(i)); return Math.atan2(this.T[i * 3], this.T[i * 3 + 2]); }
 
@@ -252,8 +330,10 @@ export class Track {
     const rx = this.R[i * 2] * (1 - t) + this.R[j * 2] * t, rz = this.R[i * 2 + 1] * (1 - t) + this.R[j * 2 + 1] * t;
     out.i = i; out.t = t;
     out.lat = (x - cx) * rx + (z - cz) * rz;
-    out.y = P[i * 3 + 1] * (1 - t) + P[j * 3 + 1] * t;
     out.hw = this.HW[i] * (1 - t) + this.HW[j] * t;
+    out.bank = this.BK[i] * (1 - t) + this.BK[j] * t;
+    out.y = P[i * 3 + 1] * (1 - t) + P[j * 3 + 1] * t + Math.max(-out.hw, Math.min(out.hw, out.lat)) * out.bank;
+    out.curv = this.CURV[i];
     out.sh = this.SH[i];
     out.edge = this.EDGE[i];
     out.gap = this.GAP[i] || this.GAP[j];
@@ -285,6 +365,19 @@ export class Track {
           g.fillStyle = 'rgba(0,0,0,0.35)'; g.fillRect(i * w / 8, ((i * 37) % 8) * h / 8, w / 8, 3);
         }
       }), roughness: 0.7 });
+    } else if (surf === 'conveyor') {
+      m = new THREE.MeshStandardMaterial({ map: canvasTex(128, 128, (g, w, h) => {
+        g.fillStyle = '#3a3e44'; g.fillRect(0, 0, w, h);
+        g.fillStyle = '#50565e'; for (let y = 0; y < h; y += 16) g.fillRect(0, y, w, 8);
+        g.fillStyle = '#f2cd37'; g.beginPath(); g.moveTo(w / 2, 20); g.lineTo(w - 24, 64); g.lineTo(24, 64); g.closePath(); g.fill();
+      }), roughness: 0.4, metalness: 0.4 });
+      this.conveyorMat = m;
+    } else if (surf === 'water') {
+      m = new THREE.MeshStandardMaterial({ color: 0x6ac8ff, map: roadTexture('#9ad8ff', null, 'rgba(255,255,255,0.35)', false), roughness: 0.05, metalness: 0.1, transparent: true, opacity: 0.8 });
+      this.waterMat = m;
+    } else if (th.surfaces?.[surf]) {
+      const o = th.surfaces[surf];
+      m = new THREE.MeshStandardMaterial({ map: roadTexture(o.base, o.line ?? null, o.seams ?? 'rgba(0,0,0,0.22)', o.dashed ?? false), roughness: o.rough ?? 0.55, metalness: o.metal ?? 0, emissive: o.emissive ?? 0, emissiveIntensity: o.emissiveIntensity ?? 1 });
     } else {
       m = new THREE.MeshStandardMaterial({ map: roadTexture(th.road?.base || '#6b6e70', th.road?.line || '#f4f4f4'), roughness: 0.55, color: 0xffffff });
     }
@@ -335,7 +428,7 @@ export class Track {
         const hw = this.HW[i];
         for (let j = 0; j <= L; j++) {
           const lat = -hw + (2 * hw * j) / L;
-          pos.push(this.px(i) + this.R[i * 2] * lat, this.py(i) + 0.02, this.pz(i) + this.R[i * 2 + 1] * lat);
+          pos.push(this.px(i) + this.R[i * 2] * lat, this.py(i) + lat * this.BK[i] + 0.02, this.pz(i) + this.R[i * 2 + 1] * lat);
           uv.push(j / L, dist / (2 * hw));
           if (run.surf === 'rainbow') {
             const band = Math.min(L - 1, j - (j === L ? 1 : 0));
@@ -367,10 +460,10 @@ export class Track {
         const i = idx[a];
         if (a > 0) { const p = idx[a - 1]; d2 += Math.hypot(this.px(i) - this.px(p), this.pz(i) - this.pz(p)); }
         const hw = this.HW[i], sh = this.SH[i];
-        const y = this.py(i);
         const bank = this.SUP[i] === 'bank';
-        const bottom = bank ? Math.min(this.groundY - 0.5, y - THICK) : y - THICK;
         for (const side of [-1, 1]) {
+          const y = this.py(i) + side * hw * this.BK[i];
+          const bottom = bank ? Math.min(this.groundY - 0.5, y - THICK) : this.py(i) - hw * Math.abs(this.BK[i]) - THICK;
           // shoulder quad strip from hw to hw+sh
           for (const lat of [hw, hw + sh]) {
             sp.push(this.px(i) + this.R[i * 2] * lat * side, y, this.pz(i) + this.R[i * 2 + 1] * lat * side);
@@ -438,7 +531,7 @@ export class Track {
     const placements = [], curbs = [];
     const colors = (th.wall || [C.red, C.white]).map((c) => new THREE.Color(c));
     const curbCols = (th.curb || [C.red, C.white]).map((c) => new THREE.Color(c));
-    const railsL = [];
+    const railsL = [], fences = [];
     for (const side of [-1, 1]) {
       let acc = 0, n = 0, cacc = 0, cn = 0;
       for (let i = 0; i < N; i++) {
@@ -447,10 +540,13 @@ export class Track {
         acc += step; cacc += step;
         if (this.GAP[i]) continue;
         const e = this.EDGE[i];
-        if (e === 0 && acc >= 2) {
+        if (e === 3 && acc >= 4) {
+          acc = 0; n++;
+          fences.push({ i, lat: (this.HW[i] + this.SH[i] + 0.4) * side, n });
+        } else if (e === 0 && acc >= 2) {
           acc = 0; n++;
           const lat = (this.HW[i] + this.SH[i] + 0.5) * side;
-          for (let row = 0; row < (th.wallRows ?? 2); row++) {
+          for (let row = 0; row < (th.wallRows ?? 1); row++) {
             const off = (row % 2) ? 1 : 0;
             placements.push({ i, lat, y: row * 1.2, off, c: colors[(n + row) % colors.length] });
           }
@@ -466,7 +562,7 @@ export class Track {
     const Y = new THREE.Vector3(0, 1, 0);
     if (placements.length) {
       // top row gets studs; hidden lower rows are plain boxes
-      const rows = th.wallRows ?? 2;
+      const rows = th.wallRows ?? 1;
       const plainGeo = brickGeometry(2, 1, 3, 1, false);
       for (const top of [true, false]) {
         const list = placements.filter((pl) => (pl.y >= (rows - 1) * 1.2 - 0.01) === top);
@@ -476,7 +572,7 @@ export class Track {
           const i = pl.i;
           const tx = this.T[i * 3], tz = this.T[i * 3 + 2];
           q.setFromAxisAngle(Y, Math.atan2(-tz, tx));
-          p.set(this.px(i) + this.R[i * 2] * pl.lat + tx * pl.off, this.py(i) + pl.y, this.pz(i) + this.R[i * 2 + 1] * pl.lat + tz * pl.off);
+          p.set(this.px(i) + this.R[i * 2] * pl.lat + tx * pl.off, this.surfaceY(i, pl.lat) + pl.y, this.pz(i) + this.R[i * 2 + 1] * pl.lat + tz * pl.off);
           m.compose(p, q, s);
           im.setMatrixAt(k, m);
           im.setColorAt(k, pl.c);
@@ -491,12 +587,44 @@ export class Track {
         const i = c.i;
         const tx = this.T[i * 3], tz = this.T[i * 3 + 2];
         q.setFromAxisAngle(Y, Math.atan2(-tz, tx));
-        p.set(this.px(i) + this.R[i * 2] * c.lat, this.py(i), this.pz(i) + this.R[i * 2 + 1] * c.lat);
+        p.set(this.px(i) + this.R[i * 2] * c.lat, this.surfaceY(i, c.lat), this.pz(i) + this.R[i * 2 + 1] * c.lat);
         m.compose(p, q, s);
         im.setMatrixAt(k, m); im.setColorAt(k, c.c);
       });
       im.receiveShadow = true;
       this.group.add(im);
+    }
+    if (fences.length) {
+      // posts with two rails between consecutive posts on the same side
+      const fc = (th.fence || [C.white, C.red]).map((c) => new THREE.Color(c));
+      const postGeo = brickGeometry(1, 1, 6, 0.8, true, 8);
+      const posts = new THREE.InstancedMesh(postGeo, plastic(0xffffff), fences.length);
+      const railGeo = new THREE.BoxGeometry(1, 1, 1);
+      const rails = [];
+      fences.forEach((f, k) => {
+        p.set(this.px(f.i) + this.R[f.i * 2] * f.lat, this.surfaceY(f.i, f.lat), this.pz(f.i) + this.R[f.i * 2 + 1] * f.lat);
+        m.compose(p, q.identity(), s.set(1, 1, 1));
+        posts.setMatrixAt(k, m); posts.setColorAt(k, fc[0]);
+        f.p = p.clone();
+      });
+      for (let k = 1; k < fences.length; k++) {
+        const a = fences[k - 1], b = fences[k];
+        if (Math.sign(a.lat) !== Math.sign(b.lat) || a.p.distanceTo(b.p) > 7) continue;
+        for (const hgt of [0.8, 1.7]) rails.push([a.p, b.p, hgt, (k % 2) ? fc[1] : fc[fc.length > 2 ? 2 : 1]]);
+      }
+      const rm = new THREE.InstancedMesh(railGeo, plastic(0xffffff), Math.max(1, rails.length));
+      const dir = new THREE.Vector3(), mid = new THREE.Vector3();
+      rails.forEach(([a, b, hgt, c], k) => {
+        dir.subVectors(b, a); const L = dir.length();
+        mid.addVectors(a, b).multiplyScalar(0.5); mid.y += hgt;
+        q.setFromAxisAngle(Y, Math.atan2(dir.x, dir.z));
+        m.compose(mid, q, s.set(0.35, 0.45, L));
+        rm.setMatrixAt(k, m); rm.setColorAt(k, c);
+      });
+      rm.count = rails.length;
+      posts.castShadow = rm.castShadow = true;
+      this.group.add(posts, rm);
+      s.set(1, 1, 1);
     }
     if (railsL.length && th.rail) {
       // glowing edge rails for void edges
@@ -629,7 +757,8 @@ export class Track {
     for (const k of this.def.items || []) {
       const i = this.kToIndex(k);
       const hw = this.HW[i];
-      for (const f of [-0.6, -0.2, 0.2, 0.6]) {
+      const fs = hw > 11 ? [-0.7, -0.35, 0, 0.35, 0.7] : [-0.6, -0.2, 0.2, 0.6];
+      for (const f of fs) {
         const g = new THREE.Group();
         const mesh = new THREE.Mesh(geo, this.boxMat);
         g.add(mesh);
@@ -668,20 +797,22 @@ export class Track {
 
   buildRamps() {
     this.ramps = [];
-    for (const k of this.def.ramps || []) {
+    const list = [...(this.def.ramps || []).map((k) => [k, false]), ...(this.def.gliders || []).map((k) => [k, true])];
+    for (const [k, glide] of list) {
       const i = this.kToIndex(k);
       const hw = this.HW[i];
-      const len = 7, h = 1.6;
+      const len = glide ? 12 : 7, h = glide ? 2.6 : 1.6;
       // wedge (triangular prism) along -Z..0, rising to +h at the lip
       const shape = new THREE.Shape();
       shape.moveTo(-len, 0); shape.lineTo(0, 0); shape.lineTo(0, h); shape.closePath();
       const g = new THREE.ExtrudeGeometry(shape, { depth: hw * 2, bevelEnabled: false });
       g.rotateY(-Math.PI / 2);
       g.translate(hw, 0, 0);
-      const tex = boostTexture().clone();
+      const tex = (glide ? gliderTexture() : boostTexture()).clone();
       tex.needsUpdate = true;
       tex.repeat.set(0.1, 0.1);
-      const mesh = new THREE.Mesh(g, [plastic(this.theme.rampSide || C.dkgray), new THREE.MeshStandardMaterial({ color: this.theme.ramp || C.orange, roughness: 0.4, map: tex })]);
+      const top = glide ? new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3, map: tex, emissive: 0x1a6aff, emissiveIntensity: 0.35 }) : new THREE.MeshStandardMaterial({ color: this.theme.ramp || C.orange, roughness: 0.4, map: tex });
+      const mesh = new THREE.Mesh(g, [plastic(glide ? C.dkblue : (this.theme.rampSide || C.dkgray)), top]);
       mesh.castShadow = true; mesh.receiveShadow = true;
       const hold = new THREE.Group();
       hold.position.copy(this.at(i, 0, 0));
@@ -690,8 +821,54 @@ export class Track {
       hold.rotation.x = -Math.asin(this.T[i * 3 + 1]);
       hold.add(mesh);
       this.group.add(hold);
-      this.ramps.push({ i, len, h });
+      this.ramps.push({ i, len, h, glide });
+      if (glide) {
+        // glider arch over the ramp lip
+        const b = new BrickBuilder(1);
+        const span = hw + 2;
+        for (const sd of [-1, 1]) { let y = 0; for (let n = 0; n < 5; n++) y = b.brick(sd * span, y, 0, 2, 2, 3, n % 2 ? C.white : C.azure); }
+        b.box(0, 6, 0, span * 2 + 2, 1.2, 1.6, C.blue);
+        const arch = b.build({ name: 'glider-arch' });
+        hold.add(arch);
+      }
     }
+  }
+
+  // Chevron signs on the outside of sharp turns (skipped on void edges).
+  buildSigns() {
+    const N = this.N;
+    const tex = chevronTexture();
+    const matL = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.5, side: THREE.DoubleSide });
+    const geo = new THREE.PlaneGeometry(4.2, 2.1);
+    const b = new BrickBuilder(1, 120);
+    let last = -99;
+    for (let i = 0; i < N; i++) {
+      const c = this.CURV[i];
+      if (Math.abs(c) < 0.022 || this.GAP[i] || this.EDGE[i] === 1 || i - last < 16 || this.theme.noSigns) continue;
+      last = i;
+      const side = c > 0 ? 1 : -1;               // outside of the turn
+      const lat = (this.HW[i] + this.SH[i] + 2.2) * side;
+      const p = this.at(i, lat, 0);
+      const yaw = this.yawAt(i);
+      b.box(p.x, p.y, p.z, 0.4, 3.2, 0.4, C.dkgray);
+      const sign = new THREE.Mesh(geo, matL);
+      sign.position.set(p.x, p.y + 3.4, p.z);
+      // face the oncoming karts; arrows point into the turn
+      sign.rotation.y = yaw + Math.PI;
+      if (side < 0) sign.scale.x = -1;
+      this.group.add(sign);
+    }
+    this.group.add(b.build({ name: 'sign-posts' }));
+  }
+
+  // static round obstacles (trees, statues, pillars on the road...)
+  addObstacle(x, z, r, y0 = -Infinity, y1 = Infinity) { this.obstacles.push({ x, z, r, y0, y1 }); }
+  obstacleAt(x, y, z, r) {
+    for (const o of this.obstacles) {
+      const dx = x - o.x, dz = z - o.z;
+      if (dx * dx + dz * dz < (o.r + r) * (o.r + r) && y > o.y0 - 1 && y < o.y1) return o;
+    }
+    return null;
   }
 
   buildStuds() {
@@ -732,6 +909,8 @@ export class Track {
       b.g.position.y = b.pos.y + Math.sin(t * 2 + b.phase) * 0.25;
     }
     for (const bp of this.boosts) bp.mat.map.offset.y = -t * 1.5;
+    if (this.conveyorMat) this.conveyorMat.map.offset.y = -t * 1.2;
+    if (this.waterMat) this.waterMat.map.offset.y = -t * 0.15;
     if (this.studMesh) {
       const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), Y = new THREE.Vector3(0, 1, 0);
       this.studs.forEach((st, k) => {

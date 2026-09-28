@@ -133,7 +133,12 @@ export function faceTexture(style = 'smile', skin = '#ffc917') {
     g.fillStyle = skin; g.fillRect(0, 0, w, h);
     const cx = w / 2, cy = h / 2;
     g.fillStyle = '#1b1b1b'; g.strokeStyle = '#1b1b1b'; g.lineCap = 'round';
-    if (style === 'visor') {
+    if (style === 'alien') {
+      g.fillStyle = '#111';
+      g.beginPath(); g.ellipse(cx - 18, cy - 8, 12, 16, -0.4, 0, Math.PI * 2); g.fill();
+      g.beginPath(); g.ellipse(cx + 18, cy - 8, 12, 16, 0.4, 0, Math.PI * 2); g.fill();
+      g.lineWidth = 4; g.strokeStyle = '#111'; g.beginPath(); g.arc(cx, cy + 10, 10, 0.2 * Math.PI, 0.8 * Math.PI); g.stroke();
+    } else if (style === 'visor') {
       g.fillStyle = '#222'; g.fillRect(cx - 44, cy - 18, 88, 20);
       g.fillStyle = '#ff3030'; g.fillRect(cx - 34, cy - 12, 68, 7);
     } else {

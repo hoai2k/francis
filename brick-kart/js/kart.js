@@ -33,10 +33,13 @@ export class Kart {
     this.model = m;
     race.scene.add(m.root);
     m.root.rotation.order = 'YXZ';
-    m.root.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+    // only the chassis and wheels cast shadows (keeps the shadow pass cheap with 13+ karts)
+    m.root.traverse((o) => { if (o.isMesh) o.castShadow = false; });
+    m.body.children[0]?.traverse((o) => { if (o.isMesh && !o.material.transparent) o.castShadow = true; });
+    for (const w of m.wheels) w.spin.castShadow = true;
     const s = ch.stats;
     const cc = race.cc;
-    this.topSpeed = 33 * cc * (0.935 + s.speed * 0.026);
+    this.topSpeed = 37 * cc * (0.935 + s.speed * 0.026);
     this.accel = 15.5 * (0.78 + s.accel * 0.1) * (0.85 + cc * 0.15);
     this.turnRate = 2.05 * (0.86 + s.handling * 0.045);
     this.weight = 0.7 + s.weight * 0.15;
@@ -148,6 +151,7 @@ export class Kart {
     this.respawn = 1.6; this.respawnPlaced = false;
     this.cancelDrift();
     this.speed = 0;
+    this.setGliding(false);
     this.race.audio.sfx('splash', this.pos);
     this.race.fx.splash(this.pos, this.track.theme.groundOpts?.emissive ? 0xff6a00 : 0x66ccff);
     this.dropStuds(2);
@@ -231,6 +235,9 @@ export class Kart {
       if (this.boosting && throttle <= 0 && this.speed < max) this.speed = Math.min(max, this.speed + this.accel * 2 * dt);
     }
     if (this.boostTime > 0 && this.speed < max * 0.95) this.speed += 60 * dt;
+    // conveyor belts push you along; shallow water splashes
+    if (this.grounded && this.surf === 'conveyor' && this.speed > -1) { this.speed = Math.min(max * 1.18, this.speed + 22 * dt); if (Math.random() < 0.3) this.race.fx.spark(this.pos.x, this.pos.y + 0.2, this.pos.z, (Math.random() - 0.5) * 4, 3, (Math.random() - 0.5) * 4, 0xffe060, 0.25, 15); }
+    if (this.grounded && this.surf === 'water' && Math.abs(this.speed) > 8 && Math.random() < 0.6) this.race.fx.puff(this.pos.x + (Math.random() - 0.5) * 2, this.pos.y + 0.2, this.pos.z + (Math.random() - 0.5) * 2, (Math.random() - 0.5) * 5, 4 + Math.random() * 4, (Math.random() - 0.5) * 5, 0xbfe8ff, 0.5);
     if (stunned) this.speed *= Math.exp(-2.5 * dt);
 
     // --- steering / drift ----------------------------------------------------------
@@ -258,7 +265,7 @@ export class Kart {
       turn = this.turnRate * steer * sf;
     }
     if (this.goldenTime > 0) turn *= 1.05;
-    if (!this.grounded) turn *= 0.6;
+    if (!this.grounded) turn *= this.gliding ? 0.85 : 0.6;
     if (this.spinTime > 0) turn = 0;
     // steer > 0 = right = decreasing yaw (yaw is atan2(x, z))
     this.yaw -= turn * dt;
@@ -267,7 +274,7 @@ export class Kart {
     let grip = 16;
     if (d.active) grip = 5.5;
     if (this.surf === 'ice') grip = d.active ? 2.2 : 2.8;
-    if (!this.grounded) grip = 0.4;
+    if (!this.grounded) grip = this.gliding ? 3.5 : 0.4;
     this.moveYaw = lerpAngle(this.moveYaw, this.yaw, 1 - Math.exp(-grip * dt));
     const drag = Math.abs(angleDiff(this.moveYaw, this.yaw));
     if (this.grounded && drag > 0.5 && !d.active) this.speed *= Math.exp(-0.6 * drag * dt);
@@ -294,7 +301,12 @@ export class Kart {
       }
     } else {
       this.airTime += dt;
-      this.vy -= G * dt;
+      if (this.gliding) {
+        // gentle glide: low gravity, capped sink rate, speed held
+        this.vy -= G * 0.18 * dt;
+        this.vy = Math.max(this.vy, -4.2);
+        if (this.speed < this.topSpeed * 0.85) this.speed += 10 * dt;
+      } else this.vy -= G * dt;
       this.pos.y += this.vy * dt;
       if (gY > -Infinity && this.pos.y <= gY && this.pos.y > gY - 3) {
         this.land(gY, ctl);
@@ -349,8 +361,15 @@ export class Kart {
     this.syncModel(dt);
   }
 
+  setGliding(on) {
+    this.gliding = on;
+    if (this.model.glider) this.model.glider.visible = on;
+    this.gliderT = 0;
+  }
+
   land(gY, ctl) {
     const fallSpeed = -this.vy;
+    if (this.gliding) this.setGliding(false);
     this.pos.y = gY; this.vy = 0; this.grounded = true;
     this.squash = Math.min(0.25, fallSpeed * 0.012);
     if (this.trickDone) { this.boost(0.8); }
@@ -364,10 +383,12 @@ export class Kart {
   }
 
   // ramp launch
-  launch(vy) {
+  launch(vy, glide = false) {
     if (!this.grounded) return;
     this.vy = vy; this.grounded = false; this.airTime = 0; this.canTrick = true; this.trickDone = false;
     this.drift.queued = false;
+    this.cancelDrift();
+    if (glide) { this.setGliding(true); if (this.human) this.race.audio.sfx('glide'); }
   }
 
   syncModel(dt) {
@@ -386,7 +407,11 @@ export class Kart {
     const slope = this.grounded ? Math.asin(Math.max(-1, Math.min(1, this.loc.ty || 0))) * Math.cos(angleDiff(Math.atan2(this.loc.tx || 0, this.loc.tz || 1), this.yaw)) : Math.max(-0.5, Math.min(0.4, this.vy * 0.02));
     this.visPitch += (slope - this.visPitch) * Math.min(1, dt * 10);
     m.root.rotation.x = -this.visPitch;
-    const roll = -(this.ctl.steer || 0) * Math.min(1, Math.abs(this.speed) / 30) * 0.08 + this.driftVis * 0.18;
+    // lean into steering, drift lean, and follow the track banking when grounded
+    const rel = angleDiff(Math.atan2(this.loc.tx || 0, this.loc.tz || 1), this.yaw);
+    const bankRoll = this.grounded ? -Math.atan(this.loc.bank || 0) * Math.cos(rel) : 0;
+    const glideRoll = this.gliding ? -(this.ctl.steer || 0) * 0.35 : 0;
+    const roll = -(this.ctl.steer || 0) * Math.min(1, Math.abs(this.speed) / 30) * 0.08 + this.driftVis * 0.18 + bankRoll + glideRoll;
     this.visRoll += (roll - this.visRoll) * Math.min(1, dt * 8);
     m.root.rotation.z = this.visRoll + (this.wreckTime > 0 ? Math.sin(this.wreckTime * 20) * 0.2 : 0);
     // squash & hop
@@ -404,11 +429,16 @@ export class Kart {
     }
     m.head.rotation.y = -(this.ctl.steer || 0) * 0.35 + (this.lookBack ? Math.PI * 0.6 : 0);
     // flames
-    const fl = this.boosting ? 1.1 + Math.random() * 0.6 : (this.ctl.throttle > 0 ? 0.25 + Math.random() * 0.1 : 0.001);
-    for (const f of this.flames) f.scale.set(1, fl, 1);
+    const fl = this.boosting ? 1.1 + Math.random() * 0.6 : 0;
+    for (const f of this.flames) { f.visible = fl > 0; f.scale.set(1, fl || 1, 1); }
     // blinking when invulnerable after a hit
     if (this.invuln > 0 && this.hidden <= 0 && this.respawn <= 0.0) m.body.visible = Math.floor(this.invuln * 12) % 2 === 0;
     else m.body.visible = true;
+    if (this.gliding && m.glider) {
+      this.gliderT = Math.min(1, (this.gliderT || 0) + dt * 4);
+      m.glider.scale.set(this.gliderT, 1, 1);
+      m.glider.rotation.z = Math.sin(performance.now() * 0.004) * 0.05;
+    }
     this.bubble.visible = this.shieldTime > 0;
     if (this.bubble.visible) this.bubble.scale.setScalar(1 + Math.sin(performance.now() * 0.006) * 0.03);
     this.aura.visible = this.goldenTime > 0;

@@ -93,6 +93,7 @@ export class Audio {
       case 'spark1': this.tone(1400, 0.08, { vol: 0.07, type: 'square' }); break;
       case 'spark2': this.tone(1700, 0.1, { vol: 0.08, type: 'square' }); this.tone(2100, 0.1, { vol: 0.06, at: 0.05 }); break;
       case 'spark3': this.tone(2000, 0.1, { vol: 0.08, type: 'square' }); this.tone(2500, 0.12, { vol: 0.07, at: 0.05 }); this.tone(3000, 0.14, { vol: 0.06, at: 0.1 }); break;
+      case 'glide': this.noiseHit(0.9, { vol: 0.25, freq: 600, sweep: 3, q: 0.8 }); [0, 4, 7].forEach((n, i) => this.tone(mtof(76 + n), 0.18, { vol: 0.1, at: 0.05 + i * 0.06, type: 'triangle' })); break;
       case 'trick': this.tone(700, 0.15, { vol: 0.12, type: 'triangle', slide: 2 }); break;
       case 'land': this.noiseHit(0.12, { vol: 0.2, freq: 300, type: 'lowpass' }); this.clatter(3, 0.05, 0.12); break;
       case 'stud': this.tone(1568, 0.07, { vol: 0.12, type: 'sine' }); this.tone(2093, 0.14, { vol: 0.12, at: 0.05, type: 'sine' }); break;

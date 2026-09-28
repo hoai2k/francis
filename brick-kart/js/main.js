@@ -6,13 +6,13 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { Input, KB2_JOIN, isTouchDevice } from './input.js';
 import { Audio } from './audio.js';
 import { Race } from './race.js';
-import { TRACKS } from './tracks.js';
+import { TRACKS, CUPS } from './tracks.js';
 import { CHARACTERS, buildKart } from './characters.js';
 import { ICONS, ITEMS } from './items.js';
 import { fmt } from './hud.js';
 
 const PCOL = ['#ff4a3a', '#3b8bff', '#3bdc5a', '#ffc93b'];
-const POINTS = [15, 12, 10, 8, 6, 4, 2, 1];
+const POINTS = [15, 12, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 0, 0, 0];
 const CC = { 50: 0.8, 100: 0.92, 150: 1.06, 200: 1.22 };
 const SKEY = 'brickkart.settings.v1', TKEY = 'brickkart.tt.v1';
 const MOBILE = isTouchDevice() && Math.min(screen.width, screen.height) < 820;
@@ -25,7 +25,7 @@ const hex = (c) => '#' + c.toString(16).padStart(6, '0');
 
 class Game {
   constructor() {
-    this.settings = load(SKEY, { cc: 100, difficulty: 'normal', laps: 3, music: 0.5, sfx: 0.8, autoGas: false, quality: MOBILE ? 'low' : 'high' });
+    this.settings = load(SKEY, { cc: 100, difficulty: 'normal', laps: 3, racers: 13, music: 0.5, sfx: 0.8, autoGas: false, quality: MOBILE ? 'low' : 'high' });
     this.best = load(TKEY, {});
     const app = document.getElementById('app');
     const r = this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
@@ -226,7 +226,7 @@ class Game {
   showTitle() {
     this.hudRoot.classList.add('hidden');
     this.setScreen(`<div class="screen title"><div class="logo">${logoHTML()}</div>
-      <div class="tagline">A brick-built kart racer · 5 maps · 8 power-ups · 1–4 players</div>
+      <div class="tagline">A brick-built kart racer · 9 maps · 16 racers · gliders · 1–4 players</div>
       <button class="press" data-act="start">PRESS <b>START</b> · <b>ENTER</b> · <b>TAP</b></button>
       <div class="pads-note">🎮 Controllers supported — plug in up to 4 for split-screen</div></div>`, {
       update: () => { if (this.menuEvents.some(([, m]) => m.ok || m.start)) { this.audio.sfx('select'); this.showMain(); } },
@@ -253,12 +253,13 @@ class Game {
     const s = this.settings;
     const cyc = (key, list, dir) => { const i = list.indexOf(s[key]); s[key] = list[(i + dir + list.length) % list.length]; save(SKEY, s); };
     const vol = (key, dir) => { s[key] = Math.round(Math.max(0, Math.min(1, s[key] + dir * 0.1)) * 10) / 10; save(SKEY, s); this.audio.setVolumes(s.music, s.sfx); };
-    const ccs = [50, 100, 150, 200], diffs = ['easy', 'normal', 'hard'], laps = [1, 2, 3, 4, 5];
+    const ccs = [50, 100, 150, 200], diffs = ['easy', 'normal', 'hard'], laps = [1, 2, 3, 4, 5], racers = [4, 8, 10, 13, 16];
     this.menu({
       title: 'Options',
       items: [
         { label: 'Engine class', value: () => s.cc + 'cc', left: () => cyc('cc', ccs, -1), right: () => cyc('cc', ccs, 1) },
         { label: 'CPU racers', value: () => s.difficulty[0].toUpperCase() + s.difficulty.slice(1), left: () => cyc('difficulty', diffs, -1), right: () => cyc('difficulty', diffs, 1) },
+        { label: 'Racers per race', value: () => String(s.racers), left: () => cyc('racers', racers, -1), right: () => cyc('racers', racers, 1) },
         { label: 'Laps', value: () => String(s.laps), left: () => cyc('laps', laps, -1), right: () => cyc('laps', laps, 1) },
         { label: 'Auto-accelerate', value: () => (s.autoGas ? 'On' : 'Off'), left: () => { s.autoGas = !s.autoGas; save(SKEY, s); }, right: () => { s.autoGas = !s.autoGas; save(SKEY, s); } },
         { label: 'Music', value: () => Math.round(s.music * 10) + '/10', left: () => vol('music', -1), right: () => vol('music', 1) },
@@ -351,7 +352,7 @@ class Game {
       if (!players.length || !players.every((p) => p.locked)) return;
       this.audio.sfx('select');
       this.players = players.map((p) => this.makePlayer(p));
-      if (mode === 'gp') this.startGP();
+      if (mode === 'gp') this.showCups();
       else this.showTracks(mode);
     };
     const leave = (p) => {
@@ -376,12 +377,13 @@ class Game {
             } else if (m.back && players.length === 0) { back(); return; }
             continue;
           }
-          const cols = 4;
+          const NC = CHARACTERS.length, cols = matchMedia('(max-width: 820px)').matches ? 4 : 8;
           let moved = false;
           if (!p.locked) {
-            if (m.left) { p.cursor = (p.cursor + 7) % 8; moved = true; }
-            if (m.right) { p.cursor = (p.cursor + 1) % 8; moved = true; }
-            if (m.up || m.down) { p.cursor = (p.cursor + cols) % 8; moved = true; }
+            if (m.left) { p.cursor = (p.cursor + NC - 1) % NC; moved = true; }
+            if (m.right) { p.cursor = (p.cursor + 1) % NC; moved = true; }
+            if (m.up) { p.cursor = (p.cursor + NC - cols) % NC; moved = true; }
+            if (m.down) { p.cursor = (p.cursor + cols) % NC; moved = true; }
             if (moved) { this.audio.sfx('click'); refresh(); }
             if (m.ok && !taken().has(p.cursor)) { p.locked = true; this.audio.sfx('select'); refresh(); continue; }
             if (m.back) { leave(p); if (!players.length && dev !== 'kb2') { /* stay */ } continue; }
@@ -437,8 +439,8 @@ class Game {
         for (const [, m] of this.menuEvents) {
           if (m.left) { focus = (focus + n - 1) % n; this.audio.sfx('click'); refresh(); }
           if (m.right) { focus = (focus + 1) % n; this.audio.sfx('click'); refresh(); }
-          if (m.up) { focus = (focus + n - 3) % n; this.audio.sfx('click'); refresh(); }
-          if (m.down) { focus = (focus + 3) % n; this.audio.sfx('click'); refresh(); }
+          if (m.up) { focus = (focus + n - 5) % n; this.audio.sfx('click'); refresh(); }
+          if (m.down) { focus = (focus + 5) % n; this.audio.sfx('click'); refresh(); }
           if (m.ok || m.start) { pick(focus); return; }
           if (m.back) { this.audio.sfx('back'); this.showSelect(mode); return; }
         }
@@ -451,14 +453,39 @@ class Game {
   }
 
   // ---- racing ------------------------------------------------------------------------------------------
-  startGP() {
-    this.gp = { round: 0, tracks: TRACKS.map((t) => t.id), points: new Array(CHARACTERS.length).fill(0), grid: null };
+  showCups() {
+    let focus = 0;
+    const cards = CUPS.map((c, i) => {
+      const imgs = c.tracks.slice(0, 3).map((id) => `<img src="${this.thumbs[TRACKS.findIndex((t) => t.id === id)]}" alt="">`).join('');
+      return `<div class="cup" data-i="${i}" style="--cc:${c.color}"><div class="trophy">🏆</div><div class="cn">${esc(c.name)}</div><div class="cthumbs">${imgs}</div><div class="cl">${c.tracks.map((id) => esc(TRACKS.find((t) => t.id === id).name)).join(' · ')}</div></div>`;
+    }).join('');
+    this.setScreen(`<div class="screen tracks"><div class="panel wide"><h2>Grand Prix · Choose a cup</h2><div class="cupgrid">${cards}</div>
+      <div class="selfoot"><button class="bbtn" data-act="back">◀ Back</button><div class="hint2">${this.settings.cc}cc · ${this.settings.racers} racers · ${this.settings.laps} laps · CPU ${this.settings.difficulty}</div><span></span></div></div></div>`);
+    const refresh = () => this.ui.querySelectorAll('.cup').forEach((c, i) => c.classList.toggle('focus', i === focus));
+    const pick = (i) => { this.audio.sfx('select'); this.startGP(CUPS[i]); };
+    this.screen = {
+      update: () => {
+        for (const [, m] of this.menuEvents) {
+          if (m.left || m.up) { focus = (focus + CUPS.length - 1) % CUPS.length; this.audio.sfx('click'); refresh(); }
+          if (m.right || m.down) { focus = (focus + 1) % CUPS.length; this.audio.sfx('click'); refresh(); }
+          if (m.ok || m.start) { pick(focus); return; }
+          if (m.back) { this.audio.sfx('back'); this.showSelect('gp'); return; }
+        }
+      },
+      hover: (i) => { focus = i; refresh(); },
+      click: (i) => pick(i),
+      act: (a) => { if (a === 'back') this.showSelect('gp'); },
+    };
+    refresh();
+  }
+  startGP(cup) {
+    this.gp = { cup, round: 0, tracks: cup.tracks, points: new Array(CHARACTERS.length).fill(0), grid: null };
     this.nextGPRace();
   }
   nextGPRace() {
     const gp = this.gp;
     const def = TRACKS.find((t) => t.id === gp.tracks[gp.round]);
-    this.startRace({ def, mode: 'gp', gpRound: gp.round + 1, gpTotal: gp.tracks.length, grid: gp.grid });
+    this.startRace({ def, mode: 'gp', gpRound: gp.round + 1, gpTotal: gp.tracks.length, grid: gp.grid, gpName: gp.cup.name.toUpperCase() });
   }
 
   startRace(opts) {
@@ -472,7 +499,7 @@ class Game {
       this.attract?.dispose(); this.attract = null;
       this.race?.dispose();
       const s = this.settings;
-      this.race = new Race(this, { ...opts, players: this.players, cc: CC[s.cc] || 0.92, difficulty: s.difficulty, laps: opts.mode === 'tt' ? 3 : s.laps, bestTime: opts.mode === 'tt' ? this.best[opts.def.id] : 0 });
+      this.race = new Race(this, { ...opts, players: this.players, cc: CC[s.cc] || 0.92, difficulty: s.difficulty, racers: s.racers, laps: opts.mode === 'tt' ? 3 : s.laps, bestTime: opts.mode === 'tt' ? this.best[opts.def.id] : 0 });
       this.race.world.sun.shadow.mapSize.set(this.shadowSize, this.shadowSize);
       this.race.onDone = (res) => this.onRaceDone(res);
       this.paused = false;
@@ -567,12 +594,13 @@ class Game {
     const top = order.slice(0, 3);
     const humanChars = new Map(this.players.map((p) => [p.charIndex, p]));
     const bestHuman = order.findIndex((o) => humanChars.has(o.i));
-    const msg = bestHuman === 0 ? '🏆 CHAMPION! You won the Brick Cup!' : bestHuman >= 0 && bestHuman < 3 ? `You finished ${ORD(bestHuman + 1)} overall — on the podium!` : `You finished ${ORD(bestHuman + 1)} overall. Try again!`;
+    const cupName = this.gp?.cup?.name || 'Cup';
+    const msg = bestHuman === 0 ? `🏆 CHAMPION! You won the ${cupName}!` : bestHuman >= 0 && bestHuman < 3 ? `You finished ${ORD(bestHuman + 1)} overall — on the podium!` : `You finished ${ORD(bestHuman + 1)} overall. Try again!`;
     const cup = ['🥇', '🥈', '🥉'];
     const podium = [1, 0, 2].map((n) => top[n] ? `<div class="pod p${n + 1}"><img src="${this.portraits[top[n].i]}" alt=""><div class="nm">${esc(CHARACTERS[top[n].i].name)}</div><div class="block">${cup[n]}<b>${n + 1}</b><span>${top[n].pts} pts</span></div></div>` : '').join('');
     const confetti = Array.from({ length: 60 }, (_, i) => `<i style="left:${Math.random() * 100}%;animation-delay:${(Math.random() * 3).toFixed(2)}s;background:${['#c91a09', '#f2cd37', '#0055bf', '#237841', '#fe8a18', '#fff'][i % 6]}"></i>`).join('');
     this.audio.sfx('finish');
-    this.resultsMenu('Brick Cup · Award Ceremony', `<div class="podium">${podium}</div><p class="cheer">${msg}</p>`, [
+    this.resultsMenu(`${cupName} · Award Ceremony`, `<div class="podium">${podium}</div><p class="cheer">${msg}</p>`, [
       { label: 'Main menu', action: () => this.quitToMenu() },
     ], `<div class="confetti">${confetti}</div>`);
   }

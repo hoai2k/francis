@@ -61,11 +61,19 @@ h2, h3, .logo, .mbtn, .bbtn, .h-pos, .h-lap, .h-msg, .h-count, .h-title h2, .pre
 .slot.on { background: color-mix(in srgb, var(--pc) 30%, transparent); border: 2px solid var(--pc); }
 .slot b { font-family: 'Lilita One'; font-weight: 400; font-size: 16px; margin-right: 4px; }
 .slot em { display: block; font-style: normal; opacity: .85; }
-.cgrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.cgrid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 8px; }
+.cupgrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+.cup { border-radius: 14px; padding: 12px; background: linear-gradient(170deg, color-mix(in srgb, var(--cc) 45%, transparent), rgba(255,255,255,.04)); box-shadow: inset 0 0 0 2px rgba(255,255,255,.12); cursor: pointer; text-align: center; transition: transform .1s; }
+.cup.focus { transform: scale(1.04); box-shadow: 0 0 0 4px var(--yellow), 0 10px 30px rgba(0,0,0,.4); }
+.cup .trophy { font-size: 54px; filter: drop-shadow(0 4px 4px rgba(0,0,0,.4)); }
+.cup .cn { font-family: 'Lilita One'; font-size: 24px; color: var(--cc); text-shadow: 0 2px 0 var(--ink); }
+.cthumbs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin: 8px 0; }
+.cthumbs img { width: 100%; border-radius: 6px; }
+.cup .cl { font-size: 12px; font-weight: 800; opacity: .85; }
 .ccard { position: relative; border-radius: 12px; padding: 8px 10px 10px; cursor: pointer; background: linear-gradient(170deg, color-mix(in srgb, var(--kc) 55%, #fff 10%), color-mix(in srgb, var(--kc) 35%, #000 40%)); box-shadow: inset 0 0 0 2px rgba(255,255,255,.15); transition: transform .1s; outline-offset: 2px; }
 .ccard:hover { transform: translateY(-3px); }
-.ccard img { width: 100%; height: min(17vh, 150px); object-fit: contain; display: block; margin: -4px 0 -4px; filter: drop-shadow(0 6px 6px rgba(0,0,0,.35)); }
-.ccard .nm { font-family: 'Lilita One'; font-size: 18px; text-shadow: 0 2px 0 rgba(0,0,0,.5); }
+.ccard img { width: 100%; height: min(15vh, 120px); object-fit: contain; display: block; margin: -4px 0 -4px; filter: drop-shadow(0 6px 6px rgba(0,0,0,.35)); }
+.ccard .nm { font-family: 'Lilita One'; font-size: 16px; text-shadow: 0 2px 0 rgba(0,0,0,.5); }
 .ccard .bl { font-size: 12px; font-weight: 800; opacity: .85; margin-bottom: 4px; }
 .stats { display: grid; gap: 2px; }
 .st { display: grid; grid-template-columns: 44px 1fr; align-items: center; font-size: 10px; font-weight: 900; gap: 4px; }
@@ -83,7 +91,7 @@ h2, h3, .logo, .mbtn, .bbtn, .h-pos, .h-lap, .h-msg, .h-count, .h-title h2, .pre
 .hint2 b { color: var(--yellow); }
 
 /* tracks */
-.tgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.tgrid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
 .tcard { border-radius: 12px; overflow: hidden; background: rgba(255,255,255,.06); cursor: pointer; transition: transform .1s; box-shadow: inset 0 0 0 2px rgba(255,255,255,.1); padding-bottom: 8px; }
 .tcard img { width: 100%; display: block; aspect-ratio: 16/9; }
 .tcard .tn { font-family: 'Lilita One'; font-size: 20px; padding: 6px 10px 0; }
@@ -205,6 +213,7 @@ h2, h3, .logo, .mbtn, .bbtn, .h-pos, .h-lap, .h-msg, .h-count, .h-title h2, .pre
 
 @media (max-width: 820px) {
   .cgrid { grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .cupgrid { grid-template-columns: repeat(2, 1fr); }
   .ccard { padding: 4px 5px 6px; } .ccard .nm { font-size: 13px; } .ccard .bl, .stats { display: none; }
   .tgrid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
   .help .cols { grid-template-columns: 1fr; } .items { grid-template-columns: repeat(2, 1fr); }

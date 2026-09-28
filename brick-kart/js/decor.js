@@ -91,9 +91,9 @@ export function building(b, x, z, w, d, floors, col, r, opts = {}) {
     b.box(x, y + 3, z, w, 0.3, d, f % 3 === 2 ? trim : col);
     y += 3.3;
   }
-  const sw = Math.max(1, Math.round(w / 2)), sd = Math.max(1, Math.round(d / 2));
-  b.brick(x, y, z, sw, sd, 1, col, { pitch: 2 });
-  y += 0.8;
+  const sw = Math.max(1, Math.round(w / 4)), sd = Math.max(1, Math.round(d / 4));
+  b.brick(x, y, z, sw, sd, 1, col, { pitch: w / sw });
+  y += 0.4 * (w / sw);
   const t = r();
   if (t < 0.25) { b.cyl(x, y, z, 0.2, 8, C.ltgray, { seg: 6 }); b.sphere(x, y + 8.2, z, 0.5, C.red, { matOpts: { emissive: 0xff2000, emissiveIntensity: 2 } }); }
   else if (t < 0.45) { b.cyl(x + w * 0.2, y, z + d * 0.2, 1.8, 3.4, C.rbrown, { seg: 12 }); b.cone(x + w * 0.2, y + 3.4, z + d * 0.2, 2, 1.4, C.dkgray, { seg: 12 }); }

@@ -1,8 +1,8 @@
 {
   "title": "Brick Kart",
-  "description": "A Mario Kart-style racer where everything is built from LEGO-style bricks. Five maps (a figure-8 city, a pirate cove, a lava castle, snowy peaks and a rainbow road in space), 8 power-ups, drifting with mini-turbos, Grand Prix / Quick Race / Time Trial, and 1-4 player split-screen with controller support.",
+  "description": "A Mario Kart-style racer built from LEGO-style bricks: 9 big maps in 3 cups (city, windmill meadows, pirate cove, candy valley, jungle ruins, frosty peaks, toy factory, lava castle and a rainbow road in space), gliders, hazards, 16 racers with 13 per race, 8 power-ups, drifting mini-turbos, and 1-4 player split-screen with controller support.",
   "date": "2026-09-28",
-  "tag": "GAME · KART RACER",
+  "tag": "GAME \u00b7 KART RACER",
   "accent": "#f2cd37",
   "posters": [
     "poster-1.jpg",

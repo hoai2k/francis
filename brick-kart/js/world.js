@@ -118,6 +118,7 @@ export class World {
     const th = def.theme;
     this.theme = th;
     this.anims = [];
+    this.hazards = [];
     scene.background = new THREE.Color(th.sky[1]);
     this.sky = skyDome(th.sky[0], th.sky[1], th.sky[2] ?? th.sky[1]);
     scene.add(this.sky);
@@ -145,7 +146,8 @@ export class World {
     this.bounds = { minX, maxX, minZ, maxZ, cx: (minX + maxX) / 2, cz: (minZ + maxZ) / 2 };
 
     if (!th.noGround) {
-      scene.add(groundPlane(th.ground, tr.groundY - 0.08, 3000, th.groundPitch ?? 1.6, th.groundOpts || {}));
+      this.ground = groundPlane(th.ground, tr.groundY - 0.08, 3000, th.groundPitch ?? 1.6, th.groundOpts || {});
+      scene.add(this.ground);
     }
     if (th.stars) {
       this.stars = stars(th.stars, 1300, rng(7), 2.0);
@@ -172,6 +174,14 @@ export class World {
       b: new BrickBuilder(1, 160),
       bNoShadow: new BrickBuilder(1, 400),
       anim: (fn) => this.anims.push(fn),
+      hazard: (h) => { this.hazards.push(h); return h; },
+      obstacle: (x, z, r, y0, y1) => tr.addObstacle(x, z, r, y0, y1),
+      // cut holes (black in the mask) into the base ground, e.g. for rivers; mask must span 3000 units
+      cutGround: (mask) => {
+        const m = this.ground?.material;
+        if (!m) return;
+        m.alphaMap = new THREE.CanvasTexture(mask); m.alphaTest = 0.5; m.needsUpdate = true;
+      },
       free(x, z, r) { for (const c of claims) if (Math.hypot(c[0] - x, c[1] - z) < c[2] + r) return false; return true; },
       claim(x, z, r) { claims.push([x, z, r]); },
       // mask canvas helpers: world <-> canvas coordinates over a square area

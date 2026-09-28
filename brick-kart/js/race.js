@@ -9,6 +9,7 @@ import { Items, rollItem } from './items.js';
 import { AIDriver } from './ai.js';
 import { CHARACTERS } from './characters.js';
 import { HUD } from './hud.js';
+import { Hazards } from './hazards.js';
 
 const V = new THREE.Vector3();
 
@@ -91,7 +92,9 @@ export class Race {
     this.scene = new THREE.Scene();
     this.scene.environment = game.envMap;
     this.world = new World(opts.def, this.scene);
+    this.world.race = this;
     this.track = this.world.track;
+    this.hazards = new Hazards(this, this.world.hazards);
     this.fx = new Effects(this.scene, this.track);
     this.items = new Items(this);
     this.karts = [];
@@ -106,7 +109,7 @@ export class Race {
     const used = new Set(humans.map((p) => p.charIndex));
     const others = CHARACTERS.map((_, i) => i).filter((i) => !used.has(i));
     for (let i = others.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [others[i], others[j]] = [others[j], others[i]]; }
-    const total = this.mode === 'tt' ? humans.length : Math.max(humans.length, opts.racers ?? 8);
+    const total = this.mode === 'tt' ? humans.length : Math.min(CHARACTERS.length, Math.max(humans.length, opts.racers ?? 13));
     let grid = opts.grid;   // array of { charIndex, player }
     if (!grid) {
       grid = [];
@@ -116,8 +119,8 @@ export class Race {
     grid.forEach((g, n) => {
       const k = new Kart(this, CHARACTERS[g.charIndex], n, g.player);
       const row = n;
-      const i = this.track.wrap(Math.round(-7 - row * 3.6));
-      const lat = (n % 2 ? 1 : -1) * this.track.HW[i] * 0.42;
+      const i = this.track.wrap(Math.round(-7 - row * 3.4));
+      const lat = (n % 2 ? 1 : -1) * this.track.HW[i] * 0.4;
       k.place(i, lat);
       k.lap = 0;
       k._prevI = k.loc.i;
@@ -248,12 +251,28 @@ export class Race {
         for (const r of tr.ramps) {
           const di = ((r.i - k.loc.i) + tr.N) % tr.N;
           if (di <= 2 && Math.abs(k.loc.lat) < tr.HW[r.i] && k.speed > 8) {
-            k.launch(14 + Math.min(10, k.speed * 0.14));
-            k.boostTime = Math.max(k.boostTime, 0.25);
+            if (r.glide) { k.launch(15, true); k.boostTime = Math.max(k.boostTime, 0.6); k.speed = Math.max(k.speed, k.topSpeed * 0.95); }
+            else { k.launch(14 + Math.min(10, k.speed * 0.14)); k.boostTime = Math.max(k.boostTime, 0.25); }
           }
         }
       }
       k.padCool = (k.padCool ?? 0) - dt;
+      // static obstacles: slide around them
+      const o = tr.obstacles.length ? tr.obstacleAt(k.pos.x, k.pos.y, k.pos.z, 1.3) : null;
+      if (o) {
+        let nx = k.pos.x - o.x, nz = k.pos.z - o.z;
+        const d = Math.hypot(nx, nz) || 0.01; nx /= d; nz /= d;
+        k.pos.x = o.x + nx * (o.r + 1.31); k.pos.z = o.z + nz * (o.r + 1.31);
+        let vx = Math.sin(k.moveYaw) * k.speed, vz = Math.cos(k.moveYaw) * k.speed;
+        const vn = vx * nx + vz * nz;
+        if (vn < 0) {
+          vx -= nx * vn * 1.4; vz -= nz * vn * 1.4;
+          const hard = -vn / Math.max(1, Math.abs(k.speed));
+          k.moveYaw = Math.atan2(vx, vz);
+          k.speed = Math.hypot(vx, vz) * (1 - 0.35 * hard) * Math.sign(k.speed || 1);
+          if (hard > 0.3 && k.wallCool <= 0) { k.wallCool = 0.3; if (k.human) { this.audio.sfx('wall', k.pos); k.player.rumble(0.4, 120); } }
+        }
+      }
     }
 
     // kart vs kart bumping
@@ -284,6 +303,7 @@ export class Race {
     }
 
     this.items.update(dt);
+    this.hazards.update(dt);
     this.fx.update(dt);
 
     // standings
