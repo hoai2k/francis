@@ -13,7 +13,11 @@ export class Audio {
     this.engines = [];
   }
   unlock() {
-    if (this.ctx) { if (this.ctx.state === 'suspended') this.ctx.resume(); return; }
+    if (this.ctx) {
+      if (this.ctx.state === 'suspended') this.ctx.resume();
+      if (this.pendingMusic) { const m = this.pendingMusic; this.pendingMusic = null; this.music(m); }
+      return;
+    }
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
     const ctx = this.ctx = new AC();
@@ -32,6 +36,7 @@ export class Audio {
   }
   setVolumes(music, sfx) {
     this.musicVol = music; this.sfxVol = sfx;
+    if (this.track) this.track.volume = Math.min(1, music);
     if (this.ctx) { this.musicGain.gain.value = music * 0.5; this.sfxGain.gain.value = sfx; }
   }
 
@@ -150,6 +155,16 @@ export class Audio {
     if (!this.ctx) { this.pendingMusic = spec; return; }
     this.stopMusic();
     if (!spec) return;
+    if (spec.file) {
+      // recorded song: looped <audio> element (cached per file)
+      this.tracks ||= {};
+      let a = this.tracks[spec.file];
+      if (!a) { a = new window.Audio(spec.file); a.loop = true; a.preload = 'auto'; this.tracks[spec.file] = a; }
+      a.currentTime = 0; a.playbackRate = 1; a.volume = Math.min(1, this.musicVol);
+      this.track = a;
+      a.play().catch(() => { this.pendingMusic = spec; });
+      return;
+    }
     const c = this.ctx;
     const out = c.createGain(); out.gain.value = 1; out.connect(this.musicGain);
     const scale = SCALES[spec.scale] || SCALES.major;
@@ -212,8 +227,9 @@ export class Audio {
     };
     sched();
   }
-  musicRate(r) { if (this.song) this.song.rate = r; }
+  musicRate(r) { if (this.song) this.song.rate = r; if (this.track) this.track.playbackRate = r; }
   stopMusic() {
+    if (this.track) { this.track.pause(); this.track = null; }
     if (this.song) {
       this.song.stopped = true; clearTimeout(this.song.timer);
       const o = this.song.out;

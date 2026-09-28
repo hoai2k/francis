@@ -148,7 +148,7 @@ export class Race {
     this.introCam = new THREE.PerspectiveCamera(55, 1, 0.1, 3000);
     for (const k of this.karts) { k.lapTimes = []; k.lapStart = 0; k.lapSeen = 0; k.gasHold = -1; }
     if (this.mode === 'tt') for (const k of this.karts) { k.item = 'boost3'; k.itemCount = 3; }
-    this.audio.music(this.mode === 'attract' ? null : opts.def.theme.music);
+    this.audio.music(this.mode === 'attract' ? null : { file: './music/arcade-kart-dash.mp3' });
   }
 
   flash(color) {

@@ -235,7 +235,7 @@ class Game {
   }
 
   showMain() {
-    this.audio.music({ bpm: 118, root: 60, scale: 'major', style: 'pop' });
+    this.audio.music({ file: './music/toybox-groove.mp3' });
     this.menu({
       title: 'Main Menu',
       items: [
