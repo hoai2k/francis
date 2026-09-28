@@ -1,0 +1,423 @@
+// A single race: world + karts + items + cameras + HUD. Handles the intro
+// flyover, countdown (with start boosts), pickups, bumping, laps, finishing
+// and split-screen rendering for up to four local players.
+import * as THREE from 'three';
+import { World } from './world.js';
+import { Kart, angleDiff } from './kart.js';
+import { Effects } from './effects.js';
+import { Items, rollItem } from './items.js';
+import { AIDriver } from './ai.js';
+import { CHARACTERS } from './characters.js';
+import { HUD } from './hud.js';
+
+const V = new THREE.Vector3();
+
+function lerpAngle(a, b, t) { return a + angleDiff(a, b) * t; }
+
+class ChaseCam {
+  constructor() {
+    this.cam = new THREE.PerspectiveCamera(72, 1, 0.1, 3000);
+    this.yaw = 0; this.pos = new THREE.Vector3(); this.look = new THREE.Vector3();
+    this.init = false; this.shake = 0; this.fov = 72;
+  }
+  update(dt, k) {
+    this.yaw = lerpAngle(this.yaw, k.yaw + k.driftVis * 0.45, 1 - Math.exp(-(this.init ? 5 : 100) * dt));
+    const yaw = this.yaw + (k.lookBack ? Math.PI : 0);
+    const dist = 7.4 + (k.boosting ? 1.2 : 0), h = 3.1;
+    const tgt = V.set(k.pos.x - Math.sin(yaw) * dist, k.pos.y + h, k.pos.z - Math.cos(yaw) * dist);
+    const frozen = k.respawn > 0 && !k.respawnPlaced;
+    if (!frozen) {
+      // don't dive under the road when the kart falls
+      tgt.y = Math.max(tgt.y, (k.loc.y ?? k.pos.y) + 1.5);
+      if (!this.init || k.lookBack !== this.lastLook) { this.pos.copy(tgt); this.init = true; }
+      else this.pos.lerp(tgt, 1 - Math.exp(-11 * dt));
+    }
+    this.lastLook = k.lookBack;
+    this.look.set(k.pos.x + Math.sin(yaw) * 4, k.pos.y + 1.3, k.pos.z + Math.cos(yaw) * 4);
+    this.cam.position.copy(this.pos);
+    if (this.shake > 0) {
+      this.shake = Math.max(0, this.shake - dt * 2.5);
+      const s = this.shake * 0.5;
+      this.cam.position.x += (Math.random() - 0.5) * s; this.cam.position.y += (Math.random() - 0.5) * s;
+    }
+    this.cam.lookAt(this.look);
+    const fov = 70 + Math.min(10, Math.max(0, k.speed - 22) * 0.5) + (k.boosting ? 6 : 0);
+    this.fov += (fov - this.fov) * Math.min(1, dt * 4);
+    if (Math.abs(this.cam.fov - this.fov) > 0.05) { this.cam.fov = this.fov; this.cam.updateProjectionMatrix(); }
+  }
+}
+
+// Cinematic camera for the title screen / 4th split-screen quadrant.
+class TVCam {
+  constructor() {
+    this.cam = new THREE.PerspectiveCamera(55, 1, 0.1, 3000);
+    this.t = 0; this.mode = 0; this.pick = 0;
+  }
+  update(dt, race) {
+    this.t += dt;
+    if (this.t > 7) { this.t = 0; this.mode = (this.mode + 1) % 3; this.pick = Math.floor(Math.random() * Math.min(4, race.karts.length)); }
+    const k = race.order[this.pick] || race.karts[0];
+    const c = this.cam;
+    if (this.mode === 0) {
+      const a = this.t * 0.25 + k.yaw;
+      c.position.set(k.pos.x + Math.sin(a) * 12, k.pos.y + 4.5, k.pos.z + Math.cos(a) * 12);
+      c.lookAt(k.pos.x, k.pos.y + 1.2, k.pos.z);
+    } else if (this.mode === 1) {
+      if (!this.side || this.t < dt * 2) {
+        const tr = race.track, i = tr.wrap((k.loc.i ?? 0) + 45);
+        this.side = tr.at(i, (tr.HW[i] + tr.SH[i] + 2) * (Math.random() < 0.5 ? -1 : 1), 2.5);
+      }
+      c.position.copy(this.side);
+      c.lookAt(k.pos.x, k.pos.y + 1, k.pos.z);
+      c.fov = 40; c.updateProjectionMatrix();
+    } else {
+      c.position.set(k.pos.x - Math.sin(k.yaw) * 18, k.pos.y + 12, k.pos.z - Math.cos(k.yaw) * 18);
+      c.lookAt(k.pos.x + Math.sin(k.yaw) * 8, k.pos.y, k.pos.z + Math.cos(k.yaw) * 8);
+    }
+    if (this.mode !== 1 && c.fov !== 55) { c.fov = 55; c.updateProjectionMatrix(); }
+    this.focus = k.pos;
+  }
+}
+
+export class Race {
+  constructor(game, opts) {
+    this.game = game;
+    this.opts = opts;
+    this.audio = game.audio;
+    this.input = game.input;
+    this.mode = opts.mode;
+    this.laps = opts.laps ?? 3;
+    this.cc = opts.cc ?? 0.92;
+    this.scene = new THREE.Scene();
+    this.scene.environment = game.envMap;
+    this.world = new World(opts.def, this.scene);
+    this.track = this.world.track;
+    this.fx = new Effects(this.scene, this.track);
+    this.items = new Items(this);
+    this.karts = [];
+    this.drivers = new Map();
+    this.cams = [];
+    this.started = false;
+    this.time = 0;
+    this.results = [];
+
+    // roster & grid
+    const humans = opts.players || [];
+    const used = new Set(humans.map((p) => p.charIndex));
+    const others = CHARACTERS.map((_, i) => i).filter((i) => !used.has(i));
+    for (let i = others.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [others[i], others[j]] = [others[j], others[i]]; }
+    const total = this.mode === 'tt' ? humans.length : Math.max(humans.length, opts.racers ?? 8);
+    let grid = opts.grid;   // array of { charIndex, player }
+    if (!grid) {
+      grid = [];
+      const ai = others.slice(0, total - humans.length).map((c) => ({ charIndex: c, player: null }));
+      grid.push(...ai, ...humans.map((p) => ({ charIndex: p.charIndex, player: p })));
+    }
+    grid.forEach((g, n) => {
+      const k = new Kart(this, CHARACTERS[g.charIndex], n, g.player);
+      const row = n;
+      const i = this.track.wrap(Math.round(-7 - row * 3.6));
+      const lat = (n % 2 ? 1 : -1) * this.track.HW[i] * 0.42;
+      k.place(i, lat);
+      k.lap = 0;
+      k._prevI = k.loc.i;
+      this.karts.push(k);
+      if (g.player) {
+        g.player.kart = k;
+        const cc = new ChaseCam();
+        this.cams.push({ chase: cc, kart: k, player: g.player });
+        k.engine = this.audio.engine();
+      } else {
+        this.drivers.set(k, new AIDriver(k, this, opts.difficulty || 'normal'));
+      }
+    });
+    this.order = [...this.karts];
+    this.tv = new TVCam();
+    this.state = this.mode === 'attract' ? 'race' : 'intro';
+    this.introT = 0;
+    this.countdown = 3.6;
+    this.lastCount = 4;
+    if (this.mode === 'attract') { this.started = true; this.countdown = 0; }
+    this.hud = this.mode === 'attract' ? null : new HUD(this, game.hudRoot);
+    this.finalLapShown = false;
+    this.doneTimer = -1;
+    this.flashEl = game.flashEl;
+    this.introCam = new THREE.PerspectiveCamera(55, 1, 0.1, 3000);
+    for (const k of this.karts) { k.lapTimes = []; k.lapStart = 0; k.lapSeen = 0; k.gasHold = -1; }
+    if (this.mode === 'tt') for (const k of this.karts) { k.item = 'boost3'; k.itemCount = 3; }
+    this.audio.music(this.mode === 'attract' ? null : opts.def.theme.music);
+  }
+
+  flash(color) {
+    if (!this.flashEl) return;
+    this.flashEl.style.background = '#' + new THREE.Color(color).getHexString();
+    this.flashEl.classList.remove('go'); void this.flashEl.offsetWidth; this.flashEl.classList.add('go');
+  }
+
+  humanKarts() { return this.cams.map((c) => c.kart); }
+
+  update(dt) {
+    const tr = this.track;
+    // intro flyover
+    if (this.state === 'intro') {
+      this.introT += dt;
+      const anyOk = this.game.menuEvents.some(([, m]) => m.ok || m.start) || this.input.touch.edge?.size;
+      if (this.introT > 4.2 || (anyOk && this.introT > 0.4)) { this.state = 'countdown'; this.hud?.hideTitle(); }
+    } else if (this.state === 'countdown') {
+      this.countdown -= dt;
+      const n = Math.ceil(this.countdown);
+      if (n < this.lastCount && n >= 1 && n <= 3) { this.lastCount = n; this.audio.sfx('count'); tr.setStartLights(4 - n, false); this.hud?.count(n); }
+      if (this.countdown <= 0) {
+        this.state = 'race'; this.started = true; this.time = 0;
+        tr.setStartLights(4, true);
+        this.audio.sfx('go');
+        this.hud?.count('GO!');
+        for (const k of this.karts) {
+          if (k.human) {
+            if (k.gasHold > 0.3 && k.gasHold < 1.7) k.boost(1.1);
+            else if (k.gasHold >= 2.4) { k.spinTime = 0.6; }
+          } else if (Math.random() < this.drivers.get(k).d.skill * 0.8) k.boost(0.8 + Math.random() * 0.4);
+        }
+      }
+    }
+    if (this.started) this.time += dt;
+
+    // controls
+    const humanLead = this.cams.length ? Math.max(...this.cams.map((c) => c.kart.raceDist)) : null;
+    for (const k of this.karts) {
+      let ctl;
+      if (k.human && !k.finished) {
+        ctl = this.input.race(k.player.device, k.player.autoGas);
+        if (ctl.pause && this.state !== 'intro') { this.game.pause(k.player); }
+        k.lookBack = ctl.look;
+        if (this.state === 'countdown') {
+          if (ctl.throttle > 0.5) { if (k.gasHold < 0) k.gasHold = this.countdown; } else k.gasHold = -1;
+        }
+      } else {
+        let drv = this.drivers.get(k);
+        if (!drv) { drv = new AIDriver(k, this, 'normal'); drv.d = { ...drv.d, skill: 0.5 }; this.drivers.set(k, drv); }
+        if (this.mode !== 'tt' && !k.finished) drv.band(humanLead);
+        else k.speedMult = 0.9;
+        ctl = drv.update(dt);
+        k.lookBack = false;
+      }
+      if (!this.started) { ctl = { ...ctl, throttle: 0, brake: 0, steer: 0, driftPressed: false, itemPressed: false }; }
+      if (ctl.itemPressed && k.item && k.roulette <= 0 && !k.stunned && this.started) this.items.use(k);
+      k.update(dt, ctl);
+      if (k.roulette > 0) {
+        k.roulette -= dt;
+        if (k.human && Math.random() < dt * 18) this.audio.sfx('roll');
+        if (k.roulette <= 0) {
+          k.item = k.rouletteItem; k.itemCount = k.item === 'boost3' ? 3 : 1;
+          if (k.human) this.audio.sfx('itemget');
+        }
+      }
+    }
+
+    // pickups: item boxes, studs, boost pads, ramps
+    const n = this.karts.length;
+    for (const k of this.karts) {
+      if (k.respawn > 0) continue;
+      for (const b of tr.itemBoxes) {
+        if (!b.active) continue;
+        if (Math.abs(b.pos.x - k.pos.x) < 2.6 && Math.abs(b.pos.z - k.pos.z) < 2.6 && Math.abs(b.pos.y - k.pos.y - 1) < 2.6) {
+          b.active = false; b.timer = 2.2;
+          this.fx.itemBoxBreak(b.pos);
+          if (k.human) this.audio.sfx('box');
+          if (!k.item && k.roulette <= 0) {
+            const rf = n > 1 ? (k.rank - 1) / (n - 1) : 0;
+            k.rouletteItem = rollItem(rf);
+            k.roulette = k.human ? 1.3 : 1.0;
+          }
+        }
+      }
+      for (const s of tr.studs) {
+        if (!s.active) continue;
+        if (Math.abs(s.pos.x - k.pos.x) < 2 && Math.abs(s.pos.z - k.pos.z) < 2 && Math.abs(s.pos.y - k.pos.y - 1) < 2) {
+          s.active = false; s.timer = 9;
+          k.studs = Math.min(10, k.studs + 1);
+          this.fx.studPickup(s.pos);
+          if (k.human) this.audio.sfx('stud');
+        }
+      }
+      if (k.grounded) {
+        for (const bp of tr.boosts) {
+          const di = Math.abs(((k.loc.i - bp.i + tr.N + tr.N / 2) % tr.N) - tr.N / 2);
+          if (di < 3.6 && Math.abs(k.loc.lat - bp.lat) < 2.5 && (k.padCool ?? 0) <= 0) { k.boost(1.0); k.padCool = 0.4; }
+        }
+        for (const r of tr.ramps) {
+          const di = ((r.i - k.loc.i) + tr.N) % tr.N;
+          if (di <= 2 && Math.abs(k.loc.lat) < tr.HW[r.i] && k.speed > 8) {
+            k.launch(14 + Math.min(10, k.speed * 0.14));
+            k.boostTime = Math.max(k.boostTime, 0.25);
+          }
+        }
+      }
+      k.padCool = (k.padCool ?? 0) - dt;
+    }
+
+    // kart vs kart bumping
+    for (let a = 0; a < n; a++) for (let b = a + 1; b < n; b++) {
+      const A = this.karts[a], B = this.karts[b];
+      if (A.respawn > 0 || B.respawn > 0) continue;
+      const dx = B.pos.x - A.pos.x, dz = B.pos.z - A.pos.z;
+      const d2 = dx * dx + dz * dz;
+      if (d2 > 2.7 * 2.7 || Math.abs(A.pos.y - B.pos.y) > 2) continue;
+      const d = Math.sqrt(d2) || 0.01;
+      const nx = dx / d, nz = dz / d;
+      const over = 2.7 - d;
+      const wa = B.weight / (A.weight + B.weight), wb = 1 - wa;
+      A.pos.x -= nx * over * wa; A.pos.z -= nz * over * wa;
+      B.pos.x += nx * over * wb; B.pos.z += nz * over * wb;
+      if (A.goldenTime > 0 && B.goldenTime <= 0) B.hit('wreck', A);
+      else if (B.goldenTime > 0 && A.goldenTime <= 0) A.hit('wreck', B);
+      else if (A.bumpCool <= 0 && B.bumpCool <= 0) {
+        A.bumpCool = B.bumpCool = 0.35;
+        // nudge travel directions apart, heavier karts win
+        const ya = Math.atan2(-nx, -nz), yb = Math.atan2(nx, nz);
+        A.moveYaw = lerpAngle(A.moveYaw, ya, 0.25 * wa);
+        B.moveYaw = lerpAngle(B.moveYaw, yb, 0.25 * wb);
+        A.speed *= 1 - 0.12 * wa; B.speed *= 1 - 0.12 * wb;
+        if (A.human || B.human) this.audio.sfx('bump', A.pos);
+        A.player?.rumble(0.3 * wa + 0.1, 90); B.player?.rumble(0.3 * wb + 0.1, 90);
+      }
+    }
+
+    this.items.update(dt);
+    this.fx.update(dt);
+
+    // standings
+    this.order.sort((a, b) => {
+      if (a.finished && b.finished) return a.finishTime - b.finishTime;
+      if (a.finished) return -1;
+      if (b.finished) return 1;
+      return b.raceDist - a.raceDist;
+    });
+    this.order.forEach((k, i) => { k.rank = i + 1; });
+
+    // laps & finishing
+    for (const k of this.karts) {
+      if (k.finished || !this.started) continue;
+      if (k.lap > k.lapSeen) {
+        k.lapSeen = k.lap;
+        if (k.lap >= 2) { k.lapTimes.push(this.time - k.lapStart); }
+        k.lapStart = this.time;
+        if (k.lap > this.laps) {
+          k.finished = true; k.finishTime = this.time;
+          this.results.push(k);
+          if (k.human) {
+            this.audio.sfx('finish');
+            this.hud?.finish(k);
+            k.player.rumble(0.6, 300);
+            k.engine?.set(0, false, false);
+          }
+          if (this.mode === 'tt') this.doneTimer = 3;
+        } else if (k.human && k.lap === this.laps) {
+          this.hud?.message(k, 'FINAL LAP!', 'final');
+          if (!this.finalLapShown) { this.finalLapShown = true; this.audio.sfx('finallap'); this.audio.musicRate(1.12); }
+        } else if (k.human && k.lap > 1) {
+          this.hud?.message(k, `LAP ${k.lap}`, 'lap');
+          this.audio.sfx('lap');
+        }
+      }
+    }
+    if (this.mode !== 'attract' && this.doneTimer < 0 && this.cams.length && this.cams.every((c) => c.kart.finished)) this.doneTimer = 3.2;
+    if (this.doneTimer > 0) {
+      this.doneTimer -= dt;
+      if (this.doneTimer <= 0) this.finish();
+    }
+
+    // cameras, audio, world
+    for (const c of this.cams) {
+      c.chase.update(dt, c.kart);
+      const k = c.kart;
+      k.engine?.set(Math.min(1.3, Math.abs(k.speed) / k.topSpeed), k.boosting, !k.finished && k.respawn <= 0, 1 / Math.sqrt(this.cams.length));
+    }
+    if (this.mode === 'attract' || this.cams.length === 3) this.tv.update(dt, this);
+    if (this.state === 'intro') this.updateIntroCam();
+    const focus = this.cams[0]?.kart.pos || this.tv.focus || this.karts[0].pos;
+    this.audio.listener = focus;
+    this.world.update(dt, focus);
+    this.hud?.update(dt);
+  }
+
+  updateIntroCam() {
+    const tr = this.track, t = this.introT;
+    const i = tr.wrap(-30 + t * 8);
+    const p = tr.at(i, 0, 0);
+    const a = t * 0.35 + 0.6;
+    this.introCam.position.set(p.x + Math.sin(a) * 40, p.y + 18 - t * 2, p.z + Math.cos(a) * 40);
+    const s = tr.at(-12, 0, 1);
+    this.introCam.lookAt(s);
+  }
+
+  finish() {
+    if (this.finishedCalled) return;
+    this.finishedCalled = true;
+    // unfinished karts: estimate finish times from remaining distance
+    const rest = this.order.filter((k) => !k.finished);
+    for (const k of rest) {
+      const remain = (this.laps + 1) * this.track.N - k.raceDist;
+      k.finishTime = this.time + Math.max(0.5, remain / Math.max(15, k.topSpeed * 0.9)) + Math.random() * 0.3;
+      k.finished = true; k.estimated = true;
+    }
+    const all = [...this.karts].sort((a, b) => a.finishTime - b.finishTime);
+    this.onDone?.(all.map((k, i) => ({ place: i + 1, kart: k, charIndex: CHARACTERS.indexOf(k.ch), player: k.player, time: k.finishTime, laps: k.lapTimes, estimated: !!k.estimated })));
+  }
+
+  viewports(W, H) {
+    const n = this.cams.length;
+    if (n <= 1) return [[0, 0, W, H]];
+    if (n === 2) return [[0, H / 2, W, H / 2], [0, 0, W, H / 2]];
+    const w = W / 2, h = H / 2;
+    return [[0, h, w, h], [w, h, w, h], [0, 0, w, h], [w, 0, w, h]];
+  }
+
+  render(renderer) {
+    const size = renderer.getSize(V);
+    const W = size.x, H = size.y;
+    if (this.mode === 'attract' || !this.cams.length) {
+      renderer.setScissorTest(false);
+      renderer.setViewport(0, 0, W, H);
+      this.tv.cam.aspect = W / H; this.tv.cam.updateProjectionMatrix();
+      this.world.aimSun(this.tv.focus || this.karts[0].pos);
+      renderer.render(this.scene, this.tv.cam);
+      return;
+    }
+    if (this.state === 'intro') {
+      renderer.setScissorTest(false);
+      renderer.setViewport(0, 0, W, H);
+      this.introCam.aspect = W / H; this.introCam.updateProjectionMatrix();
+      this.world.aimSun(this.track.at(-20, 0, 0));
+      renderer.render(this.scene, this.introCam);
+      return;
+    }
+    const vps = this.viewports(W, H);
+    renderer.setScissorTest(true);
+    vps.forEach((vp, i) => {
+      const [x, y, w, h] = vp;
+      renderer.setViewport(x, y, w, h);
+      renderer.setScissor(x, y, w, h);
+      let cam, focus;
+      if (this.cams[i]) { cam = this.cams[i].chase.cam; focus = this.cams[i].kart.pos; }
+      else { cam = this.tv.cam; focus = this.tv.focus || this.karts[0].pos; }
+      if (Math.abs(cam.aspect - w / h) > 0.001) { cam.aspect = w / h; cam.updateProjectionMatrix(); }
+      this.world.aimSun(focus);
+      renderer.render(this.scene, cam);
+    });
+    renderer.setScissorTest(false);
+  }
+
+  onHit(k, kind) {
+    const c = this.cams.find((c) => c.kart === k);
+    if (c) c.chase.shake = kind === 'spin' ? 0.6 : 1.2;
+  }
+
+  dispose() {
+    for (const c of this.cams) c.kart.engine?.stop();
+    this.items.dispose();
+    this.hud?.dispose();
+    this.world.dispose();
+    this.scene.clear();
+  }
+}
