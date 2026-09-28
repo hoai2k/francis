@@ -54,7 +54,11 @@ class Game {
     this.paused = false;
     addEventListener('resize', () => this.resize());
     this.resize();
-    const unlock = () => { this.audio.unlock(); };
+    const unlock = (e) => {
+      this.audio.unlock();
+      // pressing Start/Enter/tap on the title screen goes fullscreen (needs a real key press or tap)
+      if (this.onTitle && (e.type === 'pointerdown' || ['Enter', 'Space', 'NumpadEnter'].includes(e.code))) this.enterFullscreen();
+    };
     addEventListener('pointerdown', unlock); addEventListener('keydown', unlock);
     addEventListener('gamepadconnected', (e) => { this.toast(`🎮 Controller ${e.gamepad.index + 1} connected`); });
     addEventListener('gamepaddisconnected', (e) => { this.toast(`Controller ${e.gamepad.index + 1} disconnected`); });
@@ -223,14 +227,30 @@ class Game {
   }
 
   // ---- screens ------------------------------------------------------------------------
+  enterFullscreen() {
+    const el = document.documentElement;
+    if (document.fullscreenElement || document.webkitFullscreenElement) return;
+    const req = el.requestFullscreen || el.webkitRequestFullscreen;
+    if (!req) return;
+    try {
+      const p = req.call(el, { navigationUI: 'hide' });
+      p?.then?.(() => screen.orientation?.lock?.('landscape').catch(() => {})).catch(() => {});
+    } catch { /* not allowed here */ }
+  }
+  toggleFullscreen() {
+    if (document.fullscreenElement || document.webkitFullscreenElement) (document.exitFullscreen || document.webkitExitFullscreen)?.call(document);
+    else this.enterFullscreen();
+  }
+
   showTitle() {
+    this.onTitle = true;
     this.hudRoot.classList.add('hidden');
     this.setScreen(`<div class="screen title"><div class="logo">${logoHTML()}</div>
       <div class="tagline">A brick-built kart racer · 9 maps · 16 racers · gliders · 1–4 players</div>
       <button class="press" data-act="start">PRESS <b>START</b> · <b>ENTER</b> · <b>TAP</b></button>
       <div class="pads-note">🎮 Controllers supported — plug in up to 4 for split-screen</div></div>`, {
-      update: () => { if (this.menuEvents.some(([, m]) => m.ok || m.start)) { this.audio.sfx('select'); this.showMain(); } },
-      act: () => { this.audio.sfx('select'); this.showMain(); },
+      update: () => { if (this.menuEvents.some(([, m]) => m.ok || m.start)) { this.enterFullscreen(); this.onTitle = false; this.audio.sfx('select'); this.showMain(); } },
+      act: () => { this.enterFullscreen(); this.onTitle = false; this.audio.sfx('select'); this.showMain(); },
     });
   }
 
@@ -264,6 +284,7 @@ class Game {
         { label: 'Auto-accelerate', value: () => (s.autoGas ? 'On' : 'Off'), left: () => { s.autoGas = !s.autoGas; save(SKEY, s); }, right: () => { s.autoGas = !s.autoGas; save(SKEY, s); } },
         { label: 'Music', value: () => Math.round(s.music * 10) + '/10', left: () => vol('music', -1), right: () => vol('music', 1) },
         { label: 'Sound FX', value: () => Math.round(s.sfx * 10) + '/10', left: () => vol('sfx', -1), right: () => vol('sfx', 1) },
+        { label: 'Fullscreen', value: () => (document.fullscreenElement || document.webkitFullscreenElement ? 'On' : 'Off'), left: () => this.toggleFullscreen(), right: () => this.toggleFullscreen() },
         { label: 'Graphics', value: () => (s.quality === 'high' ? 'High' : 'Fast'), left: () => { cyc('quality', ['high', 'low'], 1); this.applyQuality(); }, right: () => { cyc('quality', ['high', 'low'], 1); this.applyQuality(); } },
         { label: 'Done', action: back },
       ],
