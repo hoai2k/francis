@@ -12,7 +12,7 @@ import space from './maps/space.js';
 // Movie Cup maps are loaded independently so a problem in one never stops
 // the rest of the game from starting.
 // Finished movie maps (others are still being built).
-const MOVIE_IDS = ['marvel'];
+const MOVIE_IDS = ['starwars', 'marvel'];
 const movie = (await Promise.allSettled(MOVIE_IDS.map((id) => import(`./maps/${id}.js`))))
   .map((r, i) => {
     // placeholders for maps still being built stay hidden
