@@ -9,13 +9,25 @@ import factory from './maps/factory.js';
 import lava from './maps/lava.js';
 import space from './maps/space.js';
 
-export const TRACKS = [city, meadow, pirate, candy, jungle, frost, factory, lava, space];
+// Movie Cup maps are loaded independently so a problem in one never stops
+// the rest of the game from starting.
+const MOVIE_IDS = ['jurassic', 'starwars', 'marvel', 'jjk'];
+const movie = (await Promise.allSettled(MOVIE_IDS.map((id) => import(`./maps/${id}.js`))))
+  .map((r, i) => {
+    if (r.status === 'fulfilled' && r.value.default?.points) return r.value.default;
+    console.error(`Movie map "${MOVIE_IDS[i]}" failed to load`, r.reason);
+    return null;
+  })
+  .filter(Boolean);
+
+export const TRACKS = [city, meadow, pirate, candy, jungle, frost, factory, lava, space, ...movie];
 
 export const CUPS = [
   { id: 'stud', name: 'Stud Cup', color: '#f2cd37', tracks: ['city', 'meadow', 'pirate'] },
   { id: 'brick', name: 'Brick Cup', color: '#c91a09', tracks: ['candy', 'jungle', 'frost'] },
   { id: 'galaxy', name: 'Galaxy Cup', color: '#9a5aff', tracks: ['factory', 'lava', 'space'] },
+  { id: 'movie', name: 'Movie Cup', color: '#ff4a3a', tracks: movie.map((t) => t.id) },
   { id: 'all', name: 'All-Star Cup', color: '#36aebf', tracks: TRACKS.map((t) => t.id) },
-];
+].filter((c) => c.tracks.length);
 
 export function trackById(id) { return TRACKS.find((t) => t.id === id) || TRACKS[0]; }
