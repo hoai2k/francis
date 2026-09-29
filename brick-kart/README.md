@@ -46,17 +46,34 @@ weight: Brick Bob, Astro Ava, Cap'n Redbeard, Sir Kara, Robo-Rex, Ninja Nix,
 Chief Flo, Wizard Wendel, Chef Pepper, Cowgirl Cassie, Viking Bjorn, Queen
 Regina, Skater Sam, Zorp the Alien, Mummy Max and Dino Dina.
 
-## Power-ups
+## Power-ups (23)
 
 Drive through the rainbow **?** bricks to get an item. You can hold two: the one you can use now (big slot) and the next one (small slot), which moves up once you use the first.
 
-- **Turbo Stud** / **Triple Turbo**: a speed boost (or three).
-- **Homing Rocket**: chases the racer in front of you.
-- **Bouncer Brick**: fires straight and bounces off walls. Hold back to fire it behind you.
-- **Stray Bricks**: drops a pile of loose bricks. Anyone who drives over it spins out.
-- **Brick Shield**: blocks the next hit.
-- **Golden Brick**: makes you invincible and faster for a few seconds.
-- **Brick Storm**: bricks rain down on the racers ahead of you.
+The further back you are, the better your items. The leader mostly gets defensive items, and the racers at the back get the big comeback items. Being far behind the leader also improves your odds.
+
+| Item | What it does |
+| --- | --- |
+| Turbo Stud / Triple Turbo | A speed boost (or three) |
+| Gold Turbo | Boost as often as you like for 7 seconds |
+| Stud Bag | Five gold studs at once and a small boost |
+| **Bullet Brick** | Turn into a giant brick bullet that drives itself at huge speed and blasts karts aside (like Bullet Bill) |
+| Golden Brick | Invincible and faster; smash through karts |
+| Mega Brick | Grow huge for 8 seconds and flatten anyone you touch; a hit shrinks you |
+| Ghost Brick | Items pass through you for 5 seconds, and you steal an item from a rival |
+| Homing Rocket / Triple Rockets | Chases the racer in front of you |
+| Leader Seeker | Flies over the track to 1st place and explodes |
+| Bouncer Brick / Triple Bouncers | Fires straight and bounces off walls (hold back to fire behind) |
+| Freeze Brick | A bouncer that freezes whoever it hits |
+| Boomerang | Flies out, spins racers it hits, and comes back |
+| Boom Brick | Thrown forward (or dropped back); explodes with a big blast |
+| Stray Bricks | A pile of loose bricks that spins karts out |
+| Paint Puddle | A slippery puddle that spins everyone who drives through it |
+| Fake Box | Looks like an item box, but blows up whoever touches it |
+| Ink Splat | Splats ink over the screens of everyone ahead |
+| Brick Storm | Rains bricks down on the racers ahead |
+| Brick Shield | Blocks the next hit |
+| Brick Horn | A shockwave that destroys nearby items (even the Leader Seeker) and spins nearby karts |
 
 When you're hit, your kart breaks into bricks and snaps back together.
 Gold studs on the track raise your top speed (up to 10). Getting hit makes

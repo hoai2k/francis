@@ -227,7 +227,7 @@ export class Hazards {
         this.cool.set(k, 1.0);
         if (kind === 'bump') {
           // knocked sideways and slowed, like clipping traffic
-          if (k.goldenTime > 0) break;
+          if (k.goldenTime > 0 || k.megaTime > 0 || k.bulletTime > 0) break;
           if (!k.shieldBlocks()) {
             k.speed *= 0.35; k.spinTime = Math.max(k.spinTime, 0.5); k.cancelDrift();
             this.race.audio.sfx('bump', k.pos);

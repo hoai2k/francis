@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { World } from './world.js';
 import { Kart, angleDiff } from './kart.js';
 import { Effects } from './effects.js';
-import { Items, rollItem } from './items.js';
+import { Items, rollItem, MULTI } from './items.js';
 import { AIDriver } from './ai.js';
 import { CHARACTERS } from './characters.js';
 import { HUD } from './hud.js';
@@ -211,7 +211,7 @@ export class Race {
         k.roulette -= dt;
         if (k.human && Math.random() < dt * 18) this.audio.sfx('roll');
         if (k.roulette <= 0) {
-          k.item = k.rouletteItem; k.itemCount = k.item === 'boost3' ? 3 : 1;
+          k.item = k.rouletteItem; k.itemCount = MULTI[k.item] || 1;
           if (k.human) this.audio.sfx('itemget');
         }
       }
@@ -220,8 +220,9 @@ export class Race {
         k.roulette2 -= dt;
         if (k.roulette2 <= 0) { k.nextItem = k.rouletteItem2; if (k.human) this.audio.sfx('itemget'); }
       }
+      if (k.item === 'goldturbo' && k.goldTurboStarted && k.goldTurboTime <= 0) { k.item = null; k.goldTurboStarted = false; }
       if (!k.item && k.roulette <= 0 && k.nextItem && k.roulette2 <= 0) {
-        k.item = k.nextItem; k.itemCount = k.item === 'boost3' ? 3 : 1; k.nextItem = null;
+        k.item = k.nextItem; k.itemCount = MULTI[k.item] || 1; k.nextItem = null;
       }
     }
 
@@ -236,11 +237,13 @@ export class Race {
           this.fx.itemBoxBreak(b.pos);
           if (k.human) this.audio.sfx('box');
           const rf = n > 1 ? (k.rank - 1) / (n - 1) : 0;
+          const lead = this.order.find((o) => !o.finished) || this.order[0];
+          const behind = lead ? lead.raceDist - k.raceDist : 0;
           if (!k.item && k.roulette <= 0 && !k.nextItem && !(k.roulette2 > 0)) {
-            k.rouletteItem = rollItem(rf);
+            k.rouletteItem = rollItem(rf, Math.random, behind);
             k.roulette = k.human ? 1.3 : 1.0;
           } else if (!k.nextItem && !(k.roulette2 > 0)) {
-            k.rouletteItem2 = rollItem(rf);
+            k.rouletteItem2 = rollItem(rf, Math.random, behind);
             k.roulette2 = k.human ? 1.3 : 1.0;
           }
         }
@@ -289,13 +292,22 @@ export class Race {
     // kart vs kart bumping
     for (let a = 0; a < n; a++) for (let b = a + 1; b < n; b++) {
       const A = this.karts[a], B = this.karts[b];
-      if (A.respawn > 0 || B.respawn > 0) continue;
+      if (A.respawn > 0 || B.respawn > 0 || A.ghostTime > 0 || B.ghostTime > 0) continue;
       const dx = B.pos.x - A.pos.x, dz = B.pos.z - A.pos.z;
       const d2 = dx * dx + dz * dz;
-      if (d2 > 2.7 * 2.7 || Math.abs(A.pos.y - B.pos.y) > 2) continue;
+      const reach = 1.35 * (A.megaScale + B.megaScale) + (A.bulletTime > 0 || B.bulletTime > 0 ? 1.5 : 0);
+      if (d2 > reach * reach || Math.abs(A.pos.y - B.pos.y) > 2 * Math.max(A.megaScale, B.megaScale)) continue;
+      // bullets blast through, mega karts flatten normal ones
+      if (A.bulletTime > 0 || B.bulletTime > 0) {
+        if (A.bulletTime > 0 && B.bulletTime <= 0) B.hit('wreck', A);
+        if (B.bulletTime > 0 && A.bulletTime <= 0) A.hit('wreck', B);
+        continue;
+      }
+      if (A.megaTime > 0 && B.megaTime <= 0) { B.hit('spin', A); continue; }
+      if (B.megaTime > 0 && A.megaTime <= 0) { A.hit('spin', B); continue; }
       const d = Math.sqrt(d2) || 0.01;
       const nx = dx / d, nz = dz / d;
-      const over = 2.7 - d;
+      const over = reach - d;
       const wa = B.weight / (A.weight + B.weight), wb = 1 - wa;
       A.pos.x -= nx * over * wa; A.pos.z -= nz * over * wa;
       B.pos.x += nx * over * wb; B.pos.z += nz * over * wb;

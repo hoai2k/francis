@@ -108,23 +108,32 @@ export class AIDriver {
     const gapAhead = ahead ? ahead.raceDist - k.raceDist : 1e9;
     const gapBehind = behind ? k.raceDist - behind.raceDist : 1e9;
     let use = false;
+    const aheadShot = () => {
+      if (!ahead || gapAhead > 45) return false;
+      const a = Math.atan2(ahead.pos.x - k.pos.x, ahead.pos.z - k.pos.z);
+      return Math.abs(angleDiff(k.yaw, a)) < 0.2;
+    };
+    const threat = race.items.proj.some((p) => p.owner !== k && p.pos.distanceTo(k.pos) < 35);
     switch (k.item) {
-      case 'boost': case 'boost3': case 'golden': use = curv < 0.5 && !k.offroad || k.offroad; break;
-      case 'rocket': use = !!ahead && gapAhead < 180; break;
-      case 'cannon': {
-        if (ahead && gapAhead < 45) {
-          const a = Math.atan2(ahead.pos.x - k.pos.x, ahead.pos.z - k.pos.z);
-          use = Math.abs(angleDiff(k.yaw, a)) < 0.2;
-        }
-        if (!use && behind && gapBehind < 18) { use = true; c.back = true; }
+      case 'boost': case 'boost3': case 'golden': case 'goldturbo': case 'mega': use = curv < 0.5 && !k.offroad || k.offroad; break;
+      case 'bullet': case 'ink': case 'storm': case 'studbag': case 'seeker': case 'ghost': use = true; break;
+      case 'rocket': case 'rocket3': use = !!ahead && gapAhead < 180; break;
+      case 'cannon': case 'cannon3': case 'ice': case 'boomerang': {
+        use = aheadShot();
+        if (!use && k.item !== 'boomerang' && behind && gapBehind < 18) { use = true; c.back = true; }
         if (!use && this.itemTimer < -8) use = true;
         break;
       }
-      case 'trap': use = (behind && gapBehind < 25) || this.itemTimer < -6; break;
-      case 'shield': use = this.itemTimer < -1.5 || race.items.proj.some((p) => p.owner !== k && p.pos.distanceTo(k.pos) < 35); break;
-      case 'storm': use = true; break;
+      case 'bomb':
+        if (ahead && gapAhead < 45) { use = true; c.aimFwd = true; }
+        else if (behind && gapBehind < 20) { use = true; c.back = true; }
+        else use = this.itemTimer < -8;
+        break;
+      case 'trap': case 'puddle': case 'fakebox': use = (behind && gapBehind < 25) || this.itemTimer < -6; break;
+      case 'shield': use = this.itemTimer < -1.5 || threat; break;
+      case 'horn': use = threat || race.karts.some((o) => o !== k && o.pos.distanceTo(k.pos) < 10) || this.itemTimer < -10; break;
     }
-    if (use) { c.itemPressed = true; this.itemTimer = 0.5 + Math.random() * (1.5 - this.d.skill); }
+    if (use) { c.itemPressed = true; this.itemTimer = k.item === 'goldturbo' ? 0.35 : 0.5 + Math.random() * (1.5 - this.d.skill); }
   }
 
   // speed multiplier relative to the best human player (rubber-banding)

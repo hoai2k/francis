@@ -1,6 +1,6 @@
 // In-race heads-up display. One panel per local player (matching the
 // split-screen viewports), a shared minimap, countdown and title card.
-import { ICONS, ITEMS } from './items.js';
+import { ICONS, ITEMS, MULTI } from './items.js';
 
 const ORD = ['th', 'st', 'nd', 'rd'];
 const ord = (n) => (n % 100 > 10 && n % 100 < 14 ? 'th' : ORD[n % 10] || 'th');
@@ -30,6 +30,7 @@ export class HUD {
           <div class="h-lap"><span class="lbl">LAP</span> <b class="lapn">1</b><span class="lapt">/${race.laps}</span><div class="h-time">0:00.00</div></div>
           <div class="h-items"><div class="h-item2"><div class="slot"><div class="icon"></div></div></div><div class="h-item"><div class="slot"><div class="icon"></div></div><span class="cnt"></span></div></div>
         </div>
+        <div class="h-ink"><i></i><i></i><i></i><i></i><i></i></div>
         <div class="h-msg"></div>
         <div class="h-wrong">WRONG WAY!</div>
         <div class="h-bottom">
@@ -43,7 +44,7 @@ export class HUD {
         lap: el.querySelector('.lapn'), time: el.querySelector('.h-time'),
         icon: el.querySelector('.h-item .icon'), slot: el.querySelector('.h-item'), cnt: el.querySelector('.cnt'),
         icon2: el.querySelector('.h-item2 .icon'), slot2: el.querySelector('.h-item2'), last2: undefined, roll2T: 0,
-        msg: el.querySelector('.h-msg'), wrong: el.querySelector('.h-wrong'),
+        msg: el.querySelector('.h-msg'), ink: el.querySelector('.h-ink'), wrong: el.querySelector('.h-wrong'),
         studs: el.querySelector('.h-studs b'), pos: el.querySelector('.h-pos b'), sup: el.querySelector('.h-pos sup'), posEl: el.querySelector('.h-pos'),
         lastItem: null, lastRank: 0, rollT: 0, msgT: 0,
       };
@@ -151,7 +152,9 @@ export class HUD {
       }
       p.slot2.classList.toggle('rolling', k.roulette2 > 0);
       if (show2 !== p.last2) { p.last2 = show2; p.icon2.innerHTML = show2 ? ICONS[show2] : ''; }
-      p.cnt.textContent = k.item === 'boost3' && k.roulette <= 0 && k.itemCount > 1 ? '×' + k.itemCount : '';
+      p.cnt.textContent = MULTI[k.item] && k.roulette <= 0 && k.itemCount > 1 ? '×' + k.itemCount : k.item === 'goldturbo' && k.goldTurboTime > 0 ? Math.ceil(k.goldTurboTime) + 's' : '';
+      p.ink.classList.toggle('show', k.inkTime > 0);
+      if (k.inkTime > 0) p.ink.style.opacity = Math.min(1, k.inkTime / 1.5);
       if (p.msgT > 0) { p.msgT -= dt; if (p.msgT <= 0) p.msg.className = 'h-msg'; }
       p.wrong.classList.toggle('show', k.wrongWay > 1.2 && !k.finished);
     }

@@ -315,7 +315,7 @@ class Game {
           <li>Hold accelerate right as the second light comes on for a rocket start.</li>
           <li>Orange arrow pads give a boost.</li></ul></div>
       </div>
-      <h3>Power-ups</h3><div class="items">${items}</div>
+      <h3>Power-ups (23) · racers further back get stronger ones</h3><div class="items">${items}</div>
       <div class="hint">${hintHTML('Back')}</div></div></div>`, {
       update: () => { for (const [, m] of this.menuEvents) if (m.back || m.ok || m.start) { this.audio.sfx('back'); back(); return; } },
       act: (a) => { if (a === 'back') back(); },
@@ -653,6 +653,21 @@ const ITEM_HELP = {
   shield: 'A bubble that blocks the next hit.',
   golden: 'Invincible and extra fast. Smash through other karts!',
   storm: 'Rains bricks down on the racers ahead.',
+  bullet: 'Turn into a giant brick bullet that drives itself at huge speed, blasting karts aside.',
+  rocket3: 'Three homing rockets.',
+  cannon3: 'Three bouncer bricks.',
+  mega: 'Grow huge for 8 seconds and flatten anyone you touch. A hit shrinks you back.',
+  seeker: 'Flies over the track to whoever is in 1st and explodes on them.',
+  ice: 'A bouncing brick that freezes whoever it hits in an ice block.',
+  ghost: 'Turn invisible to items for 5 seconds and steal an item from a rival.',
+  puddle: 'Leave a slippery paint puddle that spins out everyone who drives through it.',
+  fakebox: 'Looks like an item box, but it blows up anyone who touches it.',
+  bomb: 'Throw it forward (or drop it back). It blows up after a moment with a big blast.',
+  studbag: 'Five gold studs at once, plus a little boost.',
+  goldturbo: 'Boost as many times as you like for 7 seconds.',
+  boomerang: 'Flies out, spins racers it hits, then comes back to you.',
+  ink: 'Splats ink over the screens of everyone ahead of you.',
+  horn: 'A shockwave that destroys nearby items (even the Leader Seeker) and spins nearby karts.',
 };
 
 function logoHTML() {
