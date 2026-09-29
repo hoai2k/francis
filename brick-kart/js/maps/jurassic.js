@@ -609,9 +609,9 @@ export default {
     // ================= INDOMINUS REX ENCLOSURE =================
     {
       let best = null;
-      for (let x = 60; x <= 240; x += 12) for (let z = -160; z <= 60; z += 12) { const c = tr.clearance(x, z, 120); if (c > 48 && dry(x, z) && (!best || Math.hypot(x - 160, z + 50) < Math.hypot(best[0] - 160, best[1] + 50))) best = [x, z]; }
+      for (let x = 60; x <= 240; x += 12) for (let z = -160; z <= 60; z += 12) { const c = tr.clearance(x, z, 120); if (c > 48 && dry(x, z) && ctx.free(x, z, 30) && (!best || Math.hypot(x - 160, z + 50) < Math.hypot(best[0] - 160, best[1] + 50))) best = [x, z]; }
       if (best) {
-        const [x, z] = best, S = 26, H = 18;
+        const [x, z] = best, S = 26, H = 15;
         const toRoad = tr.at(K(6.8), 0, 0);
         const yaw = Math.atan2(toRoad.x - x, toRoad.z - z);
         const E = new P.Local(b, x, 0, z, yaw);
@@ -622,7 +622,7 @@ export default {
         for (let k = 0; k < 4; k++) E.box(-6 + k * 1.3, 11 - k * 0.4, S + 1.6, 0.5, 6, 0.3, C.black, { rz: 0.35 });
         E.boxB(S * 0.6, H + 1, S + 1, 8, 4, 5, C.white); E.boxB(S * 0.6, H + 2, S + 3.6, 7, 2, 0.2, C.azure);
         E.boxB(-S * 0.5, 0, S + 1.6, 10, 16, 0.4, C.dkgray);
-        for (let k = 0; k < 14; k++) jungleTree(b, x + (rand() - 0.5) * S * 1.6, z + (rand() - 0.5) * S * 1.6, 1.1 + rand() * 0.4, rand);
+        for (let k = 0; k < 6; k++) jungleTree(b, x + Math.sin(yaw) * (-S * 0.6) + Math.cos(yaw) * (rand() - 0.5) * S * 1.6, z + Math.cos(yaw) * (-S * 0.6) - Math.sin(yaw) * (rand() - 0.5) * S * 1.6, 1.1 + rand() * 0.4, rand);
         ctx.claim(x, z, S * 1.45);
         const rig = P.theropod({ body: 0xe4e6e2, dark: 0x9aa0a0, belly: 0xc8ccc8, eye: 0xff3010, spikes: 0x8a9090, arm: 1.6 });
         const h = holder(ctx, rig, 1.3, 'indominus');
