@@ -284,22 +284,22 @@ function mosaLunge(ctx, rig, i, side, offset, s) {
 export default {
   id: 'jurassic', name: 'Jurassic Brick Park', subtitle: 'Outrun the T. rex, dodge the raptors, glide over the Mosasaurus',
   cup: 'movie', seed: 93, width: 28, shoulder: 8, edge: 'fence', start: 0.5,
-  points: [[-167,  -234,  0], [-50,  -243,  0], [67,  -234,  0], [167,  -251,  0], [268,  -209,  0], [310,  -117,  0], [276,  -25,  0], [318,  67,  0], [285,  159,  0], [193,  209,  0], [100,  193,  0], [50,  117,  2], [-25,  92,  4], [-67,  167,  8], [-134,  226,  14], [-234,  234,  22], [-310,  167,  28], [-326,  67,  30], [-276,  -33,  14], [-234,  -126,  4], [-251,  -209,  0]],
+  points: [[-159, -222, 0], [-48, -231, 0], [64, -222, 0], [159, -238, 0], [255, -199, 0], [294, -111, 0], [262, -24, 0], [302, 64, 0], [271, 151, 0], [183, 199, 0], [95, 183, 0], [48, 111, 2], [-24, 87, 4], [-64, 159, 8], [-127, 215, 14], [-222, 222, 22], [-294, 159, 28], [-310, 64, 30], [-262, -31, 14], [-222, -120, 4], [-238, -172, 0], [-208, -216, 0]],
   sections: [
-    { from: 20.3, to: 1.5, edge: 'wall', shoulder: 5 },
+    { from: 20.6, to: 1.5, edge: 'wall', shoulder: 5 },
     { from: 4.3, to: 7.6, edge: 'open', shoulder: 14, width: 34 },
     { from: 10.95, to: 11.25, surface: 'water' },
     { from: 11.6, to: 14.2, surface: 'dirt', shoulder: 6 },
     { from: 16.45, to: 17.1, surface: 'helipad', edge: 'wall', shoulder: 3 },
     { from: 17.14, to: 18.45, gap: true },
-    { from: 18.45, to: 19.35, edge: 'wall', shoulder: 3 },
-    { from: 19.4, to: 19.95, edge: 'wall', shoulder: 12 },
+    { from: 18.45, to: 19.15, edge: 'wall', shoulder: 3 },
+    { from: 19.15, to: 19.9, edge: 'wall', shoulder: 12 },
   ],
   items: [1.0, 3.3, 5.6, 8.6, 12.4, 15.2, 18.75],
   boosts: [[0.6, 0], [2.7, 0.4], [4.8, -0.3], [7.0, 0.3], [9.8, 0], [12.9, -0.3], [14.8, 0], [16.2, 0], [19.6, 0]],
-  ramps: [6.15],
+  ramps: [],
   gliders: [17.04],
-  studs: [[0.3, 0.4, 8], [2.2, -0.4, 6], [4.4, 0, 8], [7.9, 0, 6], [10.2, 0.4, 6], [11.9, 0, 8], [14.0, -0.3, 6], [15.8, 0.3, 6], [16.7, 0, 6], [19.2, 0, 6], [20.5, -0.4, 6]],
+  studs: [[0.3, 0.4, 8], [2.2, -0.4, 6], [4.4, 0, 8], [7.9, 0, 6], [10.2, 0.4, 6], [11.9, 0, 8], [14.0, -0.3, 6], [15.8, 0.3, 6], [16.7, 0, 6], [19.4, 0, 6], [21.0, -0.4, 6]],
   theme: {
     sky: [0x3f8fd8, 0xdff0e0, 0x6a8a5a], fog: [0xd4e8d4, 220, 1050], sun: { color: 0xfff0d0, intensity: 2.6, dir: [0.5, 1, 0.3] },
     hemi: [0xe8f4ff, 0x4a6a3a, 1.2], envIntensity: 0.7,
@@ -329,9 +329,9 @@ export default {
     // ---- water: the Mosasaurus lagoon (under the glide), a jungle river and its lake ----
     const inGlide = (i) => inRange(tr, i, 17.0, 18.6);
     const ford = tr.at(K(11.1), 0, 0);
-    const LAG = [-191, -42, 86];
-    const LAKE = [17, 179, 19];
-    const river = [[LAKE[0], LAKE[1]], [ford.x, ford.z], [28, 37], [-56, -9], [-130, -37]];
+    const LAG = [-181, -40, 82];
+    const LAKE = [16, 170, 18];
+    const river = [[LAKE[0], LAKE[1]], [ford.x, ford.z], [27, 35], [-53, -9], [-124, -35]];
     const drawRiver = (g, toPx, sc, w) => { g.lineWidth = w * sc; g.lineCap = g.lineJoin = 'round'; g.beginPath(); river.forEach(([x, z], n) => { const [px, py] = toPx(x, z); if (n) g.lineTo(px, py); else g.moveTo(px, py); }); g.stroke(); };
     // the volcano site is needed for the island outline
     let V = null;
@@ -366,7 +366,7 @@ export default {
     for (const sd of [-1, 1]) { const i = K(11.1); for (let l = tr.HW[i]; l < tr.HW[i] + 40; l += 5) { const p = tr.at(i, sd * l, 0); ctx.claim(p.x, p.z, 11); } }
     for (const [k, sd] of [[2.55, 1], [3.0, -1]]) { const i = K(k), p = tr.at(i, sd * (edgeLat(i) + 3.5), 0); ctx.claim(p.x, p.z, 6); }
     // ---- ground patches: Main Street paving, valley meadow, volcanic rock ----
-    const onMain = (i) => inRange(tr, i, 20.25, 1.55);
+    const onMain = (i) => inRange(tr, i, 20.6, 1.55);
     const pave = ctx.makeMask(1600, 1024, (g, toPx, sc) => { g.fillStyle = '#fff'; strokeTrack(g, tr, toPx, sc, 30, onMain); });
     scene.add(groundPlane(0xb8b2a0, -0.04, 1600, 1.6, { mask: pave }));
     const inValley = (i) => inRange(tr, i, 4.2, 7.7);
@@ -379,7 +379,7 @@ export default {
     const awnCols = [C.red, C.azure, C.yellow, C.green, C.orange, C.blue];
     const shopNames = ['DINO DOGS', 'T-REX CAFE', 'CREATION LAB', 'GYRO TOURS', 'MR. DNA', 'AMBER GIFTS', 'RAPTOR PIZZA', 'FOSSIL SHOP'];
     let sn = 0;
-    each(tr, 20.35, 1.35, 16, (i) => {
+    each(tr, 20.7, 1.35, 16, (i) => {
       for (const sd of [-1, 1]) {
         const lat = sd * (edgeLat(i) + 9);
         const p = tr.at(i, lat, 0);
@@ -405,7 +405,7 @@ export default {
         }
       }
     });
-    edges(ctx, 20.3, 1.4, 12, 1.4, (p) => { b.box(p.x, 0, p.z, 0.4, 6, 0.4, C.dkgray); b.box(p.x, 6, p.z, 1.2, 0.5, 1.2, C.dkgray); b.box(p.x, 5.6, p.z, 0.8, 0.4, 0.8, C.yellow, { matOpts: { emissive: 0xffe08a, emissiveIntensity: 1 } }); });
+    edges(ctx, 20.7, 1.4, 12, 1.4, (p) => { b.box(p.x, 0, p.z, 0.4, 6, 0.4, C.dkgray); b.box(p.x, 6, p.z, 1.2, 0.5, 1.2, C.dkgray); b.box(p.x, 5.6, p.z, 0.8, 0.4, 0.8, C.yellow, { matOpts: { emissive: 0xffe08a, emissiveIntensity: 1 } }); });
     // Innovation Center at the head of Main Street (park side)
     {
       const i = K(0.9), sd = -outSide(i);
@@ -426,7 +426,7 @@ export default {
     // monorail on the outside of Main Street
     {
       const pts = [];
-      each(tr, 20.35, 1.5, 8, (i) => { const sd = outSide(i); const p = tr.at(i, sd * (edgeLat(i) + 26), 0); pts.push(p); });
+      each(tr, 20.7, 1.5, 8, (i) => { const sd = outSide(i); const p = tr.at(i, sd * (edgeLat(i) + 26), 0); pts.push(p); });
       for (let n = 0; n < pts.length; n++) {
         const p = pts[n];
         if (n % 2 === 0) { b.box(p.x, 0, p.z, 1.6, 9, 1.6, C.white); b.box(p.x, 8.6, p.z, 3.4, 0.8, 1.6, C.white); }
@@ -562,7 +562,7 @@ export default {
       anims.push((dt, t) => { g.userData.ring.rotation.x = t * 4; });
     }
     // Gallimimus stampede (the flock from the first film)
-    ctx.hazard(stampede(ctx, 6.38, 10, outSide(K(6.38)), rand));
+    ctx.hazard(stampede(ctx, 6.38, 8, outSide(K(6.38)), rand));
     ctx.scatter(40, { minC: 6, maxC: 130, r: 4, pad: 80, test: (x, z) => inValleyXZ(x, z) && dry(x, z) }, (x, z) => (rand() < 0.5 ? roundTree(b, x, 0, z, 1.2 + rand() * 0.8, pick(rand, [C.green, C.dkgreen, C.lime])) : rock(b, x, 0, z, 1.3, rand, [C.dkgray, C.ltgray, C.tan])));
 
     // ================= T. REX PADDOCK =================
@@ -840,7 +840,7 @@ export default {
 
     // ================= VISITOR CENTER =================
     {
-      const a = 19.42, z = 19.92, im = K((a + z) / 2), p = tr.at(im, 0, 0), yaw = tr.yawAt(im);
+      const a = 19.2, z = 19.85, im = K((a + z) / 2), p = tr.at(im, 0, 0), yaw = tr.yawAt(im);
       const len = (K(z) - K(a) + tr.N) % tr.N;
       tunnel(ctx, a, z, { wall: C.tan, roof: C.dktan, height: 17, lights: 0xffe0a0 });
       P.visitorCenter(new P.Local(b, p.x, 0, p.z, yaw), edgeLat(im) + 3, len, 19);

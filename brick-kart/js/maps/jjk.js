@@ -309,8 +309,8 @@ export default {
     { from: 8.55, to: 9.45, width: 46, shoulder: 4 },
     { from: 12.75, to: 14.3, edge: 'wall', shoulder: 2 },
     { from: 14.6, to: 18.1, edge: 'wall', shoulder: 1.5, width: 26, surface: 'express', support: 'pillar' },
-    { from: 18.12, to: 21.0, gap: true },
-    { from: 21.0, to: 22.7, surface: 'blood', edge: 'wall', shoulder: 4, support: 'bank' },
+    { from: 18.12, to: 20.15, gap: true },
+    { from: 20.15, to: 22.7, surface: 'blood', edge: 'wall', shoulder: 4, support: 'bank' },
     { from: 22.7, to: 23.6, support: 'bank', edge: 'wall', shoulder: 3 },
     { from: 24.0, to: 26.2, surface: 'void', edge: 'open', shoulder: 8 },
   ],
@@ -355,7 +355,7 @@ export default {
     // ---- ground: river + lake, blood lake of the Malevolent Shrine, lava, grass, the Void ---------
     const SHRINE = [-308, 241];
     const VOLC = [-64, 363];
-    const gliding = (i) => inRange(tr, i, 18.0, 21.1);
+    const gliding = (i) => inRange(tr, i, 18.0, 20.25);
     const riverPath = (g, toPx, sc, w) => { g.lineWidth = w * sc; g.lineCap = g.lineJoin = 'round'; g.beginPath(); [[828, -156], [386, -152], [225, -147], [110, -138], [37, -120]].forEach(([x, z], n) => { const [px, py] = toPx(x, z); if (n) g.lineTo(px, py); else g.moveTo(px, py); }); g.stroke(); };
     const hole = ctx.makeMask(3000, 2048, (g, toPx, sc) => {
       g.fillStyle = '#fff'; g.fillRect(0, 0, 2048, 2048);
@@ -601,7 +601,7 @@ export default {
     [[21.6, -0.45, 0.35], [21.85, 0.45, -0.4], [22.1, -0.3, -0.3], [22.35, 0.4, 0.35], [22.6, -0.4, 0.5]].forEach(([k, l, ang], n) => {
       const i = K(k); ctx.hazard(dismantle(ctx, { k, lat: l * tr.HW[i], len: tr.HW[i] * 1.05, ang, period: 2.9, offset: n * 0.62 }));
     });
-    edges(ctx, 21.05, 22.7, 10, 2, (p, i) => { if (rand() < 0.7) { const s = 0.7 + rand() * 0.6; b.sphere(p.x, s, p.z, s, 0xefe6d2); b.sphere(p.x + 0.3 * s, s * 1.05, p.z + 0.3 * s, 0.22 * s, 0x1b0a0a); } else { b.box(p.x, 0, p.z, 0.6, 6, 0.6, 0x3a0a0e); b.sphere(p.x, 6.3, p.z, 0.7, 0xff3030, { matOpts: { emissive: 0xff1020, emissiveIntensity: 2 } }); } });
+    edges(ctx, 20.2, 22.7, 10, 2, (p, i) => { if (rand() < 0.7) { const s = 0.7 + rand() * 0.6; b.sphere(p.x, s, p.z, s, 0xefe6d2); b.sphere(p.x + 0.3 * s, s * 1.05, p.z + 0.3 * s, 0.22 * s, 0x1b0a0a); } else { b.box(p.x, 0, p.z, 0.6, 6, 0.6, 0x3a0a0e); b.sphere(p.x, 6.3, p.z, 0.7, 0xff3030, { matOpts: { emissive: 0xff1020, emissiveIntensity: 2 } }); } });
 
     // ---- Jogo's volcano -------------------------------------------------------------------------------
     { const [vx, vz] = VOLC; let y = -0.1;
@@ -739,7 +739,7 @@ export default {
     }
     for (const [k, col, off] of [[2.85, C.white, 0], [3.25, 0x15161c, 0.5]]) {
       const hold = new THREE.Group(); hold.add(P.divineDog(col, 1.2));
-      ctx.hazard(crossing(ctx, { mesh: hold, k, speed: 7, radius: 1.9, kind: 'bump', offset: off, span: 1.05 }));
+      ctx.hazard(crossing(ctx, { mesh: hold, k, speed: 6, radius: 1.4, kind: 'bump', offset: off, span: 1.05 }));
     }
 
     // ---- distant Tokyo skyline and Tokyo Tower ---------------------------------------------------
