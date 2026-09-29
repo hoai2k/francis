@@ -21,7 +21,7 @@ export class Audio {
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
     const ctx = this.ctx = new AC();
-    this.master = ctx.createGain(); this.master.gain.value = 0.9;
+    this.master = ctx.createGain(); this.master.gain.value = this.muted ? 0 : 0.9;
     const comp = ctx.createDynamicsCompressor();
     comp.threshold.value = -14; comp.ratio.value = 4;
     this.master.connect(comp).connect(ctx.destination);
@@ -33,6 +33,13 @@ export class Audio {
     const d = this.noise.getChannelData(0);
     for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
     if (this.pendingMusic) { this.music(this.pendingMusic); this.pendingMusic = null; }
+  }
+  // silence everything while the tab is hidden or unfocused
+  setMuted(m) {
+    if (this.muted === m) return;
+    this.muted = m;
+    if (this.ctx) this.master.gain.setTargetAtTime(m ? 0 : 0.9, this.ctx.currentTime, 0.03);
+    if (this.track) { if (m) this.track.pause(); else this.track.play().catch(() => {}); }
   }
   setVolumes(music, sfx) {
     this.musicVol = music; this.sfxVol = sfx;
@@ -162,7 +169,7 @@ export class Audio {
       if (!a) { a = new window.Audio(spec.file); a.loop = true; a.preload = 'auto'; this.tracks[spec.file] = a; }
       a.currentTime = 0; a.playbackRate = 1; a.volume = Math.min(1, this.musicVol);
       this.track = a;
-      a.play().catch(() => { this.pendingMusic = spec; });
+      if (!this.muted) a.play().catch(() => { this.pendingMusic = spec; });
       return;
     }
     const c = this.ctx;

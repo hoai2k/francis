@@ -48,7 +48,7 @@ Regina, Skater Sam, Zorp the Alien, Mummy Max and Dino Dina.
 
 ## Power-ups
 
-Drive through the rainbow **?** bricks to get an item.
+Drive through the rainbow **?** bricks to get an item. You can hold two: the one you can use now (big slot) and the next one (small slot), which moves up once you use the first.
 
 - **Turbo Stud** / **Triple Turbo**: a speed boost (or three).
 - **Homing Rocket**: chases the racer in front of you.
@@ -78,7 +78,9 @@ you drop some.
   purple. Let go for a mini-turbo.
 - **Tricks**: tap drift in mid-air after a ramp to land with a boost.
 - **Rocket start**: hold accelerate just after the second start light comes on.
-- **Gliding**: steer while you fly. You land wherever the road is below you.
+- **Gliding**: steer while you fly. You land wherever the road is below you. Ground obstacles like hay bales and cupcakes only stop you if you fly low enough to hit them.
+- **Falling off**: the crane puts you back on a safe stretch of road. If you fall again right away, it puts you further ahead next time.
+- Sound mutes when you switch to another tab or window.
 
 ## Multiplayer (1–4 players, split-screen)
 

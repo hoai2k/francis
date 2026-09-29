@@ -86,7 +86,7 @@ export function geyser(ctx, { i, lat = 0, period = 5, offset = 0, radius = 2.4, 
       pool.material.emissiveIntensity = state === 1 ? 2 + Math.sin(t * 25) : 1.2;
       if (state >= 1 && Math.random() < 0.4) ctx.world.race?.fx.spark(base.x + (Math.random() - 0.5) * radius, base.y + 0.5, base.z + (Math.random() - 0.5) * radius, 0, 6 + Math.random() * 6, 0, color, 0.6, 12);
     },
-    test(p) { return state === 2 && column.scale.y > 2 && Math.hypot(p.x - base.x, p.z - base.z) < radius + 1 ? 'wreck' : null; },
+    test(p) { return state === 2 && p.y < base.y + column.scale.y && Math.hypot(p.x - base.x, p.z - base.z) < radius + 1 ? 'wreck' : null; },
     near(p, r) { return state >= 1 && Math.hypot(p.x - base.x, p.z - base.z) < radius + r; },
   };
 }
@@ -128,7 +128,7 @@ export function crusher(ctx, { i, lat = 0, period = 4, offset = 0, size = 6, col
       block.position.y = h;
       shadow.material.opacity = 0.15 + 0.35 * (1 - h / topY);
     },
-    test(p) { return h < 2.5 && Math.abs(p.x - base.x) < size * 0.6 && Math.abs(p.z - base.z) < size * 0.6 ? 'wreck' : null; },
+    test(p) { return h < 2.5 && p.y < base.y + 3.5 && Math.abs(p.x - base.x) < size * 0.6 && Math.abs(p.z - base.z) < size * 0.6 ? 'wreck' : null; },
     near(p, r) { return h < topY * 0.6 && Math.hypot(p.x - base.x, p.z - base.z) < size * 0.7 + r; },
   };
 }
@@ -200,7 +200,7 @@ export function cannon(ctx, { from, targets, period = 3.5, offset = 0, color = C
         marker.material.opacity = 0.4 + 0.5 * Math.abs(Math.sin(t * 12));
       } else { ball.visible = false; marker.visible = false; }
     },
-    test(p) { return boom > 0 && Math.hypot(p.x - target.x, p.z - target.z) < 4.2 ? 'wreck' : null; },
+    test(p) { return boom > 0 && p.y < target.y + 4 && Math.hypot(p.x - target.x, p.z - target.z) < 4.2 ? 'wreck' : null; },
     near(p, r) { return flying && Math.hypot(p.x - target.x, p.z - target.z) < 4 + r; },
   };
 }

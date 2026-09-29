@@ -39,7 +39,7 @@ export class AIDriver {
     let want = Math.sin(this.t * 0.23 + this.seed) * 0.45;
     // bend > 0 = track turns left (yaw increasing); take the inside line
     if (curv > 0.35) want = -Math.sign(bend) * 0.5 * Math.min(1, curv) * (0.4 + sk * 0.6);
-    if (!k.item && k.roulette <= 0) {
+    if (!k.nextItem && !(k.roulette2 > 0)) {
       for (const b of tr.itemBoxes) {
         const di = (b.i - i + tr.N) % tr.N;
         if (di > 8 && di < 60 && b.active) { want = tr.HW[b.i] ? (b.pos.clone().sub(tr.at(b.i)).dot({ x: tr.R[b.i * 2], y: 0, z: tr.R[b.i * 2 + 1] }) / tr.HW[b.i]) : want; break; }

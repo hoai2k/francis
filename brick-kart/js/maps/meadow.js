@@ -79,7 +79,7 @@ export default {
     // trees at the edge of the open grass, hay bales, animals grazing
     edges(ctx, 0, 18.9, 11, 1.5, (p, i) => { if (!tr.GAP[i] && tr.EDGE[i] === 2 && rand() < 0.7 && lake.test(p.x, p.z)) (rand() < 0.5 ? roundTree : tree)(b, p.x, 0, p.z, 0.9 + rand() * 0.6, rand() < 0.3 ? C.lime : C.green); });
     ctx.scatter(70, { minC: 3, maxC: 140, r: 3, pad: 220, test: (x, z) => lake.test(x, z) }, (x, z) => (rand() < 0.5 ? roundTree : tree)(b, x, 0, z, 1 + rand() * 0.6));
-    edges(ctx, 0.3, 18.9, 43, -7, (p, i) => { if (tr.EDGE[i] === 2 && rand() < 0.6) { hayBale(b, p.x, p.z, rand() * 3); ctx.obstacle(p.x, p.z, 1.6); } });
+    edges(ctx, 0.3, 18.9, 43, -7, (p, i) => { if (tr.EDGE[i] === 2 && rand() < 0.6) { hayBale(b, p.x, p.z, rand() * 3); ctx.obstacle(p.x, p.z, 1.6, 2.4); } });
     for (let n = 0; n < 14; n++) {
       const m = rand() < 0.5 ? cowMesh() : sheepMesh();
       let x, z;
@@ -94,7 +94,7 @@ export default {
     // big oak splitting the wide road
     const oi = tr.kToIndex(17.8), op = tr.at(oi, 0, 0);
     roundTree(b, op.x, op.y, op.z, 2.2); b.cyl(op.x, op.y, op.z, 3, 0.8, C.dkgray, { seg: 16 });
-    ctx.obstacle(op.x, op.z, 3);
+    ctx.obstacle(op.x, op.z, 3, 12);
     // hot-air balloons
     const bcols = [[C.red, C.white], [C.blue, C.white], [C.yellow, C.red], [C.green, C.yellow], [C.purple, C.pink], [C.orange, C.blue], [C.azure, C.white], [C.red, C.yellow]];
     bcols.forEach((cc, n) => {

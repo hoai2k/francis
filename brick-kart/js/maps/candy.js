@@ -76,7 +76,7 @@ export default {
     for (const [k, lat] of [[14.75, -0.35], [15.2, 0.35]]) {
       const i = tr.kToIndex(k), p = tr.at(i, lat * tr.HW[i], 0);
       cupcake(b, p.x, p.z, 1.3, pick(rand, [C.pink, C.azure, C.white]));
-      ctx.obstacle(p.x, p.z, 4.2);
+      ctx.obstacle(p.x, p.z, 4.2, 9);
     }
     // donut arches over the road
     for (const k of [1.2, 11.0, 16.2]) {

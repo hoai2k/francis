@@ -87,6 +87,11 @@ def _minutes(projects):
     return f"{total // 60}:{total % 60:02d}" if total else ""
 
 
+def _is_game(m):
+    """Games (playable projects) get "Play Now" instead of "Watch Now"."""
+    return m.get("kind") == "game" or "GAME" in str(m.get("tag", "")).upper()
+
+
 def _card(name, m, number):
     e = html.escape
     accent = e(m.get("accent", "#4fc8ff"))
@@ -100,7 +105,8 @@ def _card(name, m, number):
         f'<a class="card" href="./{e(name)}/" style="--accent:{accent}" data-accent="{accent}">'
         f'<div class="thumb">{thumbs}<span class="ep">EP.{int(ep):02d}</span>'
         + (f'<span class="dur">{e(m["duration"])}</span>' if m.get("duration") else "")
-        + f'<span class="play" aria-hidden="true">▶</span><div class="bars">{bars}</div></div>'
+        + (f'<span class="play game" aria-hidden="true">▶ PLAY NOW</span>' if _is_game(m) else '<span class="play" aria-hidden="true">▶</span>')
+        + f'<div class="bars">{bars}</div></div>'
         f'<div class="info">'
         + (f'<span class="tag">{e(m["tag"])}</span>' if m.get("tag") else "")
         + f'<h3>{e(m["title"])}</h3>'
@@ -123,9 +129,9 @@ def render_index(projects):
             f'<h2 class="section-title"><span>NOW SHOWING</span><span class="jp">上映中</span></h2>'
             f'<a class="featured" href="./{e(name)}/" style="--accent:{e(m.get("accent", "#ff3a5a"))}" data-accent="{e(m.get("accent", "#ff3a5a"))}">'
             f'<div class="reel">{imgs}</div><div class="shade"></div><div class="copy">'
-            f'<span class="badge">NEW EPISODE</span><h2>{e(m["title"])}</h2>'
+            f'<span class="badge">{"NEW GAME" if _is_game(m) else "NEW EPISODE"}</span><h2>{e(m["title"])}</h2>'
             + (f'<p>{e(m["description"])}</p>' if m["description"] else "")
-            + f'<div class="meta">{chips}</div><span class="cta">▶ WATCH NOW</span></div></a>'
+            + f'<div class="meta">{chips}</div><span class="cta">▶ {"PLAY NOW" if _is_game(m) else "WATCH NOW"}</span></div></a>'
         )
     cards = "\n".join(_card(n, m, i + 1) for i, (n, m) in enumerate(ordered)) or "<p>No projects yet.</p>"
     ticker_items = [m["title"].upper() for _, m in ordered] or ["COMING SOON"]

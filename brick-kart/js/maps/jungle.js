@@ -87,7 +87,7 @@ export default {
     for (const [k, lat] of [[15.45, -0.3], [15.9, 0.35]]) {
       const i = tr.kToIndex(k), p = tr.at(i, lat * tr.HW[i], 0);
       stoneHead(b, p.x, p.z, 0.8, tr.yawAt(i) + Math.PI);
-      ctx.obstacle(p.x, p.z, 3.4);
+      ctx.obstacle(p.x, p.z, 3.4, 9);
     }
     edges(ctx, 0.3, 2.3, 30, 4, (p, i, sd) => stoneHead(b, p.x, p.z, 1.3, tr.yawAt(i) + (sd > 0 ? -Math.PI / 2 : Math.PI / 2)));
     arch(ctx, 10.05, { cols: [C.sand, C.dkgreen], text: 'GLIDE!', bg: '#237841' });

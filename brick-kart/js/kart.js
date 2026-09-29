@@ -51,6 +51,7 @@ export class Kart {
     this.lap = 0; this.finished = false; this.finishTime = 0;
     this.rank = idx + 1;
     this.item = null; this.itemCount = 0; this.roulette = 0; this.rouletteItem = null;
+    this.nextItem = null; this.roulette2 = 0; this.rouletteItem2 = null;
     this.studs = 0;
     this.drift = { active: false, dir: 0, charge: 0, level: 0, queued: false };
     this.boostTime = 0; this.spinTime = 0; this.wreckTime = 0; this.invuln = 0;
@@ -157,6 +158,53 @@ export class Kart {
     this.dropStuds(2);
   }
 
+  // Is sample i a safe place to put a kart back down?
+  spawnOk(i, lat = 0) {
+    const tr = this.track;
+    i = tr.wrap(i);
+    // real road here and for a good stretch ahead (no jump gaps to fall into)
+    for (let o = -4; o <= 36; o++) if (tr.GAP[tr.wrap(i + o)]) return false;
+    const p = tr.at(i, lat, 0);
+    // not under water / lava
+    if (!tr.theme.noGround && p.y < tr.groundY + 0.25) return false;
+    // the spot must resolve to this same road layer (raised highways over lower roads)
+    const L = tr.locate(p.x, p.y + 1, p.z, i, {});
+    if (L.gap || Math.abs(L.lat - lat) > 2 || Math.abs(L.y - p.y) > 1.5 || Math.abs(L.i - i) > 3 && Math.abs(L.i - i) < tr.N - 3) return false;
+    // no hazards or obstacles on the spot
+    if (this.race.hazards?.near(p, 7) || tr.obstacleAt(p.x, p.y, p.z, 3)) return false;
+    return true;
+  }
+
+  // Choose where the crane puts the kart back. Falling into a jump gap puts you on the
+  // landing side; dying again right after a respawn without getting anywhere pushes the
+  // next spawn further ahead each time.
+  pickSpawn() {
+    const tr = this.track, N = tr.N;
+    let base = this.lastSafe;
+    for (let o = 0; o < 50; o++) {
+      if (tr.GAP[tr.wrap(base + o)]) {
+        base += o;
+        for (let k = 0; k < 400 && tr.GAP[tr.wrap(base)]; k++) base++;
+        base += 6;
+        break;
+      }
+    }
+    const now = this.race.time;
+    const progress = this.spawnI === undefined ? N : ((this.lastSafe - this.spawnI + N) % N);
+    if (this.spawnT !== undefined && now - this.spawnT < 10 && (progress < 80 || progress > N - 80)) this.spawnPush = (this.spawnPush || 0) + 45;
+    else this.spawnPush = 0;
+    base += this.spawnPush;
+    for (let o = 0; o < 600; o += 3) {
+      for (const lat of [0, -0.35, 0.35]) {
+        const i = tr.wrap(base + o), l = lat * tr.HW[i];
+        if (this.spawnOk(i, l)) { this.spawnI = i; this.spawnT = now; return { i, lat: l }; }
+      }
+    }
+    const i = tr.wrap(base);
+    this.spawnI = i; this.spawnT = now;
+    return { i, lat: 0 };
+  }
+
   // --- per-frame physics --------------------------------------------------------
   update(dt, ctl) {
     const tr = this.track;
@@ -171,19 +219,10 @@ export class Kart {
       this.respawn -= dt;
       if (this.respawn < 1.0 && !this.respawnPlaced) {
         this.respawnPlaced = true;
-        let i = this.lastSafe;
-        // fell into a jump gap: put the kart down on the landing side
-        let gapAhead = -1;
-        for (let o = 0; o < 50; o++) if (tr.GAP[tr.wrap(i + o)]) { gapAhead = o; break; }
-        if (gapAhead >= 0) {
-          i += gapAhead;
-          for (let k = 0; k < 120 && tr.GAP[tr.wrap(i)]; k++) i++;
-          i += 6;
-        } else {
-          for (let k = 0; k < 80 && (tr.GAP[tr.wrap(i)] || tr.GAP[tr.wrap(i - 6)]); k++) i--;
-        }
+        const i0 = this.pickSpawn();
+        let i = i0.i;
         i = tr.wrap(i);
-        tr.at(i, 0, 7, this.pos);
+        tr.at(i, i0.lat, 7, this.pos);
         this.yaw = this.moveYaw = tr.yawAt(i);
         this.speed = 0; this.vy = 0; this.grounded = false;
         tr.locate(this.pos.x, this.pos.y, this.pos.z, i, this.loc);
@@ -349,7 +388,9 @@ export class Kart {
     if (di < -N / 2) this.lap++;
     else if (di > N / 2) this.lap--;
     this._prevI = loc.i;
-    if (!loc.gap && this.grounded && onRoad2) this.lastSafe = loc.i;
+    // remember a safe spot only after driving steadily on real road for a moment
+    if (!loc.gap && this.grounded && onRoad2 && !stunned) { this.safeT = (this.safeT || 0) + dt; if (this.safeT > 0.4) this.lastSafe = loc.i; }
+    else this.safeT = 0;
     // wrong-way detection
     const ty = Math.atan2(loc.tx, loc.tz);
     if (this.speed > 5 && Math.abs(angleDiff(ty, this.yaw)) > 2.1) this.wrongWay += dt; else this.wrongWay = Math.max(0, this.wrongWay - dt * 2);

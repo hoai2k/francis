@@ -60,6 +60,9 @@ class Game {
       if (this.onTitle && (e.type === 'pointerdown' || ['Enter', 'Space', 'NumpadEnter'].includes(e.code))) this.enterFullscreen();
     };
     addEventListener('pointerdown', unlock); addEventListener('keydown', unlock);
+    addEventListener('blur', () => this.audio.setMuted(true));
+    addEventListener('focus', () => this.audio.setMuted(document.hidden));
+    document.addEventListener('visibilitychange', () => this.audio.setMuted(document.hidden || !document.hasFocus()));
     addEventListener('gamepadconnected', (e) => { this.toast(`🎮 Controller ${e.gamepad.index + 1} connected`); });
     addEventListener('gamepaddisconnected', (e) => { this.toast(`Controller ${e.gamepad.index + 1} disconnected`); });
     this.ui.addEventListener('click', (e) => this.onClick(e));

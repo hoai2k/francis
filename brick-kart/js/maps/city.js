@@ -88,7 +88,7 @@ export default {
     // fountain in the middle of the widened road (splits the lanes)
     const fi = tr.kToIndex(5.7), fp = tr.at(fi, 0, 0);
     fountain(fp.x, fp.z, 0.75);
-    ctx.obstacle(fp.x, fp.z, 5.4);
+    ctx.obstacle(fp.x, fp.z, 5.4, 4);
     ctx.scatter(90, { minC: 2, maxC: 60, r: 3, test: (x, z) => parkMask.test(x, z) }, (x, z) => (rand() < 0.5 ? roundTree : tree)(b, x, 0, z, 0.9 + rand() * 0.5, rand() < 0.3 ? C.lime : C.green));
     // skyscrapers
     const cols = [C.white, C.tan, C.sand, C.red, C.blue, C.yellow, C.dkgray, C.azure, C.ltgray, C.mdblue, C.orange];

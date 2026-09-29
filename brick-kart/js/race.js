@@ -215,6 +215,14 @@ export class Race {
           if (k.human) this.audio.sfx('itemget');
         }
       }
+      // second slot: the next item waiting behind the current one
+      if (k.roulette2 > 0) {
+        k.roulette2 -= dt;
+        if (k.roulette2 <= 0) { k.nextItem = k.rouletteItem2; if (k.human) this.audio.sfx('itemget'); }
+      }
+      if (!k.item && k.roulette <= 0 && k.nextItem && k.roulette2 <= 0) {
+        k.item = k.nextItem; k.itemCount = k.item === 'boost3' ? 3 : 1; k.nextItem = null;
+      }
     }
 
     // pickups: item boxes, studs, boost pads, ramps
@@ -227,10 +235,13 @@ export class Race {
           b.active = false; b.timer = 2.2;
           this.fx.itemBoxBreak(b.pos);
           if (k.human) this.audio.sfx('box');
-          if (!k.item && k.roulette <= 0) {
-            const rf = n > 1 ? (k.rank - 1) / (n - 1) : 0;
+          const rf = n > 1 ? (k.rank - 1) / (n - 1) : 0;
+          if (!k.item && k.roulette <= 0 && !k.nextItem && !(k.roulette2 > 0)) {
             k.rouletteItem = rollItem(rf);
             k.roulette = k.human ? 1.3 : 1.0;
+          } else if (!k.nextItem && !(k.roulette2 > 0)) {
+            k.rouletteItem2 = rollItem(rf);
+            k.roulette2 = k.human ? 1.3 : 1.0;
           }
         }
       }

@@ -175,7 +175,7 @@ export class World {
       bNoShadow: new BrickBuilder(1, 400),
       anim: (fn) => this.anims.push(fn),
       hazard: (h) => { this.hazards.push(h); return h; },
-      obstacle: (x, z, r, y0, y1) => tr.addObstacle(x, z, r, y0, y1),
+      obstacle: (x, z, r, h, y0) => tr.addObstacle(x, z, r, h, y0),
       // cut holes (black in the mask) into the base ground, e.g. for rivers; mask must span 3000 units
       cutGround: (mask) => {
         const m = this.ground?.material;

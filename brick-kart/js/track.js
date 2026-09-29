@@ -862,11 +862,15 @@ export class Track {
   }
 
   // static round obstacles (trees, statues, pillars on the road...)
-  addObstacle(x, z, r, y0 = -Infinity, y1 = Infinity) { this.obstacles.push({ x, z, r, y0, y1 }); }
+  // height h: karts flying higher than the obstacle's top pass over it
+  addObstacle(x, z, r, h = 5, y0 = null) {
+    if (y0 === null) y0 = this.roadHeightNear(x, z) ?? this.groundY;
+    this.obstacles.push({ x, z, r, y0, y1: y0 + h });
+  }
   obstacleAt(x, y, z, r) {
     for (const o of this.obstacles) {
       const dx = x - o.x, dz = z - o.z;
-      if (dx * dx + dz * dz < (o.r + r) * (o.r + r) && y > o.y0 - 1 && y < o.y1) return o;
+      if (dx * dx + dz * dz < (o.r + r) * (o.r + r) && y > o.y0 - 2 && y < o.y1) return o;
     }
     return null;
   }

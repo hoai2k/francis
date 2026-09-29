@@ -28,7 +28,7 @@ export class HUD {
       el.innerHTML = `
         <div class="h-top">
           <div class="h-lap"><span class="lbl">LAP</span> <b class="lapn">1</b><span class="lapt">/${race.laps}</span><div class="h-time">0:00.00</div></div>
-          <div class="h-item"><div class="slot"><div class="icon"></div></div><span class="cnt"></span></div>
+          <div class="h-items"><div class="h-item2"><div class="slot"><div class="icon"></div></div></div><div class="h-item"><div class="slot"><div class="icon"></div></div><span class="cnt"></span></div></div>
         </div>
         <div class="h-msg"></div>
         <div class="h-wrong">WRONG WAY!</div>
@@ -41,7 +41,8 @@ export class HUD {
       return {
         el, kart: c.kart,
         lap: el.querySelector('.lapn'), time: el.querySelector('.h-time'),
-        icon: el.querySelector('.icon'), slot: el.querySelector('.h-item'), cnt: el.querySelector('.cnt'),
+        icon: el.querySelector('.h-item .icon'), slot: el.querySelector('.h-item'), cnt: el.querySelector('.cnt'),
+        icon2: el.querySelector('.h-item2 .icon'), slot2: el.querySelector('.h-item2'), last2: undefined, roll2T: 0,
         msg: el.querySelector('.h-msg'), wrong: el.querySelector('.h-wrong'),
         studs: el.querySelector('.h-studs b'), pos: el.querySelector('.h-pos b'), sup: el.querySelector('.h-pos sup'), posEl: el.querySelector('.h-pos'),
         lastItem: null, lastRank: 0, rollT: 0, msgT: 0,
@@ -141,6 +142,15 @@ export class HUD {
         p.slot.title = show ? ITEMS[show].name : '';
         if (show && k.roulette <= 0) { p.slot.classList.remove('pop'); void p.slot.offsetWidth; p.slot.classList.add('pop'); }
       }
+      // next item (second slot)
+      let show2 = k.nextItem;
+      if (k.roulette2 > 0) {
+        p.roll2T -= dt;
+        if (p.roll2T <= 0) { p.roll2T = 0.08; const keys = Object.keys(ICONS); p.roll2Icon = keys[Math.floor(Math.random() * keys.length)]; }
+        show2 = p.roll2Icon;
+      }
+      p.slot2.classList.toggle('rolling', k.roulette2 > 0);
+      if (show2 !== p.last2) { p.last2 = show2; p.icon2.innerHTML = show2 ? ICONS[show2] : ''; }
       p.cnt.textContent = k.item === 'boost3' && k.roulette <= 0 && k.itemCount > 1 ? '×' + k.itemCount : '';
       if (p.msgT > 0) { p.msgT -= dt; if (p.msgT <= 0) p.msg.className = 'h-msg'; }
       p.wrong.classList.toggle('show', k.wrongWay > 1.2 && !k.finished);
