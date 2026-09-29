@@ -9,7 +9,8 @@ Play: <https://hoai2k.github.io/francis/brick-kart/>
 
 ## Modes
 
-- **Grand Prix**: pick a cup of 3 maps (or the All-Star Cup with all 9).
+- **Grand Prix**: pick a cup (3 maps each, 4 in the Movie Cup), or the All-Star Cup
+  with all 13.
   Points go 15-12-10-9-8-7-6-5-4-3-2-1, and each cup ends with an award
   ceremony.
 - **Quick Race**: one race on any map. By default there are **13 racers**
@@ -20,10 +21,10 @@ Play: <https://hoai2k.github.io/francis/brick-kart/>
   (4/8/10/13/16), laps, auto-accelerate, music and sound volume, and graphics
   quality.
 
-## Maps (9, in 3 cups)
+## Maps (13, in 4 cups)
 
 Tracks are wide and banked, with open grass, fences, scenery right next to
-the road, and hazards to dodge. Four of them have **glider ramps**: drive onto
+the road, and hazards to dodge. Most of them have **glider ramps**: drive onto
 the blue ramp and a brick glider pops out so you can fly across a lake, a bay
 or the sky.
 
@@ -38,6 +39,10 @@ or the sky.
 | Galaxy | Toy Factory | Conveyor belts that push you, stampers, spinning wrecking arms, forklifts and a pit jump |
 | Galaxy | Lava Castle | Lava bombs from the volcano, geysers, castle crushers and fire bars, a **glide over the lava lake** and a bridge with no rails |
 | Galaxy | Rainbow Bricks | Steep banked rainbow turns, a jump, a **glide through rings between planets** and drifting asteroids |
+| Movie | Jurassic Brick Park | Main Street and the park gate, a Gallimimus stampede, a T. rex that stomps across the road, the raptor pack with Owen, Dilophosaurus spit, swooping Pteranodons, a Spinosaurus river ford, Mount Sibo's lava bombs and a **glide over the Mosasaurus lagoon** |
+| Movie | Tatooine Podrace | A Tatooine canyon with Jawas and a sandcrawler, a **glide** onto the Hoth snowfield with AT-ATs, then the Death Star trench with TIE fighters; C-3PO, R2-D2, Darth Maul, Cad Bane, Din Djarin and Grogu, Vader and more |
+| Movie | Avengers Brick Assemble | The Battle of New York, the Bifrost, Wakanda and the Guardians of the Galaxy, with brick-built Spider-Man, Iron Man and the rest of the Avengers |
+| Movie | Cursed Brick Shibuya | Tokyo Jujutsu High, a torii forest, the Shibuya scramble crossing at night, a **glide into Sukuna's Malevolent Shrine**, Jogo's volcano and Gojo's Unlimited Void; dodge Dismantle slashes, meteors, Hollow Purple and Rika's arm slams |
 
 ## Racers
 
@@ -123,5 +128,5 @@ three or four get quarters.
 - `js/characters.js`: minifig drivers and karts
 - `js/effects.js`, `js/audio.js`, `js/hud.js`, `js/input.js`: particles, sound, HUD and input devices
 
-For development, `?quick=<map id>` (city, meadow, pirate, candy, jungle, frost, factory, lava, space) goes
+For development, `?quick=<map id>` (city, meadow, pirate, candy, jungle, frost, factory, lava, space, jurassic, starwars, marvel, jjk) goes
 straight into a race. Add `&players=2` to test split-screen.

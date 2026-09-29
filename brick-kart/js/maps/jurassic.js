@@ -3,7 +3,7 @@
 // stampede), the T. rex paddock, the Indominus rex enclosure, a Spinosaurus
 // river ford, Blue's raptor pack chasing Owen, the Mount Sibo volcano, a glide
 // from the helipad cliff over the Mosasaurus lagoon and the Visitor Center.
-import { THREE, BrickBuilder, C, plastic, groundPlane, pick, rock, palm, cloud, jungleTree, fern, cannon, crossing, trackMover, tunnel, liquid, disc, strokeTrack, inRange, edges, each, arch, canvasTexture, brickGeometry, minifig, roundTree, mountain } from './kit.js';
+import { THREE, BrickBuilder, C, plastic, groundPlane, pick, rock, palm, cloud, jungleTree, fern, cannon, crossing, trackMover, tunnel, disc, strokeTrack, inRange, edges, each, arch, canvasTexture, brickGeometry, minifig, roundTree, mountain } from './kit.js';
 import * as P from './jurassic-props.js';
 
 const TAU = Math.PI * 2;
@@ -354,7 +354,6 @@ export default {
     scene.add(sea);
     ctx.anim((dt, t) => { sea.material.map.offset.set(Math.sin(t * 0.3) * 0.3, t * 0.04); sea.material.bumpMap.offset.copy(sea.material.map.offset); });
     scene.add(groundPlane(0xe4cd9e, -0.35, 3000, 1.6, { mask: islandMask(9, 1024) }));
-    const water = { test: (x, z) => !hole.test(x, z) };
     const dry = (x, z) => hole.test(x, z);
     // sandy / rocky banks
     ctx.scatter(40, { minC: 0, maxC: 200, r: 3, pad: 60, test: (x, z) => dry(x, z) && (Math.hypot(x - LAG[0], z - LAG[1]) < LAG[2] + 14 || Math.hypot(x - LAKE[0], z - LAKE[1]) < LAKE[2] + 10) }, (x, z) => rock(b, x, 0, z, 1.2, rand, [C.dkstone, C.tan, C.dkgray]));

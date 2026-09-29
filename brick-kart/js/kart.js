@@ -182,8 +182,8 @@ export class Kart {
     // real road here and for a good stretch ahead (no jump gaps to fall into)
     for (let o = -4; o <= 36; o++) if (tr.GAP[tr.wrap(i + o)]) return false;
     const p = tr.at(i, lat, 0);
-    // not under water / lava
-    if (!tr.theme.noGround && p.y < tr.groundY + 0.25) return false;
+    // not under water / lava (flat roads sit just above the ground plane, at groundY + 0.06)
+    if (!tr.theme.noGround && p.y < tr.groundY + 0.02) return false;
     // the spot must resolve to this same road layer (raised highways over lower roads)
     const L = tr.locate(p.x, p.y + 1, p.z, i, {});
     if (L.gap || Math.abs(L.lat - lat) > 2 || Math.abs(L.y - p.y) > 1.5 || Math.abs(L.i - i) > 3 && Math.abs(L.i - i) < tr.N - 3) return false;
