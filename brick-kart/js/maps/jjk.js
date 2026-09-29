@@ -619,8 +619,8 @@ export default {
       ctx.anim((dt) => { sm.forEach((s, k) => { s.t += dt; if (s.t > 8) { s.t = 0; s.a = rand() * 6.28; } const f = s.t / 8; p3.set(vx + Math.cos(s.a) * f * 18, y + f * 70, vz + Math.sin(s.a) * f * 18 + f * 20); s3.setScalar(1 + f * 3); q.setFromEuler(e.set(f * 2, s.a, f)); m4.compose(p3, q, s3); smoke.setMatrixAt(k, m4); }); smoke.instanceMatrix.needsUpdate = true; });
     }
     // Jogo himself beside the road, head erupting as he throws meteors
-    const JS = 5.6, jp = spot(23.2, 36, 10);
-    const jg = add(P.jogo(JS), jp, 23.2);
+    const JS = 5.6, jp = spot(23.45, 34, 10);
+    const jg = add(P.jogo(JS), jp, 23.45);
     const headTop = new THREE.Vector3(jp.x, jg.top + 0.9 * JS, jp.z);
     const flame = new THREE.Mesh(new THREE.ConeGeometry(1.6, 7, 10).translate(0, 3.5, 0), P.neon(0xff6a10, 2.8));
     flame.position.set(0, jg.top + 0.9 * JS, 0); jg.root.add(flame);
@@ -636,7 +636,7 @@ export default {
     ctx.hazard(meteors(ctx, { from: headTop, targets: jTargets, period: 2.5 }));
     ctx.hazard(meteors(ctx, { from: headTop, targets: jTargets, period: 3.1, offset: 1.2 }));
     motes(ctx, jp.x, 0, jp.z, 30, 25, 120, 0xff7a20, 1.3);
-    arch(ctx, 22.8, { cols: [C.black, C.orange], text: 'COFFIN OF THE IRON MOUNTAIN', bg: '#3a1000', fg: '#ffb040' });
+    arch(ctx, 22.5, { cols: [C.black, C.orange], text: 'COFFIN OF THE IRON MOUNTAIN', bg: '#3a1000', fg: '#ffb040' });
     edges(ctx, 22.85, 23.9, 14, 3, (p) => { if (rand() < 0.7) rock(b, p.x, 0, p.z, 1.2, rand, [0x2a1a14, 0x3a2a24, C.dkgray]); });
 
     // ---- Unlimited Void ------------------------------------------------------------------------------
