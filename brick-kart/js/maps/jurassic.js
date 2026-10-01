@@ -8,7 +8,7 @@ import * as P from './jurassic-props.js';
 
 const TAU = Math.PI * 2;
 const smooth = (a, b, x) => { const f = Math.max(0, Math.min(1, (x - a) / (b - a))); return f * f * (3 - 2 * f); };
-const lerpAng = (a, b, f) => { let d = b - a; while (d > Math.PI) d -= TAU; while (d < -Math.PI) d += TAU; return a + d * f; };
+const lerpAng = (a, b, f) => { let d = b - a; d = Number.isFinite(d) ? d - Math.round(d / TAU) * TAU : 0; return a + d * f; };
 
 function holder(ctx, rig, s = 1, name = null) {
   const h = new THREE.Group();

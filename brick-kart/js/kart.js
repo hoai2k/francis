@@ -9,18 +9,21 @@ const DRIFT_LEVELS = [1.0, 2.1, 3.3];
 const DRIFT_BOOST = [0.7, 1.15, 1.7];
 export const SPARK_COLORS = [0x7fd4ff, 0xff9a1a, 0xd05aff];
 
-function lerpAngle(a, b, t) {
-  let d = b - a;
-  while (d > Math.PI) d -= Math.PI * 2;
-  while (d < -Math.PI) d += Math.PI * 2;
-  return a + d * t;
+// Angle helpers are constant-time and never loop: a while-loop wrap spins forever on a
+// huge or infinite angle (that froze the game once after a bad time step).
+const TAU = Math.PI * 2;
+export function wrapAngle(a) {
+  if (!Number.isFinite(a)) return 0;
+  if (a >= -Math.PI && a <= Math.PI) return a;
+  a = (a + Math.PI) % TAU;
+  return (a < 0 ? a + TAU : a) - Math.PI;
 }
-export function angleDiff(a, b) {
-  let d = b - a;
-  while (d > Math.PI) d -= Math.PI * 2;
-  while (d < -Math.PI) d += Math.PI * 2;
-  return d;
+export function angleDiff(a, b) { return wrapAngle(b - a); }
+export function lerpAngle(a, b, t) {
+  t = Number.isFinite(t) ? Math.max(0, Math.min(1, t)) : 0;
+  return wrapAngle(a + angleDiff(a, b) * t);
 }
+const clampN = (v, lo, hi, def = 0) => (Number.isFinite(v) ? Math.max(lo, Math.min(hi, v)) : def);
 
 export class Kart {
   constructor(race, ch, idx, player = null, driver = null) {
@@ -231,7 +234,30 @@ export class Kart {
   }
 
   // --- per-frame physics --------------------------------------------------------
+  // One physics step. Time never runs backwards or jumps (a stale frame timestamp after a
+  // long load once gave dt = -11 s, which blew the kart's heading up to 1e90), and any
+  // non-finite state is caught and approximated before it can spread.
   update(dt, ctl) {
+    if (!(dt > 0)) return;
+    this.step(Math.min(dt, 0.1), ctl);
+    this.sanitize();
+  }
+  sanitize() {
+    this.yaw = wrapAngle(this.yaw); this.moveYaw = wrapAngle(this.moveYaw);
+    const p = this.pos;
+    const fin = (v) => Number.isFinite(v) && Math.abs(v) < 1e5;
+    if (fin(p.x) && fin(p.y) && fin(p.z) && Number.isFinite(this.speed) && Number.isFinite(this.vy)) {
+      const cap = this.topSpeed * 3;
+      this.speed = clampN(this.speed, -cap, cap); this.vy = clampN(this.vy, -150, 150);
+      (this.safePos ||= new THREE.Vector3()).copy(p);
+      return;
+    }
+    // approximate: back to the last good spot, stopped, and let the crane put it on the road
+    if (this.safePos) p.copy(this.safePos); else this.track.at(this.lastSafe ?? 0, 0, 1, p);
+    this.speed = 0; this.vy = 0;
+    this.startRespawn();
+  }
+  step(dt, ctl) {
     const tr = this.track;
     this.ctl = ctl;
     this.bumpCool -= dt; this.wallCool -= dt;

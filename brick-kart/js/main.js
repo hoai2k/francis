@@ -48,8 +48,6 @@ class Game {
     this.flashEl = document.getElementById('flash');
     this.touchRoot = document.getElementById('touch');
     this.input.buildTouch(this.touchRoot);
-    this.portraits = this.renderPortraits();
-    this.thumbs = TRACKS.map((t) => this.trackThumb(t));
     this.menuEvents = [];
     this.players = [];
     this.race = null; this.attract = null;
@@ -82,8 +80,9 @@ class Game {
       this.players = Array.from({ length: np }, (_, i) => this.makePlayer({ id: i, device: i === 0 ? 'kb' : 'pad' + (i - 1), cursor: (+(q.get('char') || 0) + i) % 8, driver: (d0 + i) % Math.max(1, DRIVERS.length), color: PCOL[i] }));
       this.startRace({ def: TRACKS.find((t) => t.id === q.get('quick')) || TRACKS[0], mode: q.get('mode') || 'race' });
     } else {
-      this.startAttract();
+      // show the title right away; build the background race just after it has painted
       this.showTitle();
+      setTimeout(() => { if (!this.race && !this.attract) this.startAttract(); }, 60);
     }
     document.getElementById('loading').classList.add('hidden');
     this.last = performance.now();
@@ -111,6 +110,9 @@ class Game {
   }
 
   // ---- portraits & thumbnails ------------------------------------------------------
+  // classic racer portraits are only needed in menus, so they're rendered on first use
+  get portraits() { return (this._portraits ||= this.renderPortraits()); }
+  get thumbs() { return (this._thumbs ||= TRACKS.map((t) => this.trackThumb(t))); }
   renderPortraits() {
     const size = 256;
     const r = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
@@ -149,7 +151,7 @@ class Game {
     g.fillStyle = 'rgba(255,255,255,0.08)';
     for (let x = 8; x < 320; x += 16) for (let y = 8; y < 180; y += 16) { g.beginPath(); g.arc(x, y, 4, 0, 7); g.fill(); }
     const curve = new THREE.CatmullRomCurve3(def.points.map(([x, z, y = 0]) => new THREE.Vector3(x, y, z)), true, 'centripetal');
-    const pts = curve.getSpacedPoints(300);
+    const pts = curve.getPoints(300);   // uniform in t: plenty for a thumbnail and far cheaper than arc-length spacing
     let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
     for (const p of pts) { minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); minZ = Math.min(minZ, p.z); maxZ = Math.max(maxZ, p.z); }
     const s = Math.min(280 / (maxX - minX), 150 / (maxZ - minZ));
@@ -166,15 +168,18 @@ class Game {
   // ---- loop ---------------------------------------------------------------------
   loop(now) {
     requestAnimationFrame((t) => this.loop(t));
-    let dt = Math.min(0.05, (now - this.last) / 1000);
-    this.last = now;
+    // After a long blocking task the frame timestamp can be OLDER than the last one we saw,
+    // so dt can come out negative (or NaN): clamp it to [0, 0.05] so time never runs backwards.
+    let dt = (now - this.last) / 1000;
+    if (!(dt > 0)) dt = 0; else if (dt > 0.05) dt = 0.05;
+    if (now > this.last || !Number.isFinite(this.last)) this.last = now;
     this.input.poll();
     const devs = this.input.menuDevices();
     this.menuEvents = devs.map((d) => [d, this.input.menu(d, dt)]);
     if (this.menuEvents.some(([, m]) => m.ok || m.start)) this.audio.unlock();
     this.screen?.update?.(dt);
     const race = this.race || this.attract;
-    if (race && !this.paused) {
+    if (race && !this.paused && dt > 0) {
       const steps = dt > 1 / 45 ? 2 : 1;
       for (let i = 0; i < steps; i++) race.update(dt / steps);
     }

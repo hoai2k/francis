@@ -217,8 +217,7 @@ export class Track {
     const raw2 = new Float32Array(N);
     for (let i = 0; i < N; i++) {
       let d = yaw[(i + 6) % N] - yaw[(i - 6 + N) % N];
-      while (d > Math.PI) d -= Math.PI * 2;
-      while (d < -Math.PI) d += Math.PI * 2;
+      d = Number.isFinite(d) ? d - Math.round(d / (Math.PI * 2)) * Math.PI * 2 : 0;
       this.CURV[i] = d / (12 * step);
       raw2[i] = Math.max(-0.26, Math.min(0.26, this.CURV[i] * 6.5)) * bankMul[i];
     }
@@ -274,7 +273,9 @@ export class Track {
   }
   // Minimum horizontal distance from (x, z) to the outer edge of the track
   // (negative if on the track). Used to place scenery.
-  clearance(x, z, maxR = 60) {
+  // Distance from (x,z) to the nearest road/shoulder edge, up to maxR. With stopBelow it
+  // returns early as soon as something closer than that is found (callers only need to know).
+  clearance(x, z, maxR = 60, stopBelow = -Infinity) {
     const c = this.cell, r = Math.ceil(maxR / c);
     const cx = Math.floor(x / c), cz = Math.floor(z / c);
     let best = maxR;
@@ -283,7 +284,7 @@ export class Track {
       if (!arr) continue;
       for (const i of arr) {
         const d = Math.hypot(x - this.px(i), z - this.pz(i)) - this.HW[i] - this.SH[i] - 1.5;
-        if (d < best) best = d;
+        if (d < best) { best = d; if (best < stopBelow) return best; }
       }
     }
     return best;

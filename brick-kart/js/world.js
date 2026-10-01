@@ -168,7 +168,29 @@ export class World {
   decorContext(group) {
     const tr = this.track, bounds = this.bounds;
     const rand = rng(this.def.seed || 1234);
-    const claims = [];
+    // claimed circles, bucketed in a coarse grid so free() only checks nearby ones
+    const CELL = 32, cells = new Map();
+    const claims = {
+      push([x, z, r]) {
+        const c = [x, z, r];
+        for (let a = Math.floor((x - r) / CELL); a <= Math.floor((x + r) / CELL); a++) {
+          for (let b = Math.floor((z - r) / CELL); b <= Math.floor((z + r) / CELL); b++) {
+            const k = a * 65536 + b;
+            let list = cells.get(k); if (!list) cells.set(k, list = []);
+            list.push(c);
+          }
+        }
+      },
+      free(x, z, r) {
+        for (let a = Math.floor((x - r) / CELL); a <= Math.floor((x + r) / CELL); a++) {
+          for (let b = Math.floor((z - r) / CELL); b <= Math.floor((z + r) / CELL); b++) {
+            const list = cells.get(a * 65536 + b);
+            if (list) for (const c of list) if (Math.hypot(c[0] - x, c[1] - z) < c[2] + r) return false;
+          }
+        }
+        return true;
+      },
+    };
     const ctx = {
       track: tr, group, scene: this.scene, rand, bounds, world: this,
       b: new BrickBuilder(1, 160),
@@ -182,7 +204,7 @@ export class World {
         if (!m) return;
         m.alphaMap = new THREE.CanvasTexture(mask); m.alphaTest = 0.5; m.needsUpdate = true;
       },
-      free(x, z, r) { for (const c of claims) if (Math.hypot(c[0] - x, c[1] - z) < c[2] + r) return false; return true; },
+      free(x, z, r) { return claims.free(x, z, r); },
       claim(x, z, r) { claims.push([x, z, r]); },
       // mask canvas helpers: world <-> canvas coordinates over a square area
       makeMask(size, res, draw) {
@@ -206,10 +228,11 @@ export class World {
         for (let k = 0; k < n * tries && placed < n; k++) {
           const x = bounds.minX - pad + rand() * (bounds.maxX - bounds.minX + pad * 2);
           const z = bounds.minZ - pad + rand() * (bounds.maxZ - bounds.minZ + pad * 2);
-          const c = tr.clearance(x, z, maxC + 1);
-          if (c < minC + r || c > maxC) continue;
+          // cheapest checks first (same result: every check must pass and rand() is already drawn)
           if (!ctx.free(x, z, r)) continue;
           if (test && !test(x, z)) continue;
+          const c = tr.clearance(x, z, maxC + 1, minC + r);
+          if (c < minC + r || c > maxC) continue;
           ctx.claim(x, z, r);
           fn(x, z, c);
           placed++;

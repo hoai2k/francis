@@ -137,6 +137,7 @@ export class DriverAnim {
   }
   // s: { steer, drift, speed01, grounded, gliding, boosting, look, phase, rank, time }
   update(dt, s) {
+    dt = Number.isFinite(dt) ? Math.max(0, Math.min(dt, 0.1)) : 0;
     const rig = this.rig, p = {};
     this.t += dt;
     const t = this.t + this.seed;
@@ -175,7 +176,9 @@ export class DriverAnim {
     // smooth toward the target pose (spins are tracked directly)
     const k = Math.min(1, dt * 14);
     for (const key of ORDER) {
-      const v = p[key] ?? 0;
+      let v = p[key] ?? 0;
+      if (!Number.isFinite(v)) v = 0;   // a bad custom gesture value never breaks the rig
+      if (!Number.isFinite(this.p[key])) this.p[key] = 0;
       this.p[key] += (v - this.p[key]) * (key === 'ty' && Math.abs(v - this.p[key]) > 1 ? 1 : k);
     }
     this.apply();

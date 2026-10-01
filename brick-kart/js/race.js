@@ -3,7 +3,7 @@
 // and split-screen rendering for up to four local players.
 import * as THREE from 'three';
 import { World } from './world.js';
-import { Kart, angleDiff } from './kart.js';
+import { Kart, angleDiff, lerpAngle } from './kart.js';
 import { Effects } from './effects.js';
 import { Items, rollItem, MULTI } from './items.js';
 import { AIDriver } from './ai.js';
@@ -16,7 +16,6 @@ const V = new THREE.Vector3();
 const THROWS = new Set(['rocket', 'rocket3', 'cannon', 'cannon3', 'ice', 'boomerang', 'seeker', 'bomb']);
 const TRAPS = new Set(['trap', 'puddle', 'fakebox']);
 
-function lerpAngle(a, b, t) { return a + angleDiff(a, b) * t; }
 
 class ChaseCam {
   constructor() {
@@ -173,6 +172,8 @@ export class Race {
   humanKarts() { return this.cams.map((c) => c.kart); }
 
   update(dt) {
+    if (!(dt > 0)) return;   // never step backwards (see Kart.update)
+    dt = Math.min(dt, 0.1);
     const tr = this.track;
     // intro flyover
     if (this.state === 'intro') {
