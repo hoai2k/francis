@@ -10,7 +10,7 @@ const PHASES = new Set(['win', 'lose', 'pre', 'race']);
 // ---- materials ------------------------------------------------------------------------
 const mats = new Map();
 const once = (key, make) => { let m = mats.get(key); if (!m) { m = make(); mats.set(key, m); } return m; };
-export const bladeMat = (c) => once('blade' + c, () => new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.7, depthWrite: false }));
+export const bladeMat = (c) => once('blade' + c, () => new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.78, depthWrite: false }));
 export const coreMat = () => once('core', () => new THREE.MeshBasicMaterial({ color: 0xfffaf2 }));
 export const boltMat = () => once('bolt', () => new THREE.MeshBasicMaterial({ color: 0xff3020 }));
 export const flashMat = () => once('flash', () => new THREE.MeshBasicMaterial({ color: 0xffe6a0, transparent: true, opacity: 0.9, depthWrite: false }));
@@ -81,7 +81,7 @@ export function handAt(rig, side, obj) {
 }
 
 // A lightsaber, blade along local +Y (rotate the group to aim it). double = Darth Maul.
-export function saber(color, k = 1, { len = 1.15, double = false, hilt = 0xb4b8bc } = {}) {
+export function saber(color, k = 1, { len = 1.3, double = false, hilt = 0xb4b8bc } = {}) {
   const g = new THREE.Group(); g.name = 'saber';
   const hb = new BrickBuilder(1);
   const hl = (double ? 0.5 : 0.26) * k, r = 0.055 * k;
@@ -94,8 +94,8 @@ export function saber(color, k = 1, { len = 1.15, double = false, hilt = 0xb4b8b
   const bb = new BrickBuilder(1);
   for (const dir of double ? [1, -1] : [1]) {
     const y0 = dir * hl / 2, flip = dir < 0 ? PI : 0;
-    bb.addMatrix(UCYL(), bladeMat(color), mat4(0, y0, 0, flip, 0, 0, 0.085 * k, len * k, 0.085 * k));
-    bb.addMatrix(UCYL(), coreMat(), mat4(0, y0, 0, flip, 0, 0, 0.038 * k, len * k * 0.97, 0.038 * k));
+    bb.addMatrix(UCYL(), bladeMat(color), mat4(0, y0, 0, flip, 0, 0, 0.11 * k, len * k, 0.11 * k));
+    bb.addMatrix(UCYL(), coreMat(), mat4(0, y0, 0, flip, 0, 0, 0.05 * k, len * k * 0.97, 0.05 * k));
   }
   blade.add(bb.build({ name: 'saber-blade' }));
   g.add(blade);

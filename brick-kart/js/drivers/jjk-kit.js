@@ -23,12 +23,25 @@ export const winF = (t) => (t % 1.6) / 1.6;
 // ---- figure ---------------------------------------------------------------------------
 // jfig(o): seatedFig with an atlas face (o.face) and a driver-scale hair function
 // o.hair(b, r, h, d) drawn into the head builder (head base at y 0, radius r, height h).
+// o.face may also be a canvas face material (faceMat) for characters not in the atlas.
 export function jfig(o) {
   const s = o.s ?? 1.3;
+  const custom = o.face?.isMaterial;
   return seatedFig({
     noStud: true, headR: 0.31, headH: 0.5, extraHeight: 0.15, ...o, s,
-    head: o.head ?? ((hb, d) => { atlasHead(hb, o.face, 0, 0, 0, d.headR, d.headH); o.hair?.(hb, d.headR, d.headH, d); }),
+    head: custom ? undefined : o.head ?? ((hb, d) => { atlasHead(hb, o.face, 0, 0, 0, d.headR, d.headH); o.hair?.(hb, d.headR, d.headH, d); }),
+    headExtra: custom ? (hb, d) => o.hair?.(hb, d.headR, d.headH, d) : o.headExtra,
   });
+}
+// a frustum (cone with a flat top) of unit height, base at y 0
+export const frustum = (rt, rb, segs = 16) => cached(`jjkFr${rt},${rb},${segs}`, () => new THREE.CylinderGeometry(rt, rb, 1, segs).translate(0, 0.5, 0));
+// The atlas-style face drawing for faceMat canvases (features look round on the cylinder)
+export function atlasStyle(g, draw) {
+  g.save(); g.translate(128, 64); g.scale(0.57, 1);
+  const ell = (x, y, rx, ry, col) => { g.fillStyle = col; g.beginPath(); g.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2); g.fill(); };
+  const line = (pts, col, w) => { g.strokeStyle = col; g.lineWidth = w; g.lineCap = 'round'; g.beginPath(); pts.forEach(([x, y], k) => (k ? g.lineTo(x, y) : g.moveTo(x, y))); g.stroke(); };
+  draw(ell, line, g);
+  g.restore();
 }
 // hand centre in an arm pivot's local frame
 export const handY = (rig) => -0.62 * rig.dims.s;
