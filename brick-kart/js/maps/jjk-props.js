@@ -200,7 +200,7 @@ function spikyHair(b, s, top, col, n, len, spread = 0.5, rnd = 0.3) {
 }
 export const hair = {
   gojo: (b, s, top) => { spikyHair(b, s, top, C.white, 12, 0.7, 0.75, 0.3); for (let k = -2; k <= 2; k++) spike(b, k * 0.14 * s, top - 0.1 * s, 0.34 * s, 0.14 * s, 0.55 * s, 1.9, k * 0.12, C.white); },
-  yuji: (b, s, top) => { b.cyl(0, top - 0.44 * s, 0, 0.45 * s, 0.3 * s, 0x3a2a2a, { seg: 14 }); spikyHair(b, s, top, 0xf28a9c, 10, 0.4, 0.6, 0.15); spike(b, 0, top - 0.05 * s, 0.3 * s, 0.2 * s, 0.4 * s, 1.5, 0, 0xf28a9c); },
+  yuji: (b, s, top) => { b.box(0, top - 0.44 * s, -0.2 * s, 0.9 * s, 0.3 * s, 0.5 * s, 0x3a2a2a); spikyHair(b, s, top, 0xf28a9c, 10, 0.4, 0.6, 0.15); spike(b, 0, top - 0.05 * s, 0.3 * s, 0.2 * s, 0.4 * s, 1.5, 0, 0xf28a9c); },
   megumi: (b, s, top) => { spikyHair(b, s, top, 0x15161c, 14, 0.7, 0.95, 0.4); },
   sukuna: (b, s, top) => { spikyHair(b, s, top, 0xf28a9c, 10, 0.55, 1.2, 0.2); },
   nobara: (b, s, top) => { const col = 0xa8562a; b.cyl(0, top - 0.3 * s, 0, 0.5 * s, 0.42 * s, col, { seg: 14 }); for (const sd of [-1, 1]) b.box(sd * 0.36 * s, top - 0.78 * s, -0.08 * s, 0.22 * s, 0.6 * s, 0.7 * s, col); b.box(0, top - 0.7 * s, -0.3 * s, 0.9 * s, 0.6 * s, 0.24 * s, col); b.box(0.12 * s, top - 0.2 * s, 0.34 * s, 0.6 * s, 0.14 * s, 0.14 * s, col); },

@@ -160,16 +160,20 @@ export function gaffi(k = 1) {
   return g;
 }
 
-// a flame cone pointing along `dir` ('down' or 'back'), its base at the origin
+// flame cones, base at each point [x, y, z, (dx, dy, dz)], pointing along `dir` ('down', 'back' or [x, y, z])
+const _q = new THREE.Quaternion(), _d = new THREE.Vector3(), _p = new THREE.Vector3(), _s = new THREE.Vector3(), _down = new THREE.Vector3(0, -1, 0);
 export function flames(points, len = 0.6, r = 0.12, dir = 'down') {
   const b = new BrickBuilder(1);
-  for (const [x, y, z] of points) {
-    if (dir === 'down') b.addMatrix(CONE(), fireMat(), mat4(x, y - len / 2, z, PI, 0, 0, r, len, r));
-    else b.addMatrix(CONE(), fireMat(), mat4(x, y, z - len / 2, -PI / 2, 0, 0, r, len, r));
-  }
-  for (const [x, y, z] of points) {
-    if (dir === 'down') b.addMatrix(CONE(), coreMat(), mat4(x, y - len * 0.3, z, PI, 0, 0, r * 0.5, len * 0.55, r * 0.5));
-    else b.addMatrix(CONE(), coreMat(), mat4(x, y, z - len * 0.3, -PI / 2, 0, 0, r * 0.5, len * 0.55, r * 0.5));
+  for (const [mat, rr, ll, off] of [[fireMat(), r, len, 0.5], [coreMat(), r * 0.5, len * 0.55, 0.3]]) {
+    for (const [x, y, z, ...pd] of points) {
+      const dd = pd.length ? pd : dir;
+      if (dd === 'down') _d.set(0, -1, 0); else if (dd === 'back') _d.set(0, 0, -1); else _d.set(...dd).normalize();
+      _q.setFromUnitVectors(_down, _d);
+      // a cone's tip is +Y: flip it so the wide base sits at the nozzle
+      const m = new THREE.Matrix4().compose(_p.set(x, y, z).addScaledVector(_d, ll * off / 0.5 * 0.5), _q, _s.set(rr, ll, rr));
+      m.multiply(new THREE.Matrix4().makeRotationX(PI));
+      b.addMatrix(CONE(), mat, m);
+    }
   }
   const g = b.build({ name: 'flames' });
   g.visible = false;

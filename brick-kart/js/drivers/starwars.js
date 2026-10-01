@@ -418,9 +418,9 @@ function boba() {
     },
   });
   const s = r.dims.s;
-  const fire = flames([[0.25 * s, 0, 0], [-0.25 * s, 0, 0]], 0.9, 0.13, 'down');
-  fire.position.set(0, 0.38 * s, -0.48 * s);
-  fire.rotation.x = 1.15;
+  // jet flames splay out past the seat back
+  const fire = flames([[0.3 * s, 0, 0, 0.45, -0.4, -1], [-0.3 * s, 0, 0, -0.45, -0.4, -1]], 1.5, 0.16);
+  fire.position.set(0, 0.5 * s, -0.5 * s);
   r.torso.add(fire);
   r.fx = (name, f, t) => {
     fire.visible = name === 'cheer' || name === 'trick' || name === 'use' || name === 'win';
