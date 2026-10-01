@@ -261,7 +261,7 @@ class Game {
     this.onTitle = true;
     this.hudRoot.classList.add('hidden');
     this.setScreen(`<div class="screen title"><div class="logo">${logoHTML()}</div>
-      <div class="tagline">A brick-built kart racer · 9 maps · 16 racers · gliders · 1–4 players</div>
+      <div class="tagline">A brick-built kart racer · ${TRACKS.length} maps · 16 racers + ${DRIVERS.length} movie drivers · gliders · 1–4 players</div>
       <button class="press" data-act="start">PRESS <b>START</b> · <b>ENTER</b> · <b>TAP</b></button>
       <div class="pads-note">🎮 Controllers supported — plug in up to 4 for split-screen</div></div>`, {
       update: () => { if (this.menuEvents.some(([, m]) => m.ok || m.start)) { this.enterFullscreen(); this.onTitle = false; this.audio.sfx('select'); this.showMain(); } },
@@ -865,7 +865,7 @@ class Game {
   podium3D(top) {
     const cv = this.ui.querySelector('canvas.pod3d');
     if (!cv) return;
-    const show = new Showcase(cv, { cam: [0, 3.6, 13], look: [0, 1.6, 0], fov: 32, spin: 0 });
+    const show = new Showcase(cv, { cam: [0, 4.4, 16], look: [0, 1.7, 0], fov: 32, spin: 0 });
     const spots = [[0, 1.2, 0], [-4.2, 0.7, 0.4], [4.2, 0.35, 0.4]];
     show.set(top.map((o, n) => ({ ch: CHARACTERS[o.charIndex], driver: DRIVERS[o.driverIndex], x: spots[n][0], y: spots[n][1], z: spots[n][2], ry: [0.2, 0.45, -0.45][n], phase: n === 0 ? 'win' : 'pre', idle: n !== 0 })), { plate: false });
     const cols = [0xf2cd37, 0xc0c6cc, 0xc8803a];

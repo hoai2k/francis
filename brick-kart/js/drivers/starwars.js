@@ -419,12 +419,15 @@ function boba() {
   });
   const s = r.dims.s;
   // jet flames splay out past the seat back
-  const fire = flames([[0.3 * s, 0, 0, 0.45, -0.4, -1], [-0.3 * s, 0, 0, -0.45, -0.4, -1]], 1.5, 0.16);
+  const fire = flames([[0.3 * s, 0, 0, 0.5, -0.12, -1], [-0.3 * s, 0, 0, -0.5, -0.12, -1]], 1.4, 0.18);
   fire.position.set(0, 0.5 * s, -0.5 * s);
   r.torso.add(fire);
+  const gun = handAt(r, -1, blaster('rifle', 1));
   r.fx = (name, f, t) => {
     fire.visible = name === 'cheer' || name === 'trick' || name === 'use' || name === 'win';
-    if (fire.visible) fire.scale.setScalar(0.8 + S(t * 31) * 0.15 + S(t * 17) * 0.1);
+    if (fire.visible) fire.scale.setScalar(0.85 + S(t * 31) * 0.1 + S(t * 17) * 0.07);
+    gun.visible = strength(name, f, ['cheer', 'win']) > 0;
+    shoot(gun, gun.visible, t, 4);
   };
   return r;
 }
