@@ -285,10 +285,11 @@ function finishCharacterKart(ch, rig, root, body, b) {
   } else if (ch.body === 'buggy') {
     // roll cage, bull bar, spare tyre and a light bar
     const cage = (x1, y1, z1, x2, y2, z2) => limb(b, new THREE.Vector3(x1, y1, z1), new THREE.Vector3(x2, y2, z2), 0.06, a);
-    const top = SEAT.y + Math.max(1.6, H) + 0.25;
-    for (const sd of [-1, 1]) { cage(sd * wx, 1.05, -0.95, sd * wx * 0.85, top, -0.75); cage(sd * wx, 1.05, 0.55, sd * wx * 0.85, top - 0.15, -0.1); cage(sd * wx * 0.85, top, -0.75, sd * wx * 0.85, top - 0.15, -0.1); }
-    cage(-wx * 0.85, top, -0.75, wx * 0.85, top, -0.75);
-    for (let i = -1; i <= 1; i++) b.cyl(i * 0.35, top - 0.02, -0.78, 0.1, 0.14, C.yellow, { matOpts: { emissive: 0xffe080, emissiveIntensity: 0.6 } });
+    // a roll hoop behind the seat (open above, so raised arms never clip it)
+    const top = SEAT.y + Math.min(1.9, Math.max(1.3, H * 0.75));
+    for (const sd of [-1, 1]) { cage(sd * wx, 1.05, -1.05, sd * wx * 0.8, top, -1.15); cage(sd * wx * 0.8, top, -1.15, sd * wx * 0.6, 1.05, -1.9); }
+    cage(-wx * 0.8, top, -1.15, wx * 0.8, top, -1.15);
+    for (let i = -1; i <= 1; i++) b.cyl(i * 0.35, top - 0.02, -1.18, 0.1, 0.14, C.yellow, { matOpts: { emissive: 0xffe080, emissiveIntensity: 0.6 } });
     b.box(0, 0.3, 2.25, 2.2, 0.12, 0.12, C.dkgray); for (const sd of [-1, 1]) b.box(sd * 0.8, 0.3, 2.2, 0.12, 0.5, 0.12, C.dkgray);
     b.add(new THREE.TorusGeometry(0.38, 0.16, 8, 16), plastic(C.black), 0, 1.15, -2.0);
   } else if (ch.body === 'monster') {
@@ -366,7 +367,10 @@ function addWheelsAndGlider(ch, body, rig = null, st = null) {
   const glider = gb.build({ name: 'glider' });
   glider.position.set(0, 1.2, -0.7);
   // a tall driver holds the glider bar above their head
-  if (rig) glider.position.set(0, Math.max(1.2, SEAT.y + rig.height - 1.0), -0.5);
+  if (rig) {
+    const top = Math.max(rig.height, new THREE.Box3().setFromObject(rig.root).max.y - rig.root.position.y);
+    glider.position.set(0, Math.max(1.2, SEAT.y + top - 0.9), -0.5);
+  }
   glider.visible = false;
   body.add(glider);
   return { wheels, glider };
