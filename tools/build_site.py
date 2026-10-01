@@ -18,7 +18,8 @@ itself in an optional project.json:
 Only title/description are commonly needed; without a title the <title> from
 its index.html (or the directory name) is used. "posters" are 16:9 images
 inside the project folder, cycled on the gallery cards; the newest project
-(by date) is featured at the top.
+(by date) is featured at the top. A "url" points the card at a game hosted
+elsewhere instead of at the project's own folder.
 """
 
 import html
@@ -87,6 +88,11 @@ def _minutes(projects):
     return f"{total // 60}:{total % 60:02d}" if total else ""
 
 
+def _href(name, m):
+    """Where a card leads: the project's own folder, or its "url" if hosted elsewhere."""
+    return m.get("url") or f"./{name}/"
+
+
 def _is_game(m):
     """Games (playable projects) get "Play Now" instead of "Watch Now"."""
     return m.get("kind") == "game" or "GAME" in str(m.get("tag", "")).upper()
@@ -102,7 +108,7 @@ def _card(name, m, number):
     bars = "".join(f'<i{_on(i)}></i>' for i in range(len(posters))) if len(posters) > 1 else ""
     ep = m.get("episode", number)
     return (
-        f'<a class="card" href="./{e(name)}/" style="--accent:{accent}" data-accent="{accent}">'
+        f'<a class="card" href="{e(_href(name, m))}" style="--accent:{accent}" data-accent="{accent}">'
         f'<div class="thumb">{thumbs}<span class="ep">EP.{int(ep):02d}</span>'
         + (f'<span class="dur">{e(m["duration"])}</span>' if m.get("duration") else "")
         + (f'<span class="play game" aria-hidden="true">▶ PLAY NOW</span>' if _is_game(m) else '<span class="play" aria-hidden="true">▶</span>')
@@ -127,7 +133,7 @@ def render_index(projects):
         chips = "".join(f"<span>{e(str(v))}</span>" for v in (m.get("tag"), m.get("duration"), f"EP.{int(m['episode']):02d}" if m.get("episode") else None) if v)
         featured = (
             f'<h2 class="section-title"><span>NOW SHOWING</span><span class="jp">上映中</span></h2>'
-            f'<a class="featured" href="./{e(name)}/" style="--accent:{e(m.get("accent", "#ff3a5a"))}" data-accent="{e(m.get("accent", "#ff3a5a"))}">'
+            f'<a class="featured" href="{e(_href(name, m))}" style="--accent:{e(m.get("accent", "#ff3a5a"))}" data-accent="{e(m.get("accent", "#ff3a5a"))}">'
             f'<div class="reel">{imgs}</div><div class="shade"></div><div class="copy">'
             f'<span class="badge">{"NEW GAME" if _is_game(m) else "NEW EPISODE"}</span><h2>{e(m["title"])}</h2>'
             + (f'<p>{e(m["description"])}</p>' if m["description"] else "")
