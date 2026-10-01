@@ -58,8 +58,8 @@ Regina, Skater Sam, Zorp the Alien, Mummy Max and Dino Dina.
 
 You pick a **driver** and then a **kart** separately, like Mario Kart (turn
 **Use Characters** off in Options for the classic 16 minifig racers). The drivers are brick-built movie characters from
-the Movie Cup: 16 from Jurassic World, 16 from Star Wars, 19 from Marvel and 16
-from Jujutsu Kaisen (67 in all). Every kart in
+the Movie Cup: 19 from Marvel, 16 from Star Wars, 16 from Jujutsu Kaisen and 16
+from Jurassic World (67 in all). Every kart in
 the race (CPU ones too) gets one of them at the wheel.
 
 - The select screen has a live 3D stage: the highlighted driver sits in the

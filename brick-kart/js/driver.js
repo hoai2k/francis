@@ -15,10 +15,10 @@
 import * as THREE from 'three';
 
 export const UNIVERSES = [
-  { id: 'jurassic', name: 'Jurassic World', color: '#e8a33a' },
-  { id: 'starwars', name: 'Star Wars', color: '#ffe81f' },
   { id: 'marvel', name: 'Marvel', color: '#e23636' },
+  { id: 'starwars', name: 'Star Wars', color: '#ffe81f' },
   { id: 'jjk', name: 'Jujutsu Kaisen', color: '#8a5cff' },
+  { id: 'jurassic', name: 'Jurassic World', color: '#e8a33a' },
 ];
 
 // each universe loads on its own so one broken file never stops the game
