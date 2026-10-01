@@ -27,7 +27,9 @@ const hex = (c) => '#' + c.toString(16).padStart(6, '0');
 
 class Game {
   constructor() {
-    this.settings = load(SKEY, { cc: 100, difficulty: 'normal', laps: 3, racers: 13, music: 0.5, sfx: 0.8, autoGas: false, useChars: false, quality: MOBILE ? 'low' : 'high' });
+    this.settings = load(SKEY, { cc: 100, difficulty: 'normal', laps: 3, racers: 13, music: 0.5, sfx: 0.8, autoGas: false, useChars: true, quality: MOBILE ? 'low' : 'high' });
+    // Use Characters became the default: switch it on once for players who saved settings before
+    if (!this.settings.charsDefault) { this.settings.useChars = true; this.settings.charsDefault = 1; save(SKEY, this.settings); }
     this.best = load(TKEY, {});
     const app = document.getElementById('app');
     const r = this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
@@ -75,7 +77,7 @@ class Game {
       // developer shortcut: ?quick=<trackId>&char=<n>&players=<n>
       const np = +(q.get('players') || 1);
       // &chars=1 races with movie-character drivers, &driver=<id> picks player 1's driver
-      if (q.get('chars') || q.get('driver')) this.settings.useChars = true;
+      if (q.get('chars') || q.get('driver')) this.settings.useChars = q.get('chars') !== '0';
       const d0 = Math.max(0, DRIVERS.findIndex((d) => d.id === q.get('driver')));
       this.players = Array.from({ length: np }, (_, i) => this.makePlayer({ id: i, device: i === 0 ? 'kb' : 'pad' + (i - 1), cursor: (+(q.get('char') || 0) + i) % 8, driver: (d0 + i) % Math.max(1, DRIVERS.length), color: PCOL[i] }));
       this.startRace({ def: TRACKS.find((t) => t.id === q.get('quick')) || TRACKS[0], mode: q.get('mode') || 'race' });
@@ -89,18 +91,45 @@ class Game {
     requestAnimationFrame((t) => this.loop(t));
   }
 
+  // Player 1 is always there: the device that was driving the menus, else a connected
+  // controller, else touch / keyboard.
+  p1Device() {
+    const pads = this.input.pads();
+    if (this.lastDevice && (this.lastDevice === 'kb' || pads.includes(this.lastDevice))) return this.lastDevice;
+    if (pads.length) return pads[0];
+    return isTouchDevice() ? 'touch' : 'kb';
+  }
+
   // "Use Characters": karts get movie-character drivers
   charsOn() { return !!this.settings.useChars && DRIVERS.length > 0; }
 
   applyQuality() {
     const hi = this.settings.quality === 'high';
-    this.renderer.setPixelRatio(Math.min(devicePixelRatio, hi ? 2 : 1));
+    this.basePR = Math.min(devicePixelRatio, hi ? 2 : 1);
+    this.resScale ??= 1;
+    this.renderer.setPixelRatio(this.basePR * this.resScale);
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.shadowSize = hi ? 2048 : 1024;
     this.resize();
   }
   resize() {
     this.renderer.setSize(innerWidth, innerHeight);
+  }
+  // Adaptive resolution: when frames run slow during a race (usually a big or high-DPI
+  // screen), render at a lower pixel ratio; creep back up once there's headroom again.
+  adaptResolution(frameMs) {
+    if (!(frameMs > 0) || frameMs > 250) return;           // ignore pauses / tab switches
+    const a = (this.perf ||= { ema: 16.7, t: 0, good: 0 });
+    a.ema += (frameMs - a.ema) * 0.05;
+    a.t += frameMs;
+    if (a.t < 2000) return;
+    a.t = 0;
+    const minScale = Math.max(0.5, 0.6 / this.basePR);
+    let next = this.resScale;
+    if (a.ema > 22 && this.resScale > minScale) { next = Math.max(minScale, this.resScale * 0.85); a.good = 0; }
+    else if (a.ema < 18) { if (++a.good >= 3 && this.resScale < 1) { next = Math.min(1, this.resScale * 1.1); a.good = 0; } }
+    else a.good = 0;
+    if (next !== this.resScale) { this.resScale = next; this.renderer.setPixelRatio(this.basePR * next); this.resize(); }
   }
   toast(text) {
     const t = document.createElement('div');
@@ -170,12 +199,16 @@ class Game {
     requestAnimationFrame((t) => this.loop(t));
     // After a long blocking task the frame timestamp can be OLDER than the last one we saw,
     // so dt can come out negative (or NaN): clamp it to [0, 0.05] so time never runs backwards.
+    const frameMs = now - this.last;
+    if (this.race && !this.paused) this.adaptResolution(frameMs);
     let dt = (now - this.last) / 1000;
     if (!(dt > 0)) dt = 0; else if (dt > 0.05) dt = 0.05;
     if (now > this.last || !Number.isFinite(this.last)) this.last = now;
     this.input.poll();
     const devs = this.input.menuDevices();
     this.menuEvents = devs.map((d) => [d, this.input.menu(d, dt)]);
+    // remember which device is driving the menus: it becomes player 1 on the select screen
+    for (const [d, m] of this.menuEvents) if (m.ok || m.start || m.back || m.up || m.down || m.left || m.right) this.lastDevice = d;
     if (this.menuEvents.some(([, m]) => m.ok || m.start)) this.audio.unlock();
     this.screen?.update?.(dt);
     const race = this.race || this.attract;
@@ -429,7 +462,7 @@ class Game {
             if (m.down) { p.cursor = (p.cursor + cols) % NC; moved = true; }
             if (moved) { this.audio.sfx('click'); refresh(); }
             if (m.ok && !taken().has(p.cursor)) { p.locked = true; this.audio.sfx('select'); refresh(); continue; }
-            if (m.back) { leave(p); if (!players.length && dev !== 'kb2') { /* stay */ } continue; }
+            if (m.back) { if (p === players[0]) { back(); return; } leave(p); continue; }
           } else {
             if (m.back) { p.locked = false; this.audio.sfx('back'); refresh(); continue; }
             if (m.ok || m.start) { go(); return; }
@@ -448,6 +481,7 @@ class Game {
       },
       act: (a) => { if (a === 'back') back(); if (a === 'go') go(); },
     };
+    join(this.p1Device());
     refresh();
   }
 
@@ -623,7 +657,7 @@ class Game {
               pv = p; this.audio.sfx('click'); refresh(); scrollTo(dEl.get(p.dcur));
             }
             if (m.ok) { lockDriver(p); continue; }
-            if (m.back) { leave(p); continue; }
+            if (m.back) { if (p === players[0]) { back(); return; } leave(p); continue; }
           } else if (p.phase === 'kart') {
             if (dx || dy) { p.kcur = nav(kcards, p.kcur, dx, dy); pv = p; this.audio.sfx('click'); refresh(); scrollTo(kcards[p.kcur]); }
             if (m.ok) { lockKart(p); continue; }
@@ -652,6 +686,7 @@ class Game {
       },
       act: (a) => { if (a === 'back') back(); if (a === 'go') go(); },
     };
+    join(this.p1Device());
     refresh();
   }
 
@@ -749,6 +784,7 @@ class Game {
       this.race = new Race(this, { ...opts, players: this.players, useChars: this.charsOn(), cc: CC[s.cc] || 0.92, difficulty: s.difficulty, racers: s.racers, laps: opts.mode === 'tt' ? 3 : s.laps, bestTime: opts.mode === 'tt' ? this.best[opts.def.id] : 0 });
       this.race.world.sun.shadow.mapSize.set(this.shadowSize, this.shadowSize);
       this.race.onDone = (res) => this.onRaceDone(res);
+      this.race.warmup(this.renderer);
       this.paused = false;
       this.touchRoot.classList.toggle('hidden', !this.players.some((p) => p.device === 'touch'));
       ld.classList.add('hidden');

@@ -17,9 +17,12 @@ Play: <https://hoai2k.github.io/francis/brick-kart/>
   (you plus CPU racers). You can change the number in Options.
 - **Time Trial**: race alone with 3 Turbo Studs. Your best time on each map is
   saved in your browser.
+- **Racer select**: player 1 is already in, using whatever controller (or
+  keyboard/touch) you used in the menus; more players press A to join.
 - **Options**: engine class (50/100/150/200cc), CPU difficulty, racers per race
   (4/8/10/13/16), laps, **Use Characters**, auto-accelerate, music and sound
-  volume, and graphics quality.
+  volume, and graphics quality. The game also lowers its render resolution
+  automatically if frames run slow, and raises it again when there's headroom.
 
 ## Maps (13, in 4 cups)
 
@@ -51,10 +54,10 @@ weight: Brick Bob, Astro Ava, Cap'n Redbeard, Sir Kara, Robo-Rex, Ninja Nix,
 Chief Flo, Wizard Wendel, Chef Pepper, Cowgirl Cassie, Viking Bjorn, Queen
 Regina, Skater Sam, Zorp the Alien, Mummy Max and Dino Dina.
 
-### Use Characters (Options)
+### Use Characters (on by default)
 
-Turn on **Use Characters** and you pick a **driver** and then a **kart**
-separately, like Mario Kart. The drivers are brick-built movie characters from
+You pick a **driver** and then a **kart** separately, like Mario Kart (turn
+**Use Characters** off in Options for the classic 16 minifig racers). The drivers are brick-built movie characters from
 the Movie Cup: 16 from Jurassic World, 16 from Star Wars, 19 from Marvel and 16
 from Jujutsu Kaisen (67 in all). Every kart in
 the race (CPU ones too) gets one of them at the wheel.

@@ -507,6 +507,20 @@ export class Race {
     this.audio.voice?.(k.driver.voice, mood, vol);
   }
 
+  // Compile every material in the scene up front, including parts that start hidden
+  // (driver gesture effects, gliders, shield bubbles, auras…), so nothing stalls the
+  // frame mid-race the first time it appears.
+  warmup(renderer) {
+    const hidden = [];
+    this.scene.traverse((o) => { if (!o.visible) { hidden.push(o); o.visible = true; } });
+    try {
+      const cam = this.cams[0]?.chase.cam || this.introCam;
+      if (renderer.compileAsync && renderer.extensions.has('KHR_parallel_shader_compile')) renderer.compileAsync(this.scene, cam).catch(() => {});
+      else renderer.compile(this.scene, cam);
+    } catch (e) { console.warn('shader warm-up failed', e); }
+    for (const o of hidden) o.visible = false;
+  }
+
   dispose() {
     for (const c of this.cams) c.kart.engine?.stop();
     this.items.dispose();
