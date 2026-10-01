@@ -22,6 +22,10 @@ export const CHARACTERS = [
   { id: 'dina', name: 'Dino Dina', blurb: 'Big bite', kart: C.green, accent: C.orange, torso: C.lime, legs: C.green, hat: 'dino', hatColor: C.lime, face: 'grin', stats: { speed: 4, accel: 2, handling: 3, weight: 4 } },
 ];
 
+// vehicle names used when "Use Characters" splits racers into a driver + a kart
+const VEHICLES = { bob: 'Hard Hat Hauler', ava: 'Comet Cruiser', redbeard: 'Plank Plunderer', kara: 'Iron Bastion', rex: 'Turbo Titan', nix: 'Shadow Dart', flo: 'Blaze Runner', wendel: 'Spell Streak', pepper: 'Hot Wok', cassie: 'Dust Devil', bjorn: 'Long Hammer', regina: 'Royal Coach', sam: 'Skate Spark', zorp: 'Saucer Buggy', max: 'Tomb Rover', dina: 'Fossil Flyer' };
+for (const ch of CHARACTERS) ch.vehicle = VEHICLES[ch.id] || ch.name;
+
 const Y_AXIS = new THREE.Vector3(0, 1, 0);
 
 function limb(b, a, c, r, color) {
@@ -160,8 +164,12 @@ function wheelGeo(r, w, capCol, xs) {
   return g;
 }
 
-// Builds the kart + driver. Local forward is +Z.
-export function buildKart(ch) {
+// Seat point for a movie-character driver (see driver.js): hips sit here.
+export const SEAT = new THREE.Vector3(0, 0.62, -0.38);
+
+// Builds the kart + driver. Local forward is +Z. With a driver rig (Use Characters)
+// the minifig is replaced by the rig, seated in a deeper tub behind a turning wheel.
+export function buildKart(ch, rig = null) {
   const root = new THREE.Group();
   const body = new THREE.Group();
   root.add(body);
@@ -192,6 +200,7 @@ export function buildKart(ch) {
   b.brick(0, 1.42, -1.8, 6, 2, 1, a);
   // number plate stickers
   b.box(1.21, 0.55, 0.2, 0.02, 0.3, 0.9, C.white); b.box(-1.21, 0.55, 0.2, 0.02, 0.3, 0.9, C.white);
+  if (rig) return finishCharacterKart(ch, rig, root, body, b);
   // steering wheel
   const sw = new THREE.TorusGeometry(0.2, 0.04, 8, 18);
   const swm = new THREE.Matrix4().compose(new THREE.Vector3(0, 1.08, 0.42), new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.5, 0, 0)), new THREE.Vector3(1, 1, 1));
@@ -229,6 +238,101 @@ export function buildKart(ch) {
   buildHat(ch, head);
   body.add(head);
 
+  const { wheels, glider } = addWheelsAndGlider(ch, body);
+  return { root, body, head, wheels, glider, colors: [k, a, ch.torso, ch.legs, C.black, C.ltgray] };
+}
+
+// A kart for a movie-character driver: side tub walls hide the legs, the rig sits on
+// the seat and a separate steering wheel turns with the stick.
+// Vehicle body styles for character karts: wheel sizes (rear, front), body lift and extras.
+const BODIES = {
+  classic: { rear: 0.45, front: 0.36, lift: 0 },
+  racer: { rear: 0.42, front: 0.32, lift: -0.04, rw: 0.5, fw: 0.3 },
+  buggy: { rear: 0.56, front: 0.5, lift: 0.12, rw: 0.5, fw: 0.44 },
+  monster: { rear: 0.74, front: 0.74, lift: 0.34, rw: 0.62, fw: 0.62 },
+  hotrod: { rear: 0.62, front: 0.34, lift: 0.08, rw: 0.56, fw: 0.28 },
+};
+const BODY_OF = { bob: 'classic', ava: 'racer', redbeard: 'buggy', kara: 'monster', rex: 'racer', nix: 'racer', flo: 'hotrod', wendel: 'classic', pepper: 'hotrod', cassie: 'buggy', bjorn: 'monster', regina: 'classic', sam: 'buggy', zorp: 'racer', max: 'monster', dina: 'hotrod' };
+for (const ch of CHARACTERS) ch.body = BODY_OF[ch.id] || 'classic';
+const BODY_NAMES = { classic: 'Classic kart', racer: 'Racer', buggy: 'Buggy', monster: 'Monster kart', hotrod: 'Hot rod' };
+export const bodyName = (ch) => BODY_NAMES[ch.body] || 'Kart';
+
+function finishCharacterKart(ch, rig, root, body, b) {
+  const k = ch.kart, a = ch.accent, st = BODIES[ch.body] || BODIES.classic;
+  const H = rig.height, wide = Math.max(1.2, rig.width || 1.2);
+  const chrome = { matOpts: { metal: 0.9, rough: 0.2 } };
+  // tub: side walls and a back rest sized to the driver
+  const wx = Math.max(0.95, wide * 0.5 + 0.12);
+  for (const sd of [-1, 1]) {
+    b.box(sd * wx, 0.5, -0.25, 0.2, 0.55, 1.7, k);
+    b.box(sd * wx, 1.05, -0.25, 0.26, 0.08, 1.75, a);
+  }
+  b.box(0, 0.5, -1.05, wx * 2, 0.6 + Math.min(0.5, H * 0.12), 0.18, k);
+  b.box(0, 0.5, 0.55, wx * 2, 0.5, 0.18, k);
+  b.box(0, 0.42, -0.25, wx * 2, 0.12, 1.7, C.dkgray);
+  // dashboard + column up to the wheel
+  const ws = wheelSpotFor(rig).add(SEAT);
+  b.box(0, 0.62, 0.75, 1.3, 0.42, 0.35, C.dkgray);
+  limb(b, new THREE.Vector3(0, 0.8, 0.8), new THREE.Vector3(0, ws.y - 0.05, ws.z + 0.05), 0.045, C.black);
+  // body style extras
+  if (ch.body === 'racer') {
+    // long nose, side pods and a tall wing
+    b.box(0, 0.32, 2.35, 1.2, 0.36, 0.9, k); b.box(0, 0.32, 2.85, 0.8, 0.26, 0.4, a);
+    b.box(0, 0.22, 3.05, 2.6, 0.08, 0.5, a);
+    for (const sd of [-1, 1]) { b.box(sd * 1.15, 0.34, 0.1, 0.5, 0.36, 1.8, k); b.box(sd * 1.15, 0.7, 0.1, 0.52, 0.06, 1.6, a); }
+    for (const sd of [-1, 1]) b.box(sd * 0.75, 0.9, -1.85, 0.08, 0.9, 0.5, C.black);
+    b.box(0, 1.78, -1.95, 2.6, 0.1, 0.7, a); for (const sd of [-1, 1]) b.box(sd * 1.3, 1.55, -1.95, 0.08, 0.5, 0.7, k);
+  } else if (ch.body === 'buggy') {
+    // roll cage, bull bar, spare tyre and a light bar
+    const cage = (x1, y1, z1, x2, y2, z2) => limb(b, new THREE.Vector3(x1, y1, z1), new THREE.Vector3(x2, y2, z2), 0.06, a);
+    const top = SEAT.y + Math.max(1.6, H) + 0.25;
+    for (const sd of [-1, 1]) { cage(sd * wx, 1.05, -0.95, sd * wx * 0.85, top, -0.75); cage(sd * wx, 1.05, 0.55, sd * wx * 0.85, top - 0.15, -0.1); cage(sd * wx * 0.85, top, -0.75, sd * wx * 0.85, top - 0.15, -0.1); }
+    cage(-wx * 0.85, top, -0.75, wx * 0.85, top, -0.75);
+    for (let i = -1; i <= 1; i++) b.cyl(i * 0.35, top - 0.02, -0.78, 0.1, 0.14, C.yellow, { matOpts: { emissive: 0xffe080, emissiveIntensity: 0.6 } });
+    b.box(0, 0.3, 2.25, 2.2, 0.12, 0.12, C.dkgray); for (const sd of [-1, 1]) b.box(sd * 0.8, 0.3, 2.2, 0.12, 0.5, 0.12, C.dkgray);
+    b.add(new THREE.TorusGeometry(0.38, 0.16, 8, 16), plastic(C.black), 0, 1.15, -2.0);
+  } else if (ch.body === 'monster') {
+    // chunky fenders over the giant wheels and a front grille
+    for (const sd of [-1, 1]) for (const z of [-1.2, 1.35]) { b.box(sd * 1.45, 1.02, z, 0.78, 0.14, 1.5, a); b.box(sd * 1.45, 0.72, z + (z > 0 ? 0.72 : -0.72), 0.78, 0.36, 0.1, a); }
+    b.box(0, 0.35, 2.15, 2.0, 0.5, 0.2, C.dkgray); for (let i = -2; i <= 2; i++) b.box(i * 0.32, 0.4, 2.26, 0.08, 0.4, 0.05, C.ltgray, chrome);
+    for (const sd of [-1, 1]) b.cyl(sd * 0.75, 0.86, 2.18, 0.14, 0.1, C.yellow, { matOpts: { emissive: 0xffe060, emissiveIntensity: 0.8 } });
+  } else if (ch.body === 'hotrod') {
+    // big exposed engine with stacks, flame stripes
+    b.box(0, 0.62, 1.6, 1.3, 0.5, 1.0, C.ltgray, chrome);
+    for (let i = 0; i < 4; i++) for (const sd of [-1, 1]) b.cyl(sd * 0.32, 1.1, 1.25 + i * 0.25, 0.08, 0.35 + i * 0.04, C.ltgray, chrome);
+    b.box(0, 1.12, 1.6, 0.5, 0.22, 0.5, C.dkgray);
+    for (const sd of [-1, 1]) { b.box(sd * (wx + 0.11), 0.6, 0.3, 0.02, 0.18, 0.9, C.orange); b.box(sd * (wx + 0.11), 0.68, -0.2, 0.02, 0.12, 0.8, C.yellow); }
+    for (const sd of [-1, 1]) limb(b, new THREE.Vector3(sd * 0.6, 0.5, -1.6), new THREE.Vector3(sd * 0.7, 0.45, -2.3), 0.1, C.ltgray);
+  }
+  const kartMesh = b.build({ name: 'kart' });
+  // everything but the wheels rides on a lifted body for tall-wheeled styles
+  const up = new THREE.Group(); up.position.y = st.lift; body.add(up);
+  up.add(kartMesh);
+  const swheel = new THREE.Group();
+  swheel.position.copy(ws);
+  swheel.rotation.x = -0.55;
+  const swb = new BrickBuilder(0.4);
+  const rim = Math.max(0.2, Math.min(0.42, Math.abs(rig.shoulder.x) * 0.75));
+  swb.addMatrix(new THREE.TorusGeometry(rim, 0.05, 8, 20), plastic(C.black), new THREE.Matrix4().makeRotationX(Math.PI / 2));
+  swb.box(0, -0.03, 0, rim * 2, 0.06, 0.08, C.black);
+  swb.cyl(0, -0.05, 0, 0.08, 0.1, a);
+  swheel.add(swb.build({ name: 'swheel' }));
+  up.add(swheel);
+  // the driver
+  rig.root.position.copy(SEAT);
+  up.add(rig.root);
+  const head = new THREE.Group();   // the driver animator turns the real head
+  const { wheels, glider } = addWheelsAndGlider(ch, body, rig, st);
+  glider.position.y += st.lift;
+  return { root, body, head, wheels, glider, swheel, driver: rig, shadow: kartMesh, top: SEAT.y + rig.height + st.lift, colors: [k, a, rig.def.color ?? C.white, C.black, C.ltgray, C.dkgray] };
+}
+function wheelSpotFor(rig) {
+  const s = rig.shoulder, L = rig.armLen, R = 1.0;
+  return new THREE.Vector3(0, s.y - Math.cos(R) * L, s.z + Math.sin(R) * L);
+}
+
+function addWheelsAndGlider(ch, body, rig = null, st = null) {
+  const k = ch.kart, a = ch.accent;
   // wheels: rear pair share one axle mesh; front wheels steer individually
   const wheels = [];
   const mkWheel = (x, y, z, r, w, front, xs) => {
@@ -240,8 +344,15 @@ export function buildKart(ch) {
     body.add(g);
     wheels.push({ g, spin, front, r });
   };
-  mkWheel(0, 0.45, -1.2, 0.45, 0.42, false, [1.45, -1.45]);
-  mkWheel(1.38, 0.36, 1.35, 0.36, 0.34, true, [0]); mkWheel(-1.38, 0.36, 1.35, 0.36, 0.34, true, [0]);
+  if (st) {
+    // character kart body styles: bigger/smaller wheels pushed out to clear the body
+    const rr = st.rear, fr = st.front, rx = 1.45 + Math.max(0, (st.rw || 0.42) - 0.42) * 0.5 + (rr > 0.6 ? 0.12 : 0), fx = 1.38 + Math.max(0, (st.fw || 0.34) - 0.34) * 0.5 + (fr > 0.6 ? 0.18 : 0);
+    mkWheel(0, rr, -1.2, rr, st.rw || 0.42, false, [rx, -rx]);
+    mkWheel(fx, fr, 1.35, fr, st.fw || 0.34, true, [0]); mkWheel(-fx, fr, 1.35, fr, st.fw || 0.34, true, [0]);
+  } else {
+    mkWheel(0, 0.45, -1.2, 0.45, 0.42, false, [1.45, -1.45]);
+    mkWheel(1.38, 0.36, 1.35, 0.36, 0.34, true, [0]); mkWheel(-1.38, 0.36, 1.35, 0.36, 0.34, true, [0]);
+  }
 
   // glider: brick wing on a mast, shown while gliding
   const gb = new BrickBuilder(0.4);
@@ -254,8 +365,9 @@ export function buildKart(ch) {
   }
   const glider = gb.build({ name: 'glider' });
   glider.position.set(0, 1.2, -0.7);
+  // a tall driver holds the glider bar above their head
+  if (rig) glider.position.set(0, Math.max(1.2, SEAT.y + rig.height - 1.0), -0.5);
   glider.visible = false;
   body.add(glider);
-
-  return { root, body, head, wheels, glider, colors: [k, a, ch.torso, ch.legs, C.black, C.ltgray] };
+  return { wheels, glider };
 }

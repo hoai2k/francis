@@ -129,6 +129,65 @@ export class Audio {
     }
   }
 
+  // ---- character voices (Use Characters) ------------------------------------------------------
+  // Tiny formant "voice" lines: a buzzy source through two vowel filters, shaped into
+  // syllables. kind: human | deep | squeak | robot | droid | beast; pitch ~1 = 200 Hz.
+  voice(v = {}, mood = 'cheer', vol = 1) {
+    const c = this.ctx; if (!c || vol <= 0) return;
+    const kind = v.kind || 'human';
+    const f0 = 200 * (v.pitch || 1) * (kind === 'deep' ? 0.62 : kind === 'squeak' ? 1.7 : kind === 'beast' ? 0.42 : 1);
+    if (kind === 'droid') {
+      // whistles and chirps
+      const n = { cheer: 6, win: 8, ouch: 3, taunt: 5, trick: 4 }[mood] || 4;
+      const sad = mood === 'ouch' || mood === 'lose';
+      for (let i = 0; i < n; i++) {
+        const fr = sad ? 2200 - i * 380 : 1300 + Math.random() * 2200;
+        this.tone(fr, 0.07 + Math.random() * 0.06, { vol: 0.09 * vol, type: 'sine', at: i * 0.075, slide: sad ? 0.6 : 0.6 + Math.random() * 1.2 });
+      }
+      return;
+    }
+    const V = { a: [800, 1250], o: [520, 900], u: [350, 760], e: [480, 1850], i: [310, 2250] };
+    // [vowel, pitch multiplier start, end, duration, gap]
+    const LINES = {
+      cheer: [['u', 1.0, 1.15, 0.13, 0.03], ['u', 1.45, 1.75, 0.3, 0]],
+      win: [['a', 1.0, 1.1, 0.12, 0.02], ['u', 1.5, 1.9, 0.38, 0]],
+      yay: [['e', 1.25, 1.6, 0.24, 0]],
+      trick: [['e', 1.2, 1.7, 0.2, 0]],
+      go: [['e', 1.1, 1.1, 0.09, 0.03], ['o', 1.25, 1.45, 0.24, 0]],
+      ouch: [['a', 1.45, 1.4, 0.1, 0.02], ['a', 1.2, 0.65, 0.36, 0]],
+      lose: [['o', 1.0, 0.68, 0.55, 0]],
+      taunt: [['a', 1.3, 1.25, 0.07, 0.06], ['a', 1.3, 1.2, 0.07, 0.06], ['a', 1.35, 1.2, 0.09, 0]],
+      throw: [['a', 1.15, 0.95, 0.14, 0]],
+    };
+    const line = LINES[mood] || LINES.cheer;
+    let t = c.currentTime + 0.01;
+    const out = c.createGain(); out.gain.value = 0.32 * vol; out.connect(this.sfxGain);
+    for (const [vw, p0, p1, dur, gap] of line) {
+      const o = c.createOscillator();
+      o.type = kind === 'robot' ? 'square' : 'sawtooth';
+      const q = (f) => (kind === 'robot' ? Math.round(f / 40) * 40 : f);
+      o.frequency.setValueAtTime(q(f0 * p0), t);
+      if (kind === 'robot') o.frequency.setValueAtTime(q(f0 * p1), t + dur * 0.5);
+      else o.frequency.exponentialRampToValueAtTime(f0 * p1, t + dur);
+      // vibrato
+      const lfo = c.createOscillator(), lg = c.createGain();
+      lfo.frequency.value = 6.5; lg.gain.value = f0 * 0.025; lfo.connect(lg).connect(o.frequency);
+      const env = c.createGain();
+      env.gain.setValueAtTime(0, t); env.gain.linearRampToValueAtTime(1, t + 0.025); env.gain.setValueAtTime(1, t + dur * 0.7); env.gain.exponentialRampToValueAtTime(0.001, t + dur);
+      const [F1, F2] = V[vw];
+      const shift = kind === 'squeak' ? 1.25 : kind === 'deep' || kind === 'beast' ? 0.85 : 1;
+      for (const [F, g] of [[F1 * shift, 1], [F2 * shift, 0.5]]) {
+        const bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = F; bp.Q.value = 5;
+        const gg = c.createGain(); gg.gain.value = g;
+        o.connect(bp).connect(gg).connect(env);
+      }
+      env.connect(out);
+      if (kind === 'beast') this.noiseHit(dur, { vol: 0.25 * vol, at: t - c.currentTime, freq: 300, q: 0.8, type: 'lowpass' });
+      o.start(t); o.stop(t + dur + 0.05); lfo.start(t); lfo.stop(t + dur + 0.05);
+      t += dur + gap;
+    }
+  }
+
   // ---- engines (one per local player) -----------------------------------------------------
   engine() {
     const c = this.ctx;

@@ -18,8 +18,8 @@ Play: <https://hoai2k.github.io/francis/brick-kart/>
 - **Time Trial**: race alone with 3 Turbo Studs. Your best time on each map is
   saved in your browser.
 - **Options**: engine class (50/100/150/200cc), CPU difficulty, racers per race
-  (4/8/10/13/16), laps, auto-accelerate, music and sound volume, and graphics
-  quality.
+  (4/8/10/13/16), laps, **Use Characters**, auto-accelerate, music and sound
+  volume, and graphics quality.
 
 ## Maps (13, in 4 cups)
 
@@ -50,6 +50,27 @@ or the sky.
 weight: Brick Bob, Astro Ava, Cap'n Redbeard, Sir Kara, Robo-Rex, Ninja Nix,
 Chief Flo, Wizard Wendel, Chef Pepper, Cowgirl Cassie, Viking Bjorn, Queen
 Regina, Skater Sam, Zorp the Alien, Mummy Max and Dino Dina.
+
+### Use Characters (Options)
+
+Turn on **Use Characters** and you pick a **driver** and then a **kart**
+separately, like Mario Kart. The drivers are brick-built movie characters from
+the Movie Cup: Jurassic World, Star Wars, Marvel and Jujutsu Kaisen. Every kart in
+the race (CPU ones too) gets one of them at the wheel.
+
+- The select screen has a live 3D stage: the highlighted driver sits in the
+  highlighted kart, shows off, cheers when you lock them in and celebrates when
+  you're ready. Stat bars show the kart's stats adjusted by the driver's weight
+  class (light drivers accelerate and handle better; heavy ones are faster and
+  push harder).
+- The 16 karts come in five body styles: classic kart, racer, buggy, monster
+  kart and hot rod.
+- In the race, drivers steer and lean into turns, look behind, hold the glider
+  bar overhead, do trick poses off ramps, wind up and throw items, flail when
+  they're hit, taunt racers they overtake and **cheer when they hit a rival**.
+  Each has a signature celebration and a little synthesised voice.
+- After the finish, the top three celebrate and the rest sulk. In a Grand Prix,
+  the podium shows the top three drivers celebrating in 3D.
 
 ## Power-ups (23)
 
@@ -125,8 +146,13 @@ three or four get quarters.
 - `js/maps/*.js`: one file per map (layout, sections, hazards, scenery); `js/maps/kit.js` has shared props
 - `js/hazards.js`: moving traffic/boulders, crossings, geysers, crushers, fire bars and cannons
 - `js/world.js`, `js/decor.js`, `js/lego.js`: sky, ground, lighting, brick-built props and the brick mesh merger
-- `js/characters.js`: minifig drivers and karts
+- `js/characters.js`: minifig drivers and karts (plus the five kart body styles used with Use Characters)
+- `js/driver.js`: movie-character drivers: the seated rig contract, weight classes and the gesture animator
+- `js/drivers/*.js`: the driver casts per movie (`kit.js` has the seated figure builder); `js/showcase.js`: the 3D select stage, portraits and podium; `js/gallery.js`: a developer line-up view
 - `js/effects.js`, `js/audio.js`, `js/hud.js`, `js/input.js`: particles, sound, HUD and input devices
 
 For development, `?quick=<map id>` (city, meadow, pirate, candy, jungle, frost, factory, lava, space, jurassic, starwars, marvel, jjk) goes
-straight into a race. Add `&players=2` to test split-screen.
+straight into a race. Add `&players=2` to test split-screen, and `&chars=1` (or
+`&driver=<driver id>`) to race with movie-character drivers. `?gallery=<movie id
+| driver id | all>` lines drivers up in their karts; add `&pose=cheer` (taunt,
+ouch, trick, win, lose, glide, look…) to hold a gesture.

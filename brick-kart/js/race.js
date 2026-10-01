@@ -8,10 +8,13 @@ import { Effects } from './effects.js';
 import { Items, rollItem, MULTI } from './items.js';
 import { AIDriver } from './ai.js';
 import { CHARACTERS } from './characters.js';
+import { DRIVERS } from './driver.js';
 import { HUD } from './hud.js';
 import { Hazards } from './hazards.js';
 
 const V = new THREE.Vector3();
+const THROWS = new Set(['rocket', 'rocket3', 'cannon', 'cannon3', 'ice', 'boomerang', 'seeker', 'bomb']);
+const TRAPS = new Set(['trap', 'puddle', 'fakebox']);
 
 function lerpAngle(a, b, t) { return a + angleDiff(a, b) * t; }
 
@@ -24,7 +27,7 @@ class ChaseCam {
   update(dt, k) {
     this.yaw = lerpAngle(this.yaw, k.yaw + k.driftVis * 0.45, 1 - Math.exp(-(this.init ? 5 : 100) * dt));
     const yaw = this.yaw + (k.lookBack ? Math.PI : 0);
-    const dist = 7.4 + (k.boosting ? 1.2 : 0), h = 3.1;
+    const dist = 7.4 + (k.boosting ? 1.2 : 0) + k.camLift * 0.6, h = 3.1 + k.camLift;
     const tgt = V.set(k.pos.x - Math.sin(yaw) * dist, k.pos.y + h, k.pos.z - Math.cos(yaw) * dist);
     const frozen = k.respawn > 0 && !k.respawnPlaced;
     if (!frozen) {
@@ -34,7 +37,7 @@ class ChaseCam {
       else this.pos.lerp(tgt, 1 - Math.exp(-11 * dt));
     }
     this.lastLook = k.lookBack;
-    this.look.set(k.pos.x + Math.sin(yaw) * 4, k.pos.y + 1.3, k.pos.z + Math.cos(yaw) * 4);
+    this.look.set(k.pos.x + Math.sin(yaw) * 4, k.pos.y + 1.3 + k.camLift * 0.5, k.pos.z + Math.cos(yaw) * 4);
     this.cam.position.copy(this.pos);
     if (this.shake > 0) {
       this.shake = Math.max(0, this.shake - dt * 2.5);
@@ -110,14 +113,24 @@ export class Race {
     const others = CHARACTERS.map((_, i) => i).filter((i) => !used.has(i));
     for (let i = others.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [others[i], others[j]] = [others[j], others[i]]; }
     const total = this.mode === 'tt' ? humans.length : Math.min(CHARACTERS.length, Math.max(humans.length, opts.racers ?? 13));
-    let grid = opts.grid;   // array of { charIndex, player }
+    // Use Characters: every kart also gets a movie-character driver (CPU drivers are unique)
+    this.useChars = !!opts.useChars && DRIVERS.length > 0;
+    const shuffle = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+    let grid = opts.grid;   // array of { charIndex, driverIndex?, player }
     if (!grid) {
       grid = [];
       const ai = others.slice(0, total - humans.length).map((c) => ({ charIndex: c, player: null }));
-      grid.push(...ai, ...humans.map((p) => ({ charIndex: p.charIndex, player: p })));
+      if (this.useChars) {
+        const usedD = new Set(humans.map((p) => p.driverIndex));
+        const freeD = shuffle(DRIVERS.map((_, i) => i).filter((i) => !usedD.has(i)));
+        ai.forEach((g, i) => { g.driverIndex = freeD[i % freeD.length]; });
+      }
+      grid.push(...ai, ...humans.map((p) => ({ charIndex: p.charIndex, driverIndex: p.driverIndex, player: p })));
     }
     grid.forEach((g, n) => {
-      const k = new Kart(this, CHARACTERS[g.charIndex], n, g.player);
+      const drv = this.useChars ? DRIVERS[g.driverIndex ?? n % DRIVERS.length] : null;
+      const k = new Kart(this, CHARACTERS[g.charIndex], n, g.player, drv);
+      k.driverIndex = drv ? DRIVERS.indexOf(drv) : -1;
       const row = n;
       const i = this.track.wrap(Math.round(-7 - row * 3.4));
       const lat = (n % 2 ? 1 : -1) * this.track.HW[i] * 0.4;
@@ -175,6 +188,7 @@ export class Race {
         tr.setStartLights(4, true);
         this.audio.sfx('go');
         this.hud?.count('GO!');
+        for (const k of this.karts) k.emote('ready', k.human ? 'go' : null);
         for (const k of this.karts) {
           if (k.human) {
             if (k.gasHold > 0.3 && k.gasHold < 1.7) k.boost(1.1);
@@ -205,7 +219,15 @@ export class Race {
         k.lookBack = false;
       }
       if (!this.started) { ctl = { ...ctl, throttle: 0, brake: 0, steer: 0, driftPressed: false, itemPressed: false }; }
-      if (ctl.itemPressed && k.item && k.roulette <= 0 && !k.stunned && this.started) this.items.use(k);
+      if (ctl.itemPressed && k.item && k.roulette <= 0 && !k.stunned && this.started) {
+        const it = k.item;
+        this.items.use(k);
+        if (k.anim) {
+          const back = ctl.back || (TRAPS.has(it) && !ctl.aimFwd);
+          if (THROWS.has(it) || TRAPS.has(it)) k.emote(back ? 'throwB' : 'throwF', 'throw');
+          else k.emote('use', 'yay');
+        }
+      }
       k.update(dt, ctl);
       if (k.roulette > 0) {
         k.roulette -= dt;
@@ -320,6 +342,7 @@ export class Race {
         A.moveYaw = lerpAngle(A.moveYaw, ya, 0.25 * wa);
         B.moveYaw = lerpAngle(B.moveYaw, yb, 0.25 * wb);
         A.speed *= 1 - 0.12 * wa; B.speed *= 1 - 0.12 * wb;
+        A.anim?.play('bonk'); B.anim?.play('bonk');
         if (A.human || B.human) this.audio.sfx('bump', A.pos);
         A.player?.rumble(0.3 * wa + 0.1, 90); B.player?.rumble(0.3 * wb + 0.1, 90);
       }
@@ -336,7 +359,17 @@ export class Race {
       if (b.finished) return 1;
       return b.raceDist - a.raceDist;
     });
-    this.order.forEach((k, i) => { k.rank = i + 1; });
+    this.order.forEach((k, i) => {
+      // overtaking: the driver looks back and taunts the kart they just passed
+      if (this.useChars && this.started && !k.finished && k.prevRank && i + 1 < k.prevRank && this.time > 4) {
+        const passed = this.order[i + 1];
+        k.tauntCool = (k.tauntCool || 0);
+        if (passed && k.tauntCool < this.time && passed.pos.distanceTo(k.pos) < 12 && Math.random() < (k.human ? 0.6 : 0.3)) {
+          k.tauntCool = this.time + 7; k.emote('taunt');
+        }
+      }
+      k.rank = k.prevRank = i + 1;
+    });
 
     // laps & finishing
     for (const k of this.karts) {
@@ -348,6 +381,7 @@ export class Race {
         if (k.lap > this.laps) {
           k.finished = true; k.finishTime = this.time;
           this.results.push(k);
+          this.voice(k, k.rank <= 3 ? 'win' : 'lose');
           if (k.human) {
             this.audio.sfx('finish');
             this.hud?.finish(k);
@@ -405,7 +439,7 @@ export class Race {
       k.finished = true; k.estimated = true;
     }
     const all = [...this.karts].sort((a, b) => a.finishTime - b.finishTime);
-    this.onDone?.(all.map((k, i) => ({ place: i + 1, kart: k, charIndex: CHARACTERS.indexOf(k.ch), player: k.player, time: k.finishTime, laps: k.lapTimes, estimated: !!k.estimated })));
+    this.onDone?.(all.map((k, i) => ({ place: i + 1, kart: k, charIndex: CHARACTERS.indexOf(k.ch), driverIndex: k.driverIndex, player: k.player, time: k.finishTime, laps: k.lapTimes, estimated: !!k.estimated })));
   }
 
   viewports(W, H) {
@@ -451,9 +485,25 @@ export class Race {
     renderer.setScissorTest(false);
   }
 
-  onHit(k, kind) {
+  onHit(k, kind, by) {
     const c = this.cams.find((c) => c.kart === k);
     if (c) c.chase.shake = kind === 'spin' ? 0.6 : 1.2;
+    // the attacker celebrates
+    if (by && by !== k && !by.finished) by.emote('cheer');
+  }
+
+  // a short voice line for a character driver (rate-limited; CPU drivers only when nearby)
+  voice(k, mood) {
+    if (!mood || !k.driver || this.mode === 'attract') return;
+    if ((k.voiceT || 0) > this.time) return;
+    let vol = 1;
+    if (!k.human) {
+      vol = Math.max(...this.cams.map((c) => (c.kart.pos.distanceTo(k.pos) < 40 ? 1 - c.kart.pos.distanceTo(k.pos) / 40 : 0)), 0) * 0.65;
+      if (vol < 0.12 || (this.voiceT || 0) > this.time) return;
+      this.voiceT = this.time + 0.5;
+    }
+    k.voiceT = this.time + 0.9;
+    this.audio.voice?.(k.driver.voice, mood, vol);
   }
 
   dispose() {

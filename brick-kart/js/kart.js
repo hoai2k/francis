@@ -1,6 +1,7 @@
 // Arcade kart physics + model animation.
 import * as THREE from 'three';
 import { buildKart } from './characters.js';
+import { buildDriver, DriverAnim, combinedStats } from './driver.js';
 import { plastic } from './lego.js';
 
 const G = 42;
@@ -22,22 +23,26 @@ export function angleDiff(a, b) {
 }
 
 export class Kart {
-  constructor(race, ch, idx, player = null) {
+  constructor(race, ch, idx, player = null, driver = null) {
     this.race = race;
     this.track = race.track;
     this.ch = ch;
+    this.driver = driver;            // movie-character driver definition (Use Characters) or null
     this.idx = idx;
     this.player = player;            // local player object or null for AI
     this.human = !!player;
-    const m = buildKart(ch);
+    const rig = driver ? buildDriver(driver) : null;
+    const m = buildKart(ch, rig);
+    if (rig) this.anim = new DriverAnim(rig);
+    this.camLift = m.top ? Math.max(0, m.top - 2.2) * 0.85 : 0;   // tall drivers: chase camera rides higher
     this.model = m;
     race.scene.add(m.root);
     m.root.rotation.order = 'YXZ';
     // only the chassis and wheels cast shadows (keeps the shadow pass cheap with 13+ karts)
     m.root.traverse((o) => { if (o.isMesh) o.castShadow = false; });
-    m.body.children[0]?.traverse((o) => { if (o.isMesh && !o.material.transparent) o.castShadow = true; });
+    (m.shadow || m.body.children[0])?.traverse((o) => { if (o.isMesh && !o.material.transparent) o.castShadow = true; });
     for (const w of m.wheels) w.spin.castShadow = true;
-    const s = ch.stats;
+    const s = driver ? combinedStats(ch.stats, driver) : ch.stats;
     const cc = race.cc;
     this.topSpeed = 37 * cc * (0.935 + s.speed * 0.026);
     this.accel = 15.5 * (0.78 + s.accel * 0.1) * (0.85 + cc * 0.15);
@@ -128,6 +133,7 @@ export class Kart {
       this.megaTime = 0; this.speed *= 0.6; this.invuln = 1.2;
       this.race.audio.sfx('spin', this.pos);
       this.race.onHit?.(this, 'spin', by);
+      this.emote('ouch');
       return true;
     }
     if (kind === 'freeze') {
@@ -137,6 +143,7 @@ export class Kart {
       this.invuln = 2.4;
       if (this.player) this.player.rumble(0.5, 250);
       this.race.onHit?.(this, 'spin', by);
+      this.emote('ouch');
       return true;
     }
     if (kind === 'spin') {
@@ -152,6 +159,7 @@ export class Kart {
       this.hidden = 0.85;
     }
     this.invuln = Math.max(this.invuln, kind === 'spin' ? 1.4 : 2.2);
+    this.emote('ouch');
     if (this.player) this.player.rumble(kind === 'spin' ? 0.5 : 1, kind === 'spin' ? 250 : 450);
     if (by && by !== this && by.human) by.player?.rumble(0.2, 80);
     this.race.onHit?.(this, kind, by);
@@ -380,6 +388,7 @@ export class Kart {
     // tricks off ramps/jumps: tap drift while airborne
     if (!this.grounded && this.airTime > 0.1 && this.canTrick && ctl.driftPressed && !this.trickDone && on) {
       this.trickDone = true; this.trickSpin = 0.45;
+      this.emote('trick');
       if (this.human) this.race.audio.sfx('trick');
     }
     if (this.pos.y < loc.y - 14 || this.pos.y < tr.groundY - 1) { this.startRespawn(); this.syncModel(dt); return; }
@@ -538,6 +547,15 @@ export class Kart {
       if (w.front) w.g.rotation.y = -(this.ctl.steer || 0) * 0.45;
     }
     m.head.rotation.y = -(this.ctl.steer || 0) * 0.35 + (this.lookBack ? Math.PI * 0.6 : 0);
+    if (this.anim) {
+      const race = this.race;
+      const phase = this.finished ? (this.rank <= 3 ? 'win' : 'lose') : !race.started ? 'pre' : 'race';
+      this.anim.update(dt, {
+        steer: this.ctl.steer || 0, drift: this.drift.active ? this.drift.dir : 0, speed01: Math.min(1, Math.abs(this.speed) / this.topSpeed),
+        grounded: this.grounded, gliding: this.gliding, boosting: this.boostTime > 0, look: this.lookBack, phase, rank: this.rank,
+      });
+      if (m.swheel) m.swheel.rotation.z = -this.anim.steer * 0.9;
+    }
     // flames
     const fl = this.boosting ? 1.1 + Math.random() * 0.6 : 0;
     for (const f of this.flames) { f.visible = fl > 0; f.scale.set(1, fl || 1, 1); }
@@ -555,6 +573,13 @@ export class Kart {
     if (this.bubble.visible) this.bubble.scale.setScalar(1 + Math.sin(performance.now() * 0.006) * 0.03);
     this.aura.visible = this.goldenTime > 0;
     if (this.aura.visible) { this.aura.material.color.setHSL(0.12 + Math.sin(performance.now() * 0.01) * 0.03, 1, 0.55); this.aura.scale.setScalar(1 + Math.sin(performance.now() * 0.02) * 0.08); }
+  }
+
+  // a character gesture plus a voice line (Use Characters)
+  emote(name, voice = name) {
+    if (!this.anim) return;
+    if (!this.anim.play(name)) return;
+    this.race.voice?.(this, voice);
   }
 
   dispose() { this.race.scene.remove(this.model.root); }
