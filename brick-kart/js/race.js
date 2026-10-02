@@ -125,18 +125,22 @@ export class Race {
         const usedD = new Set(humans.map((p) => p.driverIndex));
         const freeD = shuffle(DRIVERS.map((_, i) => i).filter((i) => !usedD.has(i)));
         ai.forEach((g, i) => { g.driverIndex = freeD[i % freeD.length]; });
-        // CPU karts: movie drivers mostly pick a ride from their own movie (60%), else an
-        // original kart (30%) or anything (10%); original drivers pick originals 90% of the time
+        // CPU karts: a movie driver picks a ride from their own movie with a chance that scales
+        // with how many that movie has (6 rides = 60%, 3 = 30%), any kart 10% of the time, and
+        // otherwise an original kart (the originals and the Wild Rides). Original drivers pick
+        // those 90% of the time and a movie kart 10%.
         const usedK = new Set(humans.map((p) => p.kartIndex));
         const all = KARTS.map((_, i) => i);
-        const originalsK = all.filter((i) => KARTS[i].domain === 'classic');
+        const isOriginal = (i) => KARTS[i].domain === 'classic' || KARTS[i].domain === 'wild';
+        const originalsK = all.filter(isOriginal);
         ai.forEach((g) => {
           const from = DRIVERS[g.driverIndex]?.from, r = Math.random();
           let pool;
-          if (from === 'classic') pool = r < 0.9 ? originalsK : all.filter((i) => KARTS[i].domain !== 'classic');
+          if (from === 'classic') pool = r < 0.9 ? originalsK : all.filter((i) => !isOriginal(i));
           else {
             const own = all.filter((i) => KARTS[i].domain === from);
-            pool = r < 0.6 && own.length ? own : r < 0.9 ? originalsK : all;
+            const pOwn = Math.min(0.6, 0.1 * own.length);
+            pool = r < pOwn ? own : r < 0.9 ? originalsK : all;
           }
           if (!pool.length) pool = all;
           // prefer a kart nobody else has yet
