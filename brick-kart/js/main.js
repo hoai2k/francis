@@ -14,7 +14,8 @@ import { Showcase, driverPortrait, kartPortrait } from './showcase.js';
 import { ICONS, ITEMS } from './items.js';
 import { fmt } from './hud.js';
 
-const PCOL = ['#ff4a3a', '#3b8bff', '#3bdc5a', '#ffc93b'];
+const PCOL = ['#ff4a3a', '#3b8bff', '#3bdc5a', '#ffc93b', '#c45aff', '#ff8a1a', '#2fd6d0', '#ff6ab4'];
+const MAX_PLAYERS = 8;
 const POINTS = [15, 12, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 0, 0, 0];
 const CC = { 50: 0.8, 100: 0.92, 150: 1.06, 200: 1.22 };
 const SKEY = 'brickkart.settings.v1', TKEY = 'brickkart.tt.v1';
@@ -28,8 +29,10 @@ const hex = (c) => '#' + c.toString(16).padStart(6, '0');
 
 class Game {
   constructor() {
-    this.settings = load(SKEY, { cc: 100, difficulty: 'normal', laps: 3, racers: 13, music: 0.5, sfx: 0.8, autoGas: false, useChars: true, quality: MOBILE ? 'low' : 'high' });
+    this.settings = load(SKEY, { cc: 100, difficulty: 'normal', laps: 3, racers: 12, music: 0.5, sfx: 0.8, autoGas: false, useChars: true, quality: MOBILE ? 'low' : 'high' });
     // Use Characters became the default: switch it on once for players who saved settings before
+    // at most 12 karts per race (players included)
+    if (!(this.settings.racers <= 12)) { this.settings.racers = 12; save(SKEY, this.settings); }
     if (!this.settings.charsDefault) { this.settings.useChars = true; this.settings.charsDefault = 1; save(SKEY, this.settings); }
     this.best = load(TKEY, {});
     const app = document.getElementById('app');
@@ -301,7 +304,7 @@ class Game {
     this.onTitle = true;
     this.hudRoot.classList.add('hidden');
     this.setScreen(`<div class="screen title"><div class="logo">${logoHTML()}</div>
-      <div class="tagline">A brick-built kart racer · ${TRACKS.length} maps · 16 racers + ${DRIVERS.length} movie drivers · gliders · 1–4 players</div>
+      <div class="tagline">A brick-built kart racer · ${TRACKS.length} maps · 16 racers + ${DRIVERS.length} movie drivers · gliders · 1–8 players</div>
       <button class="press" data-act="start">PRESS <b>START</b> · <b>ENTER</b> · <b>TAP</b></button>
       <div class="pads-note">🎮 Controllers supported — plug in up to 4 for split-screen</div></div>`, {
       update: () => { if (this.menuEvents.some(([, m]) => m.ok || m.start)) { this.enterFullscreen(); this.onTitle = false; this.audio.sfx('select'); this.showMain(); } },
@@ -328,7 +331,7 @@ class Game {
     const s = this.settings;
     const cyc = (key, list, dir) => { const i = list.indexOf(s[key]); s[key] = list[(i + dir + list.length) % list.length]; save(SKEY, s); };
     const vol = (key, dir) => { s[key] = Math.round(Math.max(0, Math.min(1, s[key] + dir * 0.1)) * 10) / 10; save(SKEY, s); this.audio.setVolumes(s.music, s.sfx); };
-    const ccs = [50, 100, 150, 200], diffs = ['easy', 'normal', 'hard'], laps = [1, 2, 3, 4, 5], racers = [4, 8, 10, 13, 16];
+    const ccs = [50, 100, 150, 200], diffs = ['easy', 'normal', 'hard'], laps = [1, 2, 3, 4, 5], racers = [4, 6, 8, 10, 12];
     this.menu({
       title: 'Options',
       items: [
@@ -379,7 +382,7 @@ class Game {
   showSelect(mode) {
     if (this.charsOn()) return this.showSelectChars(mode);
     this.mode = mode;
-    const max = mode === 'tt' ? 1 : 4;
+    const max = mode === 'tt' ? 1 : MAX_PLAYERS;
     const players = [];   // { id, device, cursor, locked, color }
     const taken = () => new Set(players.filter((p) => p.locked).map((p) => p.cursor));
     const cards = CHARACTERS.map((ch, i) => `
@@ -404,7 +407,7 @@ class Game {
       });
       const bar = this.ui.querySelector('.joinbar');
       let html = '';
-      for (let s = 0; s < max; s++) {
+      for (let s = 0; s < Math.min(max, players.length + 1); s++) {
         const p = players[s];
         html += p ? `<div class="slot on" style="--pc:${p.color}"><b>P${p.id + 1}</b> ${esc(deviceLabel(p.device))}<em>${p.locked ? esc(CHARACTERS[p.cursor].name) : 'choosing…'}</em></div>`
           : `<div class="slot"><b>P${s + 1}</b> ${s === 0 ? 'Press A / Enter / tap a racer' : 'Press A to join'}</div>`;
@@ -416,7 +419,7 @@ class Game {
     };
     const join = (device) => {
       if (players.length >= max || players.some((p) => p.device === device)) return null;
-      const id = [0, 1, 2, 3].find((n) => !players.some((p) => p.id === n));
+      const id = [...Array(MAX_PLAYERS).keys()].find((n) => !players.some((p) => p.id === n));
       const tk = taken();
       let cursor = 0; while (tk.has(cursor)) cursor++;
       const p = { id, device, cursor, locked: false, color: PCOL[id] };
@@ -490,7 +493,7 @@ class Game {
   // ---- "Use Characters" select: pick a movie-character driver, then a kart ----------------------------
   showSelectChars(mode) {
     this.mode = mode;
-    const max = mode === 'tt' ? 1 : 4;
+    const max = mode === 'tt' ? 1 : MAX_PLAYERS;
     const ND = DRIVERS.length, NK = KARTS.length;
     // phase: 'driver' (choosing) -> 'waiting' (driver locked) -> 'kart' (everyone locked: choosing a kart) -> 'done'
     const players = [];
@@ -596,7 +599,7 @@ class Game {
         c.style.outline = here.length ? `4px solid ${here[here.length - 1].color}` : '';
       }
       let html = '';
-      for (let s2 = 0; s2 < max; s2++) {
+      for (let s2 = 0; s2 < Math.min(max, players.length + 1); s2++) {
         const p = players[s2];
         const st = !p ? '' : p.phase === 'driver' ? 'choosing a driver…' : p.phase === 'waiting' ? esc(DRIVERS[p.dcur].name) + ' ✓'
           : p.phase === 'kart' ? esc(DRIVERS[p.dcur].name) + ' · choosing a kart…' : esc(DRIVERS[p.dcur].name) + ' · ' + esc(KARTS[p.kcur].vehicle) + ' ✓';
@@ -614,7 +617,7 @@ class Game {
     const scrollTo = (el) => el?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
     const join = (device) => {
       if (players.length >= max || players.some((p) => p.device === device)) return null;
-      const id = [0, 1, 2, 3].find((n) => !players.some((p) => p.id === n));
+      const id = [...Array(MAX_PLAYERS).keys()].find((n) => !players.some((p) => p.id === n));
       const prev = this.charPicks[id] || {};
       const tk = taken(null);
       let dcur = prev.dcur ?? id; while (tk.has(dcur % ND)) dcur++;

@@ -13,14 +13,14 @@ Play: <https://hoai2k.github.io/francis/brick-kart/>
   with all 13.
   Points go 15-12-10-9-8-7-6-5-4-3-2-1, and each cup ends with an award
   ceremony.
-- **Quick Race**: one race on any map. By default there are **13 racers**
+- **Quick Race**: one race on any map. By default there are **12 racers**
   (you plus CPU racers). You can change the number in Options.
 - **Time Trial**: race alone with 3 Turbo Studs. Your best time on each map is
   saved in your browser.
 - **Racer select**: player 1 is already in, using whatever controller (or
   keyboard/touch) you used in the menus; more players press A to join.
 - **Options**: engine class (50/100/150/200cc), CPU difficulty, racers per race
-  (4/8/10/13/16), laps, **Use Characters**, auto-accelerate, music and sound
+  (4/6/8/10/12; 12 at most, players included), laps, **Use Characters**, auto-accelerate, music and sound
   volume, and graphics quality. The game also lowers its render resolution
   automatically if frames run slow, and raises it again when there's headroom.
 
@@ -132,14 +132,18 @@ you drop some.
 - **Falling off**: the crane puts you back on a safe stretch of road. If you fall again right away, it puts you further ahead next time.
 - Sound mutes when you switch to another tab or window.
 
-## Multiplayer (1–4 players, split-screen)
+## Multiplayer (1–8 players, split-screen)
 
-On the character select screen, each player presses **A** on their own
-controller to join. Two people can also share one keyboard: once the first
+Player 1 is already in on the select screen. Each other player presses **A** on
+their own controller to join (one empty "Press A to join" slot is shown at a
+time, up to 8 players). Two people can also share one keyboard: once the first
 keyboard player has joined, the second presses **Right Shift**. Then player 1
 uses WASD + Space (drift) + E (item), and player 2 uses the arrow keys +
-Right Shift (drift) + Enter (item). Two players get a top/bottom split, and
-three or four get quarters.
+Right Shift (drift) + Enter (item). Two players get a top/bottom split,
+three or four get quarters, five or six a 3×2 grid and seven or eight a 4×2
+grid. Browsers expose a limited number of controllers (Chrome lists up to
+four), so eight players may need a mix of controllers and the two keyboard
+setups.
 
 ## Code layout
 

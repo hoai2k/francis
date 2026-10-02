@@ -10,9 +10,10 @@ import { AIDriver } from './ai.js';
 import { CHARACTERS } from './characters.js';
 import { DRIVERS } from './driver.js';
 import { KARTS } from './vehicles.js';
-import { HUD } from './hud.js';
+import { HUD, splitCells } from './hud.js';
 import { Hazards } from './hazards.js';
 
+export const MAX_RACERS = 12;   // karts per race, players included
 const V = new THREE.Vector3();
 const THROWS = new Set(['rocket', 'rocket3', 'cannon', 'cannon3', 'ice', 'boomerang', 'seeker', 'bomb']);
 const TRAPS = new Set(['trap', 'puddle', 'fakebox']);
@@ -112,7 +113,7 @@ export class Race {
     const used = new Set(humans.map((p) => p.charIndex));
     const others = CHARACTERS.map((_, i) => i).filter((i) => !used.has(i));
     for (let i = others.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [others[i], others[j]] = [others[j], others[i]]; }
-    const total = this.mode === 'tt' ? humans.length : Math.min(CHARACTERS.length, Math.max(humans.length, opts.racers ?? 13));
+    const total = this.mode === 'tt' ? humans.length : Math.min(MAX_RACERS, Math.max(humans.length, opts.racers ?? MAX_RACERS));
     // Use Characters: every kart also gets a movie-character driver (CPU drivers are unique)
     this.useChars = !!opts.useChars && DRIVERS.length > 0;
     const shuffle = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
@@ -449,11 +450,8 @@ export class Race {
   }
 
   viewports(W, H) {
-    const n = this.cams.length;
-    if (n <= 1) return [[0, 0, W, H]];
-    if (n === 2) return [[0, H / 2, W, H / 2], [0, 0, W, H / 2]];
-    const w = W / 2, h = H / 2;
-    return [[0, h, w, h], [w, h, w, h], [0, 0, w, h], [w, 0, w, h]];
+    // GL viewports (origin bottom-left) for the split-screen cells, top row first
+    return splitCells(this.cams.length).map(([c, r, cols, rows]) => [c * W / cols, H - (r + 1) * H / rows, W / cols, H / rows]);
   }
 
   render(renderer) {
@@ -476,6 +474,8 @@ export class Race {
       return;
     }
     const vps = this.viewports(W, H);
+    const shareShadow = vps.length >= 5;
+    renderer.shadowMap.autoUpdate = !shareShadow;
     renderer.setScissorTest(true);
     vps.forEach((vp, i) => {
       const [x, y, w, h] = vp;
@@ -485,9 +485,11 @@ export class Race {
       if (this.cams[i]) { cam = this.cams[i].chase.cam; focus = this.cams[i].kart.pos; }
       else { cam = this.tv.cam; focus = this.tv.focus || this.karts[0].pos; }
       if (Math.abs(cam.aspect - w / h) > 0.001) { cam.aspect = w / h; cam.updateProjectionMatrix(); }
-      this.world.aimSun(focus);
+      // with 5+ screens the sun's shadow map is drawn once per frame (around player 1) and shared
+      if (!shareShadow || i === 0) { this.world.aimSun(focus); renderer.shadowMap.needsUpdate = true; }
       renderer.render(this.scene, cam);
     });
+    renderer.shadowMap.autoUpdate = true;
     renderer.setScissorTest(false);
   }
 

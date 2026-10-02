@@ -2,6 +2,16 @@
 // split-screen viewports), a shared minimap, countdown and title card.
 import { ICONS, ITEMS, MULTI } from './items.js';
 
+// Split-screen cells for n local players as [col, row, cols, rows] (row 0 = top):
+// 1 full, 2 stacked, 3–4 in a 2x2 grid, 5–6 in 3x2, 7–8 in 4x2. Spare cells show the TV camera.
+export function splitCells(n) {
+  if (n <= 1) return [[0, 0, 1, 1]];
+  if (n === 2) return [[0, 0, 1, 2], [0, 1, 1, 2]];
+  const cols = n <= 4 ? 2 : n <= 6 ? 3 : 4, rows = 2, out = [];
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) out.push([c, r, cols, rows]);
+  return out;
+}
+
 const ORD = ['th', 'st', 'nd', 'rd'];
 const ord = (n) => (n % 100 > 10 && n % 100 < 14 ? 'th' : ORD[n % 10] || 'th');
 const PLACE_COL = ['#ffd23a', '#dfe6ee', '#e0a060'];
@@ -19,7 +29,7 @@ export class HUD {
     root.dataset.players = n;
     root.classList.add('intro');
     root.classList.toggle('touch', race.cams.some((c) => c.player.device === 'touch'));
-    const boxes = n <= 1 ? [[0, 0, 100, 100]] : n === 2 ? [[0, 0, 100, 50], [0, 50, 100, 50]] : [[0, 0, 50, 50], [50, 0, 50, 50], [0, 50, 50, 50], [50, 50, 50, 50]];
+    const boxes = splitCells(n).map(([c, r, cols, rows]) => [c * 100 / cols, r * 100 / rows, 100 / cols, 100 / rows]);
     this.panels = race.cams.map((c, i) => {
       const [l, t, w, h] = boxes[i];
       const el = document.createElement('div');
