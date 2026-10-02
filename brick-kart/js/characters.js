@@ -343,6 +343,11 @@ function finishCharacterKart(ch, rig, root, body, b) {
 //   fx(s, dt) per-frame hook; s = { speed01, steer, boosting, gliding, grounded, t }
 //   glider   [x, y, z] mount for the glider wing (default: above the driver)
 //   parts    extra Object3Ds to add (animated pieces referenced by spin/steer/fx)
+//   exhaust  [[x, y, z, rotX?], …] where the boost flames go (default: two behind a kart seat)
+// build() also receives kit.rig = { height, width, shoulder, armLen } (the driver's size in the
+// seat frame; a typical figure is ~2.0 tall and 1.3 wide, big ones up to 2.9 and 2.0) so cockpits,
+// domes and roll cages can fit whoever drives, and kit.sprung = the group holding body + driver
+// (lean or pitch it in fx for bikes and wheelies; hover bob moves its y).
 export function emptyRig() {
   return { root: new THREE.Group(), height: 1.8, width: 1.2, shoulder: new THREE.Vector3(0.56, 1.2, 0), armLen: 0.86, def: {} };
 }
@@ -350,7 +355,10 @@ const VKIT = { THREE, BrickBuilder, C, plastic, limb, wheelGeo, wheelMat, SEAT }
 function buildVehicle(def, rig) {
   const root = new THREE.Group(), body = new THREE.Group(); root.add(body);
   const up = new THREE.Group(); body.add(up);     // the sprung/hovering part: body, driver, controls
-  const v = def.build(VKIT) || {};
+  // the vehicle can size itself to the driver: rig = { height, width, shoulder: {x,y,z}, armLen }
+  // (seat frame, hips at the origin), and animate the sprung group (body + driver) for leans/wheelies
+  const rigInfo = { height: rig.height, width: rig.width || 1.2, shoulder: rig.shoulder.clone(), armLen: rig.armLen };
+  const v = def.build({ ...VKIT, rig: rigInfo, sprung: up }) || {};
   const a = def.accent ?? C.black;
   up.add(v.mesh);
   for (const o of v.parts || []) up.add(o);
@@ -409,7 +417,7 @@ function buildVehicle(def, rig) {
   };
   const top = new THREE.Box3().setFromObject(v.mesh).max.y;
   const colors = def.colors?.length ? def.colors : [def.kart ?? C.red, a, C.black, C.ltgray];
-  return { root, body, head: new THREE.Group(), wheels, glider, swheel: ctl, steerControl, driver: rig, shadow: [v.mesh, ...(v.parts || [])], top: Math.max(top, seat.y + rig.height) + hoverY, colors, update };
+  return { root, body, sprung: up, exhaust: v.exhaust, head: new THREE.Group(), wheels, glider, swheel: ctl, steerControl, driver: rig, shadow: [v.mesh, ...(v.parts || [])], top: Math.max(top, seat.y + rig.height) + hoverY, colors, update };
 }
 
 function wheelSpotFor(rig) {

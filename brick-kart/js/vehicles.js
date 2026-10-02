@@ -1,31 +1,38 @@
-// All karts for "Use Characters": the 16 classic karts plus vehicle packs in
+// All karts for "Use Characters": the 16 original karts plus vehicle packs in
 // js/vehicles/*.js (see buildVehicle in characters.js for the vehicle contract).
 import { CHARACTERS } from './characters.js';
 
+// pack ids -> labels (used by the garage view)
 export const KART_GROUPS = [
-  { id: 'starwars', name: 'Star Wars Rides', color: '#ffe81f' },
-  { id: 'heroes', name: 'Marvel & Jurassic Rides', color: '#e23636' },
-  { id: 'cursed', name: 'Cursed & Fantasy Rides', color: '#8a5cff' },
-  { id: 'wild', name: 'Wild Rides', color: '#3bdc5a' },
-  { id: 'classic', name: 'Classic Karts', color: '#f2cd37' },
+  { id: 'originals', name: 'Original Karts' },
+  { id: 'wild', name: 'Wild Rides' },
+  { id: 'starwars', name: 'Star Wars Rides' },
+  { id: 'heroes', name: 'Marvel & Jurassic Rides' },
+  { id: 'cursed', name: 'Cursed & Fantasy Rides' },
 ];
 // Packs are listed in FINISHED once reviewed; unfinished ones only load in the developer
 // views (?garage=…, ?kart=…, ?packs=all) so half-built vehicles never reach players.
 const FINISHED = ['starwars', 'heroes', 'cursed', 'wild'];
 const q = new URLSearchParams(location.search);
 const dev = q.has('garage') || q.has('kart') || q.has('packs');
-const PACKS = ['starwars', 'heroes', 'cursed', 'wild'].filter((id) => dev || FINISHED.includes(id));
+const PACKS = ['originals', 'wild', 'starwars', 'heroes', 'cursed'].filter((id) => dev || FINISHED.includes(id));
 // each pack loads on its own so one broken file never stops the game
 const loaded = await Promise.allSettled(PACKS.map((id) => import(`./vehicles/${id}.js`)));
-
-for (const ch of CHARACTERS) ch.group = 'classic';
-// new vehicles first; the classic karts come last
-export const KARTS = [];
+const packs = {};
 loaded.forEach((r, i) => {
   if (r.status !== 'fulfilled') { console.error(`Vehicles "${PACKS[i]}" failed to load`, r.reason); return; }
-  for (const d of r.value.default || []) {
+  packs[PACKS[i]] = (r.value.default || []).map((d) => {
     const colors = d.colors || [0xc91a09, 0x1b2a34];
-    KARTS.push({ stats: { speed: 3, accel: 3, handling: 3, weight: 3 }, ...d, group: PACKS[i], vehicle: d.name, kart: colors[0], accent: colors[1] ?? colors[0], colors });
-  }
+    return { stats: { speed: 3, accel: 3, handling: 3, weight: 3 }, ...d, group: PACKS[i], vehicle: d.name, kart: colors[0], accent: colors[1] ?? colors[0], colors };
+  });
 });
-KARTS.push(...CHARACTERS);
+// the original karts: rebuilt vehicles when that pack is finished, else the classic body styles
+for (const ch of CHARACTERS) ch.group = 'originals';
+const originals = packs.originals?.length ? packs.originals : CHARACTERS;
+const half = Math.ceil(originals.length / 2);
+// one list in display order: half the originals, the wild rides, the movie rides, the other half
+export const KARTS = [
+  ...originals.slice(0, half),
+  ...(packs.wild || []), ...(packs.starwars || []), ...(packs.heroes || []), ...(packs.cursed || []),
+  ...originals.slice(half),
+];

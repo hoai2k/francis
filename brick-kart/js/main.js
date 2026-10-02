@@ -9,7 +9,7 @@ import { Race } from './race.js';
 import { TRACKS, CUPS } from './tracks.js';
 import { CHARACTERS, buildKart, bodyName } from './characters.js';
 import { DRIVERS, UNIVERSES, combinedStats } from './driver.js';
-import { KARTS, KART_GROUPS } from './vehicles.js';
+import { KARTS } from './vehicles.js';
 import { Showcase, driverPortrait, kartPortrait } from './showcase.js';
 import { ICONS, ITEMS } from './items.js';
 import { fmt } from './hud.js';
@@ -227,8 +227,10 @@ class Game {
   startAttract() {
     this.attract?.dispose();
     const def = TRACKS[Math.floor(Math.random() * TRACKS.length)];
-    this.attract = new Race(this, { def, mode: 'attract', cc: 0.95, difficulty: 'hard', laps: 99 });
+    // the demo race shows off the whole roster: random drivers in random karts
+    this.attract = new Race(this, { def, mode: 'attract', cc: 0.95, difficulty: 'hard', laps: 99, useChars: true, racers: 12 });
     this.attract.world.sun.shadow.mapSize.set(this.shadowSize, this.shadowSize);
+    this.attract.warmup(this.renderer);
   }
 
   // ---- screen helpers -----------------------------------------------------------------
@@ -507,13 +509,9 @@ class Game {
       dgroups += `<div class="uhead" style="--uc:${u.color}">${esc(u.name)}</div>` + list.map(([d, i]) => `
         <div class="dcard" data-i="${i}" style="--dc:${hex(d.color ?? 0xffffff)}"><img alt="" data-d="${i}"><span>${esc(d.name)}</span><div class="tags"></div></div>`).join('');
     }
-    let kgroups = '';
-    for (const g of KART_GROUPS) {
-      const list = KARTS.map((k, i) => [k, i]).filter(([k]) => k.group === g.id);
-      if (!list.length) continue;
-      kgroups += `<div class="uhead" style="--uc:${g.color}">${esc(g.name)}</div>` + list.map(([k, i]) => `
+    // every kart in one grid, in KARTS order
+    const kgroups = KARTS.map((k, i) => `
         <div class="kcard" data-i="${1000 + i}" style="--kc:${hex(k.kart)}"><img alt="" data-k="${i}"><span>${esc(k.vehicle)}</span><div class="tags"></div></div>`).join('');
-    }
     const titles = { gp: 'Grand Prix', race: 'Quick Race', tt: 'Time Trial' };
     this.setScreen(`<div class="screen select chars"><div class="panel wide xl"><h2>${titles[mode]} · <span class="steptitle">Choose your driver</span></h2>
       <div class="joinbar"></div>
@@ -614,14 +612,26 @@ class Game {
         : (mode !== 'tt' ? 'More players: press <b>A</b> on another controller · 2nd keyboard: <b>Right Shift</b>' : 'Time Trial is solo: beat your best time');
       refreshStage(cheer);
     };
-    const scrollTo = (el) => el?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
+    // keep the focused card in view; in a group's first row also show its heading (the very top for the first group)
+    const scrollTo = (el) => {
+      if (!el) return;
+      const box = picksEl.getBoundingClientRect(), r = el.getBoundingClientRect();
+      let top = r.top - box.top + picksEl.scrollTop, bottom = top + r.height;
+      let h = el.previousElementSibling;
+      while (h && !h.classList.contains('uhead')) { if (h.getBoundingClientRect().top < r.top - 4) { h = null; break; } h = h.previousElementSibling; }
+      if (h) top = h === el.parentElement.firstElementChild ? 0 : h.getBoundingClientRect().top - box.top + picksEl.scrollTop;
+      const first = el.parentElement.firstElementChild;
+      if (first && Math.abs(first.getBoundingClientRect().top - r.top) < 4) top = 0;
+      if (top - 6 < picksEl.scrollTop) picksEl.scrollTop = Math.max(0, top - 6);
+      else if (bottom + 8 > picksEl.scrollTop + picksEl.clientHeight) picksEl.scrollTop = bottom + 8 - picksEl.clientHeight;
+    };
     const join = (device) => {
       if (players.length >= max || players.some((p) => p.device === device)) return null;
       const id = [...Array(MAX_PLAYERS).keys()].find((n) => !players.some((p) => p.id === n));
       const prev = this.charPicks[id] || {};
       const tk = taken(null);
       let dcur = prev.dcur ?? id; while (tk.has(dcur % ND)) dcur++;
-      const p = { id, device, dcur: dcur % ND, kcur: (prev.kcur ?? id) % NK, phase: 'driver', color: PCOL[id] };
+      const p = { id, device, dcur: dcur % ND, kcur: (prev.kcur ?? 0) % NK, phase: 'driver', color: PCOL[id] };
       players.push(p);
       players.sort((a, b) => a.id - b.id);
       pv = p;
