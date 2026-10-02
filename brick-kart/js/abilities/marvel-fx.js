@@ -204,10 +204,10 @@ export function gauntletMesh() {
     const inner = b.build({ name: 'gauntlet' });
     const stones = new BrickBuilder(1);
     // five knuckle stones + the big one on the back of the hand
-    fx.forEach((x, k) => stones.sphere(x, 0.95, 0.42, 0.17, 0, { mat: plastic(STONES[k], { emissive: STONES[k], emissiveIntensity: 1.6 }) }));
-    stones.sphere(-0.95, 0.65, 0.48, 0.16, 0, { mat: plastic(STONES[4], { emissive: STONES[4], emissiveIntensity: 1.6 }) });
-    stones.sphere(0, -0.15, 0.42, 0.34, 0, { mat: plastic(STONES[5], { emissive: STONES[5], emissiveIntensity: 1.8 }), sy: 1.25 });
-    const glow = new THREE.Mesh(new THREE.SphereGeometry(2.4, 16, 12), glowMat(0xffc840, 0.28));
+    fx.forEach((x, k) => stones.sphere(x, 0.95, 0.42, 0.17, 0, { mat: plastic(STONES[k], { emissive: STONES[k], emissiveIntensity: 0.7 }) }));
+    stones.sphere(-0.95, 0.65, 0.48, 0.16, 0, { mat: plastic(STONES[4], { emissive: STONES[4], emissiveIntensity: 0.7 }) });
+    stones.sphere(0, -0.15, 0.42, 0.34, 0, { mat: plastic(STONES[5], { emissive: STONES[5], emissiveIntensity: 0.8 }), sy: 1.25 });
+    const glow = new THREE.Mesh(new THREE.SphereGeometry(1.7, 16, 12), glowMat(0xffc840, 0.16));
     glow.name = 'glow';
     const hand = new THREE.Group(); hand.name = 'hand';
     hand.add(inner, stones.build({ name: 'stones', shadows: false }), glow);
@@ -316,6 +316,21 @@ class DustPool {
     return this.idle < 1.5;
   }
   dispose() { this.dead = true; this.ctx.scene.remove(this.mesh); this.mesh.material.dispose(); this.mesh.dispose(); }
+}
+
+// One sample of every special material (additive bolts/glows, web line, dust instances) so the
+// race can compile the shaders at load. Built once and reused.
+let samples = null;
+export function prewarmSamples() {
+  if (!samples) {
+    const b = new THREE.Group();
+    b.add(new THREE.Mesh(BOLT_GEO, glowMat(0x8fd8ff, 0.4)), new THREE.Mesh(LINE_GEO, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9, depthWrite: false })));
+    const d = new THREE.InstancedMesh(brickGeometry(1, 1, 1, 0.34, true, 6), new THREE.MeshStandardMaterial({ roughness: 0.4 }), 1);
+    d.setColorAt(0, new THREE.Color(1, 1, 1));
+    b.add(d);
+    samples = b;
+  }
+  return samples;
 }
 
 export { STONES };

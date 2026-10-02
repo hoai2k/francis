@@ -90,6 +90,7 @@ function rexRoar(k, ctx) {
   growl(ctx.audio, att(ctx, k.pos) * 0.7);
 
   return {
+    jurassic: true,
     update(dt) {
       t += dt;
       if (t >= T) return false;
@@ -220,6 +221,7 @@ function raptorEnt(k, ctx, name, n, target, claimed) {
     for (let j = 0; j < 8; j++) fx.puff(pos.x + (Math.random() - 0.5) * 2, pos.y + 0.5, pos.z + (Math.random() - 0.5) * 2, (Math.random() - 0.5) * 4, 2 + Math.random() * 3, (Math.random() - 0.5) * 4, 0xc8b890, 0.7);
   }
   return {
+    jurassic: true,
     update(dt) {
       life += dt; pt += dt;
       const h = rig.holder;
@@ -353,7 +355,7 @@ function mosaBreach(k, ctx) {
   rig.holder.visible = false;
   scene.add(rig.holder);
   let rigOut = true;
-  const WARN = 0.75, FLY = 1.6, WAVE = 0.6, PUDDLE = 6.5, D0 = 17, H = 15, R_SPLASH = 13, R_PUDDLE = 6.5;
+  const WARN = 0.75, FLY = 1.6, WAVE = 0.6, PUDDLE = 5.5, D0 = 17, H = 15, R_SPLASH = 13, R_PUDDLE = 6.5;
   // pieces: warning ring at the landing spot, a bubbling pool where it breaches, the splash wave and puddle
   const warn = new THREE.Mesh(GEO.ring, glow(0xbfe8ff, 0));
   const pool = new THREE.Mesh(GEO.disc, water(0));
@@ -376,7 +378,7 @@ function mosaBreach(k, ctx) {
 
   let t = 0, crashT = -1, landS = 0, landLat = 0, emS = 0, emLat = 0, breached = false;
   const E = new THREE.Vector3(), L = new THREE.Vector3(), C = new THREE.Vector3(), dirH = new THREE.Vector3();
-  const hitSet = new Set();
+  const hitSet = new Set(), wetSet = new Set();
   function predict() {
     const tl = WARN + FLY * 0.7 - t;
     if (target && live(target)) {
@@ -394,6 +396,7 @@ function mosaBreach(k, ctx) {
   ctx.audio.sfx('splash', k.pos);
 
   return {
+    jurassic: true,
     update(dt) {
       t += dt;
       const h = rig.holder;
@@ -494,7 +497,8 @@ function mosaBreach(k, ctx) {
           if (tc < WAVE + 0.1 && !hitSet.has(o) && d2 < rw * rw) {
             hitSet.add(o);
             ctx.hit(o, 'spin', k, 'mosabreach');
-          } else if (tc > 0.3 && tc < PUDDLE - 0.5 && o.grounded && d2 < (R_PUDDLE - 0.6) ** 2 && o.invuln <= 0) {
+          } else if (tc > 0.3 && tc < PUDDLE - 0.5 && !wetSet.has(o) && o.grounded && d2 < (R_PUDDLE - 0.6) ** 2 && o.invuln <= 0) {
+            wetSet.add(o);
             ctx.hit(o, 'spin', k, 'mosapuddle');
           }
         }
@@ -536,6 +540,38 @@ const ICON_MOSA = '<svg viewBox="0 0 64 64"><g stroke="#1b2a34" stroke-width="3"
   + '<rect x="38" y="10" width="5" height="3" fill="#f2cd37" stroke="#1b2a34" stroke-width="1.2"/>'
   + '<g fill="#bfe8ff" stroke="#1b2a34" stroke-width="1.5"><circle cx="8" cy="44" r="3"/><circle cx="54" cy="40" r="3"/><circle cx="58" cy="50" r="2"/><circle cx="12" cy="36" r="2"/></g></svg>';
 
+// a CPU holding the Roar lines up behind a nearby rival; a tiny watcher clears the aim
+function aimRoar(k, ctx, o) {
+  if (k.aimAt === o) return;
+  if (k.aimAt && !k._jpAim) return;   // someone else is steering this CPU
+  k.aimAt = o;
+  if (k._jpAim) return;
+  k._jpAim = true;
+  let t = 0;
+  ctx.spawn({
+    jurassic: true,
+    update(dt) { t += dt; return t < 5 && k.item === 'rexroar' && !!k.aimAt; },
+    dispose() { if (k._jpAim) { k.aimAt = null; k._jpAim = false; } },
+  });
+}
+function roarAI(k, ctx) {
+  const ahead = ctx.ahead(k, 4).filter(live);
+  if (ahead.some((o) => coneHas(k, o)) || ctx.race.items.proj.some((p) => p.owner !== k && p.pos.distanceTo(k.pos) < 22)) return true;
+  const o = ahead.find((a) => a.pos.distanceTo(k.pos) < 40);
+  if (o) aimRoar(k, ctx, o);
+  return false;
+}
+// sample meshes for shader warm-up (made once) and the pooled rigs built ahead of time
+let SAMPLES = null;
+function prewarm() {
+  for (const key of ['rex', 'mosa', 'raptor:blue', 'raptor:charlie', 'raptor:delta']) give(key, take(key));
+  if (!SAMPLES) {
+    SAMPLES = [new THREE.Mesh(GEO.torus, glow(0xffffff, 0.5)), new THREE.Mesh(GEO.cone, glow(0xffffff, 0.5, false)), new THREE.Mesh(GEO.disc, water(0.5)),
+      new THREE.Mesh(GEO.stud, new THREE.MeshStandardMaterial({ color: 0x9ad8ff, transparent: true, opacity: 0.5, roughness: 0.1, emissive: 0x2a6aa0, emissiveIntensity: 0.4, depthWrite: false }))];
+  }
+  return SAMPLES;
+}
+
 const coneHas = (k, o, R = 28) => {
   const dx = o.pos.x - k.pos.x, dz = o.pos.z - k.pos.z, fx = Math.sin(k.yaw), fz = Math.cos(k.yaw);
   const al = dx * fx + dz * fz, lat = Math.abs(dx * fz - dz * fx);
@@ -547,9 +583,12 @@ export default [
     id: 'rexroar', name: 'T. rex Roar', color: '#c8862a', icon: ICON_REX, gesture: 'use',
     help: 'A giant T. rex head bursts up behind you, gobbles anything chasing you and ROARS, spinning out every kart in front of you.',
     odds: [4, 4, 3, 2, 1],
-    ai: (k, ctx) => ctx.ahead(k, 4).some((o) => live(o) && coneHas(k, o))
-      || ctx.race.items.proj.some((p) => p.owner !== k && p.pos.distanceTo(k.pos) < 22),
-    use(k, ctx) { ctx.spawn(rexRoar(k, ctx)); },
+    ai: roarAI,
+    prewarm,
+    use(k, ctx) {
+      if (k._jpAim) { k.aimAt = null; k._jpAim = false; }
+      ctx.spawn(rexRoar(k, ctx));
+    },
   },
   {
     id: 'raptorpack', name: 'Raptor Pack', color: '#2a5ab8', icon: ICON_RAPTORS, gesture: 'throwF',

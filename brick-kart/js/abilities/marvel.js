@@ -1,7 +1,7 @@
 // Marvel abilities (see ../abilities.js for the contract): Mjolnir, Cap's Shield, Web Shot and
 // the Infinity Snap. Meshes and the lightning/dust effects live in ./marvel-fx.js.
 import * as THREE from 'three';
-import { hammerMesh, shieldMesh, webBallMesh, webNetMesh, webTrapMesh, gauntletMesh, strandLine, stretch, Bolt, dustPool, STONES } from './marvel-fx.js';
+import { hammerMesh, shieldMesh, webBallMesh, webNetMesh, webTrapMesh, gauntletMesh, strandLine, stretch, Bolt, dustPool, prewarmSamples, STONES } from './marvel-fx.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
 const v1 = new THREE.Vector3(), v2 = new THREE.Vector3(), v3 = new THREE.Vector3();
@@ -520,19 +520,19 @@ class Snap {
     const ctx = this.ctx, k = this.k;
     this.t += dt;
     const t = this.t;
-    if (t > 2.3) return false;
+    if (t > 1.65) return false;
     // hovers above the caster, back of the hand (stones) toward their camera
     const f = k.forward(v1);
-    this.mesh.position.set(k.pos.x - f.x * 0.6, k.pos.y + 4.6 * (k.megaScale || 1), k.pos.z - f.z * 0.6);
+    this.mesh.position.set(k.pos.x + f.x * 1.2, k.pos.y + 3.9 * (k.megaScale || 1), k.pos.z + f.z * 1.2);
     this.mesh.rotation.y = k.yaw + Math.PI;
     const appear = t < 0.3 ? (t / 0.3) * 1.2 : t < 0.42 ? 1.2 - (t - 0.3) / 0.12 * 0.2 : 1;
-    const leave = t > 1.9 ? Math.max(0.01, 1 - (t - 1.9) / 0.4) : 1;
+    const leave = t > 1.3 ? Math.max(0.01, 1 - (t - 1.3) / 0.35) : 1;
     const hand = this.mesh.userData.hand;
     // the snap: a sharp jolt and a golden flash
     const since = t - 0.6;
     hand.rotation.z = since > 0 && since < 0.25 ? Math.sin(since * 60) * 0.18 * (1 - since / 0.25) : 0;
     const punch = since > 0 && since < 0.3 ? 1 + 0.3 * (1 - since / 0.3) : 1;
-    this.mesh.scale.setScalar(1.8 * appear * leave * punch);
+    this.mesh.scale.setScalar(0.95 * appear * leave * punch);
     this.mesh.userData.glow.scale.setScalar((since > 0 && since < 0.5 ? 1.6 : 1) * (0.9 + Math.random() * 0.15));
     if (Math.random() < 0.5) { const c = STONES[Math.floor(Math.random() * 6)]; const p = this.mesh.position; ctx.fx.spark(p.x + rnd(1.5), p.y + rnd(1.5), p.z + rnd(1.5), rnd(2), 2, rnd(2), c, 0.5); }
     if (!this.snapped && since >= 0) this.snap();
@@ -635,6 +635,18 @@ class Dust {
   dispose() { if (this.o.mvDust === this) this.o.mvDust = null; }
 }
 
+// a CPU holding a Web Shot lines up behind the kart ahead (clears itself when the item goes)
+function aimWith(k, o, item, ctx) {
+  if (k.human || k.aimAt === o) return;
+  if (k.aimAt && !k._mvAim) return;   // another ability is steering this CPU
+  k.aimAt = o; k._mvAim = true;
+  let t = 0;
+  ctx.spawn({
+    update(dt) { t += dt; return t < 4 && k.item === item && k.aimAt === o && live(o); },
+    dispose() { if (k._mvAim) { if (k.aimAt === o) k.aimAt = null; k._mvAim = false; } },
+  });
+}
+
 // ---- AI helpers -------------------------------------------------------------------------------
 function gapTo(k, o) { return o ? Math.abs(o.raceDist - k.raceDist) : Infinity; }
 function inSights(k, o, maxD, cone) {
@@ -660,6 +672,7 @@ export default [
       const b = ctx.behind(k, 1)[0];
       return live(b) && gapTo(k, b) < 60 ? { back: true } : false;
     },
+    prewarm: () => [hammerMesh(), prewarmSamples()],
     use(k, ctx, { back }) {
       ctx.spawn(new Mjolnir(k, ctx, !!back));
       whoosh(ctx, k.pos, 500);
@@ -676,6 +689,7 @@ export default [
       const b = ctx.behind(k, 1)[0];
       return !a && live(b) && gapTo(k, b) < 40 ? { back: true } : false;
     },
+    prewarm: () => shieldMesh(),
     use(k, ctx, { back }) {
       ctx.spawn(new CapShield(k, ctx, !!back));
       whoosh(ctx, k.pos, 1200);
@@ -688,10 +702,12 @@ export default [
     ai: (k, ctx) => {
       const a = ctx.ahead(k, 1)[0];
       if (inSights(k, a, 42, 0.3)) return true;
+      if (live(a) && a.pos.distanceTo(k.pos) < 45) aimWith(k, a, 'webshot', ctx);
       const b = ctx.behind(k, 1)[0];
       if (live(b) && gapTo(k, b) < 22) return { back: true };
       return false;
     },
+    prewarm: () => [webBallMesh(), webNetMesh(), webTrapMesh()],
     use(k, ctx, { back }) {
       if (back) ctx.spawn(new WebTrap(k, ctx));
       else ctx.spawn(new WebBall(k, ctx));
@@ -703,6 +719,7 @@ export default [
     help: 'Snap the Infinity Gauntlet: half the racers ahead of you crumble to dust and crawl along until they reform.',
     odds: [0, 0, 0, 2, 5],
     ai: (k, ctx) => ctx.ahead(k, 11).filter((o) => live(o) && !o.mvDust).length >= 2,
+    prewarm: () => gauntletMesh(),
     use(k, ctx) { ctx.spawn(new Snap(k, ctx)); },
   },
 ];
