@@ -26,8 +26,20 @@ loaded.forEach((r, i) => {
     return { stats: { speed: 3, accel: 3, handling: 3, weight: 3 }, ...d, group: PACKS[i], vehicle: d.name, kart: colors[0], accent: colors[1] ?? colors[0], colors };
   });
 });
+// Which movie (driver universe) each kart belongs to, so CPU drivers can favour their own rides.
+// 'classic' = the original karts; vehicles that fit no movie get their pack id ('wild', 'fantasy').
+const DOMAIN = {
+  jpjeep: 'jurassic', gyrosphere: 'jurassic', tourcar: 'jurassic',
+  talon: 'marvel', starkcar: 'marvel', goatchariot: 'marvel',
+  ijichi: 'jjk', dharma: 'jjk', nue: 'jjk',
+  carpet: 'fantasy', dragon: 'fantasy', teacup: 'fantasy',
+};
+for (const [pack, list] of Object.entries(packs)) {
+  for (const k of list) k.domain ??= pack === 'originals' ? 'classic' : pack === 'starwars' ? 'starwars' : DOMAIN[k.id] || pack;
+}
+
 // the original karts: rebuilt vehicles when that pack is finished, else the classic body styles
-for (const ch of CHARACTERS) ch.group = 'originals';
+for (const ch of CHARACTERS) { ch.group = 'originals'; ch.domain = 'classic'; }
 const originals = packs.originals?.length ? packs.originals : CHARACTERS;
 const half = Math.ceil(originals.length / 2);
 // one list in display order: half the originals, the wild rides, the movie rides, the other half

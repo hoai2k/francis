@@ -125,9 +125,25 @@ export class Race {
         const usedD = new Set(humans.map((p) => p.driverIndex));
         const freeD = shuffle(DRIVERS.map((_, i) => i).filter((i) => !usedD.has(i)));
         ai.forEach((g, i) => { g.driverIndex = freeD[i % freeD.length]; });
-        // CPU karts: a spread of different vehicles
-        const freeK = shuffle(KARTS.map((_, i) => i));
-        ai.forEach((g, i) => { g.kartIndex = freeK[i % freeK.length]; });
+        // CPU karts: movie drivers mostly pick a ride from their own movie (60%), else an
+        // original kart (30%) or anything (10%); original drivers pick originals 90% of the time
+        const usedK = new Set(humans.map((p) => p.kartIndex));
+        const all = KARTS.map((_, i) => i);
+        const originalsK = all.filter((i) => KARTS[i].domain === 'classic');
+        ai.forEach((g) => {
+          const from = DRIVERS[g.driverIndex]?.from, r = Math.random();
+          let pool;
+          if (from === 'classic') pool = r < 0.9 ? originalsK : all.filter((i) => KARTS[i].domain !== 'classic');
+          else {
+            const own = all.filter((i) => KARTS[i].domain === from);
+            pool = r < 0.6 && own.length ? own : r < 0.9 ? originalsK : all;
+          }
+          if (!pool.length) pool = all;
+          // prefer a kart nobody else has yet
+          const fresh = pool.filter((i) => !usedK.has(i));
+          const pick = (fresh.length ? fresh : pool)[Math.floor(Math.random() * (fresh.length || pool.length))];
+          g.kartIndex = pick; usedK.add(pick);
+        });
       }
       grid.push(...ai, ...humans.map((p) => ({ charIndex: p.charIndex, driverIndex: p.driverIndex, kartIndex: p.kartIndex, player: p })));
     }
