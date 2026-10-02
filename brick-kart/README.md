@@ -57,7 +57,10 @@ Regina, Skater Sam, Zorp the Alien, Mummy Max and Dino Dina.
 ### Use Characters (on by default)
 
 You pick a **driver** and then a **kart** separately, like Mario Kart (turn
-**Use Characters** off in Options for the classic 16 minifig racers). The drivers are brick-built movie characters from
+**Use Characters** off in Options for the classic 16 minifig racers). Every
+player locks in a driver first; then the whole picker switches to the kart
+step. The original 16 Brick Kart racers are also drivers, listed after the
+movie casts, and the classic karts come after the newer vehicles. The drivers are brick-built movie characters from
 the Movie Cup: 19 from Marvel, 16 from Star Wars, 16 from Jujutsu Kaisen and 16
 from Jurassic World (67 in all). Every kart in
 the race (CPU ones too) gets one of them at the wheel.

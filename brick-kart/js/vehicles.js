@@ -9,7 +9,12 @@ export const KART_GROUPS = [
   { id: 'wild', name: 'Wild Rides', color: '#3bdc5a' },
   { id: 'classic', name: 'Classic Karts', color: '#f2cd37' },
 ];
-const PACKS = ['starwars', 'heroes', 'cursed', 'wild'];
+// Packs are listed in FINISHED once reviewed; unfinished ones only load in the developer
+// views (?garage=…, ?kart=…, ?packs=all) so half-built vehicles never reach players.
+const FINISHED = [];
+const q = new URLSearchParams(location.search);
+const dev = q.has('garage') || q.has('kart') || q.has('packs');
+const PACKS = ['starwars', 'heroes', 'cursed', 'wild'].filter((id) => dev || FINISHED.includes(id));
 // each pack loads on its own so one broken file never stops the game
 const loaded = await Promise.allSettled(PACKS.map((id) => import(`./vehicles/${id}.js`)));
 
