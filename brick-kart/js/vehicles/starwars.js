@@ -1,12 +1,14 @@
 // Star Wars Rides vehicle pack (see buildVehicle in ../characters.js for the contract).
 // Cartoon-compact LEGO versions of six movie vehicles; helpers live in starwars-kit.js.
-import { THREE, BrickBuilder, C, plastic, mat, box, cyl, cone, frustum, sphere, geo, rod, studs, glow, morphPair, flipped } from './starwars-kit.js';
+import { THREE, BrickBuilder, C, plastic, mat, box, cyl, cone, frustum, sphere, geo, rod, studs, glow, morphPair, flipped, fitOf } from './starwars-kit.js';
 
 const PI = Math.PI, S = Math.sin;
 const glass = () => plastic(C.azure, { trans: true, opacity: 0.42 });
+const BACK = -PI / 2;   // exhaust flames pointing straight back
 
 // ---- X-34 landspeeder -------------------------------------------------------------------
-function landspeeder() {
+function landspeeder({ rig }) {
+  const f = fitOf(rig);
   const RUST = 0xa8432a, G = C.ltgray, D = C.dkgray, TAN = C.tan, BK = C.black;
   const b = new BrickBuilder(0.4);
   const exh = glow(0x8fd8ff, 1);
@@ -24,22 +26,25 @@ function landspeeder() {
     for (let i = 0; i < 4; i++) box(b, null, sd * 0.55, 0.78, 1.25 + i * 0.13, 0.5, 0.03, 0.04, G, { rx: 0.1 });
   }
   studs(b, null, 0, 0.71, 2.05, 2, 1, RUST);
-  // split V windscreen
+  // split V windscreen, as tall as the driver's chest
+  const wh = 0.42 * f.clamp(f.sy / 1.2, 0.8, 1.3), wy = 0.79 + wh / 2;
   for (const sd of [-1, 1]) {
-    box(b, null, sd * 0.47, 1.0, 0.92, 1.0, 0.42, 0.04, 0, { mat: glass(), ry: sd * 0.33, rx: -0.35 });
-    box(b, null, sd * 0.47, 1.21, 0.86, 1.0, 0.04, 0.05, D, { ry: sd * 0.33, rx: -0.35 });
+    box(b, null, sd * 0.47, wy, 0.92 + (wy - 1.0) * 0.36, 1.0, wh, 0.04, 0, { mat: glass(), ry: sd * 0.33, rx: -0.35 });
+    box(b, null, sd * 0.47, 0.79 + wh, 0.86 - (wh - 0.42) * 0.36, 1.0, 0.04, 0.05, D, { ry: sd * 0.33, rx: -0.35 });
   }
-  box(b, null, 0, 1.0, 1.06, 0.06, 0.46, 0.06, D, { rx: -0.35 });
-  // cockpit: side walls, dash + column, tan bench seat
+  box(b, null, 0, wy, 1.06 - (wy - 1.0) * 0.36, 0.06, wh + 0.04, 0.06, D, { rx: -0.35 });
+  // cockpit: side walls (pushed out for wide hips), dash + column, tan bench seat
+  const WX = f.clamp(f.hip + 0.4, 1.05, 1.12);
   for (const sd of [-1, 1]) {
-    box(b, null, sd * 1.05, 0.8, -0.35, 0.2, 0.5, 1.9, RUST);
-    box(b, null, sd * 1.05, 1.07, -0.35, 0.26, 0.05, 1.95, G);
+    box(b, null, sd * WX, 0.8, -0.35, 0.2, 0.5, 1.9, RUST);
+    box(b, null, sd * WX, 1.07, -0.35, 0.26, 0.05, 1.95, G);
   }
   box(b, null, 0, 0.75, 0.62, 1.9, 0.4, 0.3, D);
   box(b, null, 0.45, 0.96, 0.62, 0.3, 0.04, 0.2, C.lime);
   rod(b, null, [0, 0.9, 0.62], [0, 1.22, 0.42], 0.05, D);
-  box(b, null, 0, 0.6, -0.5, 1.6, 0.12, 0.8, TAN);
-  box(b, null, 0, 0.95, -0.95, 1.7, 0.75, 0.18, TAN, { rx: -0.1 });
+  const bw = f.clamp(f.hip * 2 + 0.6, 1.6, 1.95);
+  box(b, null, 0, 0.6, -0.5, bw, 0.12, 0.8, TAN);
+  box(b, null, 0, 0.95, -0.95, bw + 0.1, 0.75, 0.18, TAN, { rx: -0.1 });
   box(b, null, 0, 0.98, -0.85, 0.06, 0.7, 0.04, D, { rx: -0.1 });
   // rear deck
   box(b, null, 0, 0.7, -1.4, 2.2, 0.3, 0.7, RUST);
@@ -79,6 +84,7 @@ function landspeeder() {
   engine(0, 1.38, -1.6, 0.27, 1.3, false);
   return {
     mesh: b.build({ name: 'landspeeder' }), seat: [0, 0.62, -0.4], control: 'wheel', hover: 0.4, spin, parts,
+    exhaust: [[1.33, 0.6, -2.26, BACK], [-1.33, 0.6, -2.26, BACK], [0, 1.38, -2.31, BACK]],
     fx(s) { exh.emissiveIntensity = 0.5 + s.speed01 * 1.3 + (s.boosting ? 1.6 : 0) + S(s.t * 31) * 0.12; },
   };
 }

@@ -84,6 +84,18 @@ export function studs(b, base, x, y, z, nx, nz, color, pitch = 0.4, o = {}) {
   }
 }
 
+// The driver's size (kit.rig, seat frame, hips at the origin) boiled down to the few numbers
+// the cockpits need. A typical figure is ~2.0 tall and 1.3 wide; huge ones reach 2.9 x 2.0.
+//   H     height to the top of the head      W     overall width (arms included)
+//   hip   half-width of the hips and thighs  sx/sy shoulder half-width / height
+//   big   0..1 how much taller than typical  wide  0..1 how much wider than typical
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+export function fitOf(rig) {
+  const H = clamp(rig?.height ?? 1.8, 1.1, 3.0), W = clamp(rig?.width ?? 1.2, 0.8, 2.1);
+  const sx = clamp(Math.abs(rig?.shoulder?.x ?? 0.56), 0.2, 1.0), sy = clamp(rig?.shoulder?.y ?? 1.2, 0.6, 1.6);
+  return { H, W, sx, sy, hip: clamp(0.12 + W * 0.26, 0.3, 0.7), big: clamp((H - 2.05) / 0.85, 0, 1), wide: clamp((W - 1.3) / 0.65, 0, 1), clamp };
+}
+
 // A per-vehicle glowing material (own instance, so fx can pulse it without touching
 // other karts).
 export function glow(color, intensity = 1.2, o = {}) {
