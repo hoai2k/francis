@@ -70,8 +70,18 @@ the race (CPU ones too) gets one of them at the wheel.
   you're ready. Stat bars show the kart's stats adjusted by the driver's weight
   class (light drivers accelerate and handle better; heavy ones are faster and
   push harder).
-- The 16 karts come in five body styles: classic kart, racer, buggy, monster
-  kart and hot rod.
+- 40 karts in five groups (the classic 16 come last, in five body styles):
+  - **Star Wars Rides**: Dune Skimmer (landspeeder), Endor Zipper (speeder
+    bike), Boonta Bolt (podracer), Red Five (X-wing, wings open into an X when
+    gliding or boosting), Chicken Walker (AT-ST that walks), TIE Howler.
+  - **Marvel & Jurassic Rides**: Park Jeep 12, Gyrosphere (rolling glass ball),
+    Tour Explorer, Royal Talon (Wakandan hover-car), Stark Roadster, Goat Chariot.
+  - **Cursed & Fantasy Rides**: Ijichi's Sedan, Dharma Wheel (giant monowheel),
+    Nue (flapping thunderbird), Magic Carpet, Brick Dragon (walks, breathes fire),
+    Mad Teacup.
+  - **Wild Rides**: Thunder Hog (leaning chopper), Big Stomp (monster truck),
+    Tread Head (tank), Tub Thumper (bathtub), Hot Diggity (hot dog), Blast Sled
+    (rocket sled on skis).
 - In the race, drivers steer and lean into turns, look behind, hold the glider
   bar overhead, do trick poses off ramps, wind up and throw items, flail when
   they're hit, taunt racers they overtake and **cheer when they hit a rival**.
@@ -159,6 +169,7 @@ setups.
 - `js/world.js`, `js/decor.js`, `js/lego.js`: sky, ground, lighting, brick-built props and the brick mesh merger
 - `js/characters.js`: minifig drivers and karts (plus the five kart body styles used with Use Characters)
 - `js/driver.js`: movie-character drivers: the seated rig contract, weight classes and the gesture animator
+- `js/vehicles.js`, `js/vehicles/*.js`: the kart list and the vehicle packs (the vehicle contract is documented above `buildVehicle` in `js/characters.js`)
 - `js/drivers/*.js`: the driver casts per movie (`kit.js` has the seated figure builder); `js/showcase.js`: the 3D select stage, portraits and podium; `js/gallery.js`: a developer line-up view
 - `js/effects.js`, `js/audio.js`, `js/hud.js`, `js/input.js`: particles, sound, HUD and input devices
 
@@ -166,4 +177,5 @@ For development, `?quick=<map id>` (city, meadow, pirate, candy, jungle, frost, 
 straight into a race. Add `&players=2` to test split-screen, and `&chars=1` (or
 `&driver=<driver id>`) to race with movie-character drivers. `?gallery=<movie id
 | driver id | all>` lines drivers up in their karts; add `&pose=cheer` (taunt,
-ouch, trick, win, lose, glide, look…) to hold a gesture.
+ouch, trick, win, lose, glide, look…) to hold a gesture. `?garage=<pack | kart id |
+all>&driver=<id>` does the same for vehicles (`&pose=boost` shows boost effects).
