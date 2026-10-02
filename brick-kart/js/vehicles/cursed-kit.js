@@ -36,7 +36,7 @@ export const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 export function fitOf(rig) {
   const H = clamp(rig?.height ?? 1.8, 1.1, 3.0), W = clamp(rig?.width ?? 1.2, 0.8, 2.1);
   const sx = clamp(Math.abs(rig?.shoulder?.x ?? 0.56), 0.2, 1.0), sy = clamp(rig?.shoulder?.y ?? 1.2, 0.6, 1.6);
-  return { H, W, sx, sy, hip: clamp(0.12 + W * 0.26, 0.3, 0.7), big: clamp((H - 2.05) / 0.85, 0, 1), wide: clamp((W - 1.3) / 0.65, 0, 1) };
+  return { H, W, sx, sy, hip: clamp(W * 0.46, 0.35, 0.95), big: clamp((H - 2.05) / 0.85, 0, 1), wide: clamp((W - 1.3) / 0.65, 0, 1) };
 }
 
 // Wraps a ride's body and moving parts in one group scaled about the ground origin, for

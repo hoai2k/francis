@@ -34,7 +34,7 @@ function landspeeder({ rig }) {
   }
   box(b, null, 0, wy, 1.06 - (wy - 1.0) * 0.36, 0.06, wh + 0.04, 0.06, D, { rx: -0.35 });
   // cockpit: side walls (pushed out for wide hips), dash + column, tan bench seat
-  const WX = f.clamp(f.hip + 0.4, 1.05, 1.12);
+  const WX = f.clamp(f.hip + 0.13, 1.05, 1.12);
   for (const sd of [-1, 1]) {
     box(b, null, sd * WX, 0.8, -0.35, 0.2, 0.5, 1.9, RUST);
     box(b, null, sd * WX, 1.07, -0.35, 0.26, 0.05, 1.95, G);
@@ -42,7 +42,7 @@ function landspeeder({ rig }) {
   box(b, null, 0, 0.75, 0.62, 1.9, 0.4, 0.3, D);
   box(b, null, 0.45, 0.96, 0.62, 0.3, 0.04, 0.2, C.lime);
   rod(b, null, [0, 0.9, 0.62], [0, 1.22, 0.42], 0.05, D);
-  const bw = f.clamp(f.hip * 2 + 0.6, 1.6, 1.95);
+  const bw = f.clamp(f.hip * 2 + 0.1, 1.6, 1.9);
   box(b, null, 0, 0.6, -0.5, bw, 0.12, 0.8, TAN);
   box(b, null, 0, 0.95, -0.95, bw + 0.1, 0.75, 0.18, TAN, { rx: -0.1 });
   box(b, null, 0, 0.98, -0.85, 0.06, 0.7, 0.04, D, { rx: -0.1 });
@@ -222,7 +222,7 @@ function xwing({ rig }) {
   const b = new BrickBuilder(0.4);
   const eng = glow(0xff3018, 1.4, { base: 0xff2000 });
   // cockpit tub: the side walls clear the driver's hips
-  const TX = f.clamp(f.hip + 0.24, 0.68, 0.92), dx = TX - 0.68;
+  const TX = f.clamp(f.hip + 0.08, 0.68, 0.95), dx = TX - 0.68;
   box(b, null, 0, 0.4, -0.25, 1.5 + dx * 2, 0.6, 1.8, W);
   for (const sd of [-1, 1]) {
     box(b, null, sd * TX, 0.85, -0.3, 0.16, 0.3, 1.6, W);
@@ -251,7 +251,7 @@ function xwing({ rig }) {
   box(b, null, 0, 1.05, -1.18, 0.12, 0.08, 0.05, C.blue);
   sphere(b, null, 0, 1.0, -1.16, 0.05, BK);
   // S-foils: four wings built closed and open, morphed by one weight
-  const WR = 0.55 + dx;   // wing roots move out with the tub
+  const WR = 0.55 + dx * 0.25;   // wing roots move out a little with the tub
   const wing = (wb, k, sd, ud) => {
     const base = mat(sd * WR, 0.45, -1.55, 0, 0, 0.36 * k * sd * ud).multiply(mat(0, ud * 0.045, 0));
     box(wb, base, sd * 0.4, 0, 0, 0.8, 0.07, 1.05, W);
@@ -386,7 +386,7 @@ function atst({ rig, sprung }) {
   };
   fx({ speed01: 0, grounded: true, gliding: false, t: 0 }, 0);
   return {
-    mesh, seat: [0, 1.75 + LIFT + Math.max(0, 1.8 - f.H) * 0.25, -0.25], control: 'bars', parts: legs.map((l) => l.hip), fx,
+    mesh, seat: [0, 1.75 + LIFT + Math.max(0, 1.8 - f.H) * 0.25 - f.wide * 0.2, -0.25], control: 'bars', parts: legs.map((l) => l.hip), fx,
     exhaust: [[0.45, 1.62 + LIFT, -1.4, BACK], [-0.45, 1.62 + LIFT, -1.4, BACK]],
   };
 }

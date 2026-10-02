@@ -33,7 +33,7 @@ export function kit(K) {
     // centred cone, apex +Y before rotation
     cone: (b, x, y, z, r, h, col, o = {}) => put(b, coneG(o.seg || 10), x, y, z, o.rx || 0, o.ry || 0, o.rz || 0, r, h, o.r2 ?? r, col, o),
     // torus of radius R (tube t relative to R) lying in the XY plane before rotation
-    tor: (b, x, y, z, R, t, col, o = {}) => put(b, torG(t, o.seg || 20, o.arc ?? Math.PI * 2), x, y, z, o.rx || 0, o.ry || 0, o.rz || 0, R, R, o.sz ?? R, col, o),
+    tor: (b, x, y, z, R, t, col, o = {}) => put(b, torG(t, o.seg || 20, o.arc ?? Math.PI * 2), x, y, z, o.rx || 0, o.ry || 0, o.rz || 0, o.sx ?? R, o.sy ?? R, o.sz ?? R, col, o),
     // rod between two points
     tube: (b, a, c, r, col, o = {}) => {
       D.set(c[0] - a[0], c[1] - a[1], c[2] - a[2]);

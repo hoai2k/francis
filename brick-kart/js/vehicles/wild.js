@@ -1,19 +1,20 @@
 // Wild Rides vehicle pack (see buildVehicle in ../characters.js for the contract):
 // a chopper, a monster truck, a tank, a bathtub, a hot dog and a rocket sled.
-import { shapes, exhaustMover, pitchAbout } from './wild-kit.js';
+import { shapes, pitchAbout, fitOf, clamp, grow } from './wild-kit.js';
 
 const CHROME = { metal: 0.85, rough: 0.22 };
 const chrome = (o = {}) => ({ ...o, matOpts: CHROME });
 const glow = (e, i = 1, o = {}) => ({ ...o, matOpts: { emissive: e, emissiveIntensity: i } });
 const ease = (dt, k) => Math.min(1, dt * k);
+const BACK = -Math.PI / 2;   // boost flames pointing straight back
 
 // ---- Thunder Hog: a raked-out chopper that leans into turns and wheelies on boost ----------
 const thunderHog = {
   id: 'thunderhog', name: 'Thunder Hog', form: 'Chopper', blurb: 'Leans hard into every bend',
   stats: { speed: 3, accel: 4, handling: 5, weight: 1 }, colors: [0xfe8a18, 0x1b2a34, 0xa0a5a9],
   build(kit) {
-    const { THREE, BrickBuilder, C, wheelGeo, wheelMat } = kit;
-    const sh = shapes(kit);
+    const { THREE, BrickBuilder, C, wheelGeo, wheelMat, sprung } = kit;
+    const sh = shapes(kit), f = fitOf(kit.rig);
     const OR = 0xfe8a18, BK = C.black, LG = C.ltgray;
     const RZ = -1.45, RR = 0.56, FR = 0.5;          // rear axle z, rear/front wheel radius
     const H = [0, 1.3, 0.95], A = [0, FR, 1.95];    // steering head, front axle
@@ -87,19 +88,19 @@ const thunderHog = {
     const rSpin = new THREE.Mesh(wheelGeo(RR, 0.42, OR, [0]), wheelMat);
     rSpin.position.set(0, RR, RZ);
 
-    const flames = exhaustMover(mesh, [[-0.39, 0.48, -2.08, -Math.PI / 2 + 0.15], [-0.39, 0.72, -2.08, -Math.PI / 2 + 0.15]]);
+    // a big rider gets a broader, slightly bigger bike (wheels stay round: y and z scale alike)
+    const kx = clamp(1 + (f.W - 1.3) * 0.6, 1, 1.4), k = 1 + f.big * 0.07;
     let lean = 0, pitch = 0;
     return {
-      mesh, seat: [0, 0.97, -0.5], control: 'bars', parts: [fork, rSpin],
-      wheels: [{ g: new THREE.Group(), spin: rSpin, front: false, r: RR }, { g: new THREE.Group(), spin: fSpin, front: false, r: FR }],
+      mesh: grow(THREE, [mesh, fork, rSpin], kx, k, k), seat: [0, 0.97 * k, -0.5 * k], control: 'bars',
+      exhaust: [[-0.39 * kx, 0.48 * k, -2.1 * k, BACK + 0.15], [-0.39 * kx, 0.72 * k, -2.1 * k, BACK + 0.15]],
+      wheels: [{ g: new THREE.Group(), spin: rSpin, front: false, r: RR * k }, { g: new THREE.Group(), spin: fSpin, front: false, r: FR * k }],
       fx(s, dt) {
-        flames();
-        const up = mesh.parent; if (!up) return;
         steerG.rotation.y = -s.steer * 0.35;
         lean += (s.steer * 0.34 * Math.min(1, 0.25 + s.speed01 * 1.5) - lean) * ease(dt, 6);
         pitch += ((s.boosting && s.grounded ? -0.2 : 0) - pitch) * ease(dt, 5);
-        up.rotation.z = lean;
-        pitchAbout(up, pitch, 0, RZ);
+        sprung.rotation.z = lean;
+        pitchAbout(sprung, pitch, 0, RZ * k);
       },
     };
   },
@@ -110,9 +111,10 @@ const bigStomp = {
   id: 'bigstomp', name: 'Big Stomp', form: 'Monster truck', blurb: 'Tyres taller than you',
   stats: { speed: 3, accel: 2, handling: 2, weight: 5 }, colors: [0xbbe90b, 0x81007b, 0x1b2a34],
   build(kit) {
-    const { THREE, BrickBuilder, C, wheelGeo, wheelMat } = kit;
-    const sh = shapes(kit);
+    const { THREE, BrickBuilder, C, wheelGeo, wheelMat, sprung } = kit;
+    const sh = shapes(kit), f = fitOf(kit.rig);
     const LI = 0xbbe90b, PU = 0x81007b, LG = C.ltgray;
+    const CX = clamp(f.hip + 0.09, 0.86, 0.98);   // cab sides clear broad hips
     const R = 0.78, WX = 1.2, WZ = 1.4, WW = 0.6;
     const b = new BrickBuilder(0.4);
     // chassis, axles, diffs and coil-over shocks
@@ -131,8 +133,8 @@ const bigStomp = {
     sh.box(b, 0, 2.06, 1.25, 0.5, 0.22, 0.6, LG, chrome());
     sh.box(b, 0, 2.25, 1.32, 0.56, 0.18, 0.42, C.black);
     for (const sd of [-1, 1]) {
-      sh.box(b, sd * 0.86, 2.0, -0.2, 0.14, 0.4, 1.6, PU);
-      sh.box(b, sd * 0.86, 1.93, -1.55, 0.14, 0.26, 1.0, PU);
+      sh.box(b, sd * CX, 2.0, -0.2, 0.14, 0.4, 1.6, PU);
+      sh.box(b, sd * CX, 1.93, -1.55, 0.14, 0.26, 1.0, PU);
       // flared fenders, mud flaps, side flames
       for (const z of [-WZ, WZ]) sh.box(b, sd * WX, 1.7, z, WW + 0.2, 0.12, 1.7, PU);
       sh.box(b, sd * WX, 1.15, -WZ - 0.92, 0.6, 0.7, 0.05, C.black);
@@ -141,11 +143,11 @@ const bigStomp = {
     }
     sh.box(b, 0, 2.02, 0.6, 1.6, 0.44, 0.22, C.black);       // dash
     sh.box(b, 0, 1.93, -2.0, 1.6, 0.26, 0.12, PU);            // tailgate
-    sh.box(b, 0, 2.08, -0.86, 0.9, 0.55, 0.14, C.black);      // seat back
-    // roll bar with a light bar
-    const top = 2.85;
-    for (const sd of [-1, 1]) sh.tube(b, [sd * 0.86, 2.15, -1.1], [sd * 0.8, top, -1.15], 0.07, PU);
-    sh.tube(b, [-0.8, top, -1.15], [0.8, top, -1.15], 0.07, PU);
+    sh.box(b, 0, 2.08, -0.86, clamp(f.hip * 2 - 0.3, 0.9, 1.5), 0.55, 0.14, C.black);      // seat back
+    // roll bar with a light bar (taller for a tall driver)
+    const top = 2.85 + f.big * 0.55;
+    for (const sd of [-1, 1]) sh.tube(b, [sd * CX, 2.15, -1.1], [sd * (CX - 0.06), top, -1.15], 0.07, PU);
+    sh.tube(b, [0.06 - CX, top, -1.15], [CX - 0.06, top, -1.15], 0.07, PU);
     sh.box(b, 0, top + 0.13, -1.15, 1.1, 0.22, 0.14, C.black);
     for (let i = -1; i <= 1; i++) sh.cylZ(b, i * 0.34, top + 0.13, -1.06, 0.09, 0.06, C.yellow, glow(0xffe080, 1.1));
     // exhaust stacks
@@ -174,19 +176,16 @@ const bigStomp = {
       const m = new THREE.Mesh(wheelGeo(R, WW, PU, [0]), wheelMat); g.add(m); wheelsG.add(g);
       return { g, m };
     });
-    const flames = exhaustMover(mesh, [[0.55, 2.6, -1.5, -0.67], [-0.55, 2.6, -1.5, -0.67]]);
     let pitch = 0, droop = 0;
     return {
-      mesh, seat: [0, 1.78, -0.4], control: 'wheel', parts: [wheelsG],
+      mesh, seat: [0, 1.78, -0.4], control: 'wheel', parts: [wheelsG], exhaust: [[0.55, 2.6, -1.5, -0.67], [-0.55, 2.6, -1.5, -0.67]],
       wheels: [{ g: new THREE.Group(), spin: rear, front: false, r: R }, ...fronts.map((f) => ({ g: new THREE.Group(), spin: f.m, front: false, r: R }))],
       fx(s, dt) {
-        flames();
-        const up = mesh.parent; if (!up) return;
-        for (const f of fronts) f.g.rotation.y = -s.steer * 0.4;
+        for (const w of fronts) w.g.rotation.y = -s.steer * 0.4;
         const bob = Math.sin(s.t * 10) * 0.035 * (0.25 + s.speed01) + Math.sin(s.t * 3.7) * 0.02;
         droop += ((s.grounded ? 0 : 0.2) - droop) * ease(dt, 6);
         pitch += ((s.boosting && s.grounded ? -0.17 : 0) - pitch) * ease(dt, 4);
-        pitchAbout(up, pitch, 0, -WZ, bob);
+        pitchAbout(sprung, pitch, 0, -WZ, bob);
         wheelsG.position.y = -bob - droop;
       },
     };
@@ -199,8 +198,9 @@ const treadHead = {
   stats: { speed: 2, accel: 3, handling: 3, weight: 5 }, colors: [0x237841, 0xe4cd9e, 0x184632],
   build(kit) {
     const { THREE, BrickBuilder, C } = kit;
-    const sh = shapes(kit);
+    const sh = shapes(kit), f = fitOf(kit.rig);
     const GR = 0x237841, TN = 0xe4cd9e, OL = 0x184632, BK = C.black;
+    const HD = clamp(f.hip + 0.02, 0.58, 0.85) - 0.58;   // the hatch (and turret) widen round broad hips
     const TX = 1.3, TW = 0.5, SR = 0.39, SY = 0.45, SZ = 1.75, SP = 0.3;
     const b = new BrickBuilder(0.4);
     // hull and sloped glacis
@@ -221,15 +221,15 @@ const treadHead = {
       sh.cylZ(b, sd * 0.55, 0.75, -1.9, 0.08, 0.22, C.dkgray, { seg: 8 });  // exhausts
     }
     // turret, hatch collar, open lid, antenna, roundels, crates
-    b.cyl(0, 0.99, -0.3, 0.82, 0.42, GR, { rz: 0.95, seg: 20 });
-    b.cyl(0, 1.41, -0.3, 0.7, 0.05, OL, { rz: 0.82, seg: 20 });
-    b.cyl(0, 1.41, -0.42, 0.58, 0.3, OL, { rz: 0.74, seg: 16 });
-    sh.box(b, 0, 1.86, -1.08, 0.7, 0.5, 0.06, GR, { rx: -0.3 });
-    sh.tube(b, [0.55, 1.4, -0.95], [0.6, 2.7, -1.15], 0.02, BK, { seg: 4 });
-    sh.box(b, 0.6, 2.55, -1.32, 0.03, 0.2, 0.3, C.yellow);
+    b.cyl(0, 0.99, -0.3, 0.82 + HD, 0.42, GR, { rz: 0.95 + HD * 0.6, seg: 20 });
+    b.cyl(0, 1.41, -0.3, 0.7 + HD, 0.05, OL, { rz: 0.82 + HD * 0.6, seg: 20 });
+    b.cyl(0, 1.41, -0.42, 0.58 + HD, 0.3, OL, { rz: 0.74 + HD * 0.6, seg: 16 });
+    sh.box(b, 0, 1.86, -1.08 - HD * 0.6, 0.7 + HD * 2, 0.5, 0.06, GR, { rx: -0.3 });
+    sh.tube(b, [0.55 + HD, 1.4, -0.95 - HD * 0.5], [0.6 + HD, 2.7, -1.15 - HD * 0.5], 0.02, BK, { seg: 4 });
+    sh.box(b, 0.6 + HD, 2.55, -1.32 - HD * 0.5, 0.03, 0.2, 0.3, C.yellow);
     for (const sd of [-1, 1]) {
-      sh.cylX(b, sd * 0.82, 1.2, -0.3, 0.18, 0.03, TN, { seg: 14 });
-      sh.cylX(b, sd * 0.835, 1.2, -0.3, 0.09, 0.02, C.red, { seg: 10 });
+      sh.cylX(b, sd * (0.82 + HD), 1.2, -0.3, 0.18, 0.03, TN, { seg: 14 });
+      sh.cylX(b, sd * (0.835 + HD), 1.2, -0.3, 0.09, 0.02, C.red, { seg: 10 });
     }
     b.brick(-0.4, 0.99, -1.45, 2, 2, 2, TN); b.brick(0.4, 0.99, -1.45, 2, 2, 2, TN);
     const mesh = b.build({ name: 'treadhead' });
@@ -264,13 +264,11 @@ const treadHead = {
     sh.cone(xb, 0, 0, 0.3, 0.26, 0.6, C.yellow, { rx: Math.PI / 2, seg: 8, matOpts: { emissive: 0xffa020, emissiveIntensity: 2.5 } });
     flash.add(xb.build({ name: 'flash' })); gun.add(flash);
 
-    const flames = exhaustMover(mesh, [[0.55, 0.75, -2.0], [-0.55, 0.75, -2.0]]);
     let phase = 0;
     return {
-      mesh, seat: [0, 1.47, -0.5], control: 'yoke', parts: [topT, botT, ...sprockets, gun],
+      mesh, seat: [0, 1.47 - f.wide * 0.25, -0.5], control: 'yoke', parts: [topT, botT, ...sprockets, gun], exhaust: [[0.55, 0.75, -2.03, BACK], [-0.55, 0.75, -2.03, BACK]],
       steer: [{ obj: gun, axis: 'y', amount: 0.3 }],
       fx(s, dt) {
-        flames();
         const v = s.speed01 * 7 * dt;
         phase = (phase + v) % SP;
         topT.position.z = phase; botT.position.z = -phase;
@@ -290,22 +288,24 @@ const tubThumper = {
   stats: { speed: 3, accel: 4, handling: 3, weight: 2 }, colors: [0xfc97ac, 0xf4f4f4, 0xdcbc81],
   build(kit) {
     const { THREE, BrickBuilder, C, plastic } = kit;
-    const sh = shapes(kit);
+    const sh = shapes(kit), f = fitOf(kit.rig);
     const PK = 0xfc97ac, WH = C.white, GD = 0xdcbc81, LG = C.ltgray;
-    const TZ = -0.15, FZ = 1.0, BZ = -1.15, WXo = 0.92;
+    // the tub is as wide as the bather needs (k scales it across)
+    const k = clamp(f.hip + 0.07, 0.88, 1.05) / 0.88;
+    const TZ = -0.15, FZ = 1.0, BZ = -1.15, WXo = 0.92 * k;
     const b = new BrickBuilder(0.4);
-    b.cyl(0, 0.3, TZ, 0.78, 0.15, PK, { rz: 1.3, seg: 24 });
-    b.cyl(0, 0.42, TZ, 0.95, 0.72, PK, { rz: 1.55, seg: 24 });
-    b.cyl(0, 1.12, TZ, 1.02, 0.11, WH, { rz: 1.62, seg: 24 });
-    b.cyl(0, 1.23, TZ, 0.88, 0.012, 0x9fdcf0, { rz: 1.48, seg: 24 });   // bath water
+    b.cyl(0, 0.3, TZ, 0.78 * k, 0.15, PK, { rz: 1.3, seg: 24 });
+    b.cyl(0, 0.42, TZ, 0.95 * k, 0.72, PK, { rz: 1.55, seg: 24 });
+    b.cyl(0, 1.12, TZ, 1.02 * k, 0.11, WH, { rz: 1.62, seg: 24 });
+    b.cyl(0, 1.23, TZ, 0.88 * k, 0.012, 0x9fdcf0, { rz: 1.48, seg: 24 });   // bath water
     // foam
     for (const [x, z, r] of [[0.55, 0.2, 0.22], [-0.55, 0.1, 0.24], [0.42, 0.72, 0.2], [-0.4, 0.78, 0.18], [0.6, -0.6, 0.2], [-0.62, -0.7, 0.22], [0.12, 0.98, 0.16], [-0.18, -1.3, 0.18], [0.35, -1.15, 0.2], [0, 0.45, 0.2]]) {
-      sh.ell(b, x, 1.25, z, r, r * 0.7, r, WH, { seg: 10 });
+      sh.ell(b, x * k, 1.25, z, r, r * 0.7, r, WH, { seg: 10 });
     }
     // claw feet down to the wheels
     for (const sd of [-1, 1]) for (const [z0, z1] of [[0.82, FZ], [-0.95, BZ]]) {
-      sh.tube(b, [sd * 0.55, 0.6, z0], [sd * 0.78, 0.34, z1], 0.08, GD);
-      sh.ell(b, sd * 0.78, 0.32, z1, 0.13, 0.11, 0.15, GD, { seg: 10 });
+      sh.tube(b, [sd * 0.55 * k, 0.6, z0], [sd * 0.78 * k, 0.34, z1], 0.08, GD);
+      sh.ell(b, sd * 0.78 * k, 0.32, z1, 0.13, 0.11, 0.15, GD, { seg: 10 });
     }
     // faucet and taps at the front
     sh.tube(b, [0, 1.15, 1.32], [0, 1.78, 1.28], 0.06, LG, chrome());
@@ -317,10 +317,11 @@ const tubThumper = {
       sh.cylZ(b, sd * 0.35, 0.5, -1.72, 0.08, 0.34, LG, chrome({ seg: 10 }));   // drain-pipe exhausts
     }
     // rubber duck on the rim
-    sh.ell(b, 0.58, 1.36, 0.82, 0.16, 0.13, 0.21, C.yellow, { seg: 12 });
-    sh.ell(b, 0.58, 1.57, 0.93, 0.11, 0.11, 0.11, C.yellow, { seg: 12 });
-    sh.box(b, 0.58, 1.55, 1.05, 0.1, 0.05, 0.12, C.orange);
-    for (const sd of [-1, 1]) sh.ell(b, 0.58 + sd * 0.07, 1.61, 1.01, 0.022, 0.022, 0.022, C.black, { seg: 6 });
+    const DX = 0.58 * k;
+    sh.ell(b, DX, 1.36, 0.82, 0.16, 0.13, 0.21, C.yellow, { seg: 12 });
+    sh.ell(b, DX, 1.57, 0.93, 0.11, 0.11, 0.11, C.yellow, { seg: 12 });
+    sh.box(b, DX, 1.55, 1.05, 0.1, 0.05, 0.12, C.orange);
+    for (const sd of [-1, 1]) sh.ell(b, DX + sd * 0.07, 1.61, 1.01, 0.022, 0.022, 0.022, C.black, { seg: 6 });
     // towel over the back
     sh.box(b, 0, 1.0, -1.79, 0.72, 0.42, 0.04, C.azure);
     sh.box(b, 0, 1.25, -1.62, 0.72, 0.04, 0.32, C.azure);
@@ -332,14 +333,12 @@ const tubThumper = {
     const bub = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 10, 7), plastic(0xdff6ff, { trans: true, opacity: 0.45, rough: 0.08 }), NB);
     bub.frustumCulled = false;
     const ph = [], bx = [], bz = [];
-    for (let i = 0; i < NB; i++) { ph.push(i / NB); bx.push(Math.sin(i * 2.4) * 0.66); bz.push(TZ + Math.cos(i * 2.4) * 1.1); }
+    for (let i = 0; i < NB; i++) { ph.push(i / NB); bx.push(Math.sin(i * 2.4) * 0.66 * k); bz.push(TZ + Math.cos(i * 2.4) * 1.1); }
     const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), V = new THREE.Vector3(), Sc = new THREE.Vector3();
-    const flames = exhaustMover(mesh, [[0.35, 0.5, -1.9], [-0.35, 0.5, -1.9]]);
     return {
-      mesh, seat: [0, 1.1, -0.35], control: 'wheel', parts: [bub],
+      mesh, seat: [0, 1.1, -0.35], control: 'wheel', parts: [bub], exhaust: [[0.35, 0.5, -1.92, BACK], [-0.35, 0.5, -1.92, BACK]],
       wheels: [{ x: 0, z: BZ, r: 0.32, w: 0.26, xs: [WXo, -WXo], cap: GD }, { x: WXo, z: FZ, r: 0.32, w: 0.26, front: true, cap: GD }, { x: -WXo, z: FZ, r: 0.32, w: 0.26, front: true, cap: GD }],
       fx(s, dt) {
-        flames();
         const rate = 0.3 + s.speed01 * 0.45 + (s.boosting ? 1.3 : 0);
         for (let i = 0; i < NB; i++) {
           ph[i] = (ph[i] + dt * rate * (0.8 + (i % 3) * 0.15)) % 1;
@@ -360,16 +359,17 @@ const hotDiggity = {
   stats: { speed: 4, accel: 3, handling: 3, weight: 3 }, colors: [0xd9923b, 0xb3361f, 0xf2cd37],
   build(kit) {
     const { THREE, BrickBuilder, C } = kit;
-    const sh = shapes(kit);
+    const sh = shapes(kit), f = fitOf(kit.rig);
     const BUN = 0xd9923b, CRUMB = 0xf6d69a, SAU = 0xb3361f, MUS = 0xf2cd37, KET = 0xc91a09, WH = C.white;
+    const DX = clamp(f.hip - 0.6, 0, 0.25);   // the bun opens wider round broad hips
     const b = new BrickBuilder(0.4);
     // the bun
-    sh.ell(b, 0, 0.5, 0, 0.82, 0.26, 2.1, BUN, { seg: 16 });
+    sh.ell(b, 0, 0.5, 0, 0.82 + DX, 0.26, 2.1, BUN, { seg: 16 });
     for (const sd of [-1, 1]) {
-      sh.ell(b, sd * 0.5, 0.74, 0, 0.56, 0.4, 2.15, BUN, { seg: 18 });
-      sh.ell(b, sd * 0.36, 0.86, 0, 0.36, 0.3, 2.02, CRUMB, { seg: 14 });
+      sh.ell(b, sd * (0.5 + DX), 0.74, 0, 0.56, 0.4, 2.15, BUN, { seg: 18 });
+      sh.ell(b, sd * (0.36 + DX), 0.86, 0, 0.36, 0.3, 2.02, CRUMB, { seg: 14 });
     }
-    for (const z of [-1.45, 1.45]) sh.cylX(b, 0, 0.42, z, 0.06, 2.3, C.dkgray, { seg: 6 });
+    for (const z of [-1.45, 1.45]) sh.cylX(b, 0, 0.42, z, 0.06, 2.3 + DX * 2, C.dkgray, { seg: 6 });
     // cocktail pick with an olive and a flag
     sh.tube(b, [0.1, 1.2, -2.0], [0.1, 2.3, -2.1], 0.025, C.tan, { seg: 5 });
     sh.ell(b, 0.1, 1.55, -2.03, 0.1, 0.1, 0.1, C.green, { seg: 10 });
@@ -406,12 +406,11 @@ const hotDiggity = {
     for (const sd of [-1, 1]) for (let i = 0; i < 5; i++) sh.ell(qb, sd * 0.62, -i * 0.035, -0.12 - i * 0.26, 0.1 - i * 0.012, 0.09 - i * 0.01, 0.15, sd > 0 ? KET : MUS, { seg: 8 });
     sq.add(qb.build({ name: 'squirt' }));
 
-    const flames = exhaustMover(mesh, [[0.62, 1.05, -2.55], [-0.62, 1.05, -2.55]]);
+    const WX = 1.22 + DX;
     return {
-      mesh, seat: [0, 0.92, -0.18], control: 'wheel', parts: [sg, sq],
-      wheels: [{ x: 0, z: -1.45, r: 0.42, w: 0.36, xs: [1.22, -1.22], cap: MUS }, { x: 1.22, z: 1.45, r: 0.42, w: 0.36, front: true, cap: MUS }, { x: -1.22, z: 1.45, r: 0.42, w: 0.36, front: true, cap: MUS }],
+      mesh, seat: [0, 0.92, -0.18], control: 'wheel', parts: [sg, sq], exhaust: [[0.62, 1.05, -2.58, BACK], [-0.62, 1.05, -2.58, BACK]],
+      wheels: [{ x: 0, z: -1.45, r: 0.42, w: 0.36, xs: [WX, -WX], cap: MUS }, { x: WX, z: 1.45, r: 0.42, w: 0.36, front: true, cap: MUS }, { x: -WX, z: 1.45, r: 0.42, w: 0.36, front: true, cap: MUS }],
       fx(s, dt) {
-        flames();
         const w = Math.sin(s.t * 21) * 0.05 * (0.3 + s.speed01 + (s.boosting ? 0.8 : 0));
         sg.scale.set(1 - w * 0.5, 1 + w, 1);
         sq.visible = s.boosting;
@@ -426,23 +425,26 @@ const blastSled = {
   id: 'blastsled', name: 'Blast Sled', form: 'Rocket sled', blurb: 'Skis, fins and a rocket',
   stats: { speed: 5, accel: 2, handling: 2, weight: 3 }, colors: [0xc91a09, 0xf4f4f4, 0xfe8a18],
   build(kit) {
-    const { THREE, BrickBuilder, C } = kit;
-    const sh = shapes(kit);
+    const { THREE, BrickBuilder, C, sprung } = kit;
+    const sh = shapes(kit), f = fitOf(kit.rig);
     const RD = 0xc91a09, WH = C.white, LG = C.ltgray;
     const RY = 1.12;
+    // the cockpit (and the skis under it) widen round broad hips; a broad driver sits a little
+    // further forward so their back stays clear of the rocket's nose
+    const SX = clamp(f.hip + 0.09, 0.62, 0.95), KX = Math.max(0.85, SX + 0.23), SZ = -0.4 + f.wide * 0.2;
     const b = new BrickBuilder(0.4);
     // skis with upturned tips on struts
     for (const sd of [-1, 1]) {
-      sh.box(b, sd * 0.85, 0.04, -0.2, 0.28, 0.08, 4.0, LG, chrome());
-      sh.box(b, sd * 0.85, 0.17, 2.01, 0.28, 0.08, 0.5, LG, chrome({ rx: -0.55 }));
-      sh.box(b, sd * 0.85, 0.43, 2.3, 0.28, 0.08, 0.3, LG, chrome({ rx: -1.1 }));
-      for (const z of [-1.5, 0, 1.2]) sh.tube(b, [sd * 0.85, 0.08, z], [sd * 0.55, 0.5, z], 0.05, C.dkgray);
-      sh.box(b, sd * 0.62, 0.86, -0.25, 0.14, 0.36, 1.9, RD);   // cockpit sides
+      sh.box(b, sd * KX, 0.04, -0.2, 0.28, 0.08, 4.0, LG, chrome());
+      sh.box(b, sd * KX, 0.17, 2.01, 0.28, 0.08, 0.5, LG, chrome({ rx: -0.55 }));
+      sh.box(b, sd * KX, 0.43, 2.3, 0.28, 0.08, 0.3, LG, chrome({ rx: -1.1 }));
+      for (const z of [-1.5, 0, 1.2]) sh.tube(b, [sd * KX, 0.08, z], [sd * (SX - 0.07), 0.5, z], 0.05, C.dkgray);
+      sh.box(b, sd * SX, 0.86, -0.25, 0.14, 0.36, 1.9, RD);   // cockpit sides
     }
-    sh.box(b, 0, 0.55, -0.15, 1.3, 0.3, 2.3, RD);
-    sh.ell(b, 0, 0.62, 1.05, 0.65, 0.4, 1.25, RD, { seg: 18 });
+    sh.box(b, 0, 0.55, -0.15, SX * 2 + 0.06, 0.3, 2.3, RD);
+    sh.ell(b, 0, 0.62, 1.05, SX + 0.03, 0.4, 1.25, RD, { seg: 18 });
     sh.ell(b, 0, 0.63, 1.05, 0.2, 0.41, 1.26, WH, { seg: 14 });
-    sh.box(b, 0, 1.12, 0.45, 0.9, 0.32, 0.04, C.azure, { rx: -0.5, matOpts: { trans: true, opacity: 0.45 } });
+    sh.box(b, 0, 1.12, 0.45, SX * 2 - 0.34, 0.32, 0.04, C.azure, { rx: -0.5, matOpts: { trans: true, opacity: 0.45 } });
     // the rocket behind the seat
     sh.box(b, 0, 0.82, -1.7, 0.5, 0.3, 1.0, C.dkgray);
     sh.cylZ(b, 0, RY, -1.75, 0.42, 1.4, WH, { seg: 18 });
@@ -464,18 +466,15 @@ const blastSled = {
     for (const sd of [-1, 1]) for (let i = 0; i < 5; i++) sh.box(spb, sd * (0.85 + Math.sin(i * 3.1) * 0.14), 0.04 + (i % 3) * 0.07, -i * 0.13, 0.05, 0.05, 0.16, C.yellow, { ry: Math.sin(i * 1.7) * 0.6, matOpts: { emissive: 0xffc040, emissiveIntensity: 2.5 } });
     sp.add(spb.build({ name: 'sparks' }));
 
-    const flames = exhaustMover(mesh, [[0.12, RY, -2.8], [-0.12, RY, -2.8]]);
     return {
-      mesh, seat: [0, 0.78, -0.4], control: 'yoke', parts: [fl, sp],
+      mesh, seat: [0, 0.78, SZ], control: 'yoke', parts: [fl, sp], exhaust: [[0.12, RY, -2.8, BACK], [-0.12, RY, -2.8, BACK]],
       fx(s, dt) {
-        flames();
         const t = s.t, boost = s.boosting ? 1 : 0;
         const f = (0.35 + s.speed01 * 0.65 + boost * 0.9) * (0.85 + Math.sin(t * 47) * 0.1 + Math.sin(t * 31) * 0.06);
         fl.scale.set(1 + boost * 0.35, 1 + boost * 0.35, f);
         sp.visible = s.grounded && s.speed01 > 0.3 && Math.sin(t * 61) > -0.3;
         sp.scale.set(1, 1, 0.6 + Math.abs(Math.sin(t * 37)));
-        const up = mesh.parent;
-        if (up) up.position.y = s.grounded ? Math.abs(Math.sin(t * 38)) * 0.015 * (s.speed01 + boost) : 0;
+        sprung.position.y = s.grounded ? Math.abs(Math.sin(t * 38)) * 0.015 * (s.speed01 + boost) : 0;
       },
     };
   },

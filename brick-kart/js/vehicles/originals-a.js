@@ -10,11 +10,11 @@ const glow = (e, i = 1) => ({ m: { emissive: e, emissiveIntensity: i } });
 export const bob = {
   id: 'bob', name: 'Hard Hat Hauler', form: 'Loader-dumper', blurb: 'Scoops up the competition',
   stats: { speed: 3, accel: 3, handling: 3, weight: 3 },
-  colors: [0xf2cd37, 0x1b2a34, 0xfe8a18, 0x6c6e68],
+  colors: [0xffb400, 0x1b2a34, 0xfe8a18, 0x6c6e68],
   build(K) {
     const { THREE, BrickBuilder, C, rig } = K;
     const sh = kit(K);
-    const Y = C.yellow, BK = C.black, DG = C.dkgray, LG = C.ltgray;
+    const Y = 0xffb400, BK = C.black, DG = C.dkgray, LG = C.ltgray;
     const b = new BrickBuilder(0.4);
     // frame, deck and hood
     sh.box(b, 0, 0.72, -0.4, 1.2, 0.36, 3.4, DG);
@@ -24,13 +24,14 @@ export const bob = {
     for (let i = -2; i <= 2; i++) sh.box(b, i * 0.2, 1.24, 1.41, 0.08, 0.36, 0.04, BK);
     for (const sd of [-1, 1]) sh.box(b, sd * 0.45, 1.46, 1.41, 0.22, 0.12, 0.04, C.white, glow(0xfff2b0, 1));
     // seat tub and back
-    for (const sd of [-1, 1]) sh.box(b, sd * 0.78, 1.32, -0.35, 0.16, 0.5, 1.25, Y);
+    const wx = Math.min(1.0, Math.max(0.78, (rig.width || 1.3) / 2 + 0.08));
+    for (const sd of [-1, 1]) sh.box(b, sd * wx, 1.32, -0.35, 0.16, 0.5, 1.25, Y);
     sh.box(b, 0, 1.55, -0.98, 1.3, 1.0, 0.14, BK);
     sh.box(b, 0, 1.2, -0.35, 1.3, 0.12, 1.2, BK);
     // rear wheel arches and front mudguards
     for (const sd of [-1, 1]) {
-      sh.arc(b, sd * 1.2, 0.72, -1.35, 0.86, 0.25, 2.9, 7, 0.62, 0.08, Y);
-      sh.box(b, sd * 1.15, 1.12, 1.15, 0.52, 0.08, 0.9, Y);
+      sh.arc(b, sd * 1.18, 0.82, -1.35, 0.96, 0.25, 2.9, 8, 0.66, 0.08, Y);
+      sh.box(b, sd * 1.15, 1.2, 1.15, 0.52, 0.08, 0.95, Y);
       sh.box(b, sd * 0.86, 1.02, 1.15, 0.2, 0.2, 0.2, DG);
     }
     // front bumper with hazard stripes
@@ -40,22 +41,27 @@ export const bob = {
     // exhaust stack with a rain flap
     sh.tube(b, [0.5, 1.5, 1.15], [0.5, 2.25, 1.15], 0.08, LG, { m: CHROME, seg: 10 });
     sh.box(b, 0.5, 2.28, 1.12, 0.18, 0.03, 0.2, BK, { rx: -0.4 });
-    // roll-over cage behind the driver (open above, so arms never clip)
-    const px = Math.min(1.2, Math.max(0.82, (rig.width || 1.3) / 2 + 0.15));
-    const top = 1.05 + Math.min(2.5, Math.max(1.9, rig.height * 0.92));
-    for (const sd of [-1, 1]) sh.tube(b, [sd * px, 1.15, -1.1], [sd * px * 0.9, top, -1.15], 0.07, BK);
-    sh.tube(b, [-px * 0.9, top, -1.15], [px * 0.9, top, -1.15], 0.07, BK);
-    sh.box(b, 0, top - 0.02, -1.15, 0.36, 0.1, 0.3, BK);
-    for (const sd of [-1, 1]) sh.box(b, sd * px * 0.6, top - 0.02, -1.08, 0.24, 0.16, 0.08, C.white, glow(0xfff2b0, 1));
+    // a giant hard hat for a roof, on two rear posts and two thin front ones
+    const px = Math.min(1.1, Math.max(0.8, (rig.width || 1.3) / 2 + 0.12));
+    const top = 1.05 + Math.max(2.15, rig.height + 0.25);
+    for (const sd of [-1, 1]) {
+      sh.tube(b, [sd * px, 1.15, -1.1], [sd * px * 0.85, top, -1.0], 0.07, BK);
+      sh.tube(b, [sd * 0.58, 1.56, 0.75], [sd * 0.62, top, 0.6], 0.045, BK);
+      sh.box(b, sd * 0.5, top - 0.1, 0.95, 0.24, 0.14, 0.06, C.white, glow(0xfff2b0, 1.2));
+    }
+    sh.cylY(b, 0, top, -0.25, 1.22, 0.07, Y, { r2: 1.42, seg: 22 });
+    sh.dome(b, 0, top + 0.03, -0.3, 0.98, 0.55, 1.12, Y, { seg: 20 });
+    sh.box(b, 0, top + 0.5, -0.3, 0.16, 0.14, 1.5, Y);
+    sh.cylY(b, 0, top + 0.03, -0.3, 0.99, 0.05, BK, { r2: 1.13, seg: 20 });
     const mesh = b.build({ name: 'bob' });
 
     // amber beacon on the cage
-    const beacon = sh.part('beacon', 0, top + 0.06, -1.15, (pb) => {
+    const beacon = sh.part('beacon', 0, top + 0.56, -0.85, (pb) => {
       sh.cylY(pb, 0, 0.12, 0, 0.13, 0.24, C.orange, { m: { trans: true, opacity: 0.6, emissive: 0xff8a00, emissiveIntensity: 1.2 } });
       sh.box(pb, 0, 0.12, 0.07, 0.2, 0.12, 0.05, C.yellow, glow(0xffd000, 3));
     });
     // tipping dump bed full of loose bricks (pivots on its rear edge)
-    const bed = new THREE.Group(); bed.position.set(0, 1.2, -2.3);
+    const bed = new THREE.Group(); bed.position.set(0, 1.2, -2.42);
     const bb = new BrickBuilder(0.4);
     sh.box(bb, 0, 0.05, 0.62, 1.7, 0.1, 1.24, Y);
     for (const sd of [-1, 1]) sh.box(bb, sd * 0.82, 0.36, 0.62, 0.08, 0.62, 1.24, Y);
@@ -82,7 +88,7 @@ export const bob = {
     sh.box(ab, 0, -0.72, 1.7, 1.95, 0.62, 0.08, Y);
     sh.box(ab, 0, -0.42, 1.78, 1.95, 0.08, 0.2, Y);
     for (const sd of [-1, 1]) sh.box(ab, sd * 0.97, -0.78, 1.95, 0.06, 0.5, 0.6, Y);
-    for (let i = -3; i <= 3; i++) sh.cone(ab, i * 0.27, -1.03, 2.38, 0.06, 0.2, LG, { rx: PI / 2, seg: 5 });
+    for (let i = -3; i <= 3; i++) sh.cone(ab, i * 0.27, -1.03, 2.3, 0.06, 0.2, LG, { rx: PI / 2, seg: 5 });
     ab.brick(-0.4, -0.98, 1.95, 2, 2, 3, C.red, { rot: 0.3 }); ab.brick(0.35, -0.98, 2.0, 1, 2, 3, C.blue, { rot: -0.5 });
     arms.add(ab.build({ name: 'loader' }));
 
@@ -90,9 +96,9 @@ export const bob = {
     return {
       mesh, seat: [0, 1.05, -0.35], control: 'wheel', parts: [beacon, bed, arms],
       wheels: [
-        { x: 0, z: -1.35, r: 0.72, w: 0.56, xs: [1.2, -1.2], cap: C.orange },
-        { x: 1.15, z: 1.15, r: 0.5, w: 0.42, front: true, cap: C.orange },
-        { x: -1.15, z: 1.15, r: 0.5, w: 0.42, front: true, cap: C.orange },
+        { x: 0, z: -1.35, r: 0.82, w: 0.6, xs: [1.18, -1.18], cap: C.orange },
+        { x: 1.15, z: 1.15, r: 0.55, w: 0.44, front: true, cap: C.orange },
+        { x: -1.15, z: 1.15, r: 0.55, w: 0.44, front: true, cap: C.orange },
       ],
       exhaust: [[0.5, 2.3, 1.15, 0]],
       fx(s, dt) {
@@ -129,7 +135,6 @@ export const ava = {
       sh.box(b, sd * 1.3, 0.98, 0, 0.14, 0.14, 3.5, C.ltgray);
       sh.tube(b, [sd * 0.85, 0.86, 0], [sd * 1.3, 0.98, 0], 0.08, C.dkgray);
       sh.cylX(b, sd * 1.3, 0.98, 0, 0.12, 0.2, BL, { seg: 10 });
-      for (const z of [-1.65, 0, 1.65]) sh.box(b, sd * 1.3, 1.07, z, 0.6, 0.06, 0.95, W);  // fenders
     }
     // nose console with comet emblem and camera
     sh.box(b, 0, 1.12, 1.55, 1.5, 0.4, 0.6, W);
@@ -152,21 +157,21 @@ export const ava = {
       for (const a of [0, PI / 2, PI, -PI / 2]) sh.box(b, sd * 0.62 + cos(a) * 0.3, 1.25 + sin(a) * 0.3, -2.0, 0.04 + Math.abs(cos(a)) * 0.12, 0.04 + Math.abs(sin(a)) * 0.12, 0.35, BL);
     }
     // whip antenna with a pennant, mission flag
-    sh.tube(b, [0.85, 1.0, -1.95], [0.95, 3.0, -2.05], 0.02, BK, { seg: 4 });
-    sh.ell(b, 0.95, 3.02, -2.05, 0.06, 0.06, 0.06, C.red, glow(0xff3020, 1.5));
-    sh.box(b, 0.93, 2.7, -2.25, 0.02, 0.3, 0.4, BL);
-    sh.box(b, 0.92, 2.72, -2.2, 0.025, 0.08, 0.08, W);
+    sh.tube(b, [1.0, 1.0, -1.95], [1.08, 3.0, -2.05], 0.02, BK, { seg: 4 });
+    sh.ell(b, 1.08, 3.02, -2.05, 0.06, 0.06, 0.06, C.red, glow(0xff3020, 1.5));
+    sh.box(b, 1.07, 2.7, -2.25, 0.02, 0.3, 0.4, BL);
+    sh.box(b, 1.06, 2.72, -2.2, 0.025, 0.08, 0.08, W);
     const mesh = b.build({ name: 'ava' });
 
     // the big high-gain dish on a mast (it scans side to side)
-    const dish = new THREE.Group(); dish.position.set(-0.72, 2.3, -1.75);
+    const dish = new THREE.Group(); dish.position.set(-1.0, 2.3, -1.9);
     const db = new BrickBuilder(0.4);
     const dishMat = sh.own(W, { metal: 0.2, rough: 0.4 }); dishMat.side = THREE.DoubleSide;
-    sh.dome(db, 0, 0, 0, 0.72, 0.24, 0.72, W, { mat: dishMat, rx: -PI / 2 - 0.45, frac: 0.5, seg: 18 });
-    sh.tube(db, [0, 0, 0], [0, 0.32, 0.6], 0.025, C.dkgray, { seg: 4 });
-    sh.ell(db, 0, 0.32, 0.6, 0.07, 0.07, 0.07, BL);
+    sh.dome(db, 0, 0, 0, 0.85, 0.28, 0.85, W, { mat: dishMat, rx: -PI / 2 - 0.45, frac: 0.5, seg: 18 });
+    sh.tube(db, [0, 0, 0], [0, 0.35, 0.68], 0.025, C.dkgray, { seg: 4 });
+    sh.ell(db, 0, 0.35, 0.68, 0.07, 0.07, 0.07, BL);
     dish.add(db.build({ name: 'dish' }));
-    const mast = sh.part('mast', -0.72, 0, -1.75, (pb) => {
+    const mast = sh.part('mast', -1.0, 0, -1.9, (pb) => {
       sh.tube(pb, [0, 0.9, 0], [0, 2.3, 0], 0.05, C.dkgray);
       sh.cylY(pb, 0, 2.3, 0, 0.1, 0.12, BL, { seg: 10 });
     });
@@ -180,6 +185,8 @@ export const ava = {
       const fb = new BrickBuilder(0.4);
       sh.box(fb, 0, 0.32, 0, 0.1, 0.5, 0.12, C.ltgray);
       sh.box(fb, 0, 0.08, 0, 0.42, 0.08, 0.14, C.dkgray);
+      sh.arc(fb, 0, 0, 0, 0.56, 0.25, PI - 0.25, 6, 0.44, 0.05, W);
+      sh.arc(fb, 0, 0, 0, 0.58, 1.2, PI - 1.2, 2, 0.46, 0.03, BL);
       g.add(fb.build({ name: 'strut' }));
       wheels.push({ g, spin, front: z > 0, r: 0.42 });
       bogies.push({ g, ph: i++ * 1.7 });
@@ -214,11 +221,13 @@ export const redbeard = {
     sh.box(b, 0, 0.88, -0.25, 1.7, 0.8, 3.3, BR);
     for (const sd of [-1, 1]) for (const y of [0.62, 0.84, 1.06]) sh.box(b, sd * 0.86, y, -0.25, 0.02, 0.04, 3.3, DB);
     sh.box(b, 0, 0.45, -0.1, 0.9, 0.18, 3.6, DB);
-    sh.box(b, 0, 0.88, 1.35, 1.2, 0.8, 1.2, BR, { ry: PI / 4 });
-    sh.box(b, 0, 1.3, 1.35, 1.24, 0.08, 1.24, GD, { ry: PI / 4 });
-    sh.tube(b, [0, 1.2, 2.0], [0, 1.65, 2.68], 0.06, DB);
-    sh.ell(b, 0, 1.0, 2.2, 0.16, 0.18, 0.14, GD, { m: CHROME });                   // gold skull figurehead
-    for (const sd of [-1, 1]) sh.box(b, sd * 0.06, 1.03, 2.32, 0.06, 0.06, 0.04, BK);
+    sh.cylY(b, 0, 0.88, 1.78, 0.98, 0.8, BR, { seg: 3, r2: 0.76 });
+    sh.cylY(b, 0, 1.3, 1.78, 1.02, 0.08, GD, { seg: 3, r2: 0.8 });
+    sh.cylY(b, 0, 1.5, 1.6, 0.7, 0.34, BR, { seg: 3, r2: 0.6 });
+    sh.cylY(b, 0, 1.69, 1.6, 0.74, 0.05, GD, { seg: 3, r2: 0.63 });
+    sh.tube(b, [0, 1.55, 2.2], [0, 1.95, 2.7], 0.06, DB);
+    sh.ell(b, 0, 1.0, 2.5, 0.16, 0.18, 0.14, GD, { m: CHROME });                   // gold skull figurehead
+    for (const sd of [-1, 1]) sh.box(b, sd * 0.06, 1.03, 2.62, 0.06, 0.06, 0.04, BK);
     // gunwale rails and deck
     for (const sd of [-1, 1]) sh.box(b, sd * 0.86, 1.36, -0.25, 0.12, 0.22, 3.2, DK);
     sh.box(b, 0, 1.28, -0.25, 1.62, 0.02, 3.2, C.tan);
@@ -262,7 +271,6 @@ export const redbeard = {
       sh.tube(pb, [0, 1.3, 0], [0, 4.0, 0], 0.08, DB);
       sh.tube(pb, [-1.15, 3.35, 0.05], [1.15, 3.35, 0.05], 0.05, DB);
       sh.cylY(pb, 0, 3.72, 0, 0.26, 0.2, BR, { seg: 12 });
-      sh.tube(pb, [0, 1.6, 0.05], [0, 1.6, 2.0], 0.015, CR, { seg: 4 });
     });
     const sail = new THREE.Group(); sail.position.set(0, 3.32, -1.08);
     const sb = new BrickBuilder(0.4);
@@ -272,6 +280,8 @@ export const redbeard = {
     }
     sh.box(sb, 0, -0.62, 0.32, 0.8, 0.07, 0.02, DK); sh.box(sb, 0, -0.9, 0.3, 0.8, 0.07, 0.02, DK);
     sh.ell(sb, 0, -0.76, 0.3, 0.2, 0.2, 0.03, BK);
+    sh.box(sb, 0, -0.62, -0.01, 0.8, 0.07, 0.02, DK); sh.box(sb, 0, -0.9, 0.02, 0.8, 0.07, 0.02, DK);
+    sh.ell(sb, 0, -0.76, 0.0, 0.2, 0.2, 0.03, BK);
     sail.add(sb.build({ name: 'sail' }));
     const flag = sh.part('jolly', 0, 4.0, -1.15, (pb) => {
       sh.box(pb, 0, 0.16, -0.32, 0.03, 0.34, 0.6, BK);
@@ -378,12 +388,12 @@ export const kara = {
     // the battering ram swings from its frame
     const ram = new THREE.Group(); ram.position.set(0, 1.95, 1.55);
     const rb = new BrickBuilder(0.4);
-    for (const z of [-0.35, 0.35]) for (const sd of [-1, 1]) sh.tube(rb, [sd * 0.45, 0, 0], [sd * 0.08, -0.55, z], 0.02, C.tan, { seg: 4 });
-    sh.cylZ(rb, 0, -0.62, 0.15, 0.18, 1.75, WD, { seg: 10 });
-    for (const z of [-0.45, 0.45]) sh.cylZ(rb, 0, -0.62, z, 0.2, 0.08, C.dkgray, { seg: 10 });
-    sh.box(rb, 0, -0.62, 1.12, 0.42, 0.42, 0.3, C.dkgray, { m: CHROME });
-    for (const sd of [-1, 1]) sh.tor(rb, sd * 0.2, -0.56, 1.08, 0.16, 0.3, C.dkgray, { ry: PI / 2, seg: 10, arc: PI * 1.5 });
-    sh.box(rb, 0, -0.5, 1.28, 0.3, 0.1, 0.03, BK);
+    for (const z of [-0.15, 0.55]) for (const sd of [-1, 1]) sh.tube(rb, [sd * 0.45, 0, 0], [sd * 0.08, -0.55, z], 0.02, C.tan, { seg: 4 });
+    sh.cylZ(rb, 0, -0.62, 0.35, 0.18, 1.3, WD, { seg: 10 });
+    for (const z of [-0.15, 0.7]) sh.cylZ(rb, 0, -0.62, z, 0.2, 0.08, C.dkgray, { seg: 10 });
+    sh.box(rb, 0, -0.62, 1.0, 0.42, 0.42, 0.3, C.dkgray, { m: CHROME });
+    for (const sd of [-1, 1]) sh.tor(rb, sd * 0.2, -0.56, 0.96, 0.16, 0.3, C.dkgray, { ry: PI / 2, seg: 10, arc: PI * 1.5 });
+    sh.box(rb, 0, -0.5, 1.16, 0.3, 0.1, 0.03, BK);
     ram.add(rb.build({ name: 'ram' }));
     // pennants on the roofs
     const flags = [-1, 1].map((sd) => sh.part('pennant', sd * (X + 0.05), 3.82, Z0, (pb) => {
@@ -415,20 +425,26 @@ export const kara = {
 export const rex = {
   id: 'rex', name: 'Turbo Titan', form: 'Jet dragster', blurb: 'All turbine, no brakes',
   stats: { speed: 5, accel: 2, handling: 1, weight: 4 },
-  colors: [0x6c6e68, 0xbbe90b, 0x1b2a34, 0xa0a5a9],
+  colors: [0x4b5056, 0xbbe90b, 0x1b2a34, 0xa0a5a9],
   build(K) {
     const { THREE, BrickBuilder, C, wheelGeo, wheelMat } = K;
     const sh = kit(K);
-    const DG = C.dkgray, LI = C.lime, BK = C.black, LG = C.ltgray;
-    const RZ = -1.55, RR = 0.8, TY = 1.8, TZ = -1.72;
+    const DG = 0x4b5056, LI = C.lime, BK = C.black, LG = C.ltgray;
+    const RZ = -1.5, RR = 0.86, TY = 1.95, TZ = -1.8, TR = 0.8;
     const b = new BrickBuilder(0.4);
-    // long fuselage and robot-head nose
-    sh.box(b, 0, 0.62, 0.35, 0.95, 0.5, 3.2, DG);
-    sh.ell(b, 0, 0.62, 1.95, 0.5, 0.3, 0.72, DG, { seg: 16 });
-    sh.box(b, 0, 0.7, 2.3, 0.82, 0.16, 0.36, BK, { rx: -0.3 });
-    sh.box(b, 0, 0.73, 2.4, 0.66, 0.06, 0.12, LI, glow(0x9cff20, 1.4));
-    for (let i = -2; i <= 2; i++) sh.box(b, i * 0.1, 0.48, 2.44, 0.05, 0.14, 0.12, LG, { m: CHROME });
-    for (const sd of [-1, 1]) { sh.cylX(b, sd * 0.47, 0.72, 2.0, 0.1, 0.08, LI, { seg: 8 }); sh.tube(b, [sd * 0.4, 0.85, 1.9], [sd * 0.55, 1.3, 1.7], 0.025, BK, { seg: 4 }); sh.ell(b, sd * 0.55, 1.32, 1.7, 0.05, 0.05, 0.05, LI, glow(0x9cff20, 1.6)); }
+    // fuselage and a blocky robot head for a nose: visor, glowing eyes, chrome jaw, ear bolts
+    sh.box(b, 0, 0.62, 0.2, 0.95, 0.5, 2.9, DG);
+    sh.box(b, 0, 0.95, 2.0, 1.1, 0.72, 0.72, DG);
+    sh.box(b, 0, 1.33, 2.0, 1.16, 0.08, 0.78, LI);
+    sh.box(b, 0, 1.02, 2.37, 0.98, 0.28, 0.04, BK);
+    for (const sd of [-1, 1]) sh.box(b, sd * 0.3, 1.02, 2.395, 0.22, 0.12, 0.02, LI, glow(0x9cff20, 2));
+    sh.box(b, 0, 0.5, 2.15, 0.92, 0.22, 0.6, LG, { m: CHROME });
+    for (let i = -3; i <= 3; i++) sh.box(b, i * 0.12, 0.64, 2.42, 0.07, 0.1, 0.04, C.white);
+    for (const sd of [-1, 1]) {
+      sh.cylX(b, sd * 0.58, 0.95, 2.0, 0.17, 0.08, LI, { seg: 10 });
+      sh.tube(b, [sd * 0.6, 1.05, 2.0], [sd * 0.78, 1.8, 1.85], 0.025, BK, { seg: 4 });
+      sh.ell(b, sd * 0.78, 1.83, 1.85, 0.06, 0.06, 0.06, LI, glow(0x9cff20, 1.6));
+    }
     // front wing
     sh.box(b, 0, 0.26, 2.42, 2.0, 0.06, 0.4, LI);
     for (const sd of [-1, 1]) sh.box(b, sd * 1.0, 0.36, 2.42, 0.05, 0.3, 0.5, BK);
@@ -441,43 +457,43 @@ export const rex = {
     }
     sh.box(b, 0, 0.98, 0.55, 1.0, 0.14, 0.2, C.azure, { rx: -0.6, m: { trans: true, opacity: 0.45 } });
     sh.box(b, 0, 0.95, -1.1, 1.3, 0.75, 0.16, BK);
-    // turbine on its pylon
-    sh.box(b, 0, 1.2, TZ + 0.2, 0.5, 0.6, 0.9, DG);
-    sh.cylZ(b, 0, TY, TZ, 0.64, 1.45, LG, { seg: 20, m: CHROME });
-    sh.tor(b, 0, TY, TZ + 0.74, 0.62, 0.12, DG, { seg: 20 });
-    for (const z of [TZ + 0.35, TZ - 0.3]) sh.cylZ(b, 0, TY, z, 0.655, 0.1, LI, { seg: 20 });
-    sh.cylZ(b, 0, TY, TZ - 0.78, 0.52, 0.14, BK, { seg: 20 });
-    sh.ell(b, 0, TY, TZ + 0.78, 0.2, 0.2, 0.12, BK, { seg: 10 });
-    // rear axle, struts
+    // the turbine on its pylon
+    sh.box(b, 0, 1.05, TZ + 0.2, 0.5, 0.45, 1.0, DG);
+    sh.cylZ(b, 0, TY, TZ, TR, 1.6, LG, { seg: 22, m: CHROME });
+    sh.tor(b, 0, TY, TZ + 0.8, TR - 0.02, 0.12, DG, { seg: 22 });
+    for (const z of [TZ + 0.42, TZ - 0.35]) sh.cylZ(b, 0, TY, z, TR + 0.015, 0.12, LI, { seg: 22 });
+    sh.cylZ(b, 0, TY, TZ - 0.82, TR - 0.14, 0.12, BK, { seg: 22 });
+    sh.ell(b, 0, TY, TZ + 0.8, 0.24, 0.24, 0.14, BK, { seg: 10 });
+    // rear axle, wheel wings
     sh.cylX(b, 0, RR, RZ, 0.1, 2.3, BK, { seg: 8 });
-    for (const sd of [-1, 1]) sh.box(b, sd * 1.3, RR + 0.62, RZ, 0.82, 0.08, 1.05, LI);
+    for (const sd of [-1, 1]) sh.box(b, sd * 1.3, 2 * RR + 0.1, RZ, 0.82, 0.08, 1.1, LI);
     const mesh = b.build({ name: 'rex' });
 
     // afterburner glow and turbine blades
     const burnMat = sh.own(0xff8020, { emissive: 0xff5a00, ei: 1 });
-    const fan = sh.part('fan', 0, TY, TZ - 0.76, (pb) => {
-      for (let i = 0; i < 9; i++) { const a = (i / 9) * PI * 2; sh.box(pb, cos(a) * 0.26, sin(a) * 0.26, 0, 0.42, 0.1, 0.04, LG, { rz: a + 0.5, m: CHROME }); }
+    const fan = sh.part('fan', 0, TY, TZ - 0.8, (pb) => {
+      for (let i = 0; i < 9; i++) { const a = (i / 9) * PI * 2; sh.box(pb, cos(a) * 0.33, sin(a) * 0.33, 0, 0.56, 0.13, 0.04, LG, { rz: a + 0.5, m: CHROME }); }
       sh.cone(pb, 0, 0, -0.1, 0.14, 0.2, DG, { rx: -PI / 2, seg: 10 });
     });
-    const burner = sh.part('burner', 0, TY, TZ - 0.8, (pb) => sh.tor(pb, 0, 0, 0, 0.47, 0.12, 0, { mat: burnMat, seg: 20 }));
+    const burner = sh.part('burner', 0, TY, TZ - 0.86, (pb) => sh.tor(pb, 0, 0, 0, TR - 0.18, 0.12, 0, { mat: burnMat, seg: 22 }));
     // scanner eye sweeping across the visor
-    const eye = sh.part('scanner', 0, 0.73, 2.47, (pb) => sh.box(pb, 0, 0, 0, 0.14, 0.07, 0.04, C.red, glow(0xff1010, 3)));
+    const eye = sh.part('scanner', 0, 1.02, 2.405, (pb) => sh.box(pb, 0, 0, 0, 0.14, 0.07, 0.04, C.red, glow(0xff1010, 3)));
     // little front wheels ride with the body (so wheelies lift them)
     const fronts = [1, -1].map((sd) => {
       const g = new THREE.Group(); g.position.set(sd * 0.92, 0.3, 1.95);
       const m = new THREE.Mesh(wheelGeo(0.3, 0.22, LI, [0]), wheelMat); g.add(m);
       return { g, m, sd };
     });
-    const struts = sh.part('struts', 0, 0, 0, (pb) => { for (const sd of [-1, 1]) sh.tube(pb, [sd * 0.4, 0.55, 1.9], [sd * 0.82, 0.3, 1.95], 0.05, LG, { m: CHROME }); });
+    const struts = sh.part('struts', 0, 0, 0, (pb) => { for (const sd of [-1, 1]) sh.tube(pb, [sd * 0.5, 0.6, 1.95], [sd * 0.82, 0.3, 1.95], 0.05, LG, { m: CHROME }); });
     let pitch = 0;
     return {
       mesh, seat: [0, 0.78, -0.45], control: 'wheel', parts: [fan, burner, eye, struts, ...fronts.map((f) => f.g)],
-      wheels: [{ x: 0, z: RZ, r: RR, w: 0.72, xs: [1.3, -1.3], cap: LI }, ...fronts.map((f) => ({ g: new THREE.Group(), spin: f.m, front: false, r: 0.3 }))],
-      exhaust: [[0.22, TY, TZ - 0.85], [-0.22, TY, TZ - 0.85]],
+      wheels: [{ x: 0, z: RZ, r: RR, w: 0.74, xs: [1.3, -1.3], cap: LI }, ...fronts.map((f) => ({ g: new THREE.Group(), spin: f.m, front: false, r: 0.3 }))],
+      exhaust: [[0.25, TY, TZ - 0.9], [-0.25, TY, TZ - 0.9]],
       fx(s, dt) {
         fan.rotation.z += dt * (6 + s.speed01 * 30 + (s.boosting ? 30 : 0));
         burnMat.emissiveIntensity = 0.6 + s.speed01 * 1.2 + (s.boosting ? 2.5 : 0) + sin(s.t * 40) * 0.2;
-        eye.position.x = sin(s.t * 3.4) * 0.26;
+        eye.position.x = sin(s.t * 3.4) * 0.36;
         for (const f of fronts) f.g.rotation.y = -s.steer * 0.4;
         pitch += ((s.boosting && s.grounded ? -0.24 : 0) - pitch) * ease(dt, 4);
         const up = mesh.parent;
@@ -496,7 +512,7 @@ export const nix = {
     const { THREE, BrickBuilder, C, wheelGeo, wheelMat } = K;
     const sh = kit(K);
     const BK = C.black, GR = C.green, LI = C.lime, STEEL = { metal: 0.9, rough: 0.18 };
-    const RZ = -1.75, RR = 0.66;
+    const RZ = -1.95, RR = 0.66;
     const b = new BrickBuilder(0.4);
     // arrowhead body: spine, swept side blades, pointed nose
     sh.box(b, 0, 0.5, 0.15, 0.8, 0.34, 3.2, BK);
@@ -527,7 +543,7 @@ export const nix = {
     const star = (pb, r, x = 0) => {
       for (let i = 0; i < 4; i++) {
         const a = (i / 4) * PI * 2;
-        sh.cone(pb, x, cos(a) * r * 0.45, sin(a) * r * 0.45, 0.03, r * 0.95, 0xd8dde0, { rx: a - PI / 2 + PI, r2: r * 0.32, seg: 4, m: STEEL });
+        sh.cone(pb, x, cos(a) * r * 0.45, sin(a) * r * 0.45, 0.03, r * 0.95, 0xd8dde0, { rx: a, r2: r * 0.32, seg: 4, m: STEEL });
       }
       sh.cylX(pb, x, 0, 0, r * 0.18, 0.1, GR, { seg: 10 });
     };
@@ -548,8 +564,8 @@ export const nix = {
     };
     // blade fins that flare out on turns and boost
     const fins = [-1, 1].map((sd) => sh.part('fin', sd * 0.6, 1.0, -0.9, (pb) => {
-      sh.box(pb, sd * 0.2, 0.42, -0.62, 0.04, 0.9, 1.4, 0xd8dde0, { rx: 0.85, rz: sd * -0.25, m: STEEL });
-      sh.box(pb, sd * 0.24, 0.62, -0.42, 0.05, 0.08, 1.4, GR, { rx: 0.85, rz: sd * -0.25 });
+      sh.cone(pb, sd * 0.12, 0.62, -0.55, 0.03, 1.55, 0xd8dde0, { rx: -0.8, rz: sd * -0.22, r2: 0.34, seg: 4, m: STEEL });
+      sh.cone(pb, sd * 0.13, 0.42, -0.38, 0.045, 0.95, GR, { rx: -0.8, rz: sd * -0.22, r2: 0.22, seg: 4 });
     }));
     // vanishing-smoke puffs on boost
     const smoke = sh.part('smoke', 0, 0.7, -2.6, (pb) => { for (let i = 0; i < 4; i++) sh.ell(pb, sin(i * 2.2) * 0.45, sin(i * 1.3) * 0.2, -i * 0.25, 0.3 - i * 0.04, 0.26, 0.3, 0x3a3f44, { seg: 8 }); });
@@ -606,10 +622,10 @@ export const flo = {
       sh.box(b, sd * 0.88, 1.05, 0.65, 0.16, 0.8, 1.4, RD);
       sh.box(b, sd * 0.965, 1.15, 0.65, 0.02, 0.12, 1.4, W);
       sh.ell(b, sd * 0.97, 0.88, 0.75, 0.01, 0.16, 0.16, GD);
-      sh.tube(b, [sd * 0.85, 1.35, 1.4], [sd * 0.8, 2.1, 1.25], 0.05, RD);
+      sh.tube(b, [sd * 0.85, 1.35, 1.5], [sd * 0.8, 2.12, 1.38], 0.05, RD);
     }
-    sh.box(b, 0, 1.75, 1.33, 1.55, 0.7, 0.03, C.azure, { rx: -0.2, m: { trans: true, opacity: 0.35 } });
-    sh.box(b, 0, 2.12, 1.25, 1.7, 0.08, 0.16, RD);
+    sh.box(b, 0, 1.75, 1.45, 1.55, 0.7, 0.03, C.azure, { rx: -0.2, m: { trans: true, opacity: 0.35 } });
+    sh.box(b, 0, 2.14, 1.38, 1.7, 0.08, 0.16, RD);
     sh.box(b, 0, 0.75, 0.65, 1.6, 0.12, 1.4, C.dkgray);
     sh.box(b, 0, 1.25, -0.1, 1.6, 1.2, 0.16, BK);
     // equipment body with roll-up lockers, hose reel and step
@@ -619,21 +635,22 @@ export const flo = {
       sh.box(b, sd * 0.985, 1.12, z, 0.02, 0.62, 0.9, LG);
       for (let i = 0; i < 5; i++) sh.box(b, sd * 0.995, 0.86 + i * 0.13, z, 0.01, 0.02, 0.88, C.dkgray);
     }
-    sh.cylX(b, 0, 1.92, -0.6, 0.36, 1.2, C.dkgray, { seg: 14 });
-    for (let i = 0; i < 4; i++) sh.cylX(b, -0.45 + i * 0.3, 1.92, -0.6, 0.38, 0.22, W, { seg: 14 });
+    for (const sd of [-1, 1]) { sh.tor(b, sd * 0.45, 1.1, -2.53, 0.24, 0.3, W, { seg: 16 }); sh.cylZ(b, sd * 0.45, 1.1, -2.52, 0.12, 0.04, C.dkgray, { seg: 10 }); }
+    sh.cylY(b, 0, 1.82, -2.3, 0.3, 0.36, C.dkgray, { seg: 14 });
+    sh.box(b, 0, 1.95, -0.45, 0.5, 0.6, 0.1, C.dkgray);
     sh.box(b, 0, 0.62, -2.6, 1.6, 0.08, 0.2, LG, { m: CHROME });
-    for (const sd of [-1, 1]) sh.box(b, sd * 0.75, 1.0, -2.51, 0.2, 0.3, 0.04, C.red, glow(0xff1010, 1.2));
+    for (const sd of [-1, 1]) sh.box(b, sd * 0.8, 0.85, -2.51, 0.2, 0.2, 0.04, C.red, glow(0xff1010, 1.2));
     // exhaust stacks behind the cab
     for (const sd of [-1, 1]) sh.tube(b, [sd * 0.9, 1.5, -0.12], [sd * 0.9, 2.45, -0.12], 0.07, LG, { m: CHROME, seg: 10 });
     const mesh = b.build({ name: 'flo' });
 
     // flashing light bar (two own materials, swapped in fx)
     const redM = sh.own(C.red, { emissive: 0xff1010, ei: 2 }), bluM = sh.own(C.blue, { emissive: 0x2060ff, ei: 0.2 });
-    const lights = sh.part('lightbar', 0, 2.28, 1.25, (pb) => {
+    const lights = sh.part('lightbar', 0, 2.3, 1.38, (pb) => {
       sh.box(pb, 0, -0.04, 0, 1.4, 0.06, 0.24, BK);
       for (const sd of [-1, 1]) { sh.box(pb, sd * 0.4, 0.06, 0, 0.5, 0.16, 0.22, 0, { mat: sd > 0 ? redM : bluM }); }
       sh.box(pb, 0, 0.06, 0, 0.26, 0.14, 0.2, W, glow(0xffffff, 0.6));
-      for (const sd of [-1, 1]) sh.box(pb, sd * 0.75, -1.27, -3.74, 0.18, 0.18, 0.18, 0, { mat: sd > 0 ? bluM : redM });
+      for (const sd of [-1, 1]) sh.box(pb, sd * 0.75, -0.72, -3.9, 0.2, 0.2, 0.06, 0, { mat: sd > 0 ? bluM : redM });
     });
     // the ladder rises (and extends) on its turntable; water cannon sprays on boost
     const ladder = new THREE.Group(); ladder.position.set(0, 2.3, -2.3);
@@ -689,7 +706,7 @@ export const wendel = {
     const b = new BrickBuilder(0.4);
     // the handle, curled at the tip
     sh.tube(b, [0, 0.5, -1.4], [0, 0.72, 2.2], 0.1, WD, { seg: 8 });
-    sh.tor(b, 0, 0.98, 2.22, 0.26, 0.32, WD, { ry: PI / 2, seg: 12, arc: PI * 1.3, rx: 0 });
+    sh.tor(b, 0, 0.98, 2.22, 0.26, 0.32, WD, { ry: -PI / 2, rz: -PI / 2, seg: 12, arc: PI * 1.3 });
     for (const z of [0.4, 1.4]) sh.cylZ(b, 0, 0.5 + (z + 1.4) * 0.061, z, 0.12, 0.08, PE, { seg: 10 });
     // bristle bundle, bound in gold
     sh.cone(b, 0, 0.45, -2.0, 0.62, 1.4, STRAW, { rx: PI / 2, seg: 14 });
@@ -741,17 +758,13 @@ export const wendel = {
         sh.box(pb, cos(a) * r, y, sin(a) * r, 0.2, 0.06, 0.06, C.yellow, { ...starMat, ry: i });
       }
     });
-    // sparkle trail behind the bristles (fixed pieces, positions cycled each frame)
-    const trail = new THREE.Group(); trail.position.set(0, 0.45, -2.9);
-    const sparks = [];
-    const sgeo = new THREE.OctahedronGeometry(0.09);
-    const smat = sh.own(0xffe9a0, { emissive: 0xffc040, ei: 2.2 });
-    const NS = 8;
-    for (let i = 0; i < NS; i++) {
-      const m = new THREE.Mesh(sgeo, i % 2 ? smat : crystal); trail.add(m);
-      sparks.push({ m, ph: i / NS, x: sin(i * 2.7) * 0.45, y: cos(i * 1.9) * 0.35 });
-    }
-    // two shared materials -> the instanced look without per-frame allocation
+    // sparkle trail behind the bristles (one instanced mesh, matrices reused every frame)
+    const NS = 10;
+    const trail = new THREE.InstancedMesh(new THREE.OctahedronGeometry(0.1), sh.own(0xffe9a0, { emissive: 0xffc040, ei: 2.2 }), NS);
+    trail.frustumCulled = false; trail.position.set(0, 0.45, -2.9);
+    const sp = [];
+    for (let i = 0; i < NS; i++) sp.push({ ph: i / NS, x: sin(i * 2.7) * 0.45, y: cos(i * 1.9) * 0.35 });
+    const TM = new THREE.Matrix4(), TQ = new THREE.Quaternion(), TE = new THREE.Euler(), TV = new THREE.Vector3(), TS = new THREE.Vector3();
     let lean = 0, pitch = 0;
     return {
       mesh, seat: [0, 0.8, -0.45], control: 'bars', hover: 0.6, parts: [lantern, pot, stars, trail],
@@ -764,12 +777,14 @@ export const wendel = {
         crystal.emissiveIntensity = 1.2 + sin(s.t * 5) * 0.6;
         pot.rotation.x = s.speed01 * 0.4 + sin(s.t * 2.3) * 0.12;
         const rate = 0.6 + s.speed01 * 1.4 + (s.boosting ? 2 : 0);
-        for (const p of sparks) {
+        for (let i = 0; i < NS; i++) {
+          const p = sp[i];
           p.ph = (p.ph + dt * rate) % 1;
-          p.m.position.set(p.x * (0.4 + p.ph), p.y * (0.4 + p.ph) + sin(s.t * 6 + p.x * 9) * 0.08, -p.ph * 1.6);
-          p.m.scale.setScalar(Math.max(0.05, (1 - p.ph) * 1.4));
-          p.m.rotation.y += dt * 4;
+          TV.set(p.x * (0.4 + p.ph), p.y * (0.4 + p.ph) + sin(s.t * 6 + i) * 0.08, -p.ph * 1.6);
+          TQ.setFromEuler(TE.set(0, s.t * 4 + i, 0.5));
+          trail.setMatrixAt(i, TM.compose(TV, TQ, TS.setScalar(Math.max(0.05, (1 - p.ph) * 1.4))));
         }
+        trail.instanceMatrix.needsUpdate = true;
         lean += (s.steer * 0.28 - lean) * ease(dt, 5);
         pitch += ((s.boosting ? 0.1 : s.gliding ? -0.12 : 0) - pitch) * ease(dt, 4);
         const up = mesh.parent;

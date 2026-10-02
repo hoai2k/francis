@@ -99,12 +99,24 @@ export const coneGeo = () => cached('origCone', () => new THREE.ConeGeometry(1, 
 export const sphGeo = () => cached('origSph', () => new THREE.SphereGeometry(1, 12, 8));
 
 const sph = () => cached('origSph', () => new THREE.SphereGeometry(1, 12, 8));
-const oct = () => cached('origOct', () => new THREE.OctahedronGeometry(1, 0));
+// an indexed octahedron (so it merges with the other indexed geometry)
+export const oct = () => cached('origOct', () => new THREE.SphereGeometry(1, 4, 2));
+// Lower-poly spheres for a builder (the shared one uses 14x9 segments): keeps the
+// sphere-heavy drivers (beards, fur, pearls, puffs) inside the triangle budget.
+function loSphere(x, y, z, r, color, opts = {}) {
+  this.add(sph(), opts.mat || plastic(color, opts.matOpts), x, y, z, 0, r, r * (opts.sy || 1), r);
+}
+export function lo(b) { b.sphere = loSphere; return b; }
+// seatedFig with low-poly spheres in every part builder
+export function loFig(o) {
+  const w = (fn) => fn && ((b, ...a) => fn(lo(b), ...a));
+  return seatedFig({ ...o, head: w(o.head), headExtra: w(o.headExtra), torsoExtra: w(o.torsoExtra), arm: w(o.arm) });
+}
 
 // a separately built part on its own pivot (so it can be shown, hidden, moved or spun)
 export function prop(parent, fn, { x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0, name = 'driver-prop', visible = true } = {}) {
   const g = new THREE.Group(); g.position.set(x, y, z); g.rotation.set(rx, ry, rz); g.visible = visible;
-  const b = new BrickBuilder(1); fn(b); g.add(b.build({ name }));
+  const b = lo(new BrickBuilder(1)); fn(b); g.add(b.build({ name }));
   parent.add(g);
   return g;
 }
@@ -133,7 +145,7 @@ export function ring(parent, mat, R, t = 0.06, segs = 28) {
 export function rnd(seed = 7) { let s = seed; return () => ((s = (s * 16807) % 2147483647) / 2147483647); }
 // one mesh of n puffs (smoke, dust, steam, water drops) scattered in a ball of radius spread
 export function puffs(parent, mat, n, spread, r, seed = 3, { up = 0, flat = 1 } = {}) {
-  const R = rnd(seed), b = new BrickBuilder(1);
+  const R = rnd(seed), b = lo(new BrickBuilder(1));
   for (let i = 0; i < n; i++) {
     const a = R() * PI * 2, e = (R() - 0.3) * PI * 0.6, d = spread * (0.35 + R() * 0.65);
     const m = new THREE.Matrix4().compose(

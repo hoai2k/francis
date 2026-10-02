@@ -40,7 +40,7 @@ const jeep = {
     disc(b, 0, 1.0, -2.05, 0.36, 0.32, 'z', 0x222222, { seg: 18 });
     decal(b, 0, 0, 1.0, -2.215, 0.66, 0.66, '-z');
     // green interior: seats and rear bench
-    const sw = clamp(f.hip * 2 + 0.38, 1.3, 1.7);
+    const sw = clamp(f.hip * 2 + 0.1, 1.3, 1.75);
     b.box(0, 0.62, -0.48, sw, 0.28, 0.72, 0x2f5a3a);
     b.box(0, 0.9, -0.9, sw, 0.72, 0.16, 0x2f5a3a);
     b.box(0, 0.62, -1.45, 1.7, 0.36, 0.55, 0x2f5a3a);
@@ -169,7 +169,7 @@ const explorer = {
       b.box(sd * 0.92, 1.3, -0.55, 0.18, 0.06, 3.7, JGREEN);
     }
     b.box(0, 0.78, -0.5, 1.7, 0.06, 3.6, C.tan);
-    const sw = clamp(f.hip * 2 + 0.4, 1.4, 1.66);
+    const sw = clamp(f.hip * 2 + 0.2, 1.4, 1.66);
     b.box(0, 0.8, -0.32, sw, SY - 0.76, 0.75, C.tan);
     b.box(0, 1.0, -0.74, sw, 0.8, 0.16, C.tan);
     b.box(0, 0.8, -1.55, 1.7, 0.36, 0.6, C.tan);
@@ -220,7 +220,7 @@ const talon = {
   id: 'talon', name: 'Royal Talon', form: 'Wakandan hover-car', blurb: 'Vibranium-powered glide',
   stats: { speed: 4, accel: 4, handling: 3, weight: 2 }, colors: [TDARK, TPURP, TSILV],
   build({ THREE, BrickBuilder, C, rig }) {
-    const f = fitOf(rig), TX = clamp(f.hip + 0.24, 0.68, 0.88);   // cockpit walls clear the hips
+    const f = fitOf(rig), TX = clamp(f.hip + 0.1, 0.68, 0.95);   // cockpit walls clear the hips
     const b = new BrickBuilder(0.4);
     const glow = glowMat(0x6a2ad0, 0x8a3dff, 1.0);
     const G = { mat: glow }, MET = { matOpts: { metal: 0.7, rough: 0.25 } };
@@ -284,20 +284,20 @@ const stark = {
   id: 'starkcar', name: 'Stark Roadster', form: 'Sports roadster', blurb: 'Arc-reactor powered',
   stats: { speed: 5, accel: 3, handling: 3, weight: 2 }, colors: [SRED, SGOLD, 0x1b2a34],
   build({ THREE, BrickBuilder, C, rig }) {
-    const f = fitOf(rig);
+    const f = fitOf(rig), DX = clamp(f.hip + 0.13, 0.95, 1.05) - 0.95;   // tub sides clear broad hips
     const b = new BrickBuilder(0.4);
     const arc = glowMat(0xd8f8ff, 0x6fe0ff, 1.4);                 // arc reactor, LEDs and repulsors
     const A = { mat: arc }, glass = { matOpts: { trans: true, opacity: 0.4 } };
     b.box(0, 0.18, 0, 1.9, 0.2, 4.8, C.black);
     // low cockpit tub and seats
-    for (const sd of [-1, 1]) b.box(sd * 0.95, 0.32, -0.3, 0.22, 0.58, 2.0, SRED);
+    for (const sd of [-1, 1]) b.box(sd * (0.95 + DX), 0.32, -0.3, 0.22, 0.58, 2.0, SRED);
     b.box(0, 0.32, -0.42, 1.7, 0.1, 1.6, C.black);
-    const sw = clamp(f.hip * 2 + 0.25, 1.2, 1.6);
+    const sw = clamp(f.hip * 2, 1.2, 1.7);
     b.box(0, 0.36, -0.42, sw, 0.26, 0.72, C.black);
     b.box(0, 0.6, -0.86, sw, 0.62, 0.16, C.black);
     for (const sd of [-1, 1]) {
-      b.box(sd * 1.07, 0.36, -0.95, 0.04, 0.48, 0.52, SGOLD);        // gold side blades
-      b.box(sd * 1.09, 0.46, -0.95, 0.02, 0.26, 0.3, C.black);       // intake
+      b.box(sd * (1.07 + DX), 0.36, -0.95, 0.04, 0.48, 0.52, SGOLD);        // gold side blades
+      b.box(sd * (1.09 + DX), 0.46, -0.95, 0.02, 0.26, 0.3, C.black);       // intake
       b.box(sd * 1.12, 0.6, 1.45, 0.4, 0.28, 1.05, SRED);            // front fenders
       b.box(sd * 1.14, 0.62, -1.4, 0.42, 0.34, 1.1, SRED);           // rear haunches
       b.box(sd * 1.14, 0.96, -1.4, 0.36, 0.04, 0.9, SGOLD);
@@ -362,7 +362,7 @@ const chariot = {
   id: 'goatchariot', name: 'Goat Chariot', form: 'Goat-drawn chariot', blurb: 'Two goats, zero brakes',
   stats: { speed: 3, accel: 4, handling: 4, weight: 2 }, colors: [WOOD, AGOLD, 0xc91a09, 0xe8e2d4],
   build({ THREE, BrickBuilder, C, rig }) {
-    const f = fitOf(rig), DX = clamp(f.hip + 0.32, 0.9, 1.0) - 0.9;   // the car widens for broad hips
+    const f = fitOf(rig), DX = clamp(f.hip + 0.1, 0.9, 1.02) - 0.9;   // the car widens for broad hips
     const b = new BrickBuilder(0.4);
     const gold = { matOpts: { metal: 0.65, rough: 0.3 } };
     // car body
