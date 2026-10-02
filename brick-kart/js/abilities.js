@@ -10,7 +10,9 @@
 //     multi?: n,                    uses per pickup (like Triple Rockets)
 //     gesture?: 'throwF' | 'throwB' | 'use',   driver animation when used (default 'use')
 //     ai?(k, ctx) -> boolean | { back: true },  should a CPU use it now (default: after a short wait)
-//     use(k, ctx, { back, aimFwd }) }          do it (spawn entities, change karts)
+//     use(k, ctx, { back, aimFwd }),          do it (spawn entities, change karts)
+//     prewarm?(ctx) -> Object3D | Object3D[] }  sample meshes using the ability's materials; the race
+//                                   adds them hidden-but-compiled at load so first use doesn't stutter
 //
 // ctx (made by Items) gives: race, track, scene, fx, audio, THREE, BrickBuilder, C, plastic,
 //   spawn(entity)      entity = { update(dt) -> keep alive?, dispose(), danger?(pos, r) -> bool,
@@ -21,11 +23,12 @@
 //   near(pos, r, except?)        karts within r of pos
 //   ring(pos, radius, color)     expanding shockwave ring;  explode(pos, radius, by)
 //   at(i, lat, h, out?)          a point on the track (sample index i, lateral offset, height)
-// Karts expose pos, yaw, speed, loc.i, boost(t), place(i, lat), hit(kind, by), invuln, and an
-// optional onBump(other) hook that the race calls when two karts bump (cleared by the ability).
+// Karts expose pos, yaw, speed, loc.i, boost(t), place(i, lat), hit(kind, by), invuln, an optional
+// onBump(other) hook that the race calls when two karts bump, and an optional aimAt (a kart) that
+// makes a CPU driver steer at that rival; abilities set and clear both.
 // Packs are listed in FINISHED once reviewed; unfinished ones only load in developer test
 // races (?quick=… or ?abilities=all) so half-built abilities never reach item boxes.
-const FINISHED = ['starwars'];
+const FINISHED = ['starwars', 'jjk'];
 const q = new URLSearchParams(location.search);
 const dev = q.has('quick') || q.has('abilities');
 const PACKS = ['starwars', 'marvel', 'jjk', 'jurassic'].filter((id) => dev || FINISHED.includes(id));

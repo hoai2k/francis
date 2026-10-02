@@ -56,8 +56,7 @@ function growl(au, a, at = 0) {
 function rexRoar(k, ctx) {
   const { race, scene, fx } = ctx;
   const rig = take('rex');
-  const J = globalThis.__jpa || {};
-  const S = J.S ?? 1.6, BACK = J.BACK ?? -5, SIDE = J.SIDE ?? 9.5, LIFT = J.LIFT ?? -5, TURN = J.TURN ?? 0.85;
+  const S = 1.6, BACK = -5, SIDE = 9.5, LIFT = -5, TURN = 0.85;
   rig.holder.scale.setScalar(S);
   rig.holder.visible = true;
   scene.add(rig.holder);
@@ -291,6 +290,15 @@ function raptorEnt(k, ctx, name, n, target, claimed) {
         pos.set(from.x + Math.cos(f) * flee * u * 7 + Math.sin(f) * u * 4, from.y + Math.sin(u * Math.PI) * 3.5, from.z - Math.sin(f) * flee * u * 7 + Math.cos(f) * u * 4);
         raptorRun(rig, ph += dt * 14, 0.6);
         if (u >= 1) vanish();
+      } else if (phase === 'knock') {
+        // knocked flying by a Force Push / lightsaber: tumble away, then vanish
+        const u = Math.min(1, pt / 0.55);
+        prev.copy(pos);
+        pos.x += from.x * dt; pos.z += from.z * dt; pos.y += (from.y - 30 * pt) * dt;
+        rig.root.rotation.x += dt * 14;
+        if (u >= 1) vanish();
+        h.position.copy(pos);
+        return true;
       } else if (phase === 'gone') {
         const u = Math.min(1, pt / 0.25);
         h.scale.setScalar(SC * (1 - u));
@@ -306,6 +314,15 @@ function raptorEnt(k, ctx, name, n, target, claimed) {
       h.rotation.y = yaw;
       if (phase === 'run' && Math.random() < 0.3) fx.puff(pos.x, pos.y + 0.2, pos.z, (Math.random() - 0.5) * 2, 1 + Math.random(), (Math.random() - 0.5) * 2, 0xc8b890, 0.4);
       return true;
+    },
+    // blocking powers (Force Push, Lightsaber Spin...) bat raptors away
+    deflect(p, r, by) {
+      if (by === k || (phase !== 'run' && phase !== 'pounce') || pos.distanceToSquared(p) > r * r) return;
+      const dx = pos.x - p.x, dz = pos.z - p.z, d = Math.hypot(dx, dz) || 1;
+      from.set(dx / d * 22, 11, dz / d * 22);
+      go('knock');
+      screech(ctx.audio, att(ctx, pos));
+      fx.puff(pos.x, pos.y + 1.5, pos.z, 0, 2, 0, 0xffffff, 0.4);
     },
     dispose() {
       rig.holder.scale.setScalar(SC);
@@ -374,7 +391,6 @@ function mosaBreach(k, ctx) {
     trackPt(tr, landS, landLat, 0, L);
   }
   predict();
-  globalThis.__jpaLast = { E, L };
   ctx.audio.sfx('splash', k.pos);
 
   return {

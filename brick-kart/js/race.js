@@ -10,7 +10,7 @@ import { AIDriver } from './ai.js';
 import { CHARACTERS } from './characters.js';
 import { DRIVERS } from './driver.js';
 import { KARTS } from './vehicles.js';
-import { ABILITY } from './abilities.js';
+import { ABILITY, ABILITIES } from './abilities.js';
 import { HUD, splitCells } from './hud.js';
 import { Hazards } from './hazards.js';
 
@@ -545,6 +545,11 @@ export class Race {
   // (driver gesture effects, gliders, shield bubbles, auras…), so nothing stalls the
   // frame mid-race the first time it appears.
   warmup(renderer) {
+    // movie abilities can hand over sample meshes so their materials compile now too
+    const samples = [];
+    for (const a of ABILITIES) {
+      try { const o = a.prewarm?.(this.items.ctx); for (const m of [].concat(o || [])) { m.position.set(0, -200, 0); this.scene.add(m); samples.push(m); } } catch (e) { console.warn('prewarm failed', a.id, e); }
+    }
     const hidden = [];
     this.scene.traverse((o) => { if (!o.visible) { hidden.push(o); o.visible = true; } });
     try {
@@ -553,6 +558,7 @@ export class Race {
       else renderer.compile(this.scene, cam);
     } catch (e) { console.warn('shader warm-up failed', e); }
     for (const o of hidden) o.visible = false;
+    for (const m of samples) this.scene.remove(m);
   }
 
   dispose() {

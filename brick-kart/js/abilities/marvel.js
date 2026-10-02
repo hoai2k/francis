@@ -415,13 +415,15 @@ class WebBall {
     // gentle homing on a kart in a cone in front
     if (!live(this.tg)) {
       this.tg = null;
+      let bd = 36 * 36;
       for (const o of ctx.race.karts) {
         if (o === k || !live(o)) continue;
-        const dx = o.pos.x - this.pos.x, dz = o.pos.z - this.pos.z;
-        if (dx * dx + dz * dz < 34 * 34 && Math.abs(angleDiff(this.yaw, Math.atan2(dx, dz))) < 0.45) { this.tg = o; break; }
+        const dx = o.pos.x - this.pos.x, dz = o.pos.z - this.pos.z, d = dx * dx + dz * dz;
+        if (d < bd && Math.abs(angleDiff(this.yaw, Math.atan2(dx, dz))) < 0.5) { bd = d; this.tg = o; }
       }
     }
-    if (this.tg) steer(this, this.tg.pos, 3.5, dt);
+    if (this.tg && this.tg.pos.distanceToSquared(this.pos) < 64) homeIn(this, chest(this.tg, v2, 1.2), dt);
+    else if (this.tg) steer(this, this.tg.pos, 5, dt);
     else { this.pos.x += Math.sin(this.yaw) * this.speed * dt; this.pos.z += Math.cos(this.yaw) * this.speed * dt; }
     const gy = groundY(ctx, this);
     const onRoad = !this.loc.gap && Math.abs(this.loc.lat) < this.loc.hw + this.loc.sh;

@@ -222,7 +222,8 @@ function hollowPurple(k, ctx) {
       return updateTiles(dt) || st.phase === 'fade';
     },
     dispose() { disposeOwned(root); disposeOwned(trench); },
-    // CPUs steer around the live trench sparks? no -- only the sphere itself is dangerous
+    // no deflect(): Hollow Purple can't be pushed or cut
+    // CPUs try to dodge the sphere itself (the cooling trench is harmless)
     danger(p, r) { return st.phase === 'fly' && p.distanceToSquared(pos) < (HP.R + r) ** 2; },
   });
 }
@@ -319,7 +320,17 @@ function infiniteVoid(k, ctx) {
 // for a few seconds; the next rival you bump (or get right next to) takes a Black Flash:
 // a distorted black shockwave that wrecks them and launches you forward.
 // =====================================================================================
-const BF = { life: 4.2, reach: 4.3, lungeR: 12 };
+const BF = { life: 4.2, reach: 4.3, lungeR: 12, fist: 2.3 };
+// the charged fist: black brick fist in a red rim aura and glow, with crawling lightning
+function makeChargedFist() {
+  const holder = new THREE.Group(); holder.position.set(-2.5, 2.7, 0.6);
+  const fist = fistModel(); fist.scale.setScalar(BF.fist);
+  const glow = glowSprite(0xff1a0a, 7.5, 0.9);
+  const aura = new THREE.Mesh(lowSphereGeo(), rimMaterial(0xff2010, 1.6, 1.8)); aura.scale.set(1.5, 1.4, 1.8); aura.position.y = -0.4;
+  const bolts = new Bolts(5, 5, { glow: 0xff1a0a, glowScale: 2.6 });
+  holder.add(glow, aura, fist, bolts.group);
+  return { holder, fist, glow, aura, bolts };
+}
 function blackFlashBurst(ctx, p, by) {
   const { scene, fx, race, audio } = ctx;
   const root = new THREE.Group(); root.position.copy(p); scene.add(root);
@@ -377,13 +388,9 @@ function blackFlash(k, ctx) {
   const { fx, race, audio } = ctx;
   k._jjkBlackFlash?.end();               // a fresh charge replaces an old one
   k.boost(0.55);
-  const holder = new THREE.Group(); holder.position.set(-2.1, 2.3, 0.9);
-  const fist = fistModel(); fist.scale.setScalar(1.7);
-  const glow = glowSprite(0xff1a0a, 5.5, 0.85);
-  const bolts = new Bolts(5, 5, { glow: 0xff1a0a });
-  holder.add(glow, fist, bolts.group);
+  const { holder, fist, glow, aura, bolts } = makeChargedFist();
   k.model.root.add(holder);
-  const st = { t: 0, zap: 0, done: false, lunged: false };
+  const st = { t: 0, zap: 0, done: false, lunged: false, aim: null };
   const wp = new THREE.Vector3();
   const a = vol(ctx, k.pos);
   audio.tone(90, 0.5, { type: 'sawtooth', vol: 0.18 * a, slide: 2.5, filter: 1200 });
@@ -392,6 +399,8 @@ function blackFlash(k, ctx) {
     if (st.done) return;
     st.done = true;
     if (k.onBump === strike) k.onBump = null;
+    if (st.aim && k.aimAt === st.aim) k.aimAt = null;
+    st.aim = null;
     if (k._jjkBlackFlash === api) k._jjkBlackFlash = null;
   }
   function strike(o) {
@@ -414,15 +423,18 @@ function blackFlash(k, ctx) {
       if (st.t > BF.life || k.respawn > 0 || k.finished) { end(); return false; }
       // fist pulses, lightning re-strikes every few frames
       const pulse = 1 + Math.sin(st.t * 22) * 0.07;
-      fist.scale.setScalar(1.7 * pulse);
+      fist.scale.setScalar(BF.fist * pulse);
       fist.rotation.z = Math.sin(st.t * 13) * 0.08;
-      glow.material.opacity = 0.55 + Math.random() * 0.4;
+      glow.material.opacity = 0.6 + Math.random() * 0.4;
+      glow.scale.setScalar(7.5 * (0.9 + Math.random() * 0.2));
+      aura.rotation.y += dt * 3;
+      aura.material.uniforms.opacity.value = 1.6 + Math.sin(st.t * 30) * 0.5;
       st.zap -= dt;
       if (st.zap <= 0) {
         st.zap = 0.05;
         for (let j = 0; j < 5; j++) {
-          const th = Math.random() * 6.28, el = rnd(1.1), l = 1.4 + Math.random() * 1.8;
-          bolts.set(j, rnd(0.3), rnd(0.3), 0.3, Math.cos(th) * Math.cos(el) * l, Math.sin(el) * l, Math.sin(th) * Math.cos(el) * l + 0.3, 0.4, 0.075);
+          const th = Math.random() * 6.28, el = rnd(1.1), l = 1.8 + Math.random() * 2.2;
+          bolts.set(j, rnd(0.3), rnd(0.3), 0.3, Math.cos(th) * Math.cos(el) * l, Math.sin(el) * l, Math.sin(th) * Math.cos(el) * l + 0.3, 0.45, 0.1);
         }
         bolts.show(st.t > BF.life - 0.8 && Math.random() < 0.5 ? 2 : 5);   // sputters before it fades
       }
@@ -431,9 +443,11 @@ function blackFlash(k, ctx) {
       if (Math.random() < 0.35) fx.puff(wp.x + rnd(0.5), wp.y, wp.z + rnd(0.5), rnd(1), 1.5, rnd(1), 0x0a0a0a, 0.5);
       // a rival right next to you counts as a hit; one just ahead pulls you into a lunge
       k.forward(_f);
+      let best = null, bestD = 45 * 45;
       for (const o of race.karts) {
         if (o === k || !alive(o)) continue;
         const dx = o.pos.x - k.pos.x, dz = o.pos.z - k.pos.z, d2 = dx * dx + dz * dz;
+        if (d2 < bestD && (dx * _f.x + dz * _f.z) > 0) { best = o; bestD = d2; }
         const reach = BF.reach * Math.max(1, k.megaScale || 1);
         if (d2 < reach * reach && Math.abs(o.pos.y - k.pos.y) < 3) { strike(o); if (st.done) return false; continue; }
         if (!st.lunged && d2 < BF.lungeR * BF.lungeR && (dx * _f.x + dz * _f.z) > Math.sqrt(d2) * 0.93 && !k.stunned) {
@@ -441,6 +455,8 @@ function blackFlash(k, ctx) {
           audio.tone(140, 0.25, { type: 'sawtooth', vol: 0.12 * vol(ctx, k.pos), slide: 2.2, filter: 1400 });
         }
       }
+      // CPU drivers steer at the nearest rival ahead while the fist is charged
+      if (best !== st.aim && (!k.aimAt || k.aimAt === st.aim)) { k.aimAt = best; st.aim = best; }   // never steal another ability's aim
       return true;
     },
     dispose() { end(); disposeOwned(holder); },
@@ -560,7 +576,47 @@ function divineDogs(k, ctx) {
       return t < 1.7 || dogs.some((d) => d.phase !== 'gone');
     },
     dispose() { disposeOwned(root); },
+    // Force Push / Lightsaber Spin: a running shikigami is dispelled back into the shadows
+    deflect(p, r, by) {
+      if (by === k) return;
+      for (const d of dogs) if ((d.phase === 'run' || d.phase === 'emerge') && d.pos.distanceToSquared(p) < (r + 1.5) ** 2) vanish(d);
+    },
   });
+}
+
+// =====================================================================================
+// prewarm samples: one of each special material so the race compiles the shaders at load
+// (shared caches are reused by later uses; the samples' own materials are tiny)
+// =====================================================================================
+function prewarmHP() {
+  const g = new THREE.Group();
+  g.add(orb('red', [[0xc91a09, 0xff2010, 1.6], [0xff7a60, 0xff3a20, 2.4]], 0xff2a20));
+  g.add(brickShell('purple', [[0x6a1ad0, 0x5a0ad0, 1.2], [0xa040ff, 0x8a2aff, 1.5], [0x3a0870, 0x40009a, 1.1]], 150, 0.2));
+  g.add(new THREE.Mesh(torusGeo(), additive(0xb050ff, 0.9)), new THREE.Mesh(sphereGeo(), additive(0x8a2aff, 0.75)));
+  const tr = new THREE.InstancedMesh(brickGeometry(2, 2, 1, 0.75, true, 8), new THREE.MeshBasicMaterial({ color: 0xffffff }), 1);
+  tr.setColorAt(0, HOT); tr.frustumCulled = false;
+  g.add(tr);
+  return g;
+}
+function prewarmIV() {
+  const g = new THREE.Group();
+  g.add(new THREE.Mesh(sphereGeo(), basic(0xffffff, { map: starTex(), side: THREE.DoubleSide, opacity: 0.9 })));
+  g.add(new THREE.Mesh(sphereGeo(), rimMaterial(0x6ad0ff, 3.2, 1.6)));
+  g.add(new THREE.Mesh(planeGeo(), basic(0xffffff, { map: ringTex(), blending: THREE.AdditiveBlending, side: THREE.DoubleSide, opacity: 0.9 })));
+  g.add(new THREE.Mesh(discGeo(), basic(0x05051a, { opacity: 0.7, polygonOffset: true, polygonOffsetFactor: -2 })), glowSprite(0xbff4ff, 9, 0.9));
+  return g;
+}
+function prewarmBF() {
+  const f = makeChargedFist();
+  f.bolts.set(0, 0, 0, 0, 1, 1, 1, 0.3, 0.1); f.bolts.show(1);
+  f.holder.add(new THREE.Mesh(sphereGeo(), basic(0x000000, { opacity: 0.9 })));
+  return f.holder;
+}
+function prewarmDD() {
+  const g = new THREE.Group();
+  g.add(dogModel(true), dogModel(false), new THREE.Mesh(lowSphereGeo(), rimMaterial(0x9a3aff, 3.5, 1.4)));
+  g.add(new THREE.Mesh(discGeo(), basic(0xffffff, { map: poolTex(), opacity: 1, polygonOffset: true, polygonOffsetFactor: -2 })), glowSprite(0xffd040, 1.6, 0.7));
+  return g;
 }
 
 // =====================================================================================
@@ -577,6 +633,7 @@ export default [
     gesture: 'throwF',
     ai: (k, ctx) => ctx.ahead(k, 4).some((o) => { const g = aheadGap(k, o); return g > 4 && g < 230; }),
     use: (k, ctx) => hollowPurple(k, ctx),
+    prewarm: () => prewarmHP(),
   },
   {
     id: 'infinitevoid', name: 'Infinite Void', color: '#4a6aff',
@@ -586,6 +643,7 @@ export default [
     gesture: 'use',
     ai: (k, ctx) => { const n = ctx.near(k.pos, 30, k).filter((o) => !o.finished); return n.length >= 2 || n.some((o) => o.pos.distanceTo(k.pos) < 16); },
     use: (k, ctx) => infiniteVoid(k, ctx),
+    prewarm: () => prewarmIV(),
   },
   {
     id: 'blackflash', name: 'Black Flash', color: '#d01a1a',
@@ -599,6 +657,7 @@ export default [
       return (dx * f.x + dz * f.z) / d > 0.6 || d < 6;
     }),
     use: (k, ctx) => blackFlash(k, ctx),
+    prewarm: () => prewarmBF(),
   },
   {
     id: 'divinedogs', name: 'Divine Dogs', color: '#3a2a5a',
@@ -608,5 +667,6 @@ export default [
     gesture: 'use',
     ai: (k, ctx) => ctx.ahead(k, 2).some((o) => !o.finished && aheadGap(k, o) < 260) || ctx.behind(k, 1).some((o) => k.raceDist - o.raceDist < 50),
     use: (k, ctx) => divineDogs(k, ctx),
+    prewarm: () => prewarmDD(),
   },
 ];

@@ -111,7 +111,7 @@ export function webNetMesh() {
     const b = new BrickBuilder(1);
     const RX = 2.3, RZ = 3.0, H = 2.9, RIB = 10;
     const pt = (a, e) => tA.set(Math.cos(a) * Math.cos(e) * RX, Math.sin(e) * H, Math.sin(a) * Math.cos(e) * RZ);
-    const strand = (p, q, w = 0.09) => {
+    const strand = (p, q, w = 0.12) => {
       const len = tD.subVectors(q, p).length();
       tQ.setFromUnitVectors(UP, tD.normalize());
       b.boxM(new THREE.Matrix4().compose(tB.addVectors(p, q).multiplyScalar(0.5).clone(), tQ.clone(), new THREE.Vector3(w, len + 0.06, w)), WEB);
@@ -127,7 +127,7 @@ export function webNetMesh() {
         const a0 = r / RIB * Math.PI * 2, a1 = (r + 1) / RIB * Math.PI * 2;
         const p = pt(a0, e).clone(), q = pt(a1, e).clone();
         const mid = pt((a0 + a1) / 2, e - 0.09).clone();
-        strand(p, mid, 0.07); strand(mid, q, 0.07);
+        strand(p, mid, 0.1); strand(mid, q, 0.1);
       }
     }
     // blobs where strands stick to the kart
@@ -144,7 +144,7 @@ export function webTrapMesh() {
   if (!trapT) {
     const b = new BrickBuilder(1);
     const R = 2.9, SP = 12;
-    for (let k = 0; k < SP; k++) { const a = k / SP * Math.PI * 2; b.boxM(m4(Math.cos(a) * R / 2, 0.06, Math.sin(a) * R / 2, 0, -a, 0, R, 0.1, 0.11), WEB); }
+    for (let k = 0; k < SP; k++) { const a = k / SP * Math.PI * 2; b.boxM(m4(Math.cos(a) * R / 2, 0.08, Math.sin(a) * R / 2, 0, -a, 0, R, 0.16, 0.2), WEB); }
     for (const rr of [0.7, 1.35, 2.0, 2.65]) {
       for (let k = 0; k < SP; k++) {
         const a0 = k / SP * Math.PI * 2, a1 = (k + 1) / SP * Math.PI * 2, am = (a0 + a1) / 2, r2 = rr * 0.9;
@@ -152,14 +152,14 @@ export function webTrapMesh() {
         const m = new THREE.Vector3(Math.cos(am) * r2, 0.07, Math.sin(am) * r2);
         for (const [u, v] of [[p, m], [m, q]]) {
           const len = tD.subVectors(v, u).length();
-          b.boxM(m4((u.x + v.x) / 2, 0.07, (u.z + v.z) / 2, 0, -Math.atan2(tD.z, tD.x), 0, len + 0.05, 0.1, 0.09), WEB);
+          b.boxM(m4((u.x + v.x) / 2, 0.09, (u.z + v.z) / 2, 0, -Math.atan2(tD.z, tD.x), 0, len + 0.05, 0.14, 0.16), WEB);
         }
       }
     }
     b.cyl(0, 0, 0, 0.35, 0.18, WEB);
     const inner = b.build({ name: 'webtrap', shadows: false });
     // a faint white sheen so the trap reads on any road colour
-    const sheen = new THREE.Mesh(new THREE.CircleGeometry(R + 0.2, 24).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.16, depthWrite: false }));
+    const sheen = new THREE.Mesh(new THREE.CircleGeometry(R + 0.2, 24).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.28, depthWrite: false }));
     sheen.position.y = 0.04;
     trapT = new THREE.Group(); trapT.add(sheen, inner);
   }

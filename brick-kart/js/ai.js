@@ -61,6 +61,9 @@ export class AIDriver {
         break;
       }
     }
+    // an ability can ask a CPU to steer at a rival (e.g. a charged punch)
+    const aim = k.aimAt;
+    if (aim && aim.loc && aim.respawn <= 0 && aim.pos.distanceTo(k.pos) < 45 && tr.HW[aim.loc.i ?? 0]) want = aim.loc.lat / tr.HW[aim.loc.i];
     this.laneTarget = Math.max(-0.85, Math.min(0.85, want));
     this.lane += (this.laneTarget - this.lane) * Math.min(1, dt * 2.2);
     // line up straight for ramps
