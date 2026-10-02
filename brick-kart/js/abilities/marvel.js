@@ -523,7 +523,7 @@ class Snap {
     if (t > 1.65) return false;
     // hovers above the caster, back of the hand (stones) toward their camera
     const f = k.forward(v1);
-    this.mesh.position.set(k.pos.x + f.x * 1.2, k.pos.y + 3.9 * (k.megaScale || 1), k.pos.z + f.z * 1.2);
+    this.mesh.position.set(k.pos.x + f.x * 2, k.pos.y + 4.8 * (k.megaScale || 1), k.pos.z + f.z * 2);
     this.mesh.rotation.y = k.yaw + Math.PI;
     const appear = t < 0.3 ? (t / 0.3) * 1.2 : t < 0.42 ? 1.2 - (t - 0.3) / 0.12 * 0.2 : 1;
     const leave = t > 1.3 ? Math.max(0.01, 1 - (t - 1.3) / 0.35) : 1;
@@ -532,7 +532,7 @@ class Snap {
     const since = t - 0.6;
     hand.rotation.z = since > 0 && since < 0.25 ? Math.sin(since * 60) * 0.18 * (1 - since / 0.25) : 0;
     const punch = since > 0 && since < 0.3 ? 1 + 0.3 * (1 - since / 0.3) : 1;
-    this.mesh.scale.setScalar(0.95 * appear * leave * punch);
+    this.mesh.scale.setScalar(1.1 * appear * leave * punch);
     this.mesh.userData.glow.scale.setScalar((since > 0 && since < 0.5 ? 1.6 : 1) * (0.9 + Math.random() * 0.15));
     if (Math.random() < 0.5) { const c = STONES[Math.floor(Math.random() * 6)]; const p = this.mesh.position; ctx.fx.spark(p.x + rnd(1.5), p.y + rnd(1.5), p.z + rnd(1.5), rnd(2), 2, rnd(2), c, 0.5); }
     if (!this.snapped && since >= 0) this.snap();

@@ -28,7 +28,7 @@
 // makes a CPU driver steer at that rival; abilities set and clear both.
 // Packs are listed in FINISHED once reviewed; unfinished ones only load in developer test
 // races (?quick=… or ?abilities=all) so half-built abilities never reach item boxes.
-const FINISHED = ['starwars', 'jjk'];
+const FINISHED = ['starwars', 'jjk', 'jurassic'];
 const q = new URLSearchParams(location.search);
 const dev = q.has('quick') || q.has('abilities');
 const PACKS = ['starwars', 'marvel', 'jjk', 'jurassic'].filter((id) => dev || FINISHED.includes(id));
