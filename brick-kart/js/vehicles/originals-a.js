@@ -223,7 +223,7 @@ export const redbeard = {
     sh.cylY(b, 0, 1.5, 1.6, 0.7, 0.34, BR, { seg: 3, r2: 0.6 });
     sh.cylY(b, 0, 1.69, 1.6, 0.74, 0.05, GD, { seg: 3, r2: 0.63 });
     sh.tube(b, [0, 1.55, 2.2], [0, 1.95, 2.7], 0.06, DB);
-    sh.ell(b, 0, 1.0, 2.5, 0.16, 0.18, 0.14, GD, { metal: 1 });                   // gold skull figurehead
+    sh.ell(b, 0, 1.0, 2.5, 0.16, 0.18, 0.14, GD);                   // gold skull figurehead
     for (const sd of [-1, 1]) sh.box(b, sd * 0.06, 1.03, 2.62, 0.06, 0.06, 0.04, BK);
     // gunwale rails and deck
     for (const sd of [-1, 1]) sh.box(b, sd * 0.86, 1.36, -0.25, 0.12, 0.22, 3.2, DK);
@@ -547,7 +547,7 @@ export const nix = {
     const rearSpin = new THREE.Group(); rearG.add(rearSpin);
     const rb = new BrickBuilder(0.4);
     sh.tor(rb, 0, 0, 0, RR - 0.1, 0.16, BK, { ry: PI / 2, seg: 24, sz: (RR - 0.1) * 2.2 });
-    sh.tor(rb, 0, 0, 0, RR - 0.21, 0.04, LI, { ry: PI / 2, seg: 24, lit: 0x9cff20 });
+    sh.tor(rb, 0, 0, 0, RR - 0.21, 0.04, LI, { ry: PI / 2, seg: 24, metal: 1 });
     star(rb, RR - 0.18);
     rearSpin.add(rb.build({ name: 'shuriken' }));
     // front wheels with spinning shuriken hub caps
@@ -658,8 +658,8 @@ export const flo = {
     const eb = new BrickBuilder(0.4);
     for (const sd of [-1, 1]) sh.box(eb, sd * 0.24, 0.1, 1.1, 0.07, 0.1, 1.9, RD);
     for (let i = 0; i < 7; i++) sh.box(eb, 0, 0.1, 0.3 + i * 0.27, 0.46, 0.04, 0.04, LG);
-    sh.tube(eb, [0, 0.12, 2.0], [0, 0.3, 2.3], 0.07, GD, { metal: 1 });
-    sh.cone(eb, 0, 0.32, 2.35, 0.1, 0.22, LG, { rx: PI / 2 - 0.5, seg: 8, metal: 1 });
+    sh.tube(eb, [0, 0.12, 2.0], [0, 0.3, 2.3], 0.07, GD);
+    sh.cone(eb, 0, 0.32, 2.35, 0.1, 0.22, LG, { rx: PI / 2 - 0.5, seg: 8 });
     ext.add(eb.build({ name: 'ladderext' }));
     const spray = sh.part('spray', 0, 0.38, 2.45, (pb) => {
       sh.cone(pb, 0, 0.45, 0.8, 0.32, 1.9, 0x8fd8ff, { rx: PI / 2 - 0.45 + PI, seg: 10, m: { trans: true, opacity: 0.45 } });

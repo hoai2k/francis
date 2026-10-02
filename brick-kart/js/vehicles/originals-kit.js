@@ -91,10 +91,10 @@ export function kit(K) {
     const n = o.spokes || 8;
     for (const x of o.xs || [0]) {
       sh.tor(sb, x, 0, 0, r - 0.05, 0.1 / r * 0.9, rimCol, { ry: Math.PI / 2, seg: 18, metal: o.metalRim });
-      if (o.tyre) sh.tor(sb, x, 0, 0, r - 0.02, 0.06 / r, o.tyre, { ry: Math.PI / 2, seg: 18 });
+      if (o.tyre) sh.tor(sb, x, 0, 0, r - 0.02, 0.06 / r, o.tyre, { ry: Math.PI / 2, seg: 18, metal: o.metalRim });
       for (let i = 0; i < n; i++) {
         const a = (i / n) * Math.PI * 2;
-        sh.box(sb, x, Math.sin(a) * r * 0.48, Math.cos(a) * r * 0.48, w * 0.35, 0.07, r * 0.92, spokeCol, { rx: -a });
+        sh.box(sb, x, Math.sin(a) * r * 0.48, Math.cos(a) * r * 0.48, w * 0.35, 0.07, r * 0.92, spokeCol, { rx: -a, metal: o.metalRim });
       }
       sh.cylX(sb, x, 0, 0, r * 0.2, w, hubCol, { seg: 10, metal: o.metalRim });
     }

@@ -71,7 +71,8 @@ export const pepper = {
     const TM = new THREE.Matrix4(), TQ = new THREE.Quaternion(), TV = new THREE.Vector3(), TS = new THREE.Vector3();
     // casters
     const wheels = [];
-    for (const [x, z] of [[0.7, 1.0], [-0.7, 1.0], [0.7, -0.9], [-0.7, -0.9]]) wheels.push({ x, z, r: 0.25, w: 0.2, front: z > 0, cap: OR });
+    for (const x of [0.7, -0.7]) wheels.push({ x, z: 1.0, r: 0.25, w: 0.2, front: true, cap: OR });
+    wheels.push({ x: 0, z: -0.9, r: 0.25, w: 0.2, xs: [0.7, -0.7], cap: OR });
     let flick = 0;
     return {
       mesh, seat: [0, WY - 0.48, -0.25], control: 'wheel', parts: [flames, lantern, steam, ...foods.map((f) => f.g)], wheels,
@@ -306,7 +307,7 @@ export const regina = {
     // pumpkin-round coach body with gold belts and crests
     sh.ell(b, 0, 1.25, 0, BX, 0.6, 1.35, PK, { seg: 20 });
     sh.tor(b, 0, 1.3, 0, 1, 0.04, GD, { rx: PI / 2, sx: BX + 0.01, sy: 1.36, sz: 2, seg: 28, metal: 1 });
-    for (const x of [-0.5, 0, 0.5]) { const f = Math.sqrt(1 - (x / BX) ** 2); sh.tor(b, x * 1.01, 1.25, 0, 1, 0.022, MG, { ry: PI / 2, sx: 1.36 * f, sy: 0.61 * f, sz: 1.5, seg: 24, arc: PI }); }
+    for (const x of [-0.5, 0, 0.5]) { const f = Math.sqrt(1 - (x / BX) ** 2); sh.tor(b, x * 1.01, 1.25, 0, 1, 0.022, MG, { ry: PI / 2, sx: 1.36 * f, sy: 0.61 * f, sz: 1.5, seg: 16, arc: PI }); }
     for (const sd of [-1, 1]) {
       sh.cylX(b, sd * (BX - 0.02), 1.25, 0.1, 0.24, 0.08, GD, { seg: 16, metal: 1 });
       sh.ell(b, sd * (BX + 0.04), 1.27, 0.1, 0.04, 0.12, 0.1, RD, glow(0xff2050, 0.8));
@@ -344,11 +345,13 @@ export const regina = {
       w.g.position.set(x, y, z); return { g: w.g, spin: w.spin, front, r };
     };
     // banners hanging from the trumpets
-    const banners = [-1, 1].map((sd) => sh.part('banner', sd * 0.55, 1.75, -1.95, (pb) => {
-      sh.box(pb, 0, -0.25, 0, 0.03, 0.42, 0.36, PK);
-      sh.box(pb, sd * 0.02, -0.22, 0, 0.02, 0.12, 0.12, GD);
-      sh.cone(pb, 0, -0.52, 0, 0.18, 0.16, PK, { rx: PI, seg: 3, ry: PI / 6 });
-    }));
+    const banners = sh.part('banners', 0, 1.75, -1.95, (pb) => {
+      for (const sd of [-1, 1]) {
+        sh.box(pb, sd * 0.55, -0.25, 0, 0.03, 0.42, 0.36, PK);
+        sh.box(pb, sd * 0.57, -0.22, 0, 0.02, 0.12, 0.12, GD);
+        sh.cone(pb, sd * 0.55, -0.52, 0, 0.18, 0.16, PK, { rx: PI, seg: 3, ry: PI / 6 });
+      }
+    });
     // twinkling crown jewels
     const gem = sh.own(0x40a0ff, { emissive: 0x2080ff, ei: 1 });
     const gems = sh.part('gems', 0, 2.3, -1.0, (pb) => {
@@ -356,7 +359,7 @@ export const regina = {
     });
     let roll = 0, rv = 0, pitch = 0;
     return {
-      mesh, seat: [0, 1.62, -0.15], control: 'none', parts: [...banners, gems],
+      mesh, seat: [0, 1.62, -0.15], control: 'none', parts: [banners, gems],
       wheels: [wheel(1.2, 0.8, -1.3, 0.8, false), wheel(-1.2, 0.8, -1.3, 0.8, false), wheel(1.12, 0.55, 1.35, 0.55, true), wheel(-1.12, 0.55, 1.35, 0.55, true)],
       exhaust: [[0.65, 2.0, -2.35, -PI / 2 + 0.6], [-0.65, 2.0, -2.35, -PI / 2 + 0.6]],
       fx(s, dt) {
@@ -367,7 +370,7 @@ export const regina = {
         const up = mesh.parent;
         if (up) { up.rotation.z = roll; pitchAbout(up, pitch, 0.9, 0, sin(s.t * 6.5) * 0.025 * (0.3 + s.speed01)); }
         gem.emissiveIntensity = 0.8 + Math.max(0, sin(s.t * 3.7)) * 1.8;
-        for (let i = 0; i < 2; i++) { banners[i].rotation.x = 0.2 + s.speed01 * 0.6 + sin(s.t * 6 + i) * 0.12; banners[i].rotation.z = s.steer * 0.3; }
+        banners.rotation.x = 0.2 + s.speed01 * 0.6 + sin(s.t * 6) * 0.12;
       },
     };
   },
@@ -416,23 +419,26 @@ export const sam = {
     sh.cone(b, 0, DY + 0.55, 1.75, 0.22, 0.6, OR, { seg: 10 });
     sh.cylY(b, 0, DY + 0.5, 1.75, 0.16, 0.08, C.white, { seg: 10 });
     sh.box(b, 0, DY + 0.1, 1.75, 0.5, 0.06, 0.5, OR);
+    for (const z of [-1.4, 1.4]) {   // trucks
+      sh.box(b, 0, DY - 0.12, z, 0.3, 0.14, 0.3, LG);
+      sh.cylX(b, 0, 0.28, z, 0.05, 1.3, LG, { seg: 8 });
+      sh.box(b, 0, 0.42, z, 0.12, 0.2, 0.1, LG);
+    }
     const mesh = b.build({ name: 'sam' });
 
     // speakers that thump (own glowing rings + cones)
     const ringMat = sh.own(LI, { emissive: 0x9cff20, ei: 1 });
-    const speakers = [-1, 1].map((sd) => sh.part('speaker', sd * 0.43, DY + 0.47, -0.92, (pb) => {
-      sh.tor(pb, 0, 0, 0, 0.25, 0.16, 0, { seg: 18, mat: ringMat });
-      sh.cone(pb, 0, 0, -0.02, 0.24, 0.1, 0x2a2e33, { rx: -PI / 2, seg: 16 });
-      sh.ell(pb, 0, 0, -0.07, 0.07, 0.07, 0.04, LG, { seg: 8 });
-    }));
+    const speakers = sh.part('speakers', 0, DY + 0.47, -0.92, (pb) => {
+      for (const sd of [-1, 1]) {
+        sh.tor(pb, sd * 0.43, 0, 0, 0.25, 0.16, 0, { seg: 18, mat: ringMat });
+        sh.cone(pb, sd * 0.43, 0, -0.02, 0.24, 0.1, 0x2a2e33, { rx: -PI / 2, seg: 16, mat: ringMat });
+        sh.ell(pb, sd * 0.43, 0, -0.07, 0.07, 0.07, 0.04, LG, { seg: 8, mat: ringMat });
+      }
+    });
     // trucks + lime urethane wheels ride with the deck
     const wheelsG = new THREE.Group();
     const spins = [];
     for (const z of [-1.4, 1.4]) {
-      const tb = new BrickBuilder(0.4);
-      sh.box(tb, 0, DY - 0.12, z, 0.3, 0.12, 0.3, LG, { metal: 1 });
-      sh.cylX(tb, 0, 0.28, z, 0.05, 1.3, LG, { seg: 8, metal: 1 });
-      wheelsG.add(tb.build({ name: 'truck' }));
       for (const x of [-0.72, 0.72]) {
         const g = new THREE.Group(); g.position.set(x, 0.28, z);
         const wb = new BrickBuilder(0.4);
@@ -451,12 +457,12 @@ export const sam = {
     const pp = []; for (let i = 0; i < NP; i++) pp.push({ ph: i / NP, x: sin(i * 2.9) * 0.6, a: sin(i * 1.7) * 0.8 });
     let lean = 0, pop = 0;
     return {
-      mesh, seat: [0, DY + 0.95, -0.5], control: 'none', parts: [...speakers, wheelsG, sparks],
+      mesh, seat: [0, DY + 0.95, -0.5], control: 'none', parts: [speakers, wheelsG, sparks],
       wheels: spins.map((spin) => ({ g: new THREE.Group(), spin, front: false, r: 0.28 })),
       exhaust: [[0.43, DY + 0.47, -1.0], [-0.43, DY + 0.47, -1.0]],
       fx(s, dt) {
         const beat = Math.max(0, sin(s.t * 12.5)) ** 4;
-        for (const sp of speakers) sp.scale.set(1 + beat * 0.14, 1 + beat * 0.14, 1 + beat * 0.6);
+        speakers.scale.set(1 + beat * 0.06, 1 + beat * 0.14, 1 + beat * 0.8);
         ringMat.emissiveIntensity = 0.6 + beat * 2.2;
         // carve: the deck tilts on its trucks; manual on boost, tail grab in the air
         lean += (s.steer * 0.22 - lean) * ease(dt, 7);
@@ -492,7 +498,7 @@ export const zorp = {
     const DY = 0.55, R = 1.75;
     const b = new BrickBuilder(0.4);
     // the disc: silver top, lime band, purple underside
-    sh.ell(b, 0, DY, 0, R, 0.24, R, LG, { seg: 26, metal: 1 });
+    sh.ell(b, 0, DY, 0, R, 0.24, R, LG, { seg: 22, metal: 1 });
     sh.tor(b, 0, DY, 0, R - 0.02, 0.04, LI, { rx: PI / 2, seg: 32 });
     sh.dome(b, 0, DY - 0.05, 0, 1.0, 0.42, 1.0, PU, { rx: PI, seg: 18 });
     sh.cylY(b, 0, DY - 0.47, 0, 0.42, 0.06, BK, { seg: 16 });
@@ -555,10 +561,9 @@ export const max = {
     const GD = 0xdcbc81, LP = C.dkblue, TN = C.tan, BK = C.black, DT = C.dktan;
     const b = new BrickBuilder(0.4);
     // golden shell: two wing cases, the thorax and a shovel head
-    for (const sd of [-1, 1]) {
-      sh.ell(b, sd * 0.5, 1.0, -0.95, 0.56, 0.5, 1.25, GD, { seg: 18, metal: 1 });
-      for (const k of [-0.3, 0.3]) sh.box(b, sd * (0.5 + k * 0.2), 1.42, -0.95 + k, 0.08, 0.04, 1.4, LP, { rz: sd * -0.5 });
-    }
+    sh.ell(b, 0, 0.98, -0.95, 1.05, 0.55, 1.3, GD, { seg: 20, metal: 1 });
+    sh.box(b, 0, 1.5, -1.45, 0.06, 0.06, 1.0, BK);
+    for (const sd of [-1, 1]) for (const [x, y, l, r] of [[0.45, 1.46, 1.5, 0.45], [0.82, 1.3, 1.1, 1.0]]) sh.box(b, sd * x, y, -0.95, 0.08, 0.05, l, LP, { rz: sd * -r });
     sh.ell(b, 0, 1.0, 0.45, 0.85, 0.48, 0.62, GD, { seg: 18, metal: 1 });
     sh.box(b, 0, 1.36, 0.45, 1.0, 0.05, 0.1, LP);
     sh.box(b, 0, 0.88, 1.12, 0.78, 0.3, 0.5, GD, { metal: 1 });
@@ -586,7 +591,7 @@ export const max = {
       const hip = [sd * 0.6, 0.85, z], knee = [sd * 1.3, 1.2, z + dz * 0.4], foot = [sd * 1.55, 0.05, z + dz];
       sh.tube(pb, hip, knee, 0.08, BK, { seg: 6 });
       sh.tube(pb, knee, foot, 0.06, BK, { seg: 6 });
-      sh.ell(pb, ...knee, 0.11, 0.11, 0.11, GD, { metal: 1, seg: 8 });
+      sh.ell(pb, ...knee, 0.11, 0.11, 0.11, GD, { seg: 8 });
       for (const f of [0.35, 0.6]) sh.cone(pb, knee[0] + (foot[0] - knee[0]) * f + sd * 0.06, knee[1] + (foot[1] - knee[1]) * f, knee[2] + (foot[2] - knee[2]) * f, 0.03, 0.14, BK, { rz: sd * -1.2, seg: 4 });
       sh.box(pb, foot[0], 0.04, foot[2], 0.18, 0.08, 0.26, BK);
     };
