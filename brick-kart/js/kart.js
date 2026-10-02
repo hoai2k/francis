@@ -77,13 +77,14 @@ export class Kart {
     this.flames = [];
     const fm = plastic(0xffa020, { trans: true, opacity: 0.9, emissive: 0xff6a00, emissiveIntensity: 3 });
     // vehicles may say where their exhausts are (and the flames ride on their sprung body)
-    const spots = m.exhaust?.length ? m.exhaust : [[0.62, 1.24, -1.3], [-0.62, 1.24, -1.3]];
-    for (const [x, y, z, rx] of spots) {
-      const f = new THREE.Mesh(new THREE.ConeGeometry(0.16, 1, 8).translate(0, 0.5, 0), fm);
+    // ([] = no flames; a 5th number scales a flame's width)
+    const spots = m.exhaust ?? [[0.62, 1.24, -1.3], [-0.62, 1.24, -1.3]];
+    for (const [x, y, z, rx, sc = 1] of spots) {
+      const f = new THREE.Mesh(new THREE.ConeGeometry(0.16 * sc, 1, 8).translate(0, 0.5, 0), fm);
       f.rotation.x = rx ?? -Math.PI / 2 + 0.9;
       f.position.set(x, y, z);
       f.scale.setScalar(0.001);
-      (m.exhaust?.length && m.sprung ? m.sprung : m.body).add(f);
+      (m.exhaust && m.sprung ? m.sprung : m.body).add(f);
       this.flames.push(f);
     }
     // shield & golden aura

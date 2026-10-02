@@ -256,8 +256,8 @@ const bjorn = {
         rbox(b, sd * 0.47, 0.86, 0, 0.04, 0.64, 0.035, 0, 0, 0, 0xe8eef4);
       }
       b.cyl(0, 1.05, 0, 0.07, 0.1, STEEL, { seg: 8 });
-    }, { name: 'bjorn-axe', rz: 0.4 });
-    rig.idle = (t, dt, an, st) => { hold(g, rig.armR, 0.3); axe.rotation.z = an.g?.name === 'cheer' || st.phase === 'win' ? 0.05 : 0.4; };
+    }, { name: 'bjorn-axe', rz: 0.24 });
+    rig.idle = (t, dt, an, st) => { hold(g, rig.armR, 0.3); axe.rotation.z = an.g?.name === 'cheer' || st.phase === 'win' ? 0.05 : 0.24; };
     finish(rig, 1.9);
     return rig;
   },

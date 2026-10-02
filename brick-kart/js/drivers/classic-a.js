@@ -355,7 +355,7 @@ const kara = {
         ab.cyl(0, -0.5 * s, 0, 0.15 * s, 0.1 * s, DARK, { seg: 10 });
         if (sd > 0) {
           // kite shield on the left arm: blue field, gold cross, steel rim
-          const x = 0.2 * s;
+          const x = 0.17 * s;
           ab.box(x, -0.62 * s, 0, 0.06, 0.52 * s, 0.58 * s, STEEL);
           ab.add(taperGeo(0.04, 0.58 * s, 0.34 * s, 0.06, 0.06), plastic(STEEL), x, -0.96 * s, 0, PI / 2, 1, 1, 1);
           ab.box(x + 0.02, -0.6 * s, 0, 0.06, 0.46 * s, 0.5 * s, BLUE);
@@ -382,7 +382,7 @@ const kara = {
         b.add(frustum(r1 / r0, 1, 10), plastic(i % 2 ? C.white : BLUE), 0, 0.42 + (L / segs) * i, 0, 0, r0, L / segs, r0);
       }
       rbox(b, 0, 1.75, -0.18, 0.02, 0.2, 0.32, 0, 0, 0, GOLD);
-    }, { name: 'lance', rz: 0.38 });
+    }, { name: 'lance', rz: 0.26 });
     let a = 0.62, lastT = 0;
     rig.idle = (t, dt, an, st) => {
       plume.rotation.x = -0.1 - (st.speed01 || 0) * 0.25 + S(t * 7) * 0.05 * (0.3 + (st.speed01 || 0));
@@ -393,7 +393,7 @@ const kara = {
       const dt = Math.min(0.1, Math.max(0, t - lastT)); lastT = t;
       a += (target - a) * Math.min(1, dt * 8);
       hold(g, rig.armR, a);
-      lance.rotation.z = lerp(lance.rotation.z, n === 'cheer' || n === 'win' ? 0.05 : 0.38, Math.min(1, dt * 8));
+      lance.rotation.z = lerp(lance.rotation.z, n === 'cheer' || n === 'win' ? 0.05 : 0.26, Math.min(1, dt * 8));
       if (n === 'win') plume.rotation.x = -0.2 + S(t * 9) * 0.15;
     };
     return rig;

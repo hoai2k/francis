@@ -131,8 +131,8 @@ function speederBike({ rig }) {
     box(vb, null, sd * 0.43, sd * 0.03, 0.02, 0.05, 0.16, 0.42, OL, { rz: sd * 0.15 });
   }
   vanes.add(vb.build({ name: 'vanes' }));
-  // a big rider gets a wider, slightly bigger bike so it still shows under them
-  const kx = f.clamp(1 + (f.W - 1.3) * 0.6, 1, 1.4), k = 1 + f.big * 0.08;
+  // a big rider gets a slightly broader bike (it should still look small under them)
+  const kx = f.clamp(1 + (f.W - 1.3) * 0.25, 1, 1.15), k = 1 + f.big * 0.03;
   const bike = new THREE.Group(); bike.add(b.build({ name: 'speederbike' }), vanes); bike.scale.set(kx, k, k);
   return {
     mesh: bike, seat: [0, 0.8 * k, -0.62 * k], control: 'bars', hover: 0.55,

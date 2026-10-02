@@ -3,9 +3,7 @@
 import { kit, ease, pitchAbout } from './originals-kit.js';
 
 const PI = Math.PI, sin = Math.sin, cos = Math.cos;
-const CHROME = { metal: 0.85, rough: 0.22 };
-const GOLD = { metal: 0.9, rough: 0.25 };
-const glow = (e, i = 1) => ({ m: { emissive: e, emissiveIntensity: i } });
+const glow = (e) => ({ lit: e });
 
 // ---- Chef Pepper: riding inside a giant wok on a stove cart, tossing a stir-fry -----------
 export const pepper = {
@@ -19,7 +17,7 @@ export const pepper = {
     const WY = 1.95, WR = Math.min(1.45, Math.max(1.2, (rig.width || 1.3) / 2 + 0.55)), WD = 0.8;
     const b = new BrickBuilder(0.4);
     // steel stove cart with orange doors and a bumper
-    sh.box(b, 0, 0.82, 0.05, 1.75, 0.62, 2.7, LG, { m: CHROME });
+    sh.box(b, 0, 0.82, 0.05, 1.75, 0.62, 2.7, LG, { metal: 1 });
     for (const sd of [-1, 1]) {
       sh.box(b, sd * 0.88, 0.82, 0.05, 0.02, 0.5, 2.5, OR);
       for (const z of [-0.6, 0.65]) { sh.box(b, sd * 0.895, 0.82, z, 0.02, 0.34, 1.0, W); sh.box(b, sd * 0.905, 0.82, z + 0.38, 0.03, 0.06, 0.06, BK); }
@@ -35,10 +33,10 @@ export const pepper = {
     // the wok: a black steel bowl, steel rim, long wooden handle and a helper loop
     const wokMat = sh.own(0x2a2c30, { metal: 0.6, rough: 0.35 }); wokMat.side = THREE.DoubleSide;
     sh.dome(b, 0, WY, 0, WR, WD, WR, 0, { mat: wokMat, rx: PI, seg: 22 });
-    sh.tor(b, 0, WY, 0, WR, 0.035, LG, { rx: PI / 2, seg: 26, m: CHROME });
-    sh.tube(b, [0, WY - 0.05, -WR + 0.05], [0, WY + 0.25, -2.6], 0.08, LG, { m: CHROME });
+    sh.tor(b, 0, WY, 0, WR, 0.035, LG, { rx: PI / 2, seg: 26, metal: 1 });
+    sh.tube(b, [0, WY - 0.05, -WR + 0.05], [0, WY + 0.25, -2.6], 0.08, LG, { metal: 1 });
     sh.tube(b, [0, WY + 0.12, -1.85], [0, WY + 0.32, -2.62], 0.12, C.rbrown);
-    sh.tor(b, 0, WY + 0.02, WR + 0.12, 0.14, 0.2, LG, { rx: PI / 2, seg: 10, arc: PI, rz: 0, m: CHROME });
+    sh.tor(b, 0, WY + 0.02, WR + 0.12, 0.14, 0.2, LG, { rx: PI / 2, seg: 10, arc: PI, rz: 0, metal: 1 });
     sh.box(b, 0, WY - 0.55, -0.25, 1.1, 0.12, 1.0, OR);   // seat cushion in the bowl
     // giant chopsticks crossed over the front, chili hood ornament, paper lantern
     for (const sd of [-1, 1]) sh.tube(b, [sd * 0.75, 1.15, 1.35], [sd * -0.2, 2.75, 2.15], 0.05, RD, { seg: 6, r2: 0.03 });
@@ -54,7 +52,7 @@ export const pepper = {
     });
     const lantern = sh.part('lantern', -0.85, 2.95, -1.25, (pb) => {
       sh.tube(pb, [0, 0, 0], [0, -0.1, 0.3], 0.02, BK, { seg: 4 });
-      sh.ell(pb, 0, -0.38, 0.3, 0.24, 0.3, 0.24, RD, { seg: 12, m: { emissive: 0xff3010, emissiveIntensity: 0.9 } });
+      sh.ell(pb, 0, -0.38, 0.3, 0.24, 0.3, 0.24, RD, { seg: 12 });
       for (const y of [-0.66, -0.1]) sh.cylY(pb, 0, y, 0.3, 0.12, 0.06, C.pearl, { seg: 10 });
       sh.box(pb, 0, -0.8, 0.3, 0.04, 0.2, 0.04, C.yellow);
     });
@@ -232,18 +230,18 @@ export const bjorn = {
       sh.cylX(b, x, HY - 0.05, z, 0.3, 0.06, c1, { seg: 16 });
       sh.box(b, x + sd * 0.035, HY - 0.05, z, 0.02, 0.58, 0.12, c2);
       sh.box(b, x + sd * 0.035, HY - 0.05, z, 0.02, 0.12, 0.58, c2);
-      sh.ell(b, x + sd * 0.05, HY - 0.05, z, 0.06, 0.09, 0.09, LG, { m: CHROME, seg: 8 });
+      sh.ell(b, x + sd * 0.05, HY - 0.05, z, 0.06, 0.09, 0.09, LG, { metal: 1, seg: 8 });
     });
     // sled runners with curled tips
     for (const sd of [-1, 1]) {
-      sh.box(b, sd * 0.6, 0.05, -0.15, 0.16, 0.08, 4.0, LG, { m: CHROME });
-      sh.arc(b, sd * 0.6, 0.35, 1.85, 0.32, -PI / 2, PI * 0.4, 6, 0.16, 0.08, LG, { m: CHROME });
+      sh.box(b, sd * 0.6, 0.05, -0.15, 0.16, 0.08, 4.0, LG, { metal: 1 });
+      sh.arc(b, sd * 0.6, 0.35, 1.85, 0.32, -PI / 2, PI * 0.4, 6, 0.16, 0.08, LG, { metal: 1 });
       for (const z of [-1.4, 0, 1.3]) sh.tube(b, [sd * 0.6, 0.08, z], [sd * 0.45, 0.5, z], 0.05, DW);
     }
     // the hammer mast with a streaming pennant
     sh.tube(b, [0, HY - 0.3, -1.15], [0, 3.05, -1.15], 0.08, DW, { seg: 8 });
-    sh.box(b, 0, 3.2, -1.15, 1.15, 0.52, 0.52, LG, { m: CHROME });
-    for (const sd of [-1, 1]) { sh.box(b, sd * 0.42, 3.2, -1.15, 0.08, 0.56, 0.56, RD); sh.box(b, sd * 0.6, 3.2, -1.15, 0.06, 0.4, 0.4, LG, { m: CHROME }); }
+    sh.box(b, 0, 3.2, -1.15, 1.15, 0.52, 0.52, LG, { metal: 1 });
+    for (const sd of [-1, 1]) { sh.box(b, sd * 0.42, 3.2, -1.15, 0.08, 0.56, 0.56, RD); sh.box(b, sd * 0.6, 3.2, -1.15, 0.06, 0.4, 0.4, LG, { metal: 1 }); }
     sh.tube(b, [0, 2.6, -1.15], [0, 2.95, -1.15], 0.1, 0x6a3a1a, { seg: 8 });
     const mesh = b.build({ name: 'bjorn' });
 
@@ -307,42 +305,42 @@ export const regina = {
     const b = new BrickBuilder(0.4);
     // pumpkin-round coach body with gold belts and crests
     sh.ell(b, 0, 1.25, 0, BX, 0.6, 1.35, PK, { seg: 20 });
-    sh.tor(b, 0, 1.3, 0, 1, 0.04, GD, { rx: PI / 2, sx: BX + 0.01, sy: 1.36, sz: 2, seg: 28, m: GOLD });
+    sh.tor(b, 0, 1.3, 0, 1, 0.04, GD, { rx: PI / 2, sx: BX + 0.01, sy: 1.36, sz: 2, seg: 28, metal: 1 });
     for (const x of [-0.5, 0, 0.5]) { const f = Math.sqrt(1 - (x / BX) ** 2); sh.tor(b, x * 1.01, 1.25, 0, 1, 0.022, MG, { ry: PI / 2, sx: 1.36 * f, sy: 0.61 * f, sz: 1.5, seg: 24, arc: PI }); }
     for (const sd of [-1, 1]) {
-      sh.cylX(b, sd * (BX - 0.02), 1.25, 0.1, 0.24, 0.08, GD, { seg: 16, m: GOLD });
+      sh.cylX(b, sd * (BX - 0.02), 1.25, 0.1, 0.24, 0.08, GD, { seg: 16, metal: 1 });
       sh.ell(b, sd * (BX + 0.04), 1.27, 0.1, 0.04, 0.12, 0.1, RD, glow(0xff2050, 0.8));
-      sh.cone(b, sd * (BX + 0.02), 1.45, 0.1, 0.06, 0.12, GD, { seg: 5, m: GOLD });
+      sh.cone(b, sd * (BX + 0.02), 1.45, 0.1, 0.06, 0.12, GD, { seg: 5, metal: 1 });
     }
     sh.box(b, 0, 1.62, -0.15, BX * 1.6, 0.06, 1.6, MG);   // velvet seat well
     // crown throne back
-    sh.cylY(b, 0, 2.15, -1.0, 0.95, 0.5, GD, { seg: 18, m: GOLD, r2: 0.45 });
+    sh.cylY(b, 0, 2.15, -1.0, 0.95, 0.5, GD, { seg: 18, metal: 1, r2: 0.45 });
     sh.box(b, 0, 2.1, -0.65, 1.5, 0.95, 0.12, RD);
     for (let i = 0; i < 7; i++) {
       const px = sin((i - 3) * 0.42) * 0.95, pz = -1.0 - cos((i - 3) * 0.42) * 0.45;
-      sh.cone(b, px, 2.75, pz, 0.14, 0.6, GD, { seg: 6, m: GOLD });
-      sh.ell(b, px, 3.1, pz, 0.08, 0.08, 0.08, W, { m: { metal: 0.3, rough: 0.15 } });
+      sh.cone(b, px, 2.75, pz, 0.14, 0.6, GD, { seg: 6, metal: 1 });
+      sh.ell(b, px, 3.1, pz, 0.08, 0.08, 0.08, W);
     }
     // springs, perch, footboard and lamps
     sh.box(b, 0, 0.72, 0, 0.3, 0.16, 3.6, 0x3a2a20);
-    for (const z of [-1.2, 1.2]) for (const sd of [-1, 1]) sh.tor(b, sd * 0.45, 0.95, z, 0.28, 0.18, GD, { ry: PI / 2, rz: z > 0 ? 0.6 : -0.6 + PI, seg: 12, arc: PI * 1.3, m: GOLD });
+    for (const z of [-1.2, 1.2]) for (const sd of [-1, 1]) sh.tor(b, sd * 0.45, 0.95, z, 0.28, 0.18, GD, { ry: PI / 2, rz: z > 0 ? 0.6 : -0.6 + PI, seg: 12, arc: PI * 1.3, metal: 1 });
     sh.box(b, 0, 0.9, 1.6, 1.4, 0.06, 0.5, 0x3a2a20);
     for (const sd of [-1, 1]) {
-      sh.tube(b, [sd * 0.7, 0.9, 1.75], [sd * 0.75, 1.7, 1.8], 0.03, GD, { m: GOLD });
+      sh.tube(b, [sd * 0.7, 0.9, 1.75], [sd * 0.75, 1.7, 1.8], 0.03, GD, { metal: 1 });
       sh.box(b, sd * 0.75, 1.82, 1.8, 0.18, 0.26, 0.18, C.yellow, glow(0xffd060, 1.5));
-      sh.cone(b, sd * 0.75, 2.01, 1.8, 0.14, 0.16, GD, { seg: 4, ry: PI / 4, m: GOLD });
+      sh.cone(b, sd * 0.75, 2.01, 1.8, 0.14, 0.16, GD, { seg: 4, ry: PI / 4, metal: 1 });
     }
     // footman's step and trumpets out the back
     sh.box(b, 0, 0.92, -1.75, 1.3, 0.06, 0.5, 0x3a2a20);
     for (const sd of [-1, 1]) {
-      sh.tube(b, [sd * 0.45, 1.3, -1.25], [sd * 0.6, 1.9, -2.15], 0.05, GD, { m: GOLD });
-      sh.cone(b, sd * 0.62, 1.95, -2.23, 0.17, 0.26, GD, { rx: PI / 2 + 0.6, seg: 12, m: GOLD });
+      sh.tube(b, [sd * 0.45, 1.3, -1.25], [sd * 0.6, 1.9, -2.15], 0.05, GD, { metal: 1 });
+      sh.cone(b, sd * 0.62, 1.95, -2.23, 0.17, 0.26, GD, { rx: PI / 2 + 0.6, seg: 12, metal: 1 });
     }
     const mesh = b.build({ name: 'regina' });
 
     // gold wheels
     const wheel = (x, y, z, r, front) => {
-      const w = sh.spoked('royalwheel', r, 0.16, GD, PK, GD, { spokes: 12, rimM: GOLD, hubM: GOLD, tyre: C.black });
+      const w = sh.spoked('royalwheel', r, 0.16, GD, PK, GD, { spokes: 10, metalRim: true, tyre: C.black });
       w.g.position.set(x, y, z); return { g: w.g, spin: w.spin, front, r };
     };
     // banners hanging from the trumpets
@@ -407,9 +405,9 @@ export const sam = {
     for (let i = 0; i < 4; i++) sh.box(b, -0.15 + i * 0.1, DY + 0.75, -0.925, 0.06, 0.05, 0.03, i % 2 ? OR : LI);
     for (const sd of [-1, 1]) {
       sh.box(b, sd * 0.715, DY + 0.47, -0.55, 0.02, 0.5, 0.5, C.dkgray);
-      sh.tube(b, [sd * 0.55, DY + 0.89, -0.88], [sd * 0.55, DY + 1.12, -0.95], 0.04, LG, { m: CHROME });
+      sh.tube(b, [sd * 0.55, DY + 0.89, -0.88], [sd * 0.55, DY + 1.12, -0.95], 0.04, LG, { metal: 1 });
     }
-    sh.tube(b, [-0.55, DY + 1.12, -0.95], [0.55, DY + 1.12, -0.95], 0.05, LG, { m: CHROME });
+    sh.tube(b, [-0.55, DY + 1.12, -0.95], [0.55, DY + 1.12, -0.95], 0.05, LG, { metal: 1 });
     // a big lime lightning-bolt fin out the back
     sh.box(b, 0, DY + 0.3, -1.3, 0.1, 0.6, 0.3, LI, { rx: -0.5 });
     sh.box(b, 0, DY + 0.62, -1.52, 0.1, 0.16, 0.6, LI, { rx: 0.2 });
@@ -432,8 +430,8 @@ export const sam = {
     const spins = [];
     for (const z of [-1.4, 1.4]) {
       const tb = new BrickBuilder(0.4);
-      sh.box(tb, 0, DY - 0.12, z, 0.3, 0.12, 0.3, LG, { m: CHROME });
-      sh.cylX(tb, 0, 0.28, z, 0.05, 1.3, LG, { seg: 8, m: CHROME });
+      sh.box(tb, 0, DY - 0.12, z, 0.3, 0.12, 0.3, LG, { metal: 1 });
+      sh.cylX(tb, 0, 0.28, z, 0.05, 1.3, LG, { seg: 8, metal: 1 });
       wheelsG.add(tb.build({ name: 'truck' }));
       for (const x of [-0.72, 0.72]) {
         const g = new THREE.Group(); g.position.set(x, 0.28, z);
@@ -494,7 +492,7 @@ export const zorp = {
     const DY = 0.55, R = 1.75;
     const b = new BrickBuilder(0.4);
     // the disc: silver top, lime band, purple underside
-    sh.ell(b, 0, DY, 0, R, 0.24, R, LG, { seg: 26, m: CHROME });
+    sh.ell(b, 0, DY, 0, R, 0.24, R, LG, { seg: 26, metal: 1 });
     sh.tor(b, 0, DY, 0, R - 0.02, 0.04, LI, { rx: PI / 2, seg: 32 });
     sh.dome(b, 0, DY - 0.05, 0, 1.0, 0.42, 1.0, PU, { rx: PI, seg: 18 });
     sh.cylY(b, 0, DY - 0.47, 0, 0.42, 0.06, BK, { seg: 16 });
@@ -508,7 +506,7 @@ export const zorp = {
     // glass dome sized to the pilot
     const dx = Math.min(1.3, Math.max(0.95, (rig.width || 1.3) / 2 + 0.3)), dy = Math.min(3.2, rig.height + 0.55);
     sh.dome(b, 0, DY + 0.3, -0.15, dx, dy, 1.0, C.azure, { m: { trans: true, opacity: 0.22, rough: 0.05 }, seg: 20 });
-    sh.tor(b, 0, DY + 0.3, -0.15, 1, 0.05, LG, { rx: PI / 2, sx: dx, sy: 1.0, sz: 1.5, seg: 24, m: CHROME });
+    sh.tor(b, 0, DY + 0.3, -0.15, 1, 0.05, LG, { rx: PI / 2, sx: dx, sy: 1.0, sz: 1.5, seg: 24, metal: 1 });
     const mesh = b.build({ name: 'zorp' });
 
     // chasing rim lights (two colours on one spinning ring)
@@ -558,20 +556,20 @@ export const max = {
     const b = new BrickBuilder(0.4);
     // golden shell: two wing cases, the thorax and a shovel head
     for (const sd of [-1, 1]) {
-      sh.ell(b, sd * 0.5, 1.0, -0.95, 0.56, 0.5, 1.25, GD, { seg: 18, m: GOLD });
+      sh.ell(b, sd * 0.5, 1.0, -0.95, 0.56, 0.5, 1.25, GD, { seg: 18, metal: 1 });
       for (const k of [-0.3, 0.3]) sh.box(b, sd * (0.5 + k * 0.2), 1.42, -0.95 + k, 0.08, 0.04, 1.4, LP, { rz: sd * -0.5 });
     }
-    sh.ell(b, 0, 1.0, 0.45, 0.85, 0.48, 0.62, GD, { seg: 18, m: GOLD });
+    sh.ell(b, 0, 1.0, 0.45, 0.85, 0.48, 0.62, GD, { seg: 18, metal: 1 });
     sh.box(b, 0, 1.36, 0.45, 1.0, 0.05, 0.1, LP);
-    sh.box(b, 0, 0.88, 1.12, 0.78, 0.3, 0.5, GD, { m: GOLD });
-    for (let i = -2; i <= 2; i++) sh.cone(b, i * 0.15, 0.82, 1.42, 0.06, 0.2, GD, { rx: PI / 2, seg: 4, m: GOLD });
+    sh.box(b, 0, 0.88, 1.12, 0.78, 0.3, 0.5, GD, { metal: 1 });
+    for (let i = -2; i <= 2; i++) sh.cone(b, i * 0.15, 0.82, 1.42, 0.06, 0.2, GD, { rx: PI / 2, seg: 4, metal: 1 });
     for (const sd of [-1, 1]) { sh.ell(b, sd * 0.3, 1.0, 1.25, 0.1, 0.1, 0.08, LP, glow(0x3060ff, 1.2)); sh.tube(b, [sd * 0.25, 1.1, 1.2], [sd * 0.5, 1.6, 1.5], 0.03, BK, { seg: 4 }); sh.ell(b, sd * 0.5, 1.62, 1.5, 0.08, 0.05, 0.12, BK, { seg: 6 }); }
     sh.ell(b, 0, 0.62, -0.3, 0.75, 0.3, 1.6, BK, { seg: 14 });
     // sarcophagus cockpit: gold rim, lapis bands, tall pharaoh lid as the seat back
-    sh.box(b, 0, 1.35, -0.3, 1.1, 0.25, 1.3, GD, { m: GOLD });
+    sh.box(b, 0, 1.35, -0.3, 1.1, 0.25, 1.3, GD, { metal: 1 });
     sh.box(b, 0, 1.47, -0.3, 0.95, 0.04, 1.15, DT);
     const lz = -1.15;
-    sh.box(b, 0, 2.0, lz, 1.0, 1.6, 0.2, GD, { m: GOLD, rx: -0.12 });
+    sh.box(b, 0, 2.0, lz, 1.0, 1.6, 0.2, GD, { metal: 1, rx: -0.12 });
     for (let i = 0; i < 5; i++) for (const sd of [-1, 1]) sh.box(b, sd * 0.38, 2.4 - i * 0.12, lz + 0.11 - i * 0.015, 0.22, 0.06, 0.04, i % 2 ? LP : GD, { rx: -0.12 });
     sh.box(b, 0, 2.55, lz + 0.12, 0.5, 0.5, 0.06, 0xd8a85a, { rx: -0.12 });
     for (const sd of [-1, 1]) sh.box(b, sd * 0.1, 2.6, lz + 0.16, 0.12, 0.05, 0.03, BK, { rx: -0.12 });
@@ -588,7 +586,7 @@ export const max = {
       const hip = [sd * 0.6, 0.85, z], knee = [sd * 1.3, 1.2, z + dz * 0.4], foot = [sd * 1.55, 0.05, z + dz];
       sh.tube(pb, hip, knee, 0.08, BK, { seg: 6 });
       sh.tube(pb, knee, foot, 0.06, BK, { seg: 6 });
-      sh.ell(pb, ...knee, 0.11, 0.11, 0.11, GD, { m: GOLD, seg: 8 });
+      sh.ell(pb, ...knee, 0.11, 0.11, 0.11, GD, { metal: 1, seg: 8 });
       for (const f of [0.35, 0.6]) sh.cone(pb, knee[0] + (foot[0] - knee[0]) * f + sd * 0.06, knee[1] + (foot[1] - knee[1]) * f, knee[2] + (foot[2] - knee[2]) * f, 0.03, 0.14, BK, { rz: sd * -1.2, seg: 4 });
       sh.box(pb, foot[0], 0.04, foot[2], 0.18, 0.08, 0.26, BK);
     };
@@ -598,9 +596,9 @@ export const max = {
     // the sun disc rolled ahead, held by the front legs
     const sunG = new THREE.Group(); sunG.position.set(0, 0.58, 2.1);
     const sun = sh.part('sun', 0, 0, 0, (pb) => {
-      sh.ell(pb, 0, 0, 0, 0.42, 0.42, 0.42, 0xff6a10, { seg: 16, m: { emissive: 0xff4a00, emissiveIntensity: 1.3 } });
-      for (let i = 0; i < 10; i++) { const a = (i / 10) * PI * 2; sh.cone(pb, 0, cos(a) * 0.5, sin(a) * 0.5, 0.05, 0.16, 0xffc040, { rx: a, r2: 0.12, seg: 4, m: { emissive: 0xffa020, emissiveIntensity: 1.5 } }); }
-      for (const sd of [-1, 1]) sh.cylX(pb, sd * 0.3, 0, 0, 0.38, 0.06, 0xffc040, { seg: 16, m: { emissive: 0xffa020, emissiveIntensity: 1.5 } });
+      sh.ell(pb, 0, 0, 0, 0.42, 0.42, 0.42, 0xff6a10, { seg: 16, lit: 0xff5a10, k: 1.3 });
+      for (let i = 0; i < 10; i++) { const a = (i / 10) * PI * 2; sh.cone(pb, 0, cos(a) * 0.5, sin(a) * 0.5, 0.05, 0.16, 0xffc040, { rx: a, r2: 0.12, seg: 4, lit: 0xffc040 }); }
+      for (const sd of [-1, 1]) sh.cylX(pb, sd * 0.3, 0, 0, 0.38, 0.06, 0xffc040, { seg: 16, lit: 0xffc040 });
     });
     sunG.add(sun);
     const arms = sh.part('sunarms', 0, 0, 0, (pb) => { for (const sd of [-1, 1]) { sh.tube(pb, [sd * 0.45, 0.85, 1.15], [sd * 0.62, 0.7, 1.85], 0.06, BK, { seg: 6 }); sh.tube(pb, [sd * 0.62, 0.7, 1.85], [sd * 0.5, 0.6, 2.1], 0.05, BK, { seg: 6 }); } });

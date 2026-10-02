@@ -1,7 +1,7 @@
 // Shape helpers for the rebuilt Original Karts (js/vehicles/originals.js).
 // Everything adds into a BrickBuilder so a body still merges into a few meshes; nothing
 // here allocates per frame. Geometries are cached per module.
-const geos = new Map();
+const geos = new Map(), mats = new Map();
 
 export function kit(K) {
   const { THREE, plastic } = K;
@@ -15,9 +15,24 @@ export function kit(K) {
   const coneG = (n) => cache('cone' + n, () => new THREE.ConeGeometry(1, 1, n));
   const torG = (t, n, arc) => cache('tor' + t + '|' + n + '|' + arc, () => new THREE.TorusGeometry(1, t, 6, n, arc));
   const domeG = (n, f) => cache('dome' + n + '|' + f, () => new THREE.SphereGeometry(1, n, Math.round(n * 0.5), 0, Math.PI * 2, 0, Math.PI * f));
+  // o.metal: shiny (chrome / gold) and o.lit: self-lit (lamps, gems) share one vertex-coloured
+  // material each, so every metal or lit detail of a vehicle merges into a single mesh
+  const shared = (key, make) => { let m = mats.get(key); if (!m) { m = make(); mats.set(key, m); } return m; };
+  const metalMat = () => shared('metal', () => new THREE.MeshStandardMaterial({ vertexColors: true, metalness: 0.85, roughness: 0.25 }));
+  const litMat = () => shared('lit', () => new THREE.MeshBasicMaterial({ vertexColors: true }));
+  const add = (b, geo, col, o, m) => {
+    if (o.metal || o.lit !== undefined) {
+      const g = b.addMatrix(geo, o.metal ? metalMat() : litMat(), m);
+      TC.setHex(o.lit ?? col).multiplyScalar(o.metal ? 1 : o.k ?? 1.7);
+      const n = g.attributes.position.count, a = new Float32Array(n * 3);
+      for (let i = 0; i < n; i++) { a[i * 3] = TC.r; a[i * 3 + 1] = TC.g; a[i * 3 + 2] = TC.b; }
+      g.setAttribute('color', new THREE.BufferAttribute(a, 3));
+    } else b.addMatrix(geo, mat(col, o), m);
+  };
+  const TC = new THREE.Color();
   const put = (b, geo, x, y, z, rx, ry, rz, sx, sy, sz, col, o) => {
     M.compose(P.set(x, y, z), Q.setFromEuler(E.set(rx, ry, rz)), S.set(sx, sy, sz));
-    b.addMatrix(geo, mat(col, o), M);
+    add(b, geo, col, o, M);
   };
   const sh = {
     // centred box, rotation o.rx / o.ry / o.rz
@@ -40,7 +55,7 @@ export function kit(K) {
       const len = D.length();
       Q.setFromUnitVectors(Y, D.normalize());
       M.compose(P.set((a[0] + c[0]) / 2, (a[1] + c[1]) / 2, (a[2] + c[2]) / 2), Q, S.set(r, len, o.r2 ?? r));
-      b.addMatrix(cylG(o.seg || 8), mat(col, o), M);
+      add(b, cylG(o.seg || 8), col, o, M);
     },
     // arc of n boxes around (cy, cz) in the y/z plane, angle th0..th1 (0 = +z, PI/2 = up)
     arc: (b, x, cy, cz, R, th0, th1, n, w, t, col, o = {}) => {
@@ -75,13 +90,13 @@ export function kit(K) {
     const sb = new K.BrickBuilder(0.4);
     const n = o.spokes || 8;
     for (const x of o.xs || [0]) {
-      sh.tor(sb, x, 0, 0, r - 0.05, 0.1 / r * 0.9, rimCol, { ry: Math.PI / 2, seg: 22, m: o.rimM });
-      if (o.tyre) sh.tor(sb, x, 0, 0, r - 0.02, 0.06 / r, o.tyre, { ry: Math.PI / 2, seg: 22 });
+      sh.tor(sb, x, 0, 0, r - 0.05, 0.1 / r * 0.9, rimCol, { ry: Math.PI / 2, seg: 18, metal: o.metalRim });
+      if (o.tyre) sh.tor(sb, x, 0, 0, r - 0.02, 0.06 / r, o.tyre, { ry: Math.PI / 2, seg: 18 });
       for (let i = 0; i < n; i++) {
         const a = (i / n) * Math.PI * 2;
-        sh.box(sb, x, Math.sin(a) * r * 0.48, Math.cos(a) * r * 0.48, w * 0.35, 0.07, r * 0.92, spokeCol, { rx: -a, m: o.spokeM });
+        sh.box(sb, x, Math.sin(a) * r * 0.48, Math.cos(a) * r * 0.48, w * 0.35, 0.07, r * 0.92, spokeCol, { rx: -a });
       }
-      sh.cylX(sb, x, 0, 0, r * 0.2, w, hubCol, { seg: 10, m: o.hubM });
+      sh.cylX(sb, x, 0, 0, r * 0.2, w, hubCol, { seg: 10, metal: o.metalRim });
     }
     const spin = new THREE.Group(); spin.add(sb.build({ name })); g.add(spin);
     return { g, spin };

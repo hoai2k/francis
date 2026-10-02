@@ -88,8 +88,9 @@ const thunderHog = {
     const rSpin = new THREE.Mesh(wheelGeo(RR, 0.42, OR, [0]), wheelMat);
     rSpin.position.set(0, RR, RZ);
 
-    // a big rider gets a broader, slightly bigger bike (wheels stay round: y and z scale alike)
-    const kx = clamp(1 + (f.W - 1.3) * 0.6, 1, 1.4), k = 1 + f.big * 0.07;
+    // a big rider gets a slightly broader bike (wheels stay round: y and z scale alike); it should
+    // still look small under them
+    const kx = clamp(1 + (f.W - 1.3) * 0.25, 1, 1.15), k = 1 + f.big * 0.03;
     let lean = 0, pitch = 0;
     return {
       mesh: grow(THREE, [mesh, fork, rSpin], kx, k, k), seat: [0, 0.97 * k, -0.5 * k], control: 'bars',
