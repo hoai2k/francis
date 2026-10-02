@@ -96,13 +96,13 @@ class Game {
     requestAnimationFrame((t) => this.loop(t));
   }
 
-  // Player 1 is always there: the device that was driving the menus, else a connected
-  // controller, else touch / keyboard.
+  // Player 1 is always there: a connected controller if there is one (the one that drove the
+  // menus, else the first), otherwise the keyboard or touch.
   p1Device() {
     const pads = this.input.pads();
-    if (this.lastDevice && (this.lastDevice === 'kb' || pads.includes(this.lastDevice))) return this.lastDevice;
+    if (pads.includes(this.lastDevice)) return this.lastDevice;
     if (pads.length) return pads[0];
-    return isTouchDevice() ? 'touch' : 'kb';
+    return this.lastDevice === 'kb' || !isTouchDevice() ? 'kb' : 'touch';
   }
 
   // "Use Characters": karts get movie-character drivers
@@ -453,7 +453,12 @@ class Game {
         }
         for (const [dev, m] of this.menuEvents) {
           let p = players.find((q) => q.device === dev);
+          if (p && (m.ok || m.start || m.back || m.up || m.down || m.left || m.right)) p.acted = true;
           if (!p) {
+            // a controller that only just showed up takes over an untouched keyboard player 1
+            if ((m.ok || m.start) && dev.startsWith('pad') && players.length === 1 && !players[0].acted && !players[0].device.startsWith('pad')) {
+              players[0].device = dev; players[0].acted = true; this.audio.sfx('join'); refresh(); continue;
+            }
             if (m.ok || m.start) {
               if (players.length === 0 && dev === 'kb2') continue;
               p = join(dev);
@@ -689,7 +694,12 @@ class Game {
         }
         for (const [dev, m] of this.menuEvents) {
           let p = players.find((q) => q.device === dev);
+          if (p && (m.ok || m.start || m.back || m.up || m.down || m.left || m.right)) p.acted = true;
           if (!p) {
+            // a controller that only just showed up takes over an untouched keyboard player 1
+            if ((m.ok || m.start) && dev.startsWith('pad') && players.length === 1 && !players[0].acted && !players[0].device.startsWith('pad')) {
+              players[0].device = dev; players[0].acted = true; this.audio.sfx('join'); refresh(); continue;
+            }
             if (m.ok || m.start) {
               if (players.length === 0 && dev === 'kb2') continue;
               p = join(dev);
