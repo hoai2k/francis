@@ -10,6 +10,7 @@ import { AIDriver } from './ai.js';
 import { CHARACTERS } from './characters.js';
 import { DRIVERS } from './driver.js';
 import { KARTS } from './vehicles.js';
+import { ABILITY } from './abilities.js';
 import { HUD, splitCells } from './hud.js';
 import { Hazards } from './hazards.js';
 
@@ -116,6 +117,8 @@ export class Race {
     const total = this.mode === 'tt' ? humans.length : Math.min(MAX_RACERS, Math.max(humans.length, opts.racers ?? MAX_RACERS));
     // Use Characters: every kart also gets a movie-character driver (CPU drivers are unique)
     this.useChars = !!opts.useChars && DRIVERS.length > 0;
+    // movie tracks favour their own movie's abilities
+    this.movieFrom = ['starwars', 'marvel', 'jjk', 'jurassic'].includes(opts.def?.id) ? opts.def.id : null;
     const shuffle = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
     let grid = opts.grid;   // array of { charIndex, driverIndex?, player }
     if (!grid) {
@@ -251,7 +254,9 @@ export class Race {
         this.items.use(k);
         if (k.anim) {
           const back = ctl.back || (TRAPS.has(it) && !ctl.aimFwd);
-          if (THROWS.has(it) || TRAPS.has(it)) k.emote(back ? 'throwB' : 'throwF', 'throw');
+          const ab = ABILITY[it];
+          if (ab) k.emote(ab.gesture === 'throwF' && back ? 'throwB' : ab.gesture, ab.gesture === 'use' ? 'yay' : 'throw');
+          else if (THROWS.has(it) || TRAPS.has(it)) k.emote(back ? 'throwB' : 'throwF', 'throw');
           else k.emote('use', 'yay');
         }
       }
@@ -289,10 +294,10 @@ export class Race {
           const lead = this.order.find((o) => !o.finished) || this.order[0];
           const behind = lead ? lead.raceDist - k.raceDist : 0;
           if (!k.item && k.roulette <= 0 && !k.nextItem && !(k.roulette2 > 0)) {
-            k.rouletteItem = rollItem(rf, Math.random, behind);
+            k.rouletteItem = rollItem(rf, Math.random, behind, this.movieFrom);
             k.roulette = k.human ? 1.3 : 1.0;
           } else if (!k.nextItem && !(k.roulette2 > 0)) {
-            k.rouletteItem2 = rollItem(rf, Math.random, behind);
+            k.rouletteItem2 = rollItem(rf, Math.random, behind, this.movieFrom);
             k.roulette2 = k.human ? 1.3 : 1.0;
           }
         }
@@ -370,6 +375,8 @@ export class Race {
         B.moveYaw = lerpAngle(B.moveYaw, yb, 0.25 * wb);
         A.speed *= 1 - 0.12 * wa; B.speed *= 1 - 0.12 * wb;
         A.anim?.play('bonk'); B.anim?.play('bonk');
+        // abilities can react to bumps (e.g. a charged-up punch)
+        A.onBump?.(B); B.onBump?.(A);
         if (A.human || B.human) this.audio.sfx('bump', A.pos);
         A.player?.rumble(0.3 * wa + 0.1, 90); B.player?.rumble(0.3 * wb + 0.1, 90);
       }

@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { BrickBuilder, C, plastic, brickGeometry } from './lego.js';
 import { angleDiff } from './kart.js';
+import { ABILITIES, ABILITY } from './abilities.js';
 
 export const ITEMS = {
   boost:  { name: 'Turbo Stud', color: '#ff9a1a' },
@@ -67,10 +68,19 @@ const TABLES = [
   [0.75, { boost3: 13, rocket3: 11, mega: 10, golden: 10, goldturbo: 9, seeker: 7, ink: 8, ghost: 6, storm: 5, bomb: 5, cannon3: 5, bullet: 6 }],
   [1.01, { bullet: 24, golden: 15, goldturbo: 15, storm: 12, seeker: 7, mega: 10, boost3: 10, rocket3: 7 }],
 ];
-export function rollItem(rankFrac, rand = Math.random, gapBehind = 0) {
+// movie abilities join the tables (see abilities.js)
+for (const a of ABILITIES) {
+  ITEMS[a.id] = { name: a.name, color: a.color || '#ffffff' };
+  ICONS[a.id] = a.icon || ICONS.boost;
+  if (a.multi) MULTI[a.id] = a.multi;
+  TABLES.forEach(([, t], band) => { if (a.odds[band] > 0) t[a.id] = a.odds[band]; });
+}
+export function rollItem(rankFrac, rand = Math.random, gapBehind = 0, trackFrom = null) {
   // being far behind the leader counts as being further back
   rankFrac = Math.min(1, rankFrac + Math.min(0.3, Math.max(0, gapBehind) / 1500));
-  const t = TABLES.find(([u]) => rankFrac <= u)[1];
+  let t = TABLES.find(([u]) => rankFrac <= u)[1];
+  // on a movie track, that movie's abilities turn up twice as often
+  if (trackFrom) { t = { ...t }; for (const a of ABILITIES) if (a.from === trackFrom && t[a.id]) t[a.id] *= 2; }
   let sum = 0;
   for (const w of Object.values(t)) sum += w;
   let r = rand() * sum;
@@ -183,6 +193,30 @@ export class Items {
     this.rings = [];  // horn shockwaves
     this.tmp = new THREE.Vector3();
     this.loc = {};
+    this.ents = [];   // movie-ability entities (see abilities.js)
+    this.ctx = this.abilityCtx();
+  }
+
+  // the toolkit movie abilities use
+  abilityCtx() {
+    const race = this.race, items = this;
+    const order = () => race.order;
+    return {
+      race, track: this.track, scene: this.scene, fx: race.fx, audio: race.audio, THREE, BrickBuilder, C, plastic,
+      spawn: (e) => { items.ents.push(e); return e; },
+      hit: (target, kind, by, label = 'ability') => {
+        if (!target || target.respawn > 0) return false;
+        const ok = target.hit(kind, by);
+        if (ok && by) race.onProjectileHit?.(by, target, label);
+        return ok;
+      },
+      ahead: (k, n = 1) => { const o = order(), i = o.indexOf(k); return o.slice(Math.max(0, i - n), i).reverse(); },
+      behind: (k, n = 1) => { const o = order(), i = o.indexOf(k); return o.slice(i + 1, i + 1 + n); },
+      near: (pos, r, except = null) => race.karts.filter((o) => o !== except && o.respawn <= 0 && o.pos.distanceTo(pos) < r),
+      ring: (pos, radius, color) => items.ring(pos, radius, color),
+      explode: (pos, radius, by) => items.explode(pos, radius, by),
+      at: (i, lat = 0, h = 0, out) => items.track.at(items.track.wrap(Math.round(i)), lat, h, out),
+    };
   }
 
   makeBulletMesh(ch) {
@@ -208,6 +242,9 @@ export class Items {
     const back = k.ctl.back;
     const au = this.race.audio;
     let keep = false;
+    if (ABILITY[it]) {
+      try { ABILITY[it].use(k, this.ctx, { back, aimFwd: !!k.ctl.aimFwd }); } catch (e) { console.error('ability failed', it, e); }
+    }
     switch (it) {
       case 'boost': case 'boost3': k.boost(1.2); break;
       case 'rocket': case 'rocket3': this.fireRocket(k); au.sfx('rocket', k.pos); break;
@@ -349,6 +386,13 @@ export class Items {
   update(dt) {
     const tr = this.track;
     const karts = this.race.karts;
+    // movie-ability entities
+    for (let n = this.ents.length - 1; n >= 0; n--) {
+      const e = this.ents[n];
+      let alive = false;
+      try { alive = e.update(dt); } catch (err) { console.error('ability entity failed', err); }
+      if (!alive) { try { e.dispose?.(); } catch { /* already gone */ } this.ents.splice(n, 1); }
+    }
     // projectiles
     for (let n = this.proj.length - 1; n >= 0; n--) {
       const p = this.proj[n];
@@ -517,10 +561,13 @@ export class Items {
   // AI helper: is there a trap near a point ahead?
   dangerNear(pos, r = 6) {
     for (const t of this.traps) if (t.pos.distanceToSquared(pos) < (r + (t.kind === 'puddle' ? 2 : 0)) ** 2) return t.pos;
+    for (const e of this.ents) if (e.danger?.(pos, r)) return pos;
     return null;
   }
 
   dispose() {
+    for (const e of this.ents) { try { e.dispose?.(); } catch { /* ignore */ } }
+    this.ents = [];
     for (const p of this.proj) this.scene.remove(p.mesh);
     for (const t of this.traps) this.scene.remove(t.mesh);
     for (const s of this.storms) this.scene.remove(s.cloud);

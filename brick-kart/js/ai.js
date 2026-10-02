@@ -1,6 +1,7 @@
 // Computer drivers: follow the track with a personal lane, cut corners,
 // drift through bends, grab item boxes / boost pads, dodge traps and use items.
 import { angleDiff } from './kart.js';
+import { ABILITY } from './abilities.js';
 
 export const DIFFICULTY = {
   easy: { base: 0.86, skill: 0.25, band: 0.06 },
@@ -114,6 +115,15 @@ export class AIDriver {
       return Math.abs(angleDiff(k.yaw, a)) < 0.2;
     };
     const threat = race.items.proj.some((p) => p.owner !== k && p.pos.distanceTo(k.pos) < 35);
+    const ab = ABILITY[k.item];
+    if (ab) {
+      // movie abilities decide for themselves, else use them after a short wait
+      let r = false;
+      try { r = ab.ai ? ab.ai(k, race.items.ctx) : this.itemTimer < -1.5; } catch { r = this.itemTimer < -3; }
+      if (r) { c.itemPressed = true; if (r.back) c.back = true; this.itemTimer = 0.6 + Math.random() * (1.5 - this.d.skill); }
+      else if (this.itemTimer < -12) { c.itemPressed = true; this.itemTimer = 1; }
+      return;
+    }
     switch (k.item) {
       case 'boost': case 'boost3': case 'golden': case 'goldturbo': case 'mega': use = curv < 0.5 && !k.offroad || k.offroad; break;
       case 'bullet': case 'ink': case 'storm': case 'studbag': case 'seeker': case 'ghost': use = true; break;

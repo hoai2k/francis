@@ -10,6 +10,7 @@ import { TRACKS, CUPS } from './tracks.js';
 import { CHARACTERS, buildKart, bodyName } from './characters.js';
 import { DRIVERS, UNIVERSES, combinedStats } from './driver.js';
 import { KARTS } from './vehicles.js';
+import { ABILITY } from './abilities.js';
 import { Showcase, driverPortrait, kartPortrait } from './showcase.js';
 import { ICONS, ITEMS } from './items.js';
 import { fmt } from './hud.js';
@@ -354,7 +355,7 @@ class Game {
   }
 
   showHelp(back) {
-    const items = Object.keys(ITEMS).map((k) => `<div class="it"><span class="ic">${ICONS[k]}</span><b>${ITEMS[k].name}</b><span>${ITEM_HELP[k]}</span></div>`).join('');
+    const items = Object.keys(ITEMS).map((k) => `<div class="it"><span class="ic">${ICONS[k]}</span><b>${ITEMS[k].name}</b><span>${ITEM_HELP[k] ?? ABILITY[k]?.help ?? ''}</span></div>`).join('');
     this.setScreen(`<div class="screen help"><div class="panel wide"><h2>How to Play</h2>
       <div class="cols">
         <div><h3>🎮 Controller</h3><table>
@@ -373,7 +374,7 @@ class Game {
           <li>Hold accelerate right as the second light comes on for a rocket start.</li>
           <li>Orange arrow pads give a boost.</li></ul></div>
       </div>
-      <h3>Power-ups (23) · racers further back get stronger ones</h3><div class="items">${items}</div>
+      <h3>Power-ups (${Object.keys(ITEMS).length}) · racers further back get stronger ones · movie powers turn up on every track</h3><div class="items">${items}</div>
       <div class="hint">${hintHTML('Back')}</div></div></div>`, {
       update: () => { for (const [, m] of this.menuEvents) if (m.back || m.ok || m.start) { this.audio.sfx('back'); back(); return; } },
       act: (a) => { if (a === 'back') back(); },
