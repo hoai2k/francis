@@ -30,6 +30,20 @@ export function face(key, skin, draw, sq = 0.53) {
       poly(pts, col) { g.fillStyle = col; g.beginPath(); pts.forEach(([x, y], k) => (k ? g.lineTo(x, y) : g.moveTo(x, y))); g.closePath(); g.fill(); },
       curve(x0, y0, cx, cy, x1, y1, col, w) { g.strokeStyle = col; g.lineWidth = w; g.beginPath(); g.moveTo(x0, y0); g.quadraticCurveTo(cx, cy, x1, y1); g.stroke(); },
       rect(x, y, w, h, col) { g.fillStyle = col; g.fillRect(x, y, w, h); },
+      // mouths: grin (open, teeth on top), smile, open (O / roar), smirk, flat, frown
+      mouth(y, w, kind = 'smile', col = '#1b1b1b') {
+        if (kind === 'grin' || kind === 'open') {
+          g.fillStyle = col; g.beginPath();
+          if (kind === 'grin') { g.moveTo(-w, y); g.quadraticCurveTo(0, y + w * 1.5, w, y); g.closePath(); }
+          else g.ellipse(0, y + w * 0.5, w * 0.8, w * 0.75, 0, 0, PI * 2);
+          g.fill();
+          g.fillStyle = '#fff'; g.fillRect(-w * 0.62, y + (kind === 'open' ? -w * 0.2 : 0), w * 1.24, w * 0.3);
+          P.ell(0, y + w * (kind === 'open' ? 0.95 : 0.6), w * 0.42, w * 0.28, '#d94a5a');
+        } else if (kind === 'smile') P.curve(-w, y, 0, y + w * 0.9, w, y, col, 6);
+        else if (kind === 'frown') P.curve(-w, y + w * 0.5, 0, y - w * 0.3, w, y + w * 0.5, col, 6);
+        else if (kind === 'smirk') P.curve(-w * 0.8, y + w * 0.2, w * 0.3, y + w * 0.45, w, y - w * 0.25, col, 6);
+        else P.line([[-w, y], [w, y]], col, 6);
+      },
       // a pair of shiny cartoon eyes
       eyes(dx, y, rx, ry, col = '#1b1b1b', shine = true) {
         for (const sd of [-1, 1]) { P.ell(sd * dx, y, rx, ry, col); if (shine) P.ell(sd * dx + rx * 0.35, y - ry * 0.4, rx * 0.32, ry * 0.28, '#fff'); }
@@ -56,6 +70,34 @@ export function fxMat(color, opacity = 0.85) {
 export const clear = (c, opacity = 0.3) => plastic(c, { trans: true, opacity, rough: 0.05 });
 export const metal = (c) => plastic(c, { metal: 0.65, rough: 0.28 });
 
+// geometry helpers: a top hemisphere (dome), a frustum, a tapered rod, a yawed/tilted box
+export const domeGeo = () => cached('origDome', () => new THREE.SphereGeometry(1, 16, 7, 0, PI * 2, 0, PI / 2));
+export const frustum = (rt, rb, segs = 16) => cached(`origFr${rt},${rb},${segs}`, () => new THREE.CylinderGeometry(rt, rb, 1, segs).translate(0, 0.5, 0));
+const _A = new THREE.Vector3(), _B = new THREE.Vector3(), _Y = new THREE.Vector3(0, 1, 0), _Q = new THREE.Quaternion(), _M = new THREE.Matrix4(), _Sc = new THREE.Vector3();
+export function trod(b, a, c, r0, r1, color, segs = 8) {
+  _A.set(...a); _B.set(...c);
+  const dir = _B.sub(_A), len = dir.length(), k = Math.round((r1 / r0) * 50) / 50;
+  const g = cached(`origTrod${k},${segs}`, () => new THREE.CylinderGeometry(k, 1, 1, segs).translate(0, 0.5, 0));
+  _M.compose(_A, _Q.setFromUnitVectors(_Y, dir.normalize()), _Sc.set(r0, len, r0));
+  b.addMatrix(g, typeof color === 'number' ? plastic(color) : color, _M);
+}
+const _E = new THREE.Euler();
+// box yawed by ry then tilted by rx/rz in its own frame (Euler order YXZ)
+export function ybox(b, x, y, z, sx, sy, sz, ry, rx, rz, color) {
+  _E.set(rx, ry, rz, 'YXZ'); _Q.setFromEuler(_E);
+  _M.compose(_A.set(x, y, z), _Q, _Sc.set(sx, sy, sz));
+  b.boxM(_M, color);
+}
+// any cached geometry with a full transform
+export function geoM(b, geo, mat, x, y, z, rx, ry, rz, sx, sy = sx, sz = sx) {
+  _E.set(rx, ry, rz, 'XYZ'); _Q.setFromEuler(_E);
+  _M.compose(_A.set(x, y, z), _Q, _Sc.set(sx, sy, sz));
+  b.addMatrix(geo, typeof mat === 'number' ? plastic(mat) : mat, _M);
+}
+export const torusGeo = (t = 0.25, segs = 20) => cached(`origTorus${t},${segs}`, () => new THREE.TorusGeometry(1, t, 6, segs));
+export const coneGeo = () => cached('origCone', () => new THREE.ConeGeometry(1, 1, 8).translate(0, 0.5, 0));
+export const sphGeo = () => cached('origSph', () => new THREE.SphereGeometry(1, 12, 8));
+
 const sph = () => cached('origSph', () => new THREE.SphereGeometry(1, 12, 8));
 const oct = () => cached('origOct', () => new THREE.OctahedronGeometry(1, 0));
 
@@ -74,7 +116,7 @@ export function fxg(parent, { x = 0, y = 0, z = 0, visible = false } = {}) {
 // re-aims it every frame so the prop points at angle a from straight up (towards +Z) in the
 // torso frame, whatever the arm is doing (call it from rig.idle / rig.fx).
 export function grip(arm, s, name = 'grip') {
-  const g = new THREE.Group(); g.name = name; g.position.set(0, -0.6 * s, 0.02 * s); arm.add(g); return g;
+  const g = new THREE.Group(); g.name = name; g.rotation.order = 'ZYX'; g.position.set(0, -0.6 * s, 0.02 * s); arm.add(g); return g;
 }
 export function hold(g, arm, a, k = 1) { g.rotation.x = a - arm.rotation.x * k; g.rotation.z = -arm.rotation.z * k; }
 

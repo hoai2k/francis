@@ -139,3 +139,14 @@ export function beam(b, x1, y1, z1, x2, y2, z2, w, h, color, opts = {}) {
   const yaw = Math.atan2(D.x, D.z), pitch = -Math.asin(D.y / len);
   b.boxM(mat((x1 + x2) / 2, (y1 + y2) / 2, (z1 + z2) / 2, pitch, yaw, opts.roll || 0, w, h, len + (opts.ext || 0), 'YXZ'), color, opts);
 }
+
+// The driver's size (kit.rig, seat frame, hips at the origin) boiled down to the numbers the
+// cockpits need. A typical figure is ~2.0 tall and 1.3 wide; huge ones reach 2.9 x 2.0.
+//   H height (top of head), W overall width, hip = hip/thigh half-width,
+//   sx/sy = shoulder half-width / height, big/wide = 0..1 beyond a typical figure
+export const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+export function fitOf(rig) {
+  const H = clamp(rig?.height ?? 1.8, 1.1, 3.0), W = clamp(rig?.width ?? 1.2, 0.8, 2.1);
+  const sx = clamp(Math.abs(rig?.shoulder?.x ?? 0.56), 0.2, 1.0), sy = clamp(rig?.shoulder?.y ?? 1.2, 0.6, 1.6);
+  return { H, W, sx, sy, hip: clamp(0.12 + W * 0.26, 0.3, 0.7), big: clamp((H - 2.05) / 0.85, 0, 1), wide: clamp((W - 1.3) / 0.65, 0, 1) };
+}

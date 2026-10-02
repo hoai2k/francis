@@ -1,9 +1,10 @@
 // Marvel & Jurassic vehicle pack (see buildVehicle in ../characters.js for the contract).
 // Jurassic: the park Jeep, a Gyrosphere and the 1993 tour Explorer.
 // Marvel: Wakanda's Royal Talon hover-car, Tony Stark's roadster and Thor's goat chariot.
-import { rbox, tube, disc, cone, ring, blob, beam, glowMat, decal } from './heroes-kit.js';
+import { rbox, tube, disc, cone, ring, blob, beam, glowMat, decal, fitOf, clamp } from './heroes-kit.js';
 
 const PI = Math.PI, S = Math.sin;
+const BACK = -PI / 2;   // boost flames pointing straight back
 
 // ------------------------------------------------------------------------------------------------
 // Jurassic Park Jeep Wrangler (1992 Sahara): sand-beige with red slashes, red wheels and
@@ -12,7 +13,8 @@ const SAND = 0xd8c39a, JPRED = 0xb8141c;
 const jeep = {
   id: 'jpjeep', name: 'Park Jeep 12', form: 'Safari jeep', blurb: 'Must go faster!',
   stats: { speed: 3, accel: 3, handling: 3, weight: 4 }, colors: [SAND, JPRED, 0x2f5a3a],
-  build({ BrickBuilder, C, plastic }) {
+  build({ BrickBuilder, C, plastic, rig }) {
+    const f = fitOf(rig);
     const b = new BrickBuilder(0.4);
     const lamp = { matOpts: { emissive: 0xfff2b0, emissiveIntensity: 0.9 } };
     // chassis, floor, tub
@@ -38,8 +40,9 @@ const jeep = {
     disc(b, 0, 1.0, -2.05, 0.36, 0.32, 'z', 0x222222, { seg: 18 });
     decal(b, 0, 0, 1.0, -2.215, 0.66, 0.66, '-z');
     // green interior: seats and rear bench
-    b.box(0, 0.62, -0.48, 1.3, 0.28, 0.72, 0x2f5a3a);
-    b.box(0, 0.9, -0.9, 1.3, 0.72, 0.16, 0x2f5a3a);
+    const sw = clamp(f.hip * 2 + 0.38, 1.3, 1.7);
+    b.box(0, 0.62, -0.48, sw, 0.28, 0.72, 0x2f5a3a);
+    b.box(0, 0.9, -0.9, sw, 0.72, 0.16, 0x2f5a3a);
     b.box(0, 0.62, -1.45, 1.7, 0.36, 0.55, 0x2f5a3a);
     // cowl, dash, hood
     b.box(0, 0.5, 0.78, 2.14, 0.8, 0.32, SAND);
@@ -64,16 +67,17 @@ const jeep = {
     b.box(0, 1.25, 0.98, 1.82, 0.65, 0.03, C.azure, { matOpts: { trans: true, opacity: 0.3 } });
     b.box(0, 2.0, 0.98, 1.5, 0.08, 0.08, C.black);
     for (let i = -1.5; i <= 1.5; i++) disc(b, i * 0.36, 2.15, 1.0, 0.09, 0.12, 'z', C.white, { seg: 10, ...lamp });
-    // roll bar and the radio whip
+    // roll bar (taller and wider for big drivers) and the radio whip
+    const RT = 2.05 + f.big * 0.7, RX = clamp(f.sx + 0.3, 0.88, 0.98);
     for (const sd of [-1, 1]) {
-      tube(b, sd * 0.88, 1.2, -1.2, sd * 0.88, 2.05, -1.2, 0.06, C.black);
-      tube(b, sd * 0.88, 2.0, -1.2, sd * 0.88, 1.22, -1.74, 0.05, C.black);
+      tube(b, sd * RX, 1.2, -1.2, sd * RX, RT, -1.2, 0.06, C.black);
+      tube(b, sd * RX, RT - 0.05, -1.2, sd * RX, 1.22, -1.74, 0.05, C.black);
     }
-    tube(b, -0.94, 2.05, -1.2, 0.94, 2.05, -1.2, 0.06, C.black);
-    tube(b, 0.92, 1.22, -1.75, 0.92, 2.7, -1.75, 0.015, C.black, { seg: 4 });
+    tube(b, -RX - 0.06, RT, -1.2, RX + 0.06, RT, -1.2, 0.06, C.black);
+    tube(b, 0.92, 1.22, -1.75, 0.92, RT + 0.65, -1.75, 0.015, C.black, { seg: 4 });
     const mesh = b.build({ name: 'jpjeep' }); mesh.position.z = -0.18;   // keep the winch inside the footprint
     return {
-      mesh, seat: [0, 0.95, -0.63], control: 'wheel',
+      mesh, seat: [0, 0.95, -0.63], control: 'wheel', exhaust: [[0.6, 0.3, -2.3, BACK], [-0.6, 0.3, -2.3, BACK]],
       wheels: [
         { z: -1.48, r: 0.5, w: 0.44, xs: [1.2, -1.2], cap: JPRED },
         { x: 1.2, z: 1.32, r: 0.5, w: 0.44, front: true, cap: JPRED },
@@ -89,31 +93,36 @@ const jeep = {
 const gyro = {
   id: 'gyrosphere', name: 'Gyrosphere', form: 'Rolling glass ball', blurb: 'Keep arms inside the ball',
   stats: { speed: 2, accel: 4, handling: 5, weight: 1 }, colors: [0xdff3ff, 0x2a5ab8, 0xf4f4f4],
-  build({ THREE, BrickBuilder, C, plastic }) {
-    const R = 1.6;
+  build({ THREE, BrickBuilder, C, plastic, rig }) {
+    // the ball is sized so the driver's head clears the glass (a tall driver also sits lower)
+    const f = fitOf(rig);
+    const SY = clamp(0.98 - (f.H - 2.05) * 0.5, 0.76, 0.98), dy = SY - 0.98;
+    const R = clamp((SY + f.H * 1.02 + 0.1) / 2, 1.4, 1.85), k = R / 1.6;
+    const SZ = -0.15 + f.wide * 0.12;   // broad backs sit a little further forward of the seat back
     // cabin (level): white lower bowl, dark floor, blue seats and a console
     const b = new BrickBuilder(0.4);
     const bowl = new THREE.MeshStandardMaterial({ color: 0xf2f2f2, roughness: 0.3, side: THREE.DoubleSide });
     blob(b, 0, R, 0, R - 0.07, R - 0.07, R - 0.07, 0, { mat: bowl, t0: 2.1, t1: PI, ws: 28, hs: 8 });
     ring(b, 0, R + (R - 0.07) * Math.cos(2.1), 0, (R - 0.07) * Math.sin(2.1), 0.05, 'y', C.dkgray, { ts: 32 });
-    b.cyl(0, 0.28, 0, 1.05, 0.26, C.dkgray, { seg: 24 });
+    b.cyl(0, 0.28, 0, 1.05 * k, 0.26, C.dkgray, { seg: 24 });
     for (const sd of [-1, 1]) {
-      b.box(sd * 0.36, 0.54, -0.18, 0.66, 0.36, 0.72, 0x2a5ab8);
-      b.box(sd * 0.36, 0.9, -0.58, 0.66, 0.8, 0.14, 0x2a5ab8);
-      b.box(sd * 0.36, 1.7, -0.6, 0.4, 0.22, 0.12, 0x2a5ab8);
+      b.box(sd * 0.36, 0.54, -0.18, 0.66, 0.36 + dy, 0.72, 0x2a5ab8);
+      b.box(sd * 0.36, 0.9 + dy, -0.58, 0.66, 0.8, 0.14, 0x2a5ab8);
+      b.box(sd * 0.36, 1.7 + dy + f.big * 0.4, -0.6, 0.4, 0.22, 0.12, 0x2a5ab8);
     }
-    b.box(0, 0.54, -0.6, 0.08, 1.2, 0.1, C.ltgray);
-    b.box(0, 0.54, 0.72, 0.8, 0.5, 0.36, C.ltgray);
-    rbox(b, 0, 1.1, 0.74, 0.8, 0.08, 0.4, -0.35, 0, 0, C.black);
-    b.sphere(-0.24, 1.12, 0.86, 0.06, C.red);
-    b.sphere(0.24, 1.12, 0.86, 0.06, C.blue);
+    b.box(0, 0.54, -0.6, 0.08, 1.2 + dy + f.big * 0.4, 0.1, C.ltgray);
+    const CZ = 0.72 + (k - 1) * 0.5;   // console moves forward in a bigger ball (room for long legs)
+    b.box(0, 0.54, CZ, 0.8, 0.5, 0.36, C.ltgray);
+    rbox(b, 0, 1.1, CZ + 0.02, 0.8, 0.08, 0.4, -0.35, 0, 0, C.black);
+    b.sphere(-0.24, 1.12, CZ + 0.14, 0.06, C.red);
+    b.sphere(0.24, 1.12, CZ + 0.14, 0.06, C.blue);
     // the rolling shell: glass ball with a tread ring and a seam ring
     const g = new THREE.Group(); g.position.set(0, R, 0);
     const spin = new THREE.Group(); g.add(spin);
     const sb = new BrickBuilder(0.4);
     blob(sb, 0, 0, 0, R, R, R, 0xdff3ff, { ws: 28, hs: 18, matOpts: { trans: true, opacity: 0.2, rough: 0.05 } });
     // two rolling bands near the sides (clear of the driver) with orange tread pads
-    const BX = 1.22, BR = Math.sqrt(R * R - BX * BX) + 0.02;
+    const BX = 1.22 * k, BR = Math.sqrt(R * R - BX * BX) + 0.02;
     for (const sd of [-1, 1]) {
       ring(sb, sd * BX, 0, 0, BR, 0.06, 'x', C.ltgray, { ts: 32 });
       for (let i = 0; i < 8; i++) {
@@ -122,7 +131,11 @@ const gyro = {
       }
     }
     spin.add(sb.build({ name: 'gyroshell' }));
-    return { mesh: b.build({ name: 'gyrocabin' }), seat: [0, 0.98, -0.15], control: 'wheel', wheels: [{ g, spin, front: false, r: R }] };
+    const EZ = -Math.sqrt(R * R - (R - 0.5) ** 2) - 0.02;   // flames out of the back of the ball, low down
+    return {
+      mesh: b.build({ name: 'gyrocabin' }), seat: [0, SY, SZ], control: 'wheel', wheels: [{ g, spin, front: false, r: R }],
+      exhaust: [[0.4, 0.5, EZ, BACK], [-0.4, 0.5, EZ, BACK]],
+    };
   },
 };
 
@@ -133,7 +146,13 @@ const JGREEN = 0x3c7a2c, JYEL = 0xf2c414;
 const explorer = {
   id: 'tourcar', name: 'Tour Explorer', form: 'Park tour SUV', blurb: 'Welcome to Jurassic Park',
   stats: { speed: 4, accel: 2, handling: 2, weight: 5 }, colors: [JGREEN, JYEL, 0xc4161c],
-  build({ BrickBuilder, C }) {
+  build({ BrickBuilder, C, rig }) {
+    // the greenhouse fits the driver: a tall one sits a little lower under higher roof rails and a
+    // taller bubble; broad shoulders splay the pillars out
+    const f = fitOf(rig);
+    const SY = 0.98 - clamp((f.H - 2.05) * 0.3, 0, 0.18);
+    const RY = 2.15 + f.big * 0.35, GX = clamp(f.sx + 0.32, 0.92, 1.06);
+    const HB = clamp((SY + f.H * 1.03 + 0.08 - RY) / 0.9, 0.72, 1.4);
     const b = new BrickBuilder(0.4);
     const glass = { matOpts: { trans: true, opacity: 0.3, rough: 0.05 } };
     const lamp = { matOpts: { emissive: 0xfff2b0, emissiveIntensity: 0.9 } };
@@ -150,8 +169,9 @@ const explorer = {
       b.box(sd * 0.92, 1.3, -0.55, 0.18, 0.06, 3.7, JGREEN);
     }
     b.box(0, 0.78, -0.5, 1.7, 0.06, 3.6, C.tan);
-    b.box(0, 0.8, -0.32, 1.4, 0.22, 0.75, C.tan);
-    b.box(0, 1.0, -0.74, 1.4, 0.8, 0.16, C.tan);
+    const sw = clamp(f.hip * 2 + 0.4, 1.4, 1.66);
+    b.box(0, 0.8, -0.32, sw, SY - 0.76, 0.75, C.tan);
+    b.box(0, 1.0, -0.74, sw, 0.8, 0.16, C.tan);
     b.box(0, 0.8, -1.55, 1.7, 0.36, 0.6, C.tan);
     // hood, cowl and face
     b.box(0, 0.8, 1.85, 2.0, 0.42, 1.1, JGREEN);
@@ -169,19 +189,20 @@ const explorer = {
     b.box(0, 0.24, -2.46, 2.1, 0.22, 0.24, JYEL);
     for (const sd of [-1, 1]) b.box(sd * 0.75, 0.9, -2.41, 0.2, 0.3, 0.04, C.red);
     // greenhouse: slanted windscreen, glass all round and the big bubble roof
-    rbox(b, 0, 1.75, 0.92, 1.8, 0.04, 0.95, -0.95, 0, 0, C.azure, glass);
+    const wl = Math.hypot(RY - 1.35, 0.66), gh = Math.hypot(RY - 1.33, GX - 0.92), gt = Math.atan2(GX - 0.92, RY - 1.33);
+    rbox(b, 0, (1.35 + RY) / 2, 0.91, 1.8 + (GX - 0.92) * 1.6, 0.04, wl, Math.atan2(RY - 1.35, 0.66), 0, 0, C.azure, glass);
     for (const sd of [-1, 1]) {
-      tube(b, sd * 0.94, 1.35, 1.24, sd * 0.92, 2.15, 0.58, 0.05, JGREEN);
-      for (const z of [-0.95, -2.3]) tube(b, sd * 0.92, 1.33, z, sd * 0.92, 2.15, z, 0.05, JGREEN);
-      tube(b, sd * 0.92, 2.15, 0.62, sd * 0.92, 2.15, -2.34, 0.06, JGREEN);
-      b.box(sd * 0.93, 1.33, -0.86, 0.03, 0.82, 2.9, C.azure, glass);
+      tube(b, sd * 0.94, 1.35, 1.24, sd * GX, RY, 0.58, 0.05, JGREEN);
+      for (const z of [-0.95, -2.3]) tube(b, sd * 0.92, 1.33, z, sd * GX, RY, z, 0.05, JGREEN);
+      tube(b, sd * GX, RY, 0.62, sd * GX, RY, -2.34, 0.06, JGREEN);
+      rbox(b, sd * (0.93 + GX) / 2, (1.33 + RY) / 2, -0.86, 0.03, gh, 2.9, 0, 0, -sd * gt, C.azure, glass);
     }
-    for (const z of [0.58, -2.3]) tube(b, -0.94, 2.15, z, 0.94, 2.15, z, 0.06, JGREEN);
-    b.box(0, 1.33, -2.33, 1.82, 0.82, 0.03, C.azure, glass);
+    for (const z of [0.58, -2.3]) tube(b, -GX - 0.02, RY, z, GX + 0.02, RY, z, 0.06, JGREEN);
+    b.box(0, 1.33, -2.33, 1.82 + (GX - 0.92) * 1.6, RY - 1.33, 0.03, C.azure, glass);
     b.box(0, 0.8, -2.33, 2.0, 0.5, 0.12, JGREEN);
-    blob(b, 0, 2.15, -0.86, 0.94, 0.72, 1.5, C.azure, { t1: PI / 2, ws: 24, hs: 8, ...glass });
+    blob(b, 0, RY, -0.86, GX + 0.02, HB, 1.5, C.azure, { t1: PI / 2, ws: 24, hs: 8, ...glass });
     return {
-      mesh: b.build({ name: 'tourcar' }), seat: [0, 0.98, -0.3], control: 'wheel',
+      mesh: b.build({ name: 'tourcar' }), seat: [0, SY, -0.3], control: 'wheel', exhaust: [[0.62, 0.3, -2.62, BACK], [-0.62, 0.3, -2.62, BACK]],
       wheels: [
         { z: -1.5, r: 0.46, w: 0.4, xs: [1.18, -1.18], cap: JYEL },
         { x: 1.18, z: 1.6, r: 0.46, w: 0.4, front: true, cap: JYEL },
@@ -198,7 +219,8 @@ const TDARK = 0x23202e, TPURP = 0x7b3fe0, TSILV = 0xa7abb8;
 const talon = {
   id: 'talon', name: 'Royal Talon', form: 'Wakandan hover-car', blurb: 'Vibranium-powered glide',
   stats: { speed: 4, accel: 4, handling: 3, weight: 2 }, colors: [TDARK, TPURP, TSILV],
-  build({ THREE, BrickBuilder, C }) {
+  build({ THREE, BrickBuilder, C, rig }) {
+    const f = fitOf(rig), TX = clamp(f.hip + 0.24, 0.68, 0.88);   // cockpit walls clear the hips
     const b = new BrickBuilder(0.4);
     const glow = glowMat(0x6a2ad0, 0x8a3dff, 1.0);
     const G = { mat: glow }, MET = { matOpts: { metal: 0.7, rough: 0.25 } };
@@ -209,14 +231,14 @@ const talon = {
     b.box(0, 0.06, 2.25, 0.4, 0.22, 0.4, TDARK);
     cone(b, 0, 0.17, 2.45, 0.12, 0.25, 'z', 1, TSILV, MET);
     for (const sd of [-1, 1]) {
-      b.box(sd * 0.68, 0.42, -0.6, 0.18, 0.34, 2.0, TDARK);
+      b.box(sd * TX, 0.42, -0.6, 0.18, 0.34, 2.0, TDARK);
       beam(b, sd * 0.42, 0.5, 0.45, sd * 0.08, 0.36, 2.0, 0.34, 0.06, TSILV, MET);    // panther-mask plates
       beam(b, sd * 0.3, 0.55, 0.65, sd * 0.12, 0.47, 1.1, 0.07, 0.04, 0, G);          // glowing eye slits
     }
     rbox(b, 0, 0.5, 0.62, 1.2, 0.16, 0.5, 0.3, 0, 0, TDARK);
-    b.box(0, 0.42, -1.65, 1.5, 0.5, 0.16, TDARK);
-    b.box(0, 0.42, -0.6, 0.9, 0.2, 0.62, TPURP);
-    b.box(0, 0.62, -1.0, 0.9, 0.6, 0.14, TPURP);
+    b.box(0, 0.42, -1.65, 1.5 + (TX - 0.68) * 2, 0.5, 0.16, TDARK);
+    b.box(0, 0.42, -0.6, 0.9 + (TX - 0.68) * 2, 0.2, 0.62, TPURP);
+    b.box(0, 0.62, -1.0, 0.9 + (TX - 0.68) * 2, 0.6, 0.14, TPURP);
     // claw wings: swept out from the tail and curving forward round the nose like talons
     for (const sd of [-1, 1]) {
       const P = [[0.55, 0.2, -1.55], [1.5, 0.2, -0.65], [1.6, 0.16, 0.65], [1.32, 0.12, 1.8], [0.98, 0.08, 2.45]];
@@ -247,6 +269,7 @@ const talon = {
     }
     return {
       mesh: b.build({ name: 'talon' }), seat: [0, 0.6, -0.55], control: 'yoke', hover: 0.5, parts: fins,
+      exhaust: [[0.32, 0.22, -2.12, BACK], [-0.32, 0.22, -2.12, BACK]],
       steer: fins.map((obj) => ({ obj, axis: 'y', amount: 0.45 })),
       fx(s) { glow.emissiveIntensity = 0.8 + S(s.t * 4) * 0.3 + (s.boosting ? 1.4 : s.speed01 * 0.5); },
     };
@@ -260,7 +283,8 @@ const SRED = 0xb3121b, SGOLD = 0xd9a72e;
 const stark = {
   id: 'starkcar', name: 'Stark Roadster', form: 'Sports roadster', blurb: 'Arc-reactor powered',
   stats: { speed: 5, accel: 3, handling: 3, weight: 2 }, colors: [SRED, SGOLD, 0x1b2a34],
-  build({ THREE, BrickBuilder, C }) {
+  build({ THREE, BrickBuilder, C, rig }) {
+    const f = fitOf(rig);
     const b = new BrickBuilder(0.4);
     const arc = glowMat(0xd8f8ff, 0x6fe0ff, 1.4);                 // arc reactor, LEDs and repulsors
     const A = { mat: arc }, glass = { matOpts: { trans: true, opacity: 0.4 } };
@@ -268,8 +292,9 @@ const stark = {
     // low cockpit tub and seats
     for (const sd of [-1, 1]) b.box(sd * 0.95, 0.32, -0.3, 0.22, 0.58, 2.0, SRED);
     b.box(0, 0.32, -0.42, 1.7, 0.1, 1.6, C.black);
-    b.box(0, 0.36, -0.42, 1.2, 0.26, 0.72, C.black);
-    b.box(0, 0.6, -0.86, 1.2, 0.62, 0.16, C.black);
+    const sw = clamp(f.hip * 2 + 0.25, 1.2, 1.6);
+    b.box(0, 0.36, -0.42, sw, 0.26, 0.72, C.black);
+    b.box(0, 0.6, -0.86, sw, 0.62, 0.16, C.black);
     for (const sd of [-1, 1]) {
       b.box(sd * 1.07, 0.36, -0.95, 0.04, 0.48, 0.52, SGOLD);        // gold side blades
       b.box(sd * 1.09, 0.46, -0.95, 0.02, 0.26, 0.3, C.black);       // intake
@@ -291,9 +316,10 @@ const stark = {
     for (const sd of [-1, 1]) rbox(b, sd * 0.68, 0.6, 2.42, 0.42, 0.07, 0.05, 0, 0, -sd * 0.15, 0, A);
     disc(b, 0, 0.6, 2.52, 0.2, 0.06, 'z', C.dkgray, { seg: 20 });
     disc(b, 0, 0.6, 2.55, 0.14, 0.04, 'z', 0, { ...A, seg: 20 });
-    // windscreen
-    rbox(b, 0, 0.98, 0.72, 1.7, 0.42, 0.04, -0.62, 0, 0, C.black, glass);
-    rbox(b, 0, 1.18, 0.6, 1.72, 0.05, 0.06, -0.62, 0, 0, C.black);
+    // windscreen, as tall as the driver's chest
+    const wh = 0.42 * clamp(f.sy / 1.2, 0.85, 1.3);
+    rbox(b, 0, 0.81 + wh * 0.405, 0.842 - wh * 0.29, 1.7, wh, 0.04, -0.62, 0, 0, C.black, glass);
+    rbox(b, 0, 0.84 + wh * 0.81, 0.842 - wh * 0.58, 1.72, 0.05, 0.06, -0.62, 0, 0, C.black);
     // rear deck, engine glass, spoiler, tail lights, repulsor thrusters
     b.box(0, 0.3, -1.85, 1.9, 0.6, 1.2, SRED);
     b.box(0, 0.9, -1.85, 0.3, 0.04, 0.95, C.black, glass);
@@ -313,6 +339,7 @@ const stark = {
     thr.add(tb.build({ name: 'repulsors', shadows: false }));
     return {
       mesh: b.build({ name: 'starkcar' }), seat: [0, 0.6, -0.42], control: 'wheel', parts: [thr],
+      exhaust: [[0.42, 0.45, -2.56, BACK], [-0.42, 0.45, -2.56, BACK]],
       wheels: [
         { z: -1.4, r: 0.47, w: 0.5, xs: [1.18, -1.18], cap: SGOLD },
         { x: 1.16, z: 1.45, r: 0.42, w: 0.4, front: true, cap: SGOLD },
@@ -334,42 +361,43 @@ const WOOD = 0x7c503a, DWOOD = 0x583927, AGOLD = 0xe6c05a;
 const chariot = {
   id: 'goatchariot', name: 'Goat Chariot', form: 'Goat-drawn chariot', blurb: 'Two goats, zero brakes',
   stats: { speed: 3, accel: 4, handling: 4, weight: 2 }, colors: [WOOD, AGOLD, 0xc91a09, 0xe8e2d4],
-  build({ THREE, BrickBuilder, C }) {
+  build({ THREE, BrickBuilder, C, rig }) {
+    const f = fitOf(rig), DX = clamp(f.hip + 0.32, 0.9, 1.0) - 0.9;   // the car widens for broad hips
     const b = new BrickBuilder(0.4);
     const gold = { matOpts: { metal: 0.65, rough: 0.3 } };
     // car body
-    b.box(0, 0.5, -0.45, 1.74, 0.16, 2.1, DWOOD);
+    b.box(0, 0.5, -0.45, 1.74 + DX * 2, 0.16, 2.1, DWOOD);
     for (const sd of [-1, 1]) {
-      b.box(sd * 0.9, 0.5, -0.5, 0.14, 0.76, 2.0, WOOD);
-      b.box(sd * 0.9, 1.26, -0.5, 0.2, 0.06, 2.06, AGOLD, gold);
-      for (let i = 0; i < 4; i++) b.box(sd * 0.975, 0.58 + i * 0.17, -0.5, 0.02, 0.03, 2.0, DWOOD); // planks
+      b.box(sd * (0.9 + DX), 0.5, -0.5, 0.14, 0.76, 2.0, WOOD);
+      b.box(sd * (0.9 + DX), 1.26, -0.5, 0.2, 0.06, 2.06, AGOLD, gold);
+      for (let i = 0; i < 4; i++) b.box(sd * (0.975 + DX), 0.58 + i * 0.17, -0.5, 0.02, 0.03, 2.0, DWOOD); // planks
       [[0.3, C.red], [-1.32, C.ltgray]].forEach(([z, col]) => {
-        disc(b, sd * 0.99, 0.92, z, 0.24, 0.06, 'x', col, { seg: 16 });
-        disc(b, sd * 1.0, 0.92, z, 0.15, 0.07, 'x', col === C.red ? C.yellow : C.blue, { seg: 16 });
-        b.sphere(sd * 1.03, 0.92, z, 0.07, AGOLD, gold);
+        disc(b, sd * (0.99 + DX), 0.92, z, 0.24, 0.06, 'x', col, { seg: 16 });
+        disc(b, sd * (1.0 + DX), 0.92, z, 0.15, 0.07, 'x', col === C.red ? C.yellow : C.blue, { seg: 16 });
+        b.sphere(sd * (1.03 + DX), 0.92, z, 0.07, AGOLD, gold);
       });
     }
     // high curved front with a lightning bolt
-    b.box(0, 0.5, 0.62, 1.94, 0.95, 0.16, WOOD);
-    rbox(b, 0, 1.5, 0.62, 1.4, 0.16, 0.16, 0, 0, 0, WOOD);
-    rbox(b, 0, 1.48, 0.62, 2.0, 0.06, 0.2, 0, 0, 0, AGOLD, gold);
-    for (const sd of [-1, 1]) cone(b, sd * 0.98, 1.52, 0.62, 0.1, 0.35, 'y', 1, AGOLD, gold);
+    b.box(0, 0.5, 0.62, 1.94 + DX * 2, 0.95, 0.16, WOOD);
+    rbox(b, 0, 1.5, 0.62, 1.4 + DX * 2, 0.16, 0.16, 0, 0, 0, WOOD);
+    rbox(b, 0, 1.48, 0.62, 2.0 + DX * 2, 0.06, 0.2, 0, 0, 0, AGOLD, gold);
+    for (const sd of [-1, 1]) cone(b, sd * (0.98 + DX), 1.52, 0.62, 0.1, 0.35, 'y', 1, AGOLD, gold);
     const bolt = { matOpts: { emissive: 0x6fd0ff, emissiveIntensity: 0.8 } };
     rbox(b, 0.06, 1.18, 0.71, 0.1, 0.32, 0.03, 0, 0, -0.5, 0xd8f4ff, bolt);
     rbox(b, -0.02, 0.97, 0.71, 0.24, 0.07, 0.03, 0, 0, 0.2, 0xd8f4ff, bolt);
     rbox(b, -0.06, 0.78, 0.71, 0.1, 0.32, 0.03, 0, 0, -0.5, 0xd8f4ff, bolt);
     // throne seat and red cape-cloth back
-    b.box(0, 0.66, -0.72, 1.2, 0.26, 0.66, C.red);
-    b.box(0, 0.66, -1.12, 1.3, 0.66, 0.16, WOOD);
-    b.box(0, 1.32, -1.12, 1.4, 0.08, 0.2, AGOLD, gold);
+    b.box(0, 0.66, -0.72, 1.2 + DX * 2, 0.26, 0.66, C.red);
+    b.box(0, 0.66, -1.12, 1.3 + DX * 2, 0.66, 0.16, WOOD);
+    b.box(0, 1.32, -1.12, 1.4 + DX * 2, 0.08, 0.2, AGOLD, gold);
     b.box(0, 0.4, -1.55, 1.0, 0.08, 0.3, DWOOD);                         // step
-    b.box(0, 0.45, -0.5, 2.3, 0.1, 0.1, C.dkgray);                       // axle
+    b.box(0, 0.45, -0.5, 2.3 + DX * 2, 0.1, 0.1, C.dkgray);              // axle
     // spoked wheels (custom rolling part)
     const wg = new THREE.Group(); wg.position.set(0, 0.64, -0.5);
     const wspin = new THREE.Group(); wg.add(wspin);
     const wb = new BrickBuilder(0.4);
     for (const sd of [-1, 1]) {
-      const x = sd * 1.16;
+      const x = sd * (1.16 + DX);
       ring(wb, x, 0, 0, 0.58, 0.07, 'x', DWOOD, { rs: 6, ts: 22 });
       ring(wb, x + Math.sign(x) * 0.05, 0, 0, 0.58, 0.035, 'x', AGOLD, { rs: 6, ts: 22 });
       for (let i = 0; i < 6; i++) rbox(wb, x, 0, 0, 0.07, 1.14, 0.07, i * PI / 6, 0, 0, WOOD);
@@ -415,6 +443,7 @@ const chariot = {
     let ph = 0;
     return {
       mesh: b.build({ name: 'chariot' }), seat: [0, 0.95, -0.62], control: 'bars', parts: [goats],
+      exhaust: [[0.42, 0.55, -1.75, BACK], [-0.42, 0.55, -1.75, BACK]],
       wheels: [{ g: wg, spin: wspin, front: false, r: 0.64 }],
       steer: [{ obj: goats, axis: 'y', amount: 0.32 }],
       fx(s, dt) {

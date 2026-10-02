@@ -29,7 +29,7 @@ function landspeeder({ rig }) {
   // split V windscreen, as tall as the driver's chest
   const wh = 0.42 * f.clamp(f.sy / 1.2, 0.8, 1.3), wy = 0.79 + wh / 2;
   for (const sd of [-1, 1]) {
-    box(b, null, sd * 0.47, wy, 0.92 + (wy - 1.0) * 0.36, 1.0, wh, 0.04, 0, { mat: glass(), ry: sd * 0.33, rx: -0.35 });
+    box(b, null, sd * 0.47, wy, 0.92 - (wy - 1.0) * 0.36, 1.0, wh, 0.04, 0, { mat: glass(), ry: sd * 0.33, rx: -0.35 });
     box(b, null, sd * 0.47, 0.79 + wh, 0.86 - (wh - 0.42) * 0.36, 1.0, 0.04, 0.05, D, { ry: sd * 0.33, rx: -0.35 });
   }
   box(b, null, 0, wy, 1.06 - (wy - 1.0) * 0.36, 0.06, wh + 0.04, 0.06, D, { rx: -0.35 });
@@ -90,7 +90,8 @@ function landspeeder({ rig }) {
 }
 
 // ---- 74-Z speeder bike ------------------------------------------------------------------
-function speederBike() {
+function speederBike({ rig }) {
+  const f = fitOf(rig);
   const G = C.ltgray, D = C.dkgray, OL = 0x5b6b33, BK = C.black;
   const b = new BrickBuilder(0.4);
   const exh = glow(0xff8a3a, 1.2);
@@ -130,36 +131,41 @@ function speederBike() {
     box(vb, null, sd * 0.43, sd * 0.03, 0.02, 0.05, 0.16, 0.42, OL, { rz: sd * 0.15 });
   }
   vanes.add(vb.build({ name: 'vanes' }));
+  // a big rider gets a wider, slightly bigger bike so it still shows under them
+  const kx = f.clamp(1 + (f.W - 1.3) * 0.6, 1, 1.4), k = 1 + f.big * 0.08;
+  const bike = new THREE.Group(); bike.add(b.build({ name: 'speederbike' }), vanes); bike.scale.set(kx, k, k);
   return {
-    mesh: b.build({ name: 'speederbike' }), seat: [0, 0.8, -0.62], control: 'bars', hover: 0.55,
-    steer: [{ obj: vanes, axis: 'y', amount: 0.35 }], parts: [vanes],
+    mesh: bike, seat: [0, 0.8 * k, -0.62 * k], control: 'bars', hover: 0.55,
+    steer: [{ obj: vanes, axis: 'y', amount: 0.35 }], exhaust: [[0, 0.5 * k, -2.02 * k, BACK]],
     fx(s) { exh.emissiveIntensity = 0.7 + s.speed01 * 1.5 + (s.boosting ? 1.8 : 0) + S(s.t * 27) * 0.15; },
   };
 }
 
 // ---- Anakin's podracer ------------------------------------------------------------------
-function podracer() {
+function podracer({ rig }) {
+  const f = fitOf(rig);
   const BL = 0x1e5aa8, G = C.ltgray, D = C.dkgray, BK = C.black, Y = C.yellow;
   const b = new BrickBuilder(0.4);
   const exh = glow(0xff9a40, 1.2), core = glow(0xc8e4ff, 2.2), halo = glow(0x5a4aff, 1.8, { trans: true, opacity: 0.55 });
-  // the little cockpit pod: an open elliptical tub
-  const PZ = -1.35;
-  cyl(b, null, 0, 0.5, PZ, 0.82, 0.7, BL, 'y', { r2: 0.95, tube: true, seg: 22 });
-  cyl(b, null, 0, 0.5, PZ, 0.8, 0.7, D, 'y', { r2: 0.93, tube: true, inside: true, seg: 22 });
-  sphere(b, null, 0, 0.2, PZ, 0.82, BL, { sy: 0.42, sz: 0.95 / 0.82, w: 18, h: 8 });
-  cyl(b, null, 0, 0.47, PZ, 0.8, 0.06, D, 'y', { r2: 0.93, seg: 22 });
-  geo(b, null, new THREE.TorusGeometry(1, 0.07, 6, 26), G, mat(0, 0.86, PZ, PI / 2, 0, 0, 0.82, 0.95, 1));
-  cyl(b, null, 0, 0.56, PZ, 0.835, 0.12, G, 'y', { r2: 0.965, tube: true, seg: 22 });
-  cyl(b, null, 0, 0.36, PZ, 0.83, 0.05, Y, 'y', { r2: 0.96, tube: true, seg: 22 });
+  // the little cockpit pod: an open elliptical tub, widened for big drivers
+  const PZ = -1.35, ps = f.clamp(1 + (f.W - 1.3) * 0.45, 0.92, 1.28), px = 0.82 * ps, pz = 0.95 * ps;
+  const FZ = PZ + pz;   // front of the pod
+  cyl(b, null, 0, 0.5, PZ, px, 0.7, BL, 'y', { r2: pz, tube: true, seg: 22 });
+  cyl(b, null, 0, 0.5, PZ, px - 0.02, 0.7, D, 'y', { r2: pz - 0.02, tube: true, inside: true, seg: 22 });
+  sphere(b, null, 0, 0.2, PZ, px, BL, { sy: 0.42 / ps, sz: pz / px, w: 18, h: 8 });
+  cyl(b, null, 0, 0.47, PZ, px - 0.02, 0.06, D, 'y', { r2: pz - 0.02, seg: 22 });
+  geo(b, null, new THREE.TorusGeometry(1, 0.07, 6, 26), G, mat(0, 0.86, PZ, PI / 2, 0, 0, px, pz, 1));
+  cyl(b, null, 0, 0.56, PZ, px + 0.015, 0.12, G, 'y', { r2: pz + 0.015, tube: true, seg: 22 });
+  cyl(b, null, 0, 0.36, PZ, px + 0.01, 0.05, Y, 'y', { r2: pz + 0.01, tube: true, seg: 22 });
   // pointed snout, dash + lever post, tail fin and thruster
-  cone(b, null, 0, 0.5, -0.55, 0.42, 0.75, BL, 'z', { r2: 0.3 });
-  cone(b, null, 0, 0.5, -0.05, 0.12, 0.3, G, 'z');
-  box(b, null, 0, 0.85, -0.58, 0.75, 0.32, 0.25, D);
-  box(b, null, 0, 1.08, -0.4, 0.22, 0.26, 0.2, D);
-  for (const sd of [-1, 1]) box(b, null, sd * 0.2, 1.02, -0.58, 0.14, 0.04, 0.12, sd > 0 ? C.red : C.lime);
-  box(b, null, 0, 1.0, -2.2, 0.08, 0.5, 0.45, BL, { rx: -0.35 });
-  cyl(b, null, 0, 0.55, -2.3, 0.28, 0.22, G);
-  for (const sd of [-1, 1]) box(b, null, sd * 0.8, 0.7, PZ - 0.2, 0.12, 0.2, 0.5, G);
+  cone(b, null, 0, 0.5, FZ - 0.15, 0.42, 0.75, BL, 'z', { r2: 0.3 });
+  cone(b, null, 0, 0.5, FZ + 0.35, 0.12, 0.3, G, 'z');
+  box(b, null, 0, 0.85, FZ - 0.18, 0.75, 0.32, 0.25, D);
+  box(b, null, 0, 1.08, FZ, 0.22, 0.26, 0.2, D);
+  for (const sd of [-1, 1]) box(b, null, sd * 0.2, 1.02, FZ - 0.18, 0.14, 0.04, 0.12, sd > 0 ? C.red : C.lime);
+  box(b, null, 0, 1.0, PZ - pz + 0.1, 0.08, 0.5, 0.45, BL, { rx: -0.35 });
+  cyl(b, null, 0, 0.55, PZ - pz, 0.28, 0.22, G);
+  for (const sd of [-1, 1]) box(b, null, sd * (px - 0.02), 0.7, PZ - 0.2, 0.12, 0.2, 0.5, G);
   // engines + binder + cables swing together from a pivot at the front of the pod
   const F = [0, 0.6, -0.55];
   const front = new THREE.Group(); front.position.set(...F);
@@ -194,6 +200,7 @@ function podracer() {
   front.add(binder);
   return {
     mesh: b.build({ name: 'podracer' }), seat: [0, 0.62, PZ], control: 'yoke', hover: 0.5, glider: { z: PZ - 0.1 },
+    exhaust: [[1.15, 0.9, 0.05, BACK], [-1.15, 0.9, 0.05, BACK]],
     steer: [{ obj: front, axis: 'y', amount: 0.16 }], parts: [front],
     fx(s) {
       const t = s.t;
@@ -209,28 +216,31 @@ function podracer() {
 }
 
 // ---- X-wing -----------------------------------------------------------------------------
-function xwing() {
+function xwing({ rig }) {
+  const f = fitOf(rig);
   const W = C.white, R = C.red, G = C.ltgray, D = C.dkgray, BK = C.black;
   const b = new BrickBuilder(0.4);
   const eng = glow(0xff3018, 1.4, { base: 0xff2000 });
-  // cockpit tub
-  box(b, null, 0, 0.4, -0.25, 1.5, 0.6, 1.8, W);
+  // cockpit tub: the side walls clear the driver's hips
+  const TX = f.clamp(f.hip + 0.24, 0.68, 0.92), dx = TX - 0.68;
+  box(b, null, 0, 0.4, -0.25, 1.5 + dx * 2, 0.6, 1.8, W);
   for (const sd of [-1, 1]) {
-    box(b, null, sd * 0.68, 0.85, -0.3, 0.16, 0.3, 1.6, W);
-    box(b, null, sd * 0.68, 1.01, -0.3, 0.2, 0.04, 1.62, G);
-    box(b, null, sd * 0.76, 0.5, -0.3, 0.02, 0.1, 1.5, R);
+    box(b, null, sd * TX, 0.85, -0.3, 0.16, 0.3, 1.6, W);
+    box(b, null, sd * TX, 1.01, -0.3, 0.2, 0.04, 1.62, G);
+    box(b, null, sd * (TX + 0.08), 0.5, -0.3, 0.02, 0.1, 1.5, R);
   }
-  box(b, null, 0, 0.66, -0.4, 1.1, 0.1, 0.7, D);
-  box(b, null, 0, 0.95, -0.98, 1.2, 0.7, 0.15, D);
-  // long tapered nose with the red band, canopy glass + frame
-  frustum(b, null, 0, 0.42, 0.65, 2.6, 1.5, 0.6, 0.5, 0.3, W, { drop: -0.25 });
-  box(b, null, 0, 0.42, 0.92, 1.46, 0.58, 0.2, R);
+  box(b, null, 0, 0.66, -0.4, 1.1 + dx * 2, 0.1, 0.7, D);
+  box(b, null, 0, 0.95, -0.98, 1.2 + dx * 2, 0.7, 0.15, D);
+  // long tapered nose with the red band, canopy glass + frame (as tall as the driver's chest)
+  frustum(b, null, 0, 0.42, 0.65, 2.6, 1.5 + dx * 2, 0.6, 0.5, 0.3, W, { drop: -0.25 });
+  box(b, null, 0, 0.42, 0.92, 1.46 + dx * 2, 0.58, 0.2, R);
   box(b, null, 0, 0.27, 2.62, 0.5, 0.3, 0.05, G);
   for (const sd of [-1, 1]) box(b, null, sd * 0.25, 0.62, 1.55, 0.12, 0.03, 0.7, R, { rx: 0.15 });
-  box(b, null, 0, 0.92, 0.78, 1.0, 0.03, 0.62, 0, { mat: glass(), rx: 0.87 });
-  for (const sd of [-1, 1]) rod(b, null, [sd * 0.52, 0.7, 1.02], [sd * 0.52, 1.14, 0.55], 0.04, D);
-  rod(b, null, [-0.52, 1.14, 0.55], [0.52, 1.14, 0.55], 0.04, D);
-  rod(b, null, [0, 0.7, 1.02], [0, 1.14, 0.55], 0.03, D);
+  const ch = 0.44 * f.clamp(f.sy / 1.2, 0.85, 1.3), cy = 0.7 + ch, cx = 0.52 + dx * 0.8;
+  box(b, null, 0, 0.7 + ch / 2, 0.785, 1.0 + dx * 1.6, 0.03, Math.hypot(0.47, ch) - 0.02, 0, { mat: glass(), rx: Math.atan2(ch, 0.47) + 0.12 });
+  for (const sd of [-1, 1]) rod(b, null, [sd * cx, 0.7, 1.02], [sd * cx, cy, 0.55], 0.04, D);
+  rod(b, null, [-cx, cy, 0.55], [cx, cy, 0.55], 0.04, D);
+  rod(b, null, [0, 0.7, 1.02], [0, cy, 0.55], 0.03, D);
   // rear fuselage with R2 in his socket
   box(b, null, 0, 0.42, -1.6, 1.1, 0.58, 1.0, W);
   box(b, null, 0, 0.42, -2.13, 0.8, 0.45, 0.08, D);
@@ -241,8 +251,9 @@ function xwing() {
   box(b, null, 0, 1.05, -1.18, 0.12, 0.08, 0.05, C.blue);
   sphere(b, null, 0, 1.0, -1.16, 0.05, BK);
   // S-foils: four wings built closed and open, morphed by one weight
+  const WR = 0.55 + dx;   // wing roots move out with the tub
   const wing = (wb, k, sd, ud) => {
-    const base = mat(sd * 0.55, 0.45, -1.55, 0, 0, 0.36 * k * sd * ud).multiply(mat(0, ud * 0.045, 0));
+    const base = mat(sd * WR, 0.45, -1.55, 0, 0, 0.36 * k * sd * ud).multiply(mat(0, ud * 0.045, 0));
     box(wb, base, sd * 0.4, 0, 0, 0.8, 0.07, 1.05, W);
     box(wb, base, sd * 0.93, 0, -0.08, 0.36, 0.07, 0.75, W);
     box(wb, base, sd * 0.62, ud * 0.04, 0.03, 0.16, 0.02, 0.92, R);
@@ -260,8 +271,14 @@ function xwing() {
   };
   const foils = morphPair(0.4, (wb, k) => { for (const sd of [-1, 1]) for (const ud of [-1, 1]) wing(wb, k, sd, ud); }, 'sfoils');
   let open = 0;
+  // boost flames at the four engine nozzles in the open (attack) pose, where they are while boosting
+  const V3 = new THREE.Vector3(), exhaust = [];
+  for (const sd of [-1, 1]) for (const ud of [-1, 1]) {
+    V3.set(sd * 0.3, ud * 0.22, -0.74).applyMatrix4(mat(sd * WR, 0.45, -1.55, 0, 0, 0.36 * sd * ud).multiply(mat(0, ud * 0.045, 0)));
+    exhaust.push([V3.x, V3.y, V3.z, BACK]);
+  }
   return {
-    mesh: b.build({ name: 'xwing' }), seat: [0, 0.62, -0.3], control: 'yoke', hover: 0.45, parts: [foils.group],
+    mesh: b.build({ name: 'xwing' }), seat: [0, 0.62, -0.3], control: 'yoke', hover: 0.45, parts: [foils.group], exhaust,
     fx(s, dt) {
       open += ((s.gliding || s.boosting ? 1 : 0) - open) * Math.min(1, dt * 5);
       for (const m of foils.meshes) m.morphTargetInfluences[0] = open;
@@ -271,7 +288,8 @@ function xwing() {
 }
 
 // ---- AT-ST walker -----------------------------------------------------------------------
-function atst() {
+function atst({ rig, sprung }) {
+  const f = fitOf(rig);
   const G = C.ltgray, D = C.dkgray, BK = C.black, ST = C.dkstone;
   const b = new BrickBuilder(0.4);
   const LIFT = 0.3, K = mat(0, LIFT, 0);   // the cab rides on taller legs
@@ -279,15 +297,19 @@ function atst() {
   box(b, K, 0, 1.68, -0.25, 1.9, 0.86, 1.8, G);
   frustum(b, K, 0, 1.66, 0.65, 1.25, 1.8, 0.8, 1.3, 0.45, G);
   box(b, K, 0, 2.08, 0.62, 1.8, 0.08, 0.36, D, { rx: 0.3 });
+  // roof hatch: its rim is sized to the driver's shoulders, the lid stands open behind
+  const HAX = f.clamp(f.sx + 0.1, 0.6, 0.84);
   for (const sd of [-1, 1]) {
     box(b, K, sd * 0.3, 1.75, 1.255, 0.42, 0.1, 0.03, BK);
     box(b, K, sd * 0.955, 1.88, -0.25, 0.02, 0.06, 1.7, D);
     box(b, K, sd * 0.955, 1.5, -0.25, 0.02, 0.06, 1.7, D);
-    studs(b, K, sd * 0.78, 2.11, -0.3, 1, 3, G);
-    box(b, K, sd * 0.6, 2.13, -0.28, 0.1, 0.06, 1.25, D);
+    if (HAX < 0.7) studs(b, K, sd * 0.81, 2.11, -0.3, 1, 3, G);
+    box(b, K, sd * HAX, 2.15, -0.28, 0.1, 0.1, 1.3, D);
   }
-  box(b, K, 0, 2.13, 0.32, 1.3, 0.06, 0.1, D);
-  box(b, K, 0, 2.13, -0.88, 1.3, 0.06, 0.1, D);
+  box(b, K, 0, 2.15, 0.32, HAX * 2 + 0.1, 0.1, 0.1, D);
+  box(b, K, 0, 2.15, -0.88, HAX * 2 + 0.1, 0.1, 0.1, D);
+  box(b, K, 0, 2.42, -1.04, HAX * 2 - 0.1, 0.5, 0.06, G, { rx: -0.35 });
+  box(b, K, 0, 2.42, -1.08, HAX * 1.2, 0.08, 0.04, D, { rx: -0.35 });
   box(b, K, 0, 1.38, 1.0, 1.0, 0.2, 0.42, D);
   for (const sd of [-1, 1]) cyl(b, K, sd * 0.2, 1.32, 1.45, 0.06, 0.75, BK, 'z', { seg: 8 });
   // side weapons: grenade launcher (port) and blaster (starboard)
@@ -352,7 +374,7 @@ function atst() {
     air += ((onGround ? 0 : 1) - air) * Math.min(1, dt * 5);
     ph = (ph + dt * (2.5 + 9 * s.speed01) * Math.min(1, amp * 4)) % (PI * 2);
     const bob = amp * 0.07 * Math.abs(S(ph)) * (1 - air);
-    if (mesh.parent) mesh.parent.position.y = bob;
+    sprung.position.y = bob;
     legs.forEach((L, i) => {
       const u = (ph + i * PI) % (PI * 2);
       let fz, lift;
@@ -364,44 +386,47 @@ function atst() {
   };
   fx({ speed01: 0, grounded: true, gliding: false, t: 0 }, 0);
   return {
-    mesh, seat: [0, 1.75 + LIFT, -0.25], control: 'bars', parts: legs.map((l) => l.hip), fx,
+    mesh, seat: [0, 1.75 + LIFT + Math.max(0, 1.8 - f.H) * 0.25, -0.25], control: 'bars', parts: legs.map((l) => l.hip), fx,
+    exhaust: [[0.45, 1.62 + LIFT, -1.4, BACK], [-0.45, 1.62 + LIFT, -1.4, BACK]],
   };
 }
 
 // ---- TIE fighter ------------------------------------------------------------------------
-function tie() {
+function tie({ rig }) {
+  const f = fitOf(rig);
   const G = C.ltgray, D = C.dkgray, BK = C.black;
   const b = new BrickBuilder(0.4);
   const laser = glow(0x40ff70, 1.4), ion = glow(0xff5a3a, 1.2);
-  const CY = 1.15, CUT = 0.42 * PI;
-  // the ball cockpit, open on top so the driver shows
+  // the ball cockpit, open on top so the driver shows; it grows for broad drivers so their
+  // shoulders clear the rim (R = ball radius, the window and guns sit on its surface)
+  const R = f.clamp(1 + (f.W - 1.3) * 0.32, 0.96, 1.2), CY = 0.15 + R, CUT = 0.42 * PI, WY = CY - 0.15 * R;
   const bowl = new THREE.SphereGeometry(1, 22, 12, 0, PI * 2, CUT, PI - CUT);
-  geo(b, null, bowl, G, mat(0, CY, 0));
-  geo(b, null, flipped(bowl), D, mat(0, CY, 0, 0, 0, 0, 0.96, 0.96, 0.96));
-  geo(b, null, new THREE.TorusGeometry(0.95, 0.055, 6, 26), D, mat(0, CY + Math.cos(CUT), 0, PI / 2, 0, 0));
-  cyl(b, null, 0, 0.62, -0.05, 0.75, 0.08, D, 'y', { seg: 16 });
-  for (let i = 0; i < 2; i++) geo(b, null, new THREE.TorusGeometry(1.005, 0.025, 4, 26), D, mat(0, CY - 0.3 - i * 0.35, 0, PI / 2, 0, 0, 1 - i * 0.12 - 0.04, 1 - i * 0.12 - 0.04, 1));
+  geo(b, null, bowl, G, mat(0, CY, 0, 0, 0, 0, R, R, R));
+  geo(b, null, flipped(bowl), D, mat(0, CY, 0, 0, 0, 0, 0.96 * R, 0.96 * R, 0.96 * R));
+  geo(b, null, new THREE.TorusGeometry(0.95, 0.055, 6, 26), D, mat(0, CY + Math.cos(CUT) * R, 0, PI / 2, 0, 0, R, R, 1));
+  cyl(b, null, 0, CY - 0.53 * R, -0.05, 0.75 * R, 0.08, D, 'y', { seg: 16 });
+  for (let i = 0; i < 2; i++) geo(b, null, new THREE.TorusGeometry(1.005, 0.025, 4, 26), D, mat(0, CY - (0.3 + i * 0.35) * R, 0, PI / 2, 0, 0, (1 - i * 0.12 - 0.04) * R, (1 - i * 0.12 - 0.04) * R, 1));
   // the octagonal front window
-  cyl(b, null, 0, 1.0, 0.94, 0.4, 0.1, BK, 'z', { seg: 8, spin: PI / 8 });
-  geo(b, null, new THREE.TorusGeometry(0.4, 0.05, 5, 8), G, mat(0, 1.0, 0.99, 0, 0, PI / 8));
-  for (let i = 0; i < 4; i++) box(b, null, 0, 1.0, 0.99, 0.8, 0.035, 0.03, G, { rz: (i * PI) / 4 });
-  cyl(b, null, 0, 1.0, 1.0, 0.1, 0.05, G, 'z', { seg: 8 });
+  cyl(b, null, 0, WY, 0.94 * R, 0.4, 0.1, BK, 'z', { seg: 8, spin: PI / 8 });
+  geo(b, null, new THREE.TorusGeometry(0.4, 0.05, 5, 8), G, mat(0, WY, 0.99 * R, 0, 0, PI / 8));
+  for (let i = 0; i < 4; i++) box(b, null, 0, WY, 0.99 * R, 0.8, 0.035, 0.03, G, { rz: (i * PI) / 4 });
+  cyl(b, null, 0, WY, R, 0.1, 0.05, G, 'z', { seg: 8 });
   // twin lasers under the window, twin ion engines at the back
   for (const sd of [-1, 1]) {
-    cyl(b, null, sd * 0.2, 0.42, 0.75, 0.05, 0.35, D, 'z', { seg: 8 });
-    cyl(b, null, sd * 0.2, 0.42, 0.94, 0.045, 0.06, 0, 'z', { mat: laser, seg: 8 });
-    cyl(b, null, sd * 0.24, 1.0, -0.95, 0.15, 0.1, D, 'z', { seg: 12 });
-    cyl(b, null, sd * 0.24, 1.0, -1.0, 0.11, 0.04, 0, 'z', { mat: ion, seg: 12 });
+    cyl(b, null, sd * 0.2, CY - 0.73 * R, 0.75 * R, 0.05, 0.35, D, 'z', { seg: 8 });
+    cyl(b, null, sd * 0.2, CY - 0.73 * R, 0.75 * R + 0.19, 0.045, 0.06, 0, 'z', { mat: laser, seg: 8 });
+    cyl(b, null, sd * 0.24, WY, -0.95 * R, 0.15, 0.1, D, 'z', { seg: 12 });
+    cyl(b, null, sd * 0.24, WY, -0.95 * R - 0.05, 0.11, 0.04, 0, 'z', { mat: ion, seg: 12 });
   }
   // wings: pylons + hexagonal solar panels, banking with the steering
   const wings = new THREE.Group(); wings.position.set(0, CY, 0);
   const wb = new BrickBuilder(0.4);
-  const HR = 1.2, WX = 1.6;
+  const HR = 1.2, WX = 1.6 + (R - 1) * 0.55;
   const vtx = (i) => [-Math.sin((i * PI) / 3) * HR, Math.cos((i * PI) / 3) * HR];
   for (const sd of [-1, 1]) {
-    cyl(wb, null, sd * 1.25, 0, 0, 0.17, 0.62, G, 'x', { seg: 10 });
-    cyl(wb, null, sd * 1.0, 0, 0, 0.24, 0.12, D, 'x', { seg: 10 });
-    cyl(wb, null, sd * 1.5, 0, 0, 0.26, 0.12, D, 'x', { seg: 10 });
+    cyl(wb, null, sd * (R + WX - 0.1) / 2, 0, 0, 0.17, WX - R + 0.02, G, 'x', { seg: 10 });
+    cyl(wb, null, sd * R, 0, 0, 0.24, 0.12, D, 'x', { seg: 10 });
+    cyl(wb, null, sd * (WX - 0.1), 0, 0, 0.26, 0.12, D, 'x', { seg: 10 });
     cyl(wb, null, sd * WX, 0, 0, HR, 0.07, BK, 'x', { seg: 6 });
     cyl(wb, null, sd * WX, 0, 0, 0.32, 0.16, G, 'x', { seg: 6 });
     for (let i = 0; i < 6; i++) {
@@ -413,7 +438,8 @@ function tie() {
   }
   wings.add(wb.build({ name: 'tiewings' }));
   return {
-    mesh: b.build({ name: 'tie' }), seat: [0, 0.82, -0.15], control: 'yoke', hover: 0.4,
+    mesh: b.build({ name: 'tie' }), seat: [0, CY - 0.33 * R + Math.max(0, 1.8 - f.H) * 0.2, -0.15], control: 'yoke', hover: 0.4,
+    exhaust: [[0.24, WY, -0.95 * R - 0.08, BACK], [-0.24, WY, -0.95 * R - 0.08, BACK]],
     steer: [{ obj: wings, axis: 'z', amount: 0.2 }], parts: [wings],
     fx(s) {
       wings.position.y = CY + (s.boosting ? S(s.t * 60) * 0.02 : 0);
