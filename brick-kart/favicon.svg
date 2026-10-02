@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" rx="14" fill="#172139"/>
+  <!-- Wide tires keep the kart recognizable at browser-tab sizes. -->
+  <g fill="#080d18">
+    <rect x="5" y="29" width="12" height="27" rx="5"/>
+    <rect x="47" y="29" width="12" height="27" rx="5"/>
+  </g>
+  <path d="M20 22h24l5 13H15z" fill="#e84b2b"/>
+  <rect x="12" y="33" width="40" height="20" rx="5" fill="#c91a09"/>
+  <path d="M17 34h30v5H17z" fill="#ff6540"/>
+  <g fill="#ffd43b">
+    <rect x="20" y="17" width="9" height="9" rx="3"/>
+    <rect x="35" y="17" width="9" height="9" rx="3"/>
+    <rect x="17" y="42" width="8" height="5" rx="2"/>
+    <rect x="39" y="42" width="8" height="5" rx="2"/>
+  </g>
+  <path d="M27 49h10" stroke="#172139" stroke-width="3" stroke-linecap="round"/>
+</svg>
