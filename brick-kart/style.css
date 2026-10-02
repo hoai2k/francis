@@ -254,6 +254,9 @@ canvas.pod3d { display: block; width: min(640px, 100%); height: min(300px, 38vh)
 .dcard.taken { opacity: .45; }
 .dcard .tags, .kcard .tags { top: 3px; right: 3px; }
 .csel.step-driver .kgrid, .csel.step-kart .dgrid { display: none; }
+/* the kart step has the whole picker to itself: bigger cards */
+.csel.step-kart .kgrid { grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 10px; }
+.csel.step-kart .kcard span { font-size: 13px; padding-top: 2px; }
 
 #touch { position: fixed; inset: 0; z-index: 12; pointer-events: none; }
 #touch button { pointer-events: auto; border: 0; color: #fff; font-family: 'Lilita One'; touch-action: none; box-shadow: inset 0 -6px 0 rgba(0,0,0,.3), 0 4px 0 rgba(0,0,0,.35); opacity: .78; }
@@ -271,7 +274,7 @@ canvas.pod3d { display: block; width: min(640px, 100%); height: min(300px, 38vh)
   .csel { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
   .stage { min-height: 0; height: 34vh; }
   .pvname { font-size: 24px; } .stats.big { display: none; }
-  .dgrid, .kgrid { grid-template-columns: repeat(auto-fill, minmax(68px, 1fr)); gap: 5px; }
+  .dgrid, .kgrid, .csel.step-kart .kgrid { grid-template-columns: repeat(auto-fill, minmax(68px, 1fr)); gap: 5px; }
   .cgrid { grid-template-columns: repeat(4, 1fr); gap: 6px; }
   .cupgrid { grid-template-columns: repeat(2, 1fr); }
   .ccard { padding: 4px 5px 6px; } .ccard .nm { font-size: 13px; } .ccard .bl, .stats { display: none; }

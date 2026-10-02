@@ -19,6 +19,7 @@ export const UNIVERSES = [
   { id: 'starwars', name: 'Star Wars', color: '#ffe81f' },
   { id: 'jjk', name: 'Jujutsu Kaisen', color: '#8a5cff' },
   { id: 'jurassic', name: 'Jurassic World', color: '#e8a33a' },
+  { id: 'classic', name: 'Brick Kart Originals', color: '#f2cd37' },
 ];
 
 // each universe loads on its own so one broken file never stops the game

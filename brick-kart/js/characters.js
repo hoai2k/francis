@@ -45,7 +45,7 @@ function taperedBox(bw, tw, h, d) {
   return g;
 }
 
-function buildHat(ch, head) {
+export function buildHat(ch, head) {
   const b = new BrickBuilder(0.4);
   const hc = ch.hatColor;
   const top = 0.36;
