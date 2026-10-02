@@ -556,7 +556,7 @@ class Snap {
       fx.spark(p.x, p.y, p.z, Math.cos(a) * Math.sin(b) * s, Math.cos(b) * s, Math.sin(a) * Math.sin(b) * s, n % 3 ? 0xffd040 : STONES[n % 6], 0.6, 4);
     }
     // half of the racers ahead, picked at random
-    const ahead = ctx.ahead(k, 11).filter((o) => live(o) && !o.mvDust);
+    const ahead = ctx.ahead(k, 99).filter((o) => live(o) && !o.mvDust);
     for (let i = ahead.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [ahead[i], ahead[j]] = [ahead[j], ahead[i]]; }
     ahead.slice(0, Math.ceil(ahead.length / 2)).forEach((o, i) => { o.mvDust = ctx.spawn(new Dust(o, k, 0.3 + i * 0.16, ctx)); });
   }
@@ -575,7 +575,7 @@ class Dust {
       const lx = rnd(1.5) * s, lz = rnd(2.1) * s, ly = (0.2 + Math.random() * 2.6) * s;
       const x = o.pos.x + lx * cy + lz * sy, z = o.pos.z - lx * sy + lz * cy;
       // drift up and away to one side, like ash in the wind
-      pool.emit(x, o.pos.y + ly, z, wind.x + rnd(1.5), 1 + Math.random() * 2.5, wind.z + rnd(1.5), this.colors[Math.floor(Math.random() * this.colors.length)], 1.2 + Math.random() * 0.8, 0.8 + Math.random() * 0.6);
+      pool.emit(x, o.pos.y + ly, z, wind.x + rnd(1.5), 1 + Math.random() * 2.5, wind.z + rnd(1.5), this.colors[Math.floor(Math.random() * this.colors.length)], 1.2 + Math.random() * 0.8, 0.65 + Math.random() * 0.5);
     }
   }
   update(dt) {
@@ -604,6 +604,7 @@ class Dust {
       cap = top * (1 - 0.75 * f);
     } else if (t < 2.5) {
       R.visible = false;
+      o.ghostTime = Math.max(o.ghostTime || 0, 0.12);   // dust can't be bumped or hit
       rate = 12;
       cap = top * 0.18;
     } else if (t < 3.1) {
@@ -718,7 +719,7 @@ export default [
     id: 'snap', name: 'Infinity Snap', color: '#ffc21a', icon: ICON_SNAP, gesture: 'use',
     help: 'Snap the Infinity Gauntlet: half the racers ahead of you crumble to dust and crawl along until they reform.',
     odds: [0, 0, 0, 2, 5],
-    ai: (k, ctx) => ctx.ahead(k, 11).filter((o) => live(o) && !o.mvDust).length >= 2,
+    ai: (k, ctx) => ctx.ahead(k, 99).filter((o) => live(o) && !o.mvDust).length >= 2,
     prewarm: () => gauntletMesh(),
     use(k, ctx) { ctx.spawn(new Snap(k, ctx)); },
   },

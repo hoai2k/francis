@@ -98,6 +98,29 @@ the race (CPU ones too) gets one of them at the wheel.
 - After the finish, the top three celebrate and the rest sulk. In a Grand Prix,
   the podium shows the top three drivers celebrating in 3D.
 
+## Movie powers (14)
+
+Extra power-ups themed on the Movie Cup films come out of item boxes on **every
+track** (twice as often on their own movie's track); racers further back get the
+big comeback ones.
+
+- **Star Wars**: Force Push (a Force wave that spins out karts ahead and blows
+  away traps), Lightsaber Spin (a spinning double saber that spins out anyone
+  you touch and bats items back), Hyperspace Jump (stretch, streak and warp far
+  up the track).
+- **Marvel**: Mjolnir (homing hammer, then lightning that chains to 3 more
+  karts), Cap's Shield (ricochets between 3 karts and comes back), Web Shot (web
+  a kart ahead, or drop a web trap behind), Infinity Snap (half the racers ahead
+  crumble to brick dust for a moment).
+- **Jujutsu Kaisen**: Hollow Purple (an unstoppable purple sphere that wrecks
+  everything down the track), Domain Expansion: Infinite Void (freezes every
+  rival around you), Black Flash (your next bump wrecks a kart), Divine Dogs
+  (shadow dogs hunt the two karts ahead).
+- **Jurassic World**: T. rex Roar (a roaring head spins out karts ahead and eats
+  incoming items), Raptor Pack (three raptors chase and pounce on karts ahead),
+  Mosasaurus Breach (it leaps out of the road ahead and crashes down in a
+  splash).
+
 ## Power-ups (23)
 
 Drive through the rainbow **?** bricks to get an item. You can hold two: the one you can use now (big slot) and the next one (small slot), which moves up once you use the first.
@@ -171,6 +194,7 @@ setups.
 - `js/kart.js`: arcade kart physics, drifting, jumps, respawns, hit reactions
 - `js/ai.js`: CPU drivers (racing line, drifting, item tactics, rubber-banding)
 - `js/items.js`: power-ups, projectiles and traps
+- `js/abilities.js`, `js/abilities/*.js`: the movie powers (plug-in packs; the contract is in abilities.js)
 - `js/track.js`: spline track: road, walls, supports, item boxes, boost pads, ramps, studs
 - `js/tracks.js`: the map list and Grand Prix cups
 - `js/maps/*.js`: one file per map (layout, sections, hazards, scenery); `js/maps/kit.js` has shared props
