@@ -13,7 +13,9 @@
 //     use(k, ctx, { back, aimFwd }) }          do it (spawn entities, change karts)
 //
 // ctx (made by Items) gives: race, track, scene, fx, audio, THREE, BrickBuilder, C, plastic,
-//   spawn(entity)      entity = { update(dt) -> keep alive?, dispose(), danger?(pos, r) -> bool }
+//   spawn(entity)      entity = { update(dt) -> keep alive?, dispose(), danger?(pos, r) -> bool,
+//                        deflect?(pos, r, byKart) }  deflect: called by blocking powers (Force Push,
+//                        Lightsaber Spin) so your projectile can be blown away / cut down near pos
 //   hit(target, kind, by, label) -> bool   kind 'spin' | 'wreck' | 'freeze' (respects shields etc.)
 //   ahead(k, n) / behind(k, n)   the n karts just ahead of / behind k in the standings
 //   near(pos, r, except?)        karts within r of pos
@@ -23,7 +25,7 @@
 // optional onBump(other) hook that the race calls when two karts bump (cleared by the ability).
 // Packs are listed in FINISHED once reviewed; unfinished ones only load in developer test
 // races (?quick=… or ?abilities=all) so half-built abilities never reach item boxes.
-const FINISHED = [];
+const FINISHED = ['starwars'];
 const q = new URLSearchParams(location.search);
 const dev = q.has('quick') || q.has('abilities');
 const PACKS = ['starwars', 'marvel', 'jjk', 'jurassic'].filter((id) => dev || FINISHED.includes(id));

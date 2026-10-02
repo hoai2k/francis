@@ -554,7 +554,7 @@ export class Items {
       r.t += dt;
       r.m.scale.setScalar(1 + r.t * r.radius * 2.2);
       r.m.material.opacity = Math.max(0, 0.9 - r.t * 2);
-      if (r.t > 0.45) { this.scene.remove(r.m); this.rings.splice(n, 1); }
+      if (r.t > 0.45) { this.scene.remove(r.m); r.m.geometry.dispose(); r.m.material.dispose(); this.rings.splice(n, 1); }
     }
   }
 
@@ -571,6 +571,6 @@ export class Items {
     for (const p of this.proj) this.scene.remove(p.mesh);
     for (const t of this.traps) this.scene.remove(t.mesh);
     for (const s of this.storms) this.scene.remove(s.cloud);
-    for (const r of this.rings) this.scene.remove(r.m);
+    for (const r of this.rings) { this.scene.remove(r.m); r.m.geometry.dispose(); r.m.material.dispose(); }
   }
 }
