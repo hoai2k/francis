@@ -9,6 +9,7 @@ import { Race } from './race.js';
 import { TRACKS, CUPS } from './tracks.js';
 import { CHARACTERS, buildKart, bodyName } from './characters.js';
 import { DRIVERS, UNIVERSES, combinedStats } from './driver.js';
+import { KARTS, KART_GROUPS } from './vehicles.js';
 import { Showcase, driverPortrait, kartPortrait } from './showcase.js';
 import { ICONS, ITEMS } from './items.js';
 import { fmt } from './hud.js';
@@ -70,7 +71,7 @@ class Game {
     this.ui.addEventListener('click', (e) => this.onClick(e));
     this.ui.addEventListener('mouseover', (e) => { const b = e.target.closest('[data-i]'); if (b && this.screen?.hover) this.screen.hover(+b.dataset.i); });
     const q = new URLSearchParams(location.search);
-    if (q.get('gallery')) {
+    if (q.get('gallery') || q.get('garage')) {
       // developer view of the movie-character drivers
       import('./gallery.js').then(({ Gallery }) => { this.attract = new Gallery(this, q); });
     } else if (q.get('quick')) {
@@ -79,7 +80,8 @@ class Game {
       // &chars=1 races with movie-character drivers, &driver=<id> picks player 1's driver
       if (q.get('chars') || q.get('driver')) this.settings.useChars = q.get('chars') !== '0';
       const d0 = Math.max(0, DRIVERS.findIndex((d) => d.id === q.get('driver')));
-      this.players = Array.from({ length: np }, (_, i) => this.makePlayer({ id: i, device: i === 0 ? 'kb' : 'pad' + (i - 1), cursor: (+(q.get('char') || 0) + i) % 8, driver: (d0 + i) % Math.max(1, DRIVERS.length), color: PCOL[i] }));
+      const k0 = Math.max(0, KARTS.findIndex((k) => k.id === q.get('kart')));
+      this.players = Array.from({ length: np }, (_, i) => this.makePlayer({ id: i, device: i === 0 ? 'kb' : 'pad' + (i - 1), cursor: (+(q.get('char') || 0) + i) % 8, driver: (d0 + i) % Math.max(1, DRIVERS.length), kart: k0, color: PCOL[i] }));
       this.startRace({ def: TRACKS.find((t) => t.id === q.get('quick')) || TRACKS[0], mode: q.get('mode') || 'race' });
     } else {
       // show the title right away; build the background race just after it has painted
@@ -489,48 +491,75 @@ class Game {
   showSelectChars(mode) {
     this.mode = mode;
     const max = mode === 'tt' ? 1 : 4;
-    const ND = DRIVERS.length, NK = CHARACTERS.length;
-    const players = [];   // { id, device, dcur, kcur, phase: 'driver' | 'kart' | 'done', color }
+    const ND = DRIVERS.length, NK = KARTS.length;
+    // phase: 'driver' (choosing) -> 'waiting' (driver locked) -> 'kart' (everyone locked: choosing a kart) -> 'done'
+    const players = [];
+    let step = 'driver';
     this.charPicks ||= {};
     const uni = (id) => UNIVERSES.find((u) => u.id === id) || { name: id, color: '#fff' };
-    let groups = '';
+    let dgroups = '';
     for (const u of UNIVERSES) {
       const list = DRIVERS.map((d, i) => [d, i]).filter(([d]) => d.from === u.id);
       if (!list.length) continue;
-      groups += `<div class="uhead" style="--uc:${u.color}">${esc(u.name)}</div>` + list.map(([d, i]) => `
+      dgroups += `<div class="uhead" style="--uc:${u.color}">${esc(u.name)}</div>` + list.map(([d, i]) => `
         <div class="dcard" data-i="${i}" style="--dc:${hex(d.color ?? 0xffffff)}"><img alt="" data-d="${i}"><span>${esc(d.name)}</span><div class="tags"></div></div>`).join('');
     }
-    const karts = CHARACTERS.map((ch, i) => `<div class="kcard" data-i="${1000 + i}" style="--kc:${hex(ch.kart)}"><img alt="" data-k="${i}"><span>${esc(ch.vehicle)}</span><div class="tags"></div></div>`).join('');
+    let kgroups = '';
+    for (const g of KART_GROUPS) {
+      const list = KARTS.map((k, i) => [k, i]).filter(([k]) => k.group === g.id);
+      if (!list.length) continue;
+      kgroups += `<div class="uhead" style="--uc:${g.color}">${esc(g.name)}</div>` + list.map(([k, i]) => `
+        <div class="kcard" data-i="${1000 + i}" style="--kc:${hex(k.kart)}"><img alt="" data-k="${i}"><span>${esc(k.vehicle)}</span><div class="tags"></div></div>`).join('');
+    }
     const titles = { gp: 'Grand Prix', race: 'Quick Race', tt: 'Time Trial' };
-    this.setScreen(`<div class="screen select chars"><div class="panel wide xl"><h2>${titles[mode]} · Choose your driver &amp; kart</h2>
+    this.setScreen(`<div class="screen select chars"><div class="panel wide xl"><h2>${titles[mode]} · <span class="steptitle">Choose your driver</span></h2>
       <div class="joinbar"></div>
-      <div class="csel">
+      <div class="csel step-driver">
         <div class="stage"><canvas class="pv"></canvas>
           <div class="pvinfo"><div class="pvfrom"></div><div class="pvname"></div><div class="pvblurb"></div><div class="pvkart"></div><div class="stats big"></div></div>
           <div class="pvstep"></div></div>
-        <div class="picks"><div class="dgrid">${groups}</div><div class="khead">Karts</div><div class="kgrid">${karts}</div></div>
+        <div class="picks"><div class="dgrid">${dgroups}</div><div class="kgrid">${kgroups}</div></div>
       </div>
       <div class="selfoot"><button class="bbtn" data-act="back">◀ Back</button><div class="hint2"></div><button class="bbtn go" data-act="go">Race! ▶</button></div></div></div>`);
     const ui = this.ui;
     const dcards = [...ui.querySelectorAll('.dcard')], kcards = [...ui.querySelectorAll('.kcard')];
-    const dEl = new Map(dcards.map((c) => [+c.dataset.i, c]));
+    const dEl = new Map(dcards.map((c) => [+c.dataset.i, c])), kEl = new Map(kcards.map((c) => [+c.dataset.i - 1000, c]));
+    const picksEl = ui.querySelector('.picks');
     const show = new Showcase(ui.querySelector('canvas.pv'), { cam: [5.6, 3.6, 8.4], look: [0, 1.25, 0], spin: 0.4 });
     this.cleanup = () => show.dispose();
     let pv = null, pvKey = '';   // the player the stage follows
     const deviceLabel = (d) => d === 'kb' ? (this.input.split ? 'Keys WASD' : 'Keyboard') : d === 'kb2' ? 'Keys Arrows' : d === 'touch' ? 'Touch' : this.input.padName(d);
     const taken = (me) => new Set(players.filter((p) => p !== me && p.phase !== 'driver').map((p) => p.dcur));
-    // portraits fill in a few per frame
-    const pendingImgs = [...ui.querySelectorAll('img[data-d], img[data-k]')];
+    // portraits fill in a few per frame (karts once the kart step is reached)
+    const pendingD = [...ui.querySelectorAll('img[data-d]')], pendingK = [...ui.querySelectorAll('img[data-k]')];
     const fillImgs = (n) => {
-      while (n-- > 0 && pendingImgs.length) {
-        const img = pendingImgs.shift();
-        img.src = img.dataset.d !== undefined ? driverPortrait(DRIVERS[+img.dataset.d]) : kartPortrait(CHARACTERS[+img.dataset.k]);
+      const q = step === 'kart' ? (pendingK.length ? pendingK : pendingD) : (pendingD.length ? pendingD : pendingK);
+      while (n-- > 0 && q.length) {
+        const img = q.shift();
+        img.src = img.dataset.d !== undefined ? driverPortrait(DRIVERS[+img.dataset.d]) : kartPortrait(KARTS[+img.dataset.k]);
       }
     };
     const statBars = (st) => ['speed', 'accel', 'handling', 'weight'].map((k) => `<div class="st"><span>${k.slice(0, 5).toUpperCase()}</span><i style="width:${st[k] * 20}%"></i></div>`).join('');
+    // the whole screen moves to the kart step once every player has locked a driver
+    const sync = () => {
+      const all = players.length && players.every((p) => p.phase !== 'driver');
+      const next = all ? 'kart' : 'driver';
+      for (const p of players) {
+        if (next === 'kart' && p.phase === 'waiting') p.phase = 'kart';
+        if (next === 'driver' && (p.phase === 'kart' || p.phase === 'done')) p.phase = 'waiting';
+      }
+      if (next !== step) {
+        step = next;
+        ui.querySelector('.csel').className = 'csel step-' + step;
+        ui.querySelector('.steptitle').textContent = step === 'kart' ? 'Choose your kart' : 'Choose your driver';
+        picksEl.scrollTop = 0;
+        const p = pv || players[0];
+        if (p) scrollTo(step === 'kart' ? kEl.get(p.kcur) : dEl.get(p.dcur));
+      }
+    };
     const refreshStage = (cheer) => {
       const p = pv || players[0];
-      const d = DRIVERS[p ? p.dcur : 0], ch = CHARACTERS[p ? p.kcur : 0];
+      const d = DRIVERS[p ? p.dcur : 0], ch = KARTS[p ? p.kcur : 0];
       const key = (d?.id || '') + '|' + ch.id;
       if (key !== pvKey) {
         const ry = show.items[0]?.m.root.rotation.y ?? 0.6;
@@ -543,38 +572,43 @@ class Game {
       if (cheer) { show.play(0, 'cheer'); this.audio.voice(d.voice, 'cheer', 0.9); }
       ui.querySelector('.pvfrom').textContent = uni(d.from).name;
       ui.querySelector('.pvfrom').style.color = uni(d.from).color;
-      ui.querySelector('.pvname').textContent = d.name;
-      ui.querySelector('.pvblurb').textContent = `${d.blurb}${d.blurb ? ' · ' : ''}${d.weight[0].toUpperCase() + d.weight.slice(1)}`;
-      ui.querySelector('.pvkart').innerHTML = `in the <b>${esc(ch.vehicle)}</b> · ${esc(bodyName(ch))}`;
+      ui.querySelector('.pvname').textContent = step === 'kart' ? ch.vehicle : d.name;
+      ui.querySelector('.pvblurb').textContent = step === 'kart' ? `${ch.form || bodyName(ch)}${ch.blurb ? ' · ' + ch.blurb : ''}` : `${d.blurb}${d.blurb ? ' · ' : ''}${d.weight[0].toUpperCase() + d.weight.slice(1)}`;
+      ui.querySelector('.pvkart').innerHTML = step === 'kart' ? `driven by <b>${esc(d.name)}</b>` : `in the <b>${esc(ch.vehicle)}</b>`;
       ui.querySelector('.stats.big').innerHTML = statBars(combinedStats(ch.stats, d));
-      const step = !p ? 'Press <b>A</b> / <b>Enter</b> or tap a driver' : p.phase === 'driver' ? `P${p.id + 1}: pick a <b>driver</b>` : p.phase === 'kart' ? `P${p.id + 1}: pick a <b>kart</b>` : `P${p.id + 1} is ready!`;
-      ui.querySelector('.pvstep').innerHTML = step;
+      const step1 = !p ? 'Press <b>A</b> / <b>Enter</b> or tap a driver'
+        : p.phase === 'driver' ? `P${p.id + 1}: pick a <b>driver</b>`
+        : p.phase === 'waiting' ? `P${p.id + 1} is in! Waiting for the others…`
+        : p.phase === 'kart' ? `P${p.id + 1}: pick a <b>kart</b>` : `P${p.id + 1} is ready!`;
+      ui.querySelector('.pvstep').innerHTML = step1;
     };
     const refresh = (cheer = false) => {
+      sync();
       for (const c of dcards) {
-        const i = +c.dataset.i, here = players.filter((p) => p.phase !== 'done' && p.dcur === i || p.phase === 'done' && p.dcur === i);
+        const i = +c.dataset.i, here = players.filter((p) => p.dcur === i);
         c.querySelector('.tags').innerHTML = here.map((p) => `<span class="ptag${p.phase !== 'driver' ? ' lock' : ''}" style="background:${p.color}">P${p.id + 1}${p.phase !== 'driver' ? ' ✓' : ''}</span>`).join('');
-        const cur = players.filter((p) => p.dcur === i);
-        c.style.outline = cur.length ? `4px solid ${cur[cur.length - 1].color}` : '';
-        c.classList.toggle('taken', players.some((p) => p.phase !== 'driver' && p.dcur === i) && !players.some((p) => p.phase === 'driver' && p.dcur !== i) && players.length > 1);
+        c.style.outline = here.length ? `4px solid ${here[here.length - 1].color}` : '';
+        c.classList.toggle('taken', players.length > 1 && players.some((p) => p.phase !== 'driver' && p.dcur === i) && !here.some((p) => p.phase === 'driver'));
       }
       for (const c of kcards) {
-        const i = +c.dataset.i - 1000, cur = players.filter((p) => p.phase !== 'driver' && p.kcur === i);
-        c.querySelector('.tags').innerHTML = cur.map((p) => `<span class="ptag${p.phase === 'done' ? ' lock' : ''}" style="background:${p.color}">P${p.id + 1}${p.phase === 'done' ? ' ✓' : ''}</span>`).join('');
-        const on = cur.filter((p) => p.phase === 'kart');
-        c.style.outline = on.length ? `4px solid ${on[on.length - 1].color}` : '';
+        const i = +c.dataset.i - 1000, here = step === 'kart' ? players.filter((p) => p.kcur === i) : [];
+        c.querySelector('.tags').innerHTML = here.map((p) => `<span class="ptag${p.phase === 'done' ? ' lock' : ''}" style="background:${p.color}">P${p.id + 1}${p.phase === 'done' ? ' ✓' : ''}</span>`).join('');
+        c.style.outline = here.length ? `4px solid ${here[here.length - 1].color}` : '';
       }
-      ui.querySelector('.kgrid').classList.toggle('active', players.some((p) => p.phase === 'kart'));
       let html = '';
       for (let s2 = 0; s2 < max; s2++) {
         const p = players[s2];
-        html += p ? `<div class="slot on" style="--pc:${p.color}"><b>P${p.id + 1}</b> ${esc(deviceLabel(p.device))}<em>${p.phase === 'driver' ? 'choosing…' : esc(DRIVERS[p.dcur].name) + (p.phase === 'done' ? ' · ' + esc(CHARACTERS[p.kcur].vehicle) : ' · kart?')}</em></div>`
+        const st = !p ? '' : p.phase === 'driver' ? 'choosing a driver…' : p.phase === 'waiting' ? esc(DRIVERS[p.dcur].name) + ' ✓'
+          : p.phase === 'kart' ? esc(DRIVERS[p.dcur].name) + ' · choosing a kart…' : esc(DRIVERS[p.dcur].name) + ' · ' + esc(KARTS[p.kcur].vehicle) + ' ✓';
+        html += p ? `<div class="slot on" style="--pc:${p.color}"><b>P${p.id + 1}</b> ${esc(deviceLabel(p.device))}<em>${st}</em></div>`
           : `<div class="slot"><b>P${s2 + 1}</b> ${s2 === 0 ? 'Press A / Enter / tap a driver' : 'Press A to join'}</div>`;
       }
       ui.querySelector('.joinbar').innerHTML = html;
       const ready = players.length && players.every((p) => p.phase === 'done');
       ui.querySelector('.go').classList.toggle('ready', !!ready);
-      ui.querySelector('.hint2').innerHTML = ready ? 'All set! Press <b>A</b> / <b>Start</b> / <b>Enter</b> to race' : (mode !== 'tt' ? 'More players: press <b>A</b> on another controller · 2nd keyboard: <b>Right Shift</b>' : 'Time Trial is solo: beat your best time');
+      ui.querySelector('.hint2').innerHTML = ready ? 'All set! Press <b>A</b> / <b>Start</b> / <b>Enter</b> to race'
+        : step === 'kart' ? 'Everyone picks a kart · <b>B</b> goes back to drivers'
+        : (mode !== 'tt' ? 'More players: press <b>A</b> on another controller · 2nd keyboard: <b>Right Shift</b>' : 'Time Trial is solo: beat your best time');
       refreshStage(cheer);
     };
     const scrollTo = (el) => el?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
@@ -584,7 +618,7 @@ class Game {
       const prev = this.charPicks[id] || {};
       const tk = taken(null);
       let dcur = prev.dcur ?? id; while (tk.has(dcur % ND)) dcur++;
-      const p = { id, device, dcur: dcur % ND, kcur: prev.kcur ?? id % NK, phase: 'driver', color: PCOL[id] };
+      const p = { id, device, dcur: dcur % ND, kcur: (prev.kcur ?? id) % NK, phase: 'driver', color: PCOL[id] };
       players.push(p);
       players.sort((a, b) => a.id - b.id);
       pv = p;
@@ -597,7 +631,7 @@ class Game {
       if (!players.length || !players.every((p) => p.phase === 'done')) return;
       this.audio.sfx('select');
       for (const p of players) this.charPicks[p.id] = { dcur: p.dcur, kcur: p.kcur };
-      this.players = players.map((p) => this.makePlayer({ id: p.id, device: p.device, cursor: p.kcur, driver: p.dcur, color: p.color }));
+      this.players = players.map((p) => this.makePlayer({ id: p.id, device: p.device, cursor: 0, driver: p.dcur, kart: p.kcur, color: p.color }));
       if (mode === 'gp') this.showCups();
       else this.showTracks(mode);
     };
@@ -627,12 +661,12 @@ class Game {
     };
     const lockDriver = (p) => {
       if (taken(p).has(p.dcur)) { this.audio.sfx('wrong'); return; }
-      p.phase = 'kart'; pv = p;
+      p.phase = 'waiting'; pv = p;
       this.audio.sfx('select');
       refresh(true);
-      scrollTo(kcards[p.kcur]);
     };
     const lockKart = (p) => { p.phase = 'done'; pv = p; this.audio.sfx('select'); show.play(0, 'win'); this.audio.voice(DRIVERS[p.dcur].voice, 'win', 0.9); refresh(); };
+    const moveIn = (cards, cur, dx, dy, idOf) => idOf(cards[nav(cards, Math.max(0, cards.findIndex((c) => idOf(c) === cur)), dx, dy)]);
     this.screen = {
       update: (dt) => {
         fillImgs(3);
@@ -651,15 +685,13 @@ class Game {
           }
           const dx = m.left ? -1 : m.right ? 1 : 0, dy = m.up ? -1 : m.down ? 1 : 0;
           if (p.phase === 'driver') {
-            if (dx || dy) {
-              const i = dcards.findIndex((c) => +c.dataset.i === p.dcur);
-              p.dcur = +dcards[nav(dcards, Math.max(0, i), dx, dy)].dataset.i;
-              pv = p; this.audio.sfx('click'); refresh(); scrollTo(dEl.get(p.dcur));
-            }
+            if (dx || dy) { p.dcur = moveIn(dcards, p.dcur, dx, dy, (c) => +c.dataset.i); pv = p; this.audio.sfx('click'); refresh(); scrollTo(dEl.get(p.dcur)); }
             if (m.ok) { lockDriver(p); continue; }
             if (m.back) { if (p === players[0]) { back(); return; } leave(p); continue; }
+          } else if (p.phase === 'waiting') {
+            if (m.back) { p.phase = 'driver'; pv = p; this.audio.sfx('back'); refresh(); continue; }
           } else if (p.phase === 'kart') {
-            if (dx || dy) { p.kcur = nav(kcards, p.kcur, dx, dy); pv = p; this.audio.sfx('click'); refresh(); scrollTo(kcards[p.kcur]); }
+            if (dx || dy) { p.kcur = moveIn(kcards, p.kcur, dx, dy, (c) => +c.dataset.i - 1000); pv = p; this.audio.sfx('click'); refresh(); scrollTo(kEl.get(p.kcur)); }
             if (m.ok) { lockKart(p); continue; }
             if (m.back) { p.phase = 'driver'; pv = p; this.audio.sfx('back'); refresh(); scrollTo(dEl.get(p.dcur)); continue; }
           } else {
@@ -675,16 +707,16 @@ class Game {
         if (!p) return;
         pv = p;
         if (i >= 1000) {
-          if (p.phase === 'driver') { if (taken(p).has(p.dcur)) return; p.phase = 'kart'; }
+          if (step !== 'kart' || p.phase === 'waiting') return;
           p.kcur = i - 1000;
           lockKart(p);
           return;
         }
-        if (taken(p).has(i)) return;
+        if (step !== 'driver' || taken(p).has(i)) return;
         p.dcur = i;
         lockDriver(p);
       },
-      act: (a) => { if (a === 'back') back(); if (a === 'go') go(); },
+      act: (a) => { if (a === 'back') { if (step === 'kart') { for (const p of players) p.phase = 'driver'; refresh(); } else back(); } if (a === 'go') go(); },
     };
     join(this.p1Device());
     refresh();
@@ -693,7 +725,7 @@ class Game {
   makePlayer(p) {
     const input = this.input;
     return {
-      id: p.id, device: p.device, charIndex: p.cursor, driverIndex: p.driver ?? null, color: p.color,
+      id: p.id, device: p.device, charIndex: p.cursor, driverIndex: p.driver ?? null, kartIndex: p.kart ?? null, color: p.color,
       autoGas: this.settings.autoGas || p.device === 'touch',
       rumble: (s, ms) => input.rumble(p.device, s, ms),
     };
@@ -833,7 +865,7 @@ class Game {
     }).join('');
     if (mode === 'gp') res.forEach((r) => {
       const e = this.entrant(r);
-      this.gp.ent.set(e.key, { charIndex: r.charIndex, driverIndex: r.driverIndex });
+      this.gp.ent.set(e.key, { charIndex: r.charIndex, driverIndex: r.driverIndex, kartIndex: r.kartIndex });
       this.gp.points.set(e.key, (this.gp.points.get(e.key) || 0) + (POINTS[r.place - 1] || 0));
     });
     const items = mode === 'gp'
@@ -878,7 +910,7 @@ class Game {
     }).join('');
     gp.round++;
     // next grid: current standings reversed (leader starts at the back)
-    gp.grid = [...order].reverse().map((o) => ({ charIndex: o.charIndex, driverIndex: o.driverIndex, player: humanChars.get(o.key) || null }));
+    gp.grid = [...order].reverse().map((o) => ({ charIndex: o.charIndex, driverIndex: o.driverIndex, kartIndex: o.kartIndex, player: humanChars.get(o.key) || null }));
     const last = gp.round >= gp.tracks.length;
     this.resultsMenu(last ? 'Final Standings' : `Standings after race ${gp.round}/${gp.tracks.length}`, `<div class="results">${rows}</div>`, last
       ? [{ label: 'Award ceremony ▶', action: () => this.showPodium(order) }]
@@ -908,7 +940,7 @@ class Game {
     if (!cv) return;
     const show = new Showcase(cv, { cam: [0, 4.4, 16], look: [0, 1.7, 0], fov: 32, spin: 0 });
     const spots = [[0, 1.2, 0], [-4.2, 0.7, 0.4], [4.2, 0.35, 0.4]];
-    show.set(top.map((o, n) => ({ ch: CHARACTERS[o.charIndex], driver: DRIVERS[o.driverIndex], x: spots[n][0], y: spots[n][1], z: spots[n][2], ry: [0.2, 0.45, -0.45][n], phase: n === 0 ? 'win' : 'pre', idle: n !== 0 })), { plate: false });
+    show.set(top.map((o, n) => ({ ch: KARTS[o.kartIndex] || CHARACTERS[o.charIndex] || KARTS[0], driver: DRIVERS[o.driverIndex], x: spots[n][0], y: spots[n][1], z: spots[n][2], ry: [0.2, 0.45, -0.45][n], phase: n === 0 ? 'win' : 'pre', idle: n !== 0 })), { plate: false });
     const cols = [0xf2cd37, 0xc0c6cc, 0xc8803a];
     top.forEach((o, n) => {
       const blk = new THREE.Mesh(new THREE.BoxGeometry(3.6, spots[n][1] + 0.01, 3.4), new THREE.MeshStandardMaterial({ color: cols[n], roughness: 0.4, metalness: 0.3 }));

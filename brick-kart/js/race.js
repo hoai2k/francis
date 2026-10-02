@@ -9,6 +9,7 @@ import { Items, rollItem, MULTI } from './items.js';
 import { AIDriver } from './ai.js';
 import { CHARACTERS } from './characters.js';
 import { DRIVERS } from './driver.js';
+import { KARTS } from './vehicles.js';
 import { HUD } from './hud.js';
 import { Hazards } from './hazards.js';
 
@@ -123,12 +124,16 @@ export class Race {
         const usedD = new Set(humans.map((p) => p.driverIndex));
         const freeD = shuffle(DRIVERS.map((_, i) => i).filter((i) => !usedD.has(i)));
         ai.forEach((g, i) => { g.driverIndex = freeD[i % freeD.length]; });
+        // CPU karts: a spread of different vehicles
+        const freeK = shuffle(KARTS.map((_, i) => i));
+        ai.forEach((g, i) => { g.kartIndex = freeK[i % freeK.length]; });
       }
-      grid.push(...ai, ...humans.map((p) => ({ charIndex: p.charIndex, driverIndex: p.driverIndex, player: p })));
+      grid.push(...ai, ...humans.map((p) => ({ charIndex: p.charIndex, driverIndex: p.driverIndex, kartIndex: p.kartIndex, player: p })));
     }
     grid.forEach((g, n) => {
       const drv = this.useChars ? DRIVERS[g.driverIndex ?? n % DRIVERS.length] : null;
-      const k = new Kart(this, CHARACTERS[g.charIndex], n, g.player, drv);
+      const ch = this.useChars ? (KARTS[g.kartIndex] || CHARACTERS[g.charIndex] || KARTS[0]) : CHARACTERS[g.charIndex];
+      const k = new Kart(this, ch, n, g.player, drv);
       k.driverIndex = drv ? DRIVERS.indexOf(drv) : -1;
       const row = n;
       const i = this.track.wrap(Math.round(-7 - row * 3.4));
@@ -440,7 +445,7 @@ export class Race {
       k.finished = true; k.estimated = true;
     }
     const all = [...this.karts].sort((a, b) => a.finishTime - b.finishTime);
-    this.onDone?.(all.map((k, i) => ({ place: i + 1, kart: k, charIndex: CHARACTERS.indexOf(k.ch), driverIndex: k.driverIndex, player: k.player, time: k.finishTime, laps: k.lapTimes, estimated: !!k.estimated })));
+    this.onDone?.(all.map((k, i) => ({ place: i + 1, kart: k, charIndex: CHARACTERS.indexOf(k.ch), kartIndex: KARTS.indexOf(k.ch), driverIndex: k.driverIndex, player: k.player, time: k.finishTime, laps: k.lapTimes, estimated: !!k.estimated })));
   }
 
   viewports(W, H) {

@@ -170,6 +170,7 @@ export const SEAT = new THREE.Vector3(0, 0.62, -0.38);
 // Builds the kart + driver. Local forward is +Z. With a driver rig (Use Characters)
 // the minifig is replaced by the rig, seated in a deeper tub behind a turning wheel.
 export function buildKart(ch, rig = null) {
+  if (ch.build) return buildVehicle(ch, rig || emptyRig());
   const root = new THREE.Group();
   const body = new THREE.Group();
   root.add(body);
@@ -325,17 +326,98 @@ function finishCharacterKart(ch, rig, root, body, b) {
   const head = new THREE.Group();   // the driver animator turns the real head
   const { wheels, glider } = addWheelsAndGlider(ch, body, rig, st);
   glider.position.y += st.lift;
-  return { root, body, head, wheels, glider, swheel, driver: rig, shadow: kartMesh, top: SEAT.y + rig.height + st.lift, colors: [k, a, rig.def.color ?? C.white, C.black, C.ltgray, C.dkgray] };
+  return { root, body, head, wheels, glider, swheel, steerControl: (v) => { swheel.rotation.z = -v * 0.9; }, driver: rig, shadow: kartMesh, top: SEAT.y + rig.height + st.lift, colors: [k, a, rig.def.color ?? C.white, C.black, C.ltgray, C.dkgray] };
 }
+// ---- custom vehicles (js/vehicles/*.js) ----------------------------------------------------
+// A vehicle definition: { id, name, form, blurb, group, stats, colors: [main, accent, ...],
+//   build(kit) -> { mesh, seat?, control?, wheels?, hover?, spin?, steer?, fx?, glider?, parts? } }
+// Everything is in the kart frame: +Z forward, ground at y = 0, centred on the kart origin.
+//   mesh     static body (usually one BrickBuilder.build()); casts the kart's shadow
+//   seat     [x, y, z] where the driver's hips go (default SEAT = [0, 0.62, -0.38])
+//   control  'wheel' | 'bars' | 'yoke' | 'none' (placed at the driver's hands automatically)
+//   wheels   [{ x, y, z, r, w, front, xs? }] standard brick wheels (y is normally r so they touch
+//            the ground; xs = x offsets for a shared axle) or custom { g, spin, front, r }
+//   hover    true for vehicles that float (no wheels): the body bobs gently
+//   spin     [{ obj, axis: 'x'|'y'|'z', rate }] parts spun by speed (turbines, rotors, legs…)
+//   steer    [{ obj, axis, amount }] parts turned by steering (fins, handlebars, front forks)
+//   fx(s, dt) per-frame hook; s = { speed01, steer, boosting, gliding, grounded, t }
+//   glider   [x, y, z] mount for the glider wing (default: above the driver)
+//   parts    extra Object3Ds to add (animated pieces referenced by spin/steer/fx)
+export function emptyRig() {
+  return { root: new THREE.Group(), height: 1.8, width: 1.2, shoulder: new THREE.Vector3(0.56, 1.2, 0), armLen: 0.86, def: {} };
+}
+const VKIT = { THREE, BrickBuilder, C, plastic, limb, wheelGeo, wheelMat, SEAT };
+function buildVehicle(def, rig) {
+  const root = new THREE.Group(), body = new THREE.Group(); root.add(body);
+  const up = new THREE.Group(); body.add(up);     // the sprung/hovering part: body, driver, controls
+  const v = def.build(VKIT) || {};
+  const a = def.accent ?? C.black;
+  up.add(v.mesh);
+  for (const o of v.parts || []) up.add(o);
+  const seat = v.seat ? new THREE.Vector3(...v.seat) : SEAT.clone();
+  rig.root.position.copy(seat);
+  up.add(rig.root);
+  // steering control at the driver's hands
+  const ws = wheelSpotFor(rig).add(seat);
+  const ctl = new THREE.Group(); ctl.position.copy(ws);
+  const cb = new BrickBuilder(0.4);
+  const reach = Math.max(0.22, Math.min(0.45, Math.abs(rig.shoulder.x) * 0.8));
+  const kind = v.control || 'wheel';
+  if (kind === 'wheel') {
+    ctl.rotation.x = -0.55;
+    cb.addMatrix(new THREE.TorusGeometry(reach * 0.9, 0.05, 8, 20), plastic(C.black), new THREE.Matrix4().makeRotationX(Math.PI / 2));
+    cb.box(0, -0.03, 0, reach * 1.8, 0.06, 0.08, C.black); cb.cyl(0, -0.05, 0, 0.08, 0.1, a);
+  } else if (kind === 'bars') {
+    limb(cb, new THREE.Vector3(-reach - 0.1, 0, 0), new THREE.Vector3(reach + 0.1, 0, 0), 0.05, C.dkgray);
+    for (const sd of [-1, 1]) cb.cyl(sd * (reach + 0.05), 0, 0, 0.07, 0.01, C.black, { seg: 8 }), limb(cb, new THREE.Vector3(sd * reach * 0.7, 0, 0), new THREE.Vector3(sd * (reach + 0.18), 0, 0), 0.075, C.black);
+    limb(cb, new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, -0.55, 0.25), 0.06, C.dkgray);
+  } else if (kind === 'yoke') {
+    ctl.rotation.x = -0.3;
+    limb(cb, new THREE.Vector3(-reach, 0.18, 0), new THREE.Vector3(-reach, -0.08, 0), 0.06, C.black);
+    limb(cb, new THREE.Vector3(reach, 0.18, 0), new THREE.Vector3(reach, -0.08, 0), 0.06, C.black);
+    limb(cb, new THREE.Vector3(-reach, -0.08, 0), new THREE.Vector3(reach, -0.08, 0), 0.06, C.dkgray);
+    cb.box(0, -0.16, 0, 0.18, 0.16, 0.18, a);
+    limb(cb, new THREE.Vector3(0, -0.12, 0), new THREE.Vector3(0, -0.12, 0.5), 0.05, C.dkgray);
+  }
+  if (kind !== 'none') { ctl.add(cb.build({ name: 'control' })); up.add(ctl); }
+  const steerControl = kind === 'bars' ? (s) => { ctl.rotation.y = -s * 0.45; } : kind === 'yoke' ? (s) => { ctl.rotation.z = -s * 0.6; } : kind === 'wheel' ? (s) => { ctl.rotation.z = -s * 0.9; } : () => {};
+  // wheels stay on the ground (outside the sprung part)
+  const wheels = [];
+  for (const w of v.wheels || []) {
+    if (w.g) { body.add(w.g); wheels.push(w); continue; }
+    const g = new THREE.Group(); g.position.set(w.x || 0, w.y ?? w.r, w.z || 0);
+    const spin = new THREE.Mesh(wheelGeo(w.r, w.w || 0.36, w.cap ?? a, w.xs || [0]), wheelMat);
+    spin.castShadow = true; g.add(spin); body.add(g);
+    wheels.push({ g, spin, front: !!w.front, r: w.r });
+  }
+  // glider (shared design) above the driver or at the vehicle's mount
+  const { glider } = addWheelsAndGlider(def, new THREE.Group(), rig, null, true);
+  if (v.glider) glider.position.set(...v.glider); else glider.position.y += seat.y - SEAT.y;
+  up.add(glider);
+  let t = Math.random() * 10;
+  const hoverY = v.hover ? (typeof v.hover === 'number' ? v.hover : 0.35) : 0;
+  const update = (dt, s) => {
+    t += dt;
+    if (hoverY) up.position.y = hoverY + Math.sin(t * 3.1) * 0.06 + (s.boosting ? 0.05 : 0);
+    for (const p of v.spin || []) p.obj.rotation[p.axis || 'x'] += (p.rate ?? 10) * (0.15 + s.speed01) * dt;
+    for (const p of v.steer || []) p.obj.rotation[p.axis || 'y'] = -s.steer * (p.amount ?? 0.4);
+    v.fx?.({ ...s, t }, dt);
+  };
+  const top = new THREE.Box3().setFromObject(v.mesh).max.y;
+  const colors = def.colors?.length ? def.colors : [def.kart ?? C.red, a, C.black, C.ltgray];
+  return { root, body, head: new THREE.Group(), wheels, glider, swheel: ctl, steerControl, driver: rig, shadow: v.mesh, top: Math.max(top, seat.y + rig.height) + hoverY, colors, update };
+}
+
 function wheelSpotFor(rig) {
   const s = rig.shoulder, L = rig.armLen, R = 1.0;
   return new THREE.Vector3(0, s.y - Math.cos(R) * L, s.z + Math.sin(R) * L);
 }
 
-function addWheelsAndGlider(ch, body, rig = null, st = null) {
-  const k = ch.kart, a = ch.accent;
+function addWheelsAndGlider(ch, body, rig = null, st = null, gliderOnly = false) {
+  const k = ch.kart ?? C.red, a = ch.accent ?? C.black;
   // wheels: rear pair share one axle mesh; front wheels steer individually
   const wheels = [];
+  if (gliderOnly) return { wheels, glider: makeGlider(k, a, rig) };
   const mkWheel = (x, y, z, r, w, front, xs) => {
     const g = new THREE.Group();
     g.position.set(x, y, z);
@@ -355,7 +437,13 @@ function addWheelsAndGlider(ch, body, rig = null, st = null) {
     mkWheel(1.38, 0.36, 1.35, 0.36, 0.34, true, [0]); mkWheel(-1.38, 0.36, 1.35, 0.36, 0.34, true, [0]);
   }
 
-  // glider: brick wing on a mast, shown while gliding
+  const glider = makeGlider(k, a, rig);
+  body.add(glider);
+  return { wheels, glider };
+}
+
+// glider: brick wing on a mast, shown while gliding
+function makeGlider(k, a, rig) {
   const gb = new BrickBuilder(0.4);
   gb.cyl(0, 0, 0, 0.06, 1.7, C.black, { seg: 6 });
   gb.boxM(new THREE.Matrix4().compose(new THREE.Vector3(0, 1.75, 0.1), new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.12, 0, 0)), new THREE.Vector3(1.6, 0.1, 1.5)), k);
@@ -372,6 +460,5 @@ function addWheelsAndGlider(ch, body, rig = null, st = null) {
     glider.position.set(0, Math.max(1.2, SEAT.y + top - 0.9), -0.5);
   }
   glider.visible = false;
-  body.add(glider);
-  return { wheels, glider };
+  return glider;
 }

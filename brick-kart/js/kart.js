@@ -580,8 +580,9 @@ export class Kart {
         steer: this.ctl.steer || 0, drift: this.drift.active ? this.drift.dir : 0, speed01: Math.min(1, Math.abs(this.speed) / this.topSpeed),
         grounded: this.grounded, gliding: this.gliding, boosting: this.boostTime > 0, look: this.lookBack, phase, rank: this.rank,
       });
-      if (m.swheel) m.swheel.rotation.z = -this.anim.steer * 0.9;
+      m.steerControl?.(this.anim.steer);
     }
+    m.update?.(dt, { speed01: Math.min(1, Math.abs(this.speed) / this.topSpeed), steer: this.anim ? this.anim.steer : (this.ctl.steer || 0), boosting: this.boosting, gliding: this.gliding, grounded: this.grounded });
     // flames
     const fl = this.boosting ? 1.1 + Math.random() * 0.6 : 0;
     for (const f of this.flames) { f.visible = fl > 0; f.scale.set(1, fl || 1, 1); }

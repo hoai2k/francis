@@ -127,7 +127,8 @@ export class Showcase {
         it.anim.play(['taunt', 'trick', 'yay', 'cheer'][Math.floor(Math.random() * 4)]);
       }
       it.anim.update(dt, { steer: Math.sin(this.t * 0.9) * (it.phase === 'pre' ? 0.5 : 0), drift: 0, speed01: 0.3, grounded: true, gliding: false, boosting: false, look: false, phase: it.phase || 'pre', rank: 1 });
-      if (it.m.swheel) it.m.swheel.rotation.z = -it.anim.steer * 0.9;
+      it.m.steerControl?.(it.anim.steer);
+      it.m.update?.(dt, { speed01: 0.35, steer: it.anim.steer, boosting: false, gliding: false, grounded: true });
     }
     this.r.render(this.scene, this.cam);
   }

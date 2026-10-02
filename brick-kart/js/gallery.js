@@ -2,19 +2,26 @@
 // lines the drivers up in karts and cycles their gestures. &pose=<gesture> holds one
 // gesture (cheer, taunt, ouch, trick, throwF, throwB, use, win, lose, glide, look, steerL,
 // steerR, drift, pre), &kart=<n> picks the kart, &cols=<n> sets the row length.
+// ?garage=<kart group | kart id | id1,id2 | all> lines up vehicles instead, each driven by
+// &driver=<id> (default Spider-Man); &rot=<radians> turns them (e.g. 3.6 for rear views).
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { CHARACTERS, buildKart } from './characters.js';
 import { DRIVERS, buildDriver, DriverAnim } from './driver.js';
 import { baseplateMat } from './lego.js';
+import { KARTS } from './vehicles.js';
 
 const CYCLE = ['steerL', 'steerR', 'cheer', 'taunt', 'trick', 'throwF', 'ouch', 'glide', 'look', 'win', 'lose', 'pre'];
 
 export class Gallery {
   constructor(game, q) {
-    const sel = q.get('gallery');
+    const garage = q.get('garage');
+    const sel = garage || q.get('gallery');
     this.pose = q.get('pose');
-    const list = DRIVERS.filter((d) => sel === 'all' || d.from === sel || d.id === sel || sel.split(',').includes(d.id));
+    const match = (o, grp) => sel === 'all' || grp === sel || o.id === sel || sel.split(',').includes(o.id);
+    const gDriver = DRIVERS.find((d) => d.id === (q.get('driver') || 'spiderman')) || DRIVERS[0];
+    const karts = garage ? KARTS.filter((k) => match(k, k.group)) : null;
+    const list = garage ? karts.map(() => gDriver) : DRIVERS.filter((d) => match(d, d.from));
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x9fd3ff);
     const pm = new THREE.PMREMGenerator(game.renderer);
@@ -27,11 +34,12 @@ export class Gallery {
     const cols = +(q.get('cols') || Math.min(6, Math.ceil(Math.sqrt(list.length * 1.6)) || 1));
     this.items = list.map((d, i) => {
       const rig = buildDriver(d);
-      const ch = CHARACTERS[q.get('kart') ? +q.get('kart') : i % CHARACTERS.length];
+      const ch = garage ? karts[i] : CHARACTERS[q.get('kart') ? +q.get('kart') : i % CHARACTERS.length];
       const m = buildKart(ch, rig);
       const r = Math.floor(i / cols), c = i % cols;
-      m.root.position.set((c - (cols - 1) / 2) * 4.2, 0, -r * 5.5);
-      m.root.rotation.y = 0.5;
+      const gap = garage ? 5.4 : 4.2;
+      m.root.position.set((c - (cols - 1) / 2) * gap, 0, -r * (garage ? 6.5 : 5.5));
+      m.root.rotation.y = +(q.get('rot') || 0.5);
       this.scene.add(m.root);
       if (m.glider) m.glider.visible = false;
       return { d, m, anim: new DriverAnim(rig), t: i * 0.37 };
@@ -62,7 +70,8 @@ export class Gallery {
       it.m.glider.visible = s.gliding;
       if (s.gliding) it.m.glider.scale.set(1, 1, 1);
       it.anim.update(dt, s);
-      if (it.m.swheel) it.m.swheel.rotation.z = -it.anim.steer * 0.9;
+      it.m.steerControl?.(it.anim.steer);
+      it.m.update?.(dt, { speed01: 0.5, steer: it.anim.steer, boosting: false, gliding: s.gliding, grounded: true });
     }
   }
   render(r) {
