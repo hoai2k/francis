@@ -104,6 +104,17 @@ export class Showcase {
       this.scene.add(m.root);
       return { ...o, m, anim: rig ? new DriverAnim(rig) : null, nextIdle: 2 + Math.random() * 2 };
     });
+    // a single kart on the stage: frame it by its real size (big vehicles pull the camera back)
+    this.fit = 1; this.fitY = null;
+    if (this.items.length === 1) {
+      // measure visible parts only (the folded glider and hidden effects don't count)
+      const root = this.items[0].m.root, box = new THREE.Box3(), tmp = new THREE.Box3();
+      root.updateMatrixWorld(true);
+      root.traverseVisible((o) => { if (o.isMesh && o.geometry) { o.geometry.computeBoundingBox?.(); tmp.copy(o.geometry.boundingBox).applyMatrix4(o.matrixWorld); box.union(tmp); } });
+      const sph = box.getBoundingSphere(new THREE.Sphere());
+      this.fit = Math.max(0.9, Math.min(1.7, sph.radius / 3.3));
+      this.fitY = Math.max(0.9, Math.min(2.2, sph.center.y));
+    }
   }
   play(i, name) { const it = this.items[i]; return it?.anim?.play(name); }
   setPhase(i, phase) { const it = this.items[i]; if (it) it.phase = phase; }
@@ -114,9 +125,14 @@ export class Showcase {
     if (this.canvas.width !== w || this.canvas.height !== h) this.r.setSize(w, h, false);
     this.cam.aspect = w / h; this.cam.updateProjectionMatrix();
     // narrow (portrait) stages pull the camera back so the whole kart fits
-    const back = Math.max(1, 1.15 / this.cam.aspect);
-    this.cam.position.copy(this.lookAt).addScaledVector(this.camBase.clone().sub(this.lookAt), back);
-    this.cam.lookAt(this.lookAt);
+    const back = Math.max(1, 1.15 / this.cam.aspect) * (this.fit || 1);
+    const look = this._look ||= new THREE.Vector3();
+    // single kart: aim a little below its middle so it sits above the name/stats overlay
+    look.copy(this.lookAt); if (this.fitY !== null && this.fitY !== undefined) look.y = this.fitY - 0.85 * this.fit;
+    this._d ||= new THREE.Vector3();
+    this._d.copy(this.camBase).sub(this.lookAt);
+    this.cam.position.copy(look).addScaledVector(this._d, back);
+    this.cam.lookAt(look);
     for (const it of this.items) {
       if (this.spin) it.m.root.rotation.y += dt * this.spin;
       if (!it.anim) continue;

@@ -12,7 +12,7 @@ export const KART_GROUPS = [
 ];
 // Packs are listed in FINISHED once reviewed; unfinished ones only load in the developer
 // views (?garage=…, ?kart=…, ?packs=all) so half-built vehicles never reach players.
-const FINISHED = ['starwars', 'heroes', 'cursed', 'wild'];
+const FINISHED = ['originals', 'starwars', 'heroes', 'cursed', 'wild'];
 const q = new URLSearchParams(location.search);
 const dev = q.has('garage') || q.has('kart') || q.has('packs');
 const PACKS = ['originals', 'wild', 'starwars', 'heroes', 'cursed'].filter((id) => dev || FINISHED.includes(id));

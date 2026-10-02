@@ -69,7 +69,7 @@ export const bob = {
     for (let i = -4; i <= 4; i++) sh.box(bb, i * 0.19, 0.32, -0.025, 0.07, 0.62, 0.02, BK, { rz: 0.6 });
     sh.box(bb, 0, 0.06, -0.025, 1.7, 0.07, 0.03, Y); sh.box(bb, 0, 0.58, -0.025, 1.7, 0.07, 0.03, Y);
     for (const sd of [-1, 1]) sh.box(bb, sd * 0.62, 0.2, -0.05, 0.22, 0.1, 0.04, C.red);
-    const rub = [[-0.45, 0.25, 2, 2, C.red, 0.2], [0.3, 0.35, 2, 4, C.tan, -0.4], [-0.1, 0.8, 2, 2, C.blue, 0.7], [0.5, 0.9, 1, 2, C.lime, 0.1], [-0.55, 0.85, 1, 2, LG, -0.3], [0.05, 0.4, 2, 2, C.orange, 1.1]];
+    const rub = [[-0.45, 0.25, 2, 2, C.red, 0.2], [0.3, 0.62, 2, 3, C.tan, -0.3], [-0.1, 0.8, 2, 2, C.blue, 0.7], [0.5, 0.9, 1, 2, C.lime, 0.1], [-0.55, 0.85, 1, 2, LG, -0.3], [0.05, 0.4, 2, 2, C.orange, 1.1]];
     for (const [x, z, w, d, col, r] of rub) bb.brick(x, 0.1, z, w, d, 3, col, { rot: r });
     bb.brick(-0.15, 0.58, 0.55, 2, 2, 3, C.white, { rot: 0.5 }); bb.brick(0.3, 0.58, 0.85, 1, 2, 3, C.azure, { rot: -0.2 });
     bed.add(bb.build({ name: 'dumpbed' }));
@@ -87,7 +87,7 @@ export const bob = {
     sh.box(ab, 0, -0.72, 1.7, 1.95, 0.62, 0.08, Y);
     sh.box(ab, 0, -0.42, 1.78, 1.95, 0.08, 0.2, Y);
     for (const sd of [-1, 1]) sh.box(ab, sd * 0.97, -0.78, 1.95, 0.06, 0.5, 0.6, Y);
-    for (let i = -3; i <= 3; i++) sh.cone(ab, i * 0.27, -1.03, 2.3, 0.06, 0.2, LG, { rx: PI / 2, seg: 5 });
+    for (let i = -3; i <= 3; i++) sh.cone(ab, i * 0.27, -1.03, 2.24, 0.06, 0.2, LG, { rx: PI / 2, seg: 5 });
     ab.brick(-0.4, -0.98, 1.95, 2, 2, 3, C.red, { rot: 0.3 }); ab.brick(0.35, -0.98, 2.0, 1, 2, 3, C.blue, { rot: -0.5 });
     arms.add(ab.build({ name: 'loader' }));
 

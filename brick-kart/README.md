@@ -70,7 +70,16 @@ the race (CPU ones too) gets one of them at the wheel.
   you're ready. Stat bars show the kart's stats adjusted by the driver's weight
   class (light drivers accelerate and handle better; heavy ones are faster and
   push harder).
-- 40 karts in five groups (the classic 16 come last, in five body styles):
+- 40 karts in one grid: the first 8 originals, the Wild Rides, the movie rides,
+  then the other 8 originals. The **originals** are themed on their racers: Hard
+  Hat Hauler (loader-dumper), Comet Cruiser (moon rover), Plank Plunderer
+  (paddle-wheel pirate ship), Iron Bastion (castle on rolling logs), Turbo Titan
+  (robot-head jet dragster), Shadow Dart (shuriken trike), Blaze Runner (fire
+  engine), Spell Streak (flying broomstick), Hot Wok (wok cart), Dust Devil
+  (covered wagon), Long Hammer (Viking longship on runners), Royal Coach
+  (pumpkin coach), Skate Spark (giant skateboard), Saucer Buggy (flying saucer
+  with a beamed-up cow), Tomb Rover (scarab walker), Fossil Flyer (T. rex
+  skeleton on shell wheels). The rest:
   - **Star Wars Rides**: Dune Skimmer (landspeeder), Endor Zipper (speeder
     bike), Boonta Bolt (podracer), Red Five (X-wing, wings open into an X when
     gliding or boosting), Chicken Walker (AT-ST that walks), TIE Howler.

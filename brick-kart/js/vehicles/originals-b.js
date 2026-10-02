@@ -385,24 +385,27 @@ export const sam = {
     const { THREE, BrickBuilder, C } = K;
     const sh = kit(K);
     const AZ = C.azure, LI = C.lime, BK = C.black, LG = C.ltgray, OR = C.orange;
-    const DY = 0.62;
+    const DY = 0.86, WR = 0.4;
     const b = new BrickBuilder(0.4);
     // the deck: flat middle, kicked tails, grip tape and a lightning bolt
-    sh.box(b, 0, DY, 0, 1.4, 0.1, 3.4, AZ);
+    sh.box(b, 0, DY, 0, 1.6, 0.1, 3.4, AZ);
+    sh.box(b, 0, DY - 0.07, 0, 1.1, 0.03, 3.0, LI, { lit: 0x9cff20 });   // neon underglow
     for (const sd of [-1, 1]) {
-      sh.box(b, 0, DY + 0.15, sd * 1.95, 1.4, 0.1, 0.65, AZ, { rx: sd * -0.42 });
-      sh.cylY(b, 0, DY + 0.28, sd * 2.25, 0.7, 0.1, AZ, { r2: 0.3, rx: sd * -0.42, seg: 18 });
+      sh.box(b, 0, DY + 0.15, sd * 1.95, 1.6, 0.1, 0.65, AZ, { rx: sd * -0.42 });
+      sh.cylY(b, 0, DY + 0.28, sd * 2.25, 0.8, 0.1, AZ, { r2: 0.3, rx: sd * -0.42, seg: 18 });
     }
-    sh.box(b, 0, DY + 0.055, 0, 1.36, 0.02, 3.36, 0x2a2e33);
+    sh.box(b, 0, DY + 0.055, 0, 1.56, 0.02, 3.36, 0x2a2e33);
     const bolt = [[0.25, 1.35], [-0.15, 0.8], [0.2, 0.3], [-0.2, -0.45]];
     for (let i = 0; i < bolt.length - 1; i++) {
       const [x0, z0] = bolt[i], [x1, z1] = bolt[i + 1];
       sh.box(b, (x0 + x1) / 2, DY + 0.07, (z0 + z1) / 2, 0.16, 0.02, Math.hypot(x1 - x0, z1 - z0) + 0.1, LI, { ry: Math.atan2(x1 - x0, z1 - z0) });
     }
-    for (const sd of [-1, 1]) sh.box(b, sd * 0.71, DY, 0, 0.02, 0.08, 3.4, OR);
+    for (const sd of [-1, 1]) sh.box(b, sd * 0.81, DY, 0, 0.02, 0.08, 3.4, OR);
     // a huge boombox for a seat: speakers face the chasers, cassette deck, chrome handle
     sh.box(b, 0, DY + 0.47, -0.55, 1.42, 0.84, 0.72, BK);
     sh.box(b, 0, DY + 0.9, -0.55, 1.3, 0.04, 0.62, C.dkgray);
+    for (const sd of [-1, 1]) { sh.cylZ(b, sd * 0.45, DY + 0.45, -0.18, 0.2, 0.03, C.dkgray, { seg: 14 }); sh.cylZ(b, sd * 0.45, DY + 0.45, -0.17, 0.08, 0.03, LI, { seg: 10 }); }
+    for (let i = 0; i < 5; i++) sh.box(b, -0.16 + i * 0.08, DY + 0.35 + (i % 3) * 0.06, -0.18, 0.05, 0.12 + (i % 3) * 0.12, 0.02, i % 2 ? OR : LI, { lit: i % 2 ? 0xff9a30 : 0xb0ff30 });
     sh.box(b, 0, DY + 0.47, -0.915, 0.36, 0.3, 0.02, LG);
     sh.box(b, 0, DY + 0.47, -0.925, 0.26, 0.14, 0.02, BK);
     for (let i = 0; i < 4; i++) sh.box(b, -0.15 + i * 0.1, DY + 0.75, -0.925, 0.06, 0.05, 0.03, i % 2 ? OR : LI);
@@ -420,9 +423,9 @@ export const sam = {
     sh.cylY(b, 0, DY + 0.5, 1.75, 0.16, 0.08, C.white, { seg: 10 });
     sh.box(b, 0, DY + 0.1, 1.75, 0.5, 0.06, 0.5, OR);
     for (const z of [-1.4, 1.4]) {   // trucks
-      sh.box(b, 0, DY - 0.12, z, 0.3, 0.14, 0.3, LG);
-      sh.cylX(b, 0, 0.28, z, 0.05, 1.3, LG, { seg: 8 });
-      sh.box(b, 0, 0.42, z, 0.12, 0.2, 0.1, LG);
+      sh.box(b, 0, DY - 0.14, z, 0.34, 0.18, 0.34, LG);
+      sh.cylX(b, 0, WR, z, 0.06, 1.5, LG, { seg: 8 });
+      sh.box(b, 0, (WR + DY) / 2 - 0.08, z, 0.16, DY - WR - 0.1, 0.12, LG);
     }
     const mesh = b.build({ name: 'sam' });
 
@@ -439,12 +442,12 @@ export const sam = {
     const wheelsG = new THREE.Group();
     const spins = [];
     for (const z of [-1.4, 1.4]) {
-      for (const x of [-0.72, 0.72]) {
-        const g = new THREE.Group(); g.position.set(x, 0.28, z);
+      for (const x of [-0.82, 0.82]) {
+        const g = new THREE.Group(); g.position.set(x, WR, z);
         const wb = new BrickBuilder(0.4);
-        sh.cylX(wb, 0, 0, 0, 0.28, 0.3, LI, { seg: 16 });
-        sh.cylX(wb, 0, 0, 0, 0.12, 0.32, OR, { seg: 10 });
-        for (let i = 0; i < 3; i++) sh.box(wb, 0, sin(i * 2.1) * 0.2, cos(i * 2.1) * 0.2, 0.31, 0.05, 0.05, 0x9ac80a);
+        sh.cylX(wb, 0, 0, 0, WR, 0.36, LI, { seg: 18 });
+        sh.cylX(wb, 0, 0, 0, WR * 0.45, 0.38, OR, { seg: 10 });
+        for (let i = 0; i < 3; i++) sh.box(wb, 0, sin(i * 2.1) * WR * 0.72, cos(i * 2.1) * WR * 0.72, 0.37, 0.07, 0.07, 0x9ac80a);
         const spin = new THREE.Group(); spin.add(wb.build({ name: 'urethane' })); g.add(spin); wheelsG.add(g);
         spins.push(spin);
       }
@@ -452,13 +455,13 @@ export const sam = {
     // grind sparks off the tail (instanced)
     const NP = 10;
     const sparks = new THREE.InstancedMesh(new THREE.BoxGeometry(0.05, 0.05, 0.2), sh.own(C.yellow, { emissive: 0xffc040, ei: 3 }), NP);
-    sparks.frustumCulled = false; sparks.position.set(0, 0.25, -2.45);
+    sparks.frustumCulled = false; sparks.position.set(0, 0.12, -1.85);
     const TM = new THREE.Matrix4(), TQ = new THREE.Quaternion(), TE = new THREE.Euler(), TV = new THREE.Vector3(), TS = new THREE.Vector3();
     const pp = []; for (let i = 0; i < NP; i++) pp.push({ ph: i / NP, x: sin(i * 2.9) * 0.6, a: sin(i * 1.7) * 0.8 });
     let lean = 0, pop = 0;
     return {
       mesh, seat: [0, DY + 0.95, -0.5], control: 'none', parts: [speakers, wheelsG, sparks],
-      wheels: spins.map((spin) => ({ g: new THREE.Group(), spin, front: false, r: 0.28 })),
+      wheels: spins.map((spin) => ({ g: new THREE.Group(), spin, front: false, r: WR })),
       exhaust: [[0.43, DY + 0.47, -1.0], [-0.43, DY + 0.47, -1.0]],
       fx(s, dt) {
         const beat = Math.max(0, sin(s.t * 12.5)) ** 4;
@@ -620,7 +623,8 @@ export const max = {
       fx(s, dt) {
         ph += dt * (2.5 + s.speed01 * 13);
         const pace = s.grounded ? Math.min(1, 0.25 + s.speed01 * 1.2) : 0;
-        for (const [g, o] of [[triA, 0], [triB, PI]]) {
+        for (let i = 0; i < 2; i++) {
+          const g = i ? triB : triA, o = i * PI;
           g.position.z = cos(ph + o) * 0.3 * pace;
           g.position.y = Math.max(0, sin(ph + o)) * 0.22 * pace + (s.grounded ? 0 : 0.15);
         }
