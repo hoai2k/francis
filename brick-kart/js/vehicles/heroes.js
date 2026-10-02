@@ -31,7 +31,7 @@ const jeep = {
       b.box(sd * 1.1, 1.3, 0.22, 0.16, 0.16, 0.05, C.black);
     }
     b.box(0, 0.5, -1.82, 2.14, 0.74, 0.16, SAND);                     // tailgate
-    for (const sd of [-1, 1]) b.box(sd * 0.82, 0.82, -1.91, 0.16, 0.26, 0.04, C.red, { matOpts: { emissive: 0xff2020, emissiveIntensity: 0.4 } });
+    for (const sd of [-1, 1]) b.box(sd * 0.82, 0.82, -1.91, 0.16, 0.26, 0.04, C.red);
     b.box(0, 0.32, -1.98, 2.0, 0.18, 0.22, C.black);
     // spare tyre with the logo cover
     disc(b, 0, 1.0, -2.04, 0.48, 0.3, 'z', C.black, { seg: 18 });
@@ -57,13 +57,13 @@ const jeep = {
     }
     b.box(0, 0.3, 2.72, 2.12, 0.2, 0.26, C.black);
     b.box(0, 0.4, 2.8, 0.56, 0.22, 0.22, C.dkgray);
-    b.box(0, 0.44, 2.92, 0.1, 0.1, 0.06, JPRED);
+    b.box(0, 0.44, 2.86, 0.1, 0.1, 0.06, JPRED);
     // red windscreen frame with the light bar
     for (const sd of [-1, 1]) b.box(sd * 0.96, 1.2, 0.98, 0.1, 0.78, 0.1, JPRED);
     b.box(0, 1.9, 0.98, 2.02, 0.1, 0.12, JPRED);
     b.box(0, 1.25, 0.98, 1.82, 0.65, 0.03, C.azure, { matOpts: { trans: true, opacity: 0.3 } });
     b.box(0, 2.0, 0.98, 1.5, 0.08, 0.08, C.black);
-    for (let i = -1.5; i <= 1.5; i++) disc(b, i * 0.36, 2.15, 1.0, 0.09, 0.12, 'z', C.yellow, { seg: 10, matOpts: { emissive: 0xffd040, emissiveIntensity: 0.7 } });
+    for (let i = -1.5; i <= 1.5; i++) disc(b, i * 0.36, 2.15, 1.0, 0.09, 0.12, 'z', C.white, { seg: 10, ...lamp });
     // roll bar and the radio whip
     for (const sd of [-1, 1]) {
       tube(b, sd * 0.88, 1.2, -1.2, sd * 0.88, 2.05, -1.2, 0.06, C.black);
@@ -71,12 +71,13 @@ const jeep = {
     }
     tube(b, -0.94, 2.05, -1.2, 0.94, 2.05, -1.2, 0.06, C.black);
     tube(b, 0.92, 1.22, -1.75, 0.92, 2.7, -1.75, 0.015, C.black, { seg: 4 });
+    const mesh = b.build({ name: 'jpjeep' }); mesh.position.z = -0.18;   // keep the winch inside the footprint
     return {
-      mesh: b.build({ name: 'jpjeep' }), seat: [0, 0.95, -0.45], control: 'wheel',
+      mesh, seat: [0, 0.95, -0.63], control: 'wheel',
       wheels: [
-        { z: -1.3, r: 0.5, w: 0.44, xs: [1.2, -1.2], cap: JPRED },
-        { x: 1.2, z: 1.5, r: 0.5, w: 0.44, front: true, cap: JPRED },
-        { x: -1.2, z: 1.5, r: 0.5, w: 0.44, front: true, cap: JPRED },
+        { z: -1.48, r: 0.5, w: 0.44, xs: [1.2, -1.2], cap: JPRED },
+        { x: 1.2, z: 1.32, r: 0.5, w: 0.44, front: true, cap: JPRED },
+        { x: -1.2, z: 1.32, r: 0.5, w: 0.44, front: true, cap: JPRED },
       ],
     };
   },
@@ -104,18 +105,21 @@ const gyro = {
     b.box(0, 0.54, -0.6, 0.08, 1.2, 0.1, C.ltgray);
     b.box(0, 0.54, 0.72, 0.8, 0.5, 0.36, C.ltgray);
     rbox(b, 0, 1.1, 0.74, 0.8, 0.08, 0.4, -0.35, 0, 0, C.black);
-    b.sphere(-0.24, 1.12, 0.86, 0.06, C.red, { matOpts: { emissive: 0xff2020, emissiveIntensity: 0.8 } });
-    b.sphere(0.24, 1.12, 0.86, 0.06, C.blue, { matOpts: { emissive: 0x2060ff, emissiveIntensity: 0.8 } });
+    b.sphere(-0.24, 1.12, 0.86, 0.06, C.red);
+    b.sphere(0.24, 1.12, 0.86, 0.06, C.blue);
     // the rolling shell: glass ball with a tread ring and a seam ring
     const g = new THREE.Group(); g.position.set(0, R, 0);
     const spin = new THREE.Group(); g.add(spin);
     const sb = new BrickBuilder(0.4);
     blob(sb, 0, 0, 0, R, R, R, 0xdff3ff, { ws: 28, hs: 18, matOpts: { trans: true, opacity: 0.2, rough: 0.05 } });
-    ring(sb, 0, 0, 0, R + 0.02, 0.06, 'x', C.ltgray, { ts: 40, matOpts: { metal: 0.6, rough: 0.3 } });
-    ring(sb, 0, 0, 0, R + 0.01, 0.03, 'z', C.ltgray, { ts: 40, matOpts: { metal: 0.6, rough: 0.3 } });
-    for (let i = 0; i < 8; i++) {
-      const a = i / 8 * PI * 2;
-      rbox(sb, 0, Math.cos(a) * (R + 0.05), Math.sin(a) * (R + 0.05), 0.24, 0.06, 0.18, -a, 0, 0, C.orange);
+    // two rolling bands near the sides (clear of the driver) with orange tread pads
+    const BX = 1.22, BR = Math.sqrt(R * R - BX * BX) + 0.02;
+    for (const sd of [-1, 1]) {
+      ring(sb, sd * BX, 0, 0, BR, 0.06, 'x', C.ltgray, { ts: 32 });
+      for (let i = 0; i < 8; i++) {
+        const a = i / 8 * PI * 2;
+        rbox(sb, sd * BX, Math.cos(a) * (BR + 0.04), Math.sin(a) * (BR + 0.04), 0.18, 0.06, 0.16, -a, 0, 0, C.orange);
+      }
     }
     spin.add(sb.build({ name: 'gyroshell' }));
     return { mesh: b.build({ name: 'gyrocabin' }), seat: [0, 0.98, -0.15], control: 'wheel', wheels: [{ g, spin, front: false, r: R }] };
@@ -131,7 +135,7 @@ const explorer = {
   stats: { speed: 4, accel: 2, handling: 2, weight: 5 }, colors: [JGREEN, JYEL, 0xc4161c],
   build({ BrickBuilder, C }) {
     const b = new BrickBuilder(0.4);
-    const glass = { matOpts: { trans: true, opacity: 0.28, rough: 0.05 } };
+    const glass = { matOpts: { trans: true, opacity: 0.3, rough: 0.05 } };
     const lamp = { matOpts: { emissive: 0xfff2b0, emissiveIntensity: 0.9 } };
     b.box(0, 0.26, 0, 1.8, 0.2, 4.7, C.black);
     // yellow lower body, green upper walls (open cabin under the bubble)
@@ -163,7 +167,7 @@ const explorer = {
     tube(b, -0.62, 1.05, 2.5, 0.62, 1.05, 2.5, 0.05, JYEL);
     tube(b, -0.62, 0.72, 2.56, 0.62, 0.72, 2.56, 0.04, JYEL);
     b.box(0, 0.24, -2.46, 2.1, 0.22, 0.24, JYEL);
-    for (const sd of [-1, 1]) b.box(sd * 0.75, 0.9, -2.41, 0.2, 0.3, 0.04, C.red, { matOpts: { emissive: 0xff2020, emissiveIntensity: 0.4 } });
+    for (const sd of [-1, 1]) b.box(sd * 0.75, 0.9, -2.41, 0.2, 0.3, 0.04, C.red);
     // greenhouse: slanted windscreen, glass all round and the big bubble roof
     rbox(b, 0, 1.75, 0.92, 1.8, 0.04, 0.95, -0.95, 0, 0, C.azure, glass);
     for (const sd of [-1, 1]) {
@@ -175,7 +179,7 @@ const explorer = {
     for (const z of [0.58, -2.3]) tube(b, -0.94, 2.15, z, 0.94, 2.15, z, 0.06, JGREEN);
     b.box(0, 1.33, -2.33, 1.82, 0.82, 0.03, C.azure, glass);
     b.box(0, 0.8, -2.33, 2.0, 0.5, 0.12, JGREEN);
-    blob(b, 0, 2.15, -0.86, 0.94, 0.72, 1.5, 0xcfeaff, { t1: PI / 2, ws: 24, hs: 8, matOpts: { trans: true, opacity: 0.34, rough: 0.05 } });
+    blob(b, 0, 2.15, -0.86, 0.94, 0.72, 1.5, C.azure, { t1: PI / 2, ws: 24, hs: 8, ...glass });
     return {
       mesh: b.build({ name: 'tourcar' }), seat: [0, 0.98, -0.3], control: 'wheel',
       wheels: [
@@ -237,7 +241,7 @@ const talon = {
       const f = new THREE.Group(); f.position.set(sd * 0.45, 0.42, -1.85);
       const fb = new BrickBuilder(0.4);
       rbox(fb, 0, 0.32, -0.08, 0.08, 0.62, 0.5, 0.3, 0, 0, TDARK);
-      rbox(fb, 0, 0.34, 0.12, 0.09, 0.52, 0.05, 0.3, 0, 0, 0, G);
+      rbox(fb, 0, 0.34, 0.12, 0.09, 0.52, 0.05, 0.3, 0, 0, TSILV);
       f.add(fb.build({ name: 'fin' }));
       fins.push(f);
     }
@@ -258,9 +262,8 @@ const stark = {
   stats: { speed: 5, accel: 3, handling: 3, weight: 2 }, colors: [SRED, SGOLD, 0x1b2a34],
   build({ THREE, BrickBuilder, C }) {
     const b = new BrickBuilder(0.4);
-    const gold = { matOpts: { metal: 0.6, rough: 0.28 } };
-    const arc = glowMat(0xe8fbff, 0x7fe8ff, 1.6);
-    const rep = glowMat(0xbfefff, 0x50c8ff, 0.8);
+    const arc = glowMat(0xd8f8ff, 0x6fe0ff, 1.4);                 // arc reactor, LEDs and repulsors
+    const A = { mat: arc }, glass = { matOpts: { trans: true, opacity: 0.4 } };
     b.box(0, 0.18, 0, 1.9, 0.2, 4.8, C.black);
     // low cockpit tub and seats
     for (const sd of [-1, 1]) b.box(sd * 0.95, 0.32, -0.3, 0.22, 0.58, 2.0, SRED);
@@ -268,42 +271,46 @@ const stark = {
     b.box(0, 0.36, -0.42, 1.2, 0.26, 0.72, C.black);
     b.box(0, 0.6, -0.86, 1.2, 0.62, 0.16, C.black);
     for (const sd of [-1, 1]) {
-      b.box(sd * 1.07, 0.38, -0.95, 0.04, 0.46, 0.5, SGOLD, gold);   // side blades
+      b.box(sd * 1.07, 0.36, -0.95, 0.04, 0.48, 0.52, SGOLD);        // gold side blades
+      b.box(sd * 1.09, 0.46, -0.95, 0.02, 0.26, 0.3, C.black);       // intake
       b.box(sd * 1.12, 0.6, 1.45, 0.4, 0.28, 1.05, SRED);            // front fenders
       b.box(sd * 1.14, 0.62, -1.4, 0.42, 0.34, 1.1, SRED);           // rear haunches
-      b.box(sd * 1.14, 0.96, -1.4, 0.36, 0.04, 0.9, SGOLD, gold);
+      b.box(sd * 1.14, 0.96, -1.4, 0.36, 0.04, 0.9, SGOLD);
+      b.box(sd * 0.2, 0.92, -1.85, 0.08, 0.03, 0.9, SGOLD);
     }
-    // hood with a gold stripe and the nose
+    // hood with a gold stripe, vents and the nose
     b.box(0, 0.3, 1.5, 1.9, 0.46, 1.7, SRED);
     rbox(b, 0, 0.66, 2.38, 1.9, 0.22, 0.42, 0.45, 0, 0, SRED);
-    b.box(0, 0.76, 1.42, 0.5, 0.03, 1.5, SGOLD, gold);
+    b.box(0, 0.76, 1.42, 0.5, 0.03, 1.5, SGOLD);
+    for (const sd of [-1, 1]) for (let i = 0; i < 3; i++) b.box(sd * 0.6, 0.765, 1.2 + i * 0.16, 0.36, 0.02, 0.06, C.black);
     rbox(b, 0, 0.7, 0.75, 1.75, 0.16, 0.25, -0.3, 0, 0, SRED);
+    b.box(0, 0.08, 2.42, 1.9, 0.06, 0.2, C.black);                     // splitter
     // face: grille, LED lamps, arc reactor
     b.box(0, 0.24, 2.47, 1.1, 0.32, 0.06, C.black);
     for (let i = -2; i <= 2; i++) b.box(i * 0.2, 0.27, 2.5, 0.12, 0.26, 0.02, C.dkgray);
-    for (const sd of [-1, 1]) rbox(b, sd * 0.68, 0.6, 2.42, 0.42, 0.07, 0.05, 0, 0, -sd * 0.15, 0, { mat: rep });
-    disc(b, 0, 0.6, 2.52, 0.2, 0.06, 'z', C.dkgray, { seg: 20, matOpts: { metal: 0.7, rough: 0.25 } });
-    disc(b, 0, 0.6, 2.55, 0.14, 0.04, 'z', 0, { mat: arc, seg: 20 });
+    for (const sd of [-1, 1]) rbox(b, sd * 0.68, 0.6, 2.42, 0.42, 0.07, 0.05, 0, 0, -sd * 0.15, 0, A);
+    disc(b, 0, 0.6, 2.52, 0.2, 0.06, 'z', C.dkgray, { seg: 20 });
+    disc(b, 0, 0.6, 2.55, 0.14, 0.04, 'z', 0, { ...A, seg: 20 });
     // windscreen
-    rbox(b, 0, 0.98, 0.72, 1.7, 0.42, 0.04, -0.62, 0, 0, C.black, { matOpts: { trans: true, opacity: 0.35 } });
+    rbox(b, 0, 0.98, 0.72, 1.7, 0.42, 0.04, -0.62, 0, 0, C.black, glass);
     rbox(b, 0, 1.18, 0.6, 1.72, 0.05, 0.06, -0.62, 0, 0, C.black);
-    // rear deck, engine glass, spoiler, light bar
+    // rear deck, engine glass, spoiler, tail lights, repulsor thrusters
     b.box(0, 0.3, -1.85, 1.9, 0.6, 1.2, SRED);
-    b.box(0, 0.9, -1.85, 1.1, 0.04, 0.95, C.black, { matOpts: { trans: true, opacity: 0.5 } });
+    b.box(0, 0.9, -1.85, 0.3, 0.04, 0.95, C.black, glass);
     for (const sd of [-1, 1]) rbox(b, sd * 0.38, 1.0, -1.15, 0.5, 0.3, 0.5, -0.5, 0, 0, SRED);
     b.box(0, 1.05, -2.33, 1.8, 0.06, 0.32, C.black);
     for (const sd of [-1, 1]) b.box(sd * 0.6, 0.9, -2.33, 0.06, 0.16, 0.2, C.black);
-    b.box(0, 0.72, -2.46, 1.7, 0.07, 0.04, C.red, { matOpts: { emissive: 0xff2020, emissiveIntensity: 0.7 } });
-    // repulsor thrusters (scaled with boost in fx)
-    const thr = new THREE.Group(); thr.position.set(0, 0.45, -2.46);
-    const tb = new BrickBuilder(0.4);
+    b.box(0, 0.74, -2.46, 1.7, 0.07, 0.04, C.red);
     for (const sd of [-1, 1]) {
-      disc(tb, sd * 0.42, 0, 0, 0.17, 0.06, 'z', C.dkgray, { seg: 14 });
-      disc(tb, sd * 0.42, 0, -0.04, 0.11, 0.06, 'z', 0, { mat: rep, seg: 14 });
-      cone(tb, sd * 0.42, 0, -0.06, 0.1, 0.45, 'z', -1, 0, { seg: 10, mat: glowMat(0x9fe6ff, 0x50c8ff, 1.5, { transparent: true, opacity: 0.6, depthWrite: false }) });
+      disc(b, sd * 0.42, 0.45, -2.46, 0.17, 0.06, 'z', C.dkgray, { seg: 14 });
+      disc(b, sd * 0.42, 0.45, -2.5, 0.11, 0.06, 'z', 0, { ...A, seg: 14 });
     }
-    thr.add(tb.build({ name: 'repulsors' }));
-    const flame = thr.children[0].children.find((m) => m.material.transparent);
+    // repulsor blast (grows with speed, flares on boost)
+    const thr = new THREE.Group(); thr.position.set(0, 0.45, -2.52);
+    const tb = new BrickBuilder(0.4);
+    const blast = glowMat(0x9fe6ff, 0x50c8ff, 1.5, { transparent: true, opacity: 0.55, depthWrite: false });
+    for (const sd of [-1, 1]) cone(tb, sd * 0.42, 0, 0, 0.1, 0.3, 'z', -1, 0, { seg: 10, mat: blast });
+    thr.add(tb.build({ name: 'repulsors', shadows: false }));
     return {
       mesh: b.build({ name: 'starkcar' }), seat: [0, 0.6, -0.42], control: 'wheel', parts: [thr],
       wheels: [
@@ -312,9 +319,9 @@ const stark = {
         { x: -1.16, z: 1.45, r: 0.42, w: 0.4, front: true, cap: SGOLD },
       ],
       fx(s) {
-        arc.emissiveIntensity = 1.4 + S(s.t * 5) * 0.5;
-        rep.emissiveIntensity = s.boosting ? 2.5 : 0.6 + s.speed01 * 0.6;
-        if (flame) { flame.visible = s.speed01 > 0.1 || s.boosting; flame.scale.z = s.boosting ? 2.2 + S(s.t * 40) * 0.3 : 0.4 + s.speed01 * 0.8; }
+        arc.emissiveIntensity = (s.boosting ? 2.6 : 1.2 + s.speed01 * 0.4) + S(s.t * 5) * 0.35;
+        thr.visible = s.speed01 > 0.08 || s.boosting;
+        thr.scale.set(1, 1, s.boosting ? 2.4 + S(s.t * 40) * 0.3 : 0.5 + s.speed01);
       },
     };
   },
@@ -336,9 +343,9 @@ const chariot = {
       b.box(sd * 0.9, 0.5, -0.5, 0.14, 0.76, 2.0, WOOD);
       b.box(sd * 0.9, 1.26, -0.5, 0.2, 0.06, 2.06, AGOLD, gold);
       for (let i = 0; i < 4; i++) b.box(sd * 0.975, 0.58 + i * 0.17, -0.5, 0.02, 0.03, 2.0, DWOOD); // planks
-      [[-0.05, C.red], [-0.95, C.ltgray]].forEach(([z, col]) => {
-        disc(b, sd * 0.99, 0.92, z, 0.3, 0.06, 'x', col, { seg: 16 });
-        disc(b, sd * 1.0, 0.92, z, 0.2, 0.07, 'x', col === C.red ? C.yellow : C.blue, { seg: 16 });
+      [[0.3, C.red], [-1.32, C.ltgray]].forEach(([z, col]) => {
+        disc(b, sd * 0.99, 0.92, z, 0.24, 0.06, 'x', col, { seg: 16 });
+        disc(b, sd * 1.0, 0.92, z, 0.15, 0.07, 'x', col === C.red ? C.yellow : C.blue, { seg: 16 });
         b.sphere(sd * 1.03, 0.92, z, 0.07, AGOLD, gold);
       });
     }
@@ -358,24 +365,25 @@ const chariot = {
     b.box(0, 0.4, -1.55, 1.0, 0.08, 0.3, DWOOD);                         // step
     b.box(0, 0.45, -0.5, 2.3, 0.1, 0.1, C.dkgray);                       // axle
     // spoked wheels (custom rolling part)
-    const wg = new THREE.Group(); wg.position.set(0, 0.72, -0.5);
+    const wg = new THREE.Group(); wg.position.set(0, 0.64, -0.5);
     const wspin = new THREE.Group(); wg.add(wspin);
     const wb = new BrickBuilder(0.4);
     for (const sd of [-1, 1]) {
       const x = sd * 1.16;
-      ring(wb, x, 0, 0, 0.66, 0.07, 'x', DWOOD, { rs: 6, ts: 22 });
-      ring(wb, x, 0, 0, 0.66, 0.035, 'x', AGOLD, { rs: 6, ts: 22, ry: 0 });
-      for (let i = 0; i < 6; i++) rbox(wb, x, 0, 0, 0.07, 1.3, 0.07, i * PI / 6, 0, 0, WOOD);
+      ring(wb, x, 0, 0, 0.58, 0.07, 'x', DWOOD, { rs: 6, ts: 22 });
+      ring(wb, x + Math.sign(x) * 0.05, 0, 0, 0.58, 0.035, 'x', AGOLD, { rs: 6, ts: 22 });
+      for (let i = 0; i < 6; i++) rbox(wb, x, 0, 0, 0.07, 1.14, 0.07, i * PI / 6, 0, 0, WOOD);
       disc(wb, x, 0, 0, 0.13, 0.2, 'x', AGOLD, { seg: 12 });
     }
     wspin.add(wb.build({ name: 'chariotwheels' }));
     // the goats (swing with steering; pivot at the chariot front)
-    const goats = new THREE.Group(); goats.position.set(0, 0, 0.75);
+    const goats = new THREE.Group(); goats.position.set(0, 0, 0.66);
     const gb = new BrickBuilder(0.4);
     const Z = (z) => z - 0.75;
     [[-0.55, 0xece6d8, 0x7a6a58], [0.55, 0xb79f82, 0x5a4636]].forEach(([gx, fur, dark]) => {
       gb.box(gx, 0.78, Z(1.65), 0.5, 0.48, 1.05, fur);                   // body
-      gb.box(gx, 1.0, Z(1.62), 0.54, 0.12, 0.6, C.red);                  // saddle cloth
+      gb.box(gx, 1.04, Z(1.6), 0.54, 0.24, 0.5, C.red);                  // saddle cloth
+      gb.box(gx, 1.02, Z(1.6), 0.55, 0.04, 0.52, AGOLD);
       rbox(gb, gx, 1.32, Z(2.2), 0.28, 0.5, 0.3, 0.45, 0, 0, fur);       // neck
       gb.box(gx, 1.38, Z(2.45), 0.3, 0.3, 0.42, fur);                    // head
       gb.box(gx, 1.36, Z(2.66), 0.24, 0.2, 0.08, dark);                  // muzzle
@@ -384,11 +392,11 @@ const chariot = {
         rbox(gb, gx + ex * 0.2, 1.62, Z(2.4), 0.16, 0.06, 0.1, 0, 0, ex * -0.5, dark); // ears
         ring(gb, gx + ex * 0.1, 1.82, Z(2.34), 0.15, 0.045, 'x', 0x4a4a46, { arc: PI * 1.3, rs: 5, ts: 10, rx: -0.6 }); // curled horns
       }
-      gb.box(gx, 1.08, Z(2.62), 0.1, 0.2, 0.08, 0xf4f4f4);                // beard
+      gb.box(gx, 1.2, Z(2.6), 0.1, 0.2, 0.08, 0xf4f4f4);                  // beard
       rbox(gb, gx, 1.22, Z(1.12), 0.12, 0.22, 0.08, -0.6, 0, 0, fur);    // tail
-      ring(gb, gx, 1.35, Z(2.18), 0.2, 0.04, 'z', AGOLD, { rs: 5, ts: 14, rx: 0.45, ...gold }); // collar
+      ring(gb, gx, 1.35, Z(2.18), 0.2, 0.04, 'z', AGOLD, { rs: 5, ts: 14, rx: 0.45 }); // collar
     });
-    tube(gb, -0.75, 1.42, Z(2.15), 0.75, 1.42, Z(2.15), 0.05, AGOLD, gold);   // yoke
+    tube(gb, -0.75, 1.42, Z(2.15), 0.75, 1.42, Z(2.15), 0.05, AGOLD);   // yoke
     tube(gb, 0, 0.62, Z(0.7), 0, 1.4, Z(2.15), 0.06, DWOOD);                  // draught pole
     for (const sd of [-1, 1]) tube(gb, sd * 0.5, 1.45, Z(2.1), sd * 0.35, 1.5, Z(0.75), 0.02, C.red, { seg: 4 }); // reins
     goats.add(gb.build({ name: 'goats' }));
@@ -407,7 +415,7 @@ const chariot = {
     let ph = 0;
     return {
       mesh: b.build({ name: 'chariot' }), seat: [0, 0.95, -0.62], control: 'bars', parts: [goats],
-      wheels: [{ g: wg, spin: wspin, front: false, r: 0.72 }],
+      wheels: [{ g: wg, spin: wspin, front: false, r: 0.64 }],
       steer: [{ obj: goats, axis: 'y', amount: 0.32 }],
       fx(s, dt) {
         const amp = Math.min(1, 0.15 + s.speed01 * 1.6) * (s.grounded ? 1 : 0.3);

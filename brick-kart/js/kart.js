@@ -43,7 +43,7 @@ export class Kart {
     m.root.rotation.order = 'YXZ';
     // only the chassis and wheels cast shadows (keeps the shadow pass cheap with 13+ karts)
     m.root.traverse((o) => { if (o.isMesh) o.castShadow = false; });
-    (m.shadow || m.body.children[0])?.traverse((o) => { if (o.isMesh && !o.material.transparent) o.castShadow = true; });
+    for (const sh of [].concat(m.shadow || m.body.children[0])) sh?.traverse((o) => { if (o.isMesh && !o.material.transparent) o.castShadow = true; });
     for (const w of m.wheels) w.spin.castShadow = true;
     const s = driver ? combinedStats(ch.stats, driver) : ch.stats;
     const cc = race.cc;

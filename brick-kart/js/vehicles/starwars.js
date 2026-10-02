@@ -36,7 +36,7 @@ function landspeeder() {
     box(b, null, sd * 1.05, 1.07, -0.35, 0.26, 0.05, 1.95, G);
   }
   box(b, null, 0, 0.75, 0.62, 1.9, 0.4, 0.3, D);
-  box(b, null, 0.45, 0.96, 0.62, 0.3, 0.04, 0.2, C.lime, { matOpts: { emissive: 0x60ff60, emissiveIntensity: 0.6 } });
+  box(b, null, 0.45, 0.96, 0.62, 0.3, 0.04, 0.2, C.lime);
   rod(b, null, [0, 0.9, 0.62], [0, 1.22, 0.42], 0.05, D);
   box(b, null, 0, 0.6, -0.5, 1.6, 0.12, 0.8, TAN);
   box(b, null, 0, 0.95, -0.95, 1.7, 0.75, 0.18, TAN, { rx: -0.1 });
@@ -135,7 +135,7 @@ function speederBike() {
 function podracer() {
   const BL = 0x1e5aa8, G = C.ltgray, D = C.dkgray, BK = C.black, Y = C.yellow;
   const b = new BrickBuilder(0.4);
-  const exh = glow(0xff9a40, 1.2), core = glow(0xf0e6ff, 2.2), halo = glow(0x9a6bff, 1.6, { trans: true, opacity: 0.45 });
+  const exh = glow(0xff9a40, 1.2), core = glow(0xc8e4ff, 2.2), halo = glow(0x5a4aff, 1.8, { trans: true, opacity: 0.55 });
   // the little cockpit pod: an open elliptical tub
   const PZ = -1.35;
   cyl(b, null, 0, 0.5, PZ, 0.82, 0.7, BL, 'y', { r2: 0.95, tube: true, seg: 22 });
@@ -150,7 +150,7 @@ function podracer() {
   cone(b, null, 0, 0.5, -0.05, 0.12, 0.3, G, 'z');
   box(b, null, 0, 0.85, -0.58, 0.75, 0.32, 0.25, D);
   box(b, null, 0, 1.08, -0.4, 0.22, 0.26, 0.2, D);
-  for (const sd of [-1, 1]) box(b, null, sd * 0.2, 1.02, -0.58, 0.14, 0.04, 0.12, sd > 0 ? C.red : C.lime, { matOpts: { emissive: sd > 0 ? 0xff3020 : 0x60ff60, emissiveIntensity: 0.6 } });
+  for (const sd of [-1, 1]) box(b, null, sd * 0.2, 1.02, -0.58, 0.14, 0.04, 0.12, sd > 0 ? C.red : C.lime);
   box(b, null, 0, 1.0, -2.2, 0.08, 0.5, 0.45, BL, { rx: -0.35 });
   cyl(b, null, 0, 0.55, -2.3, 0.28, 0.22, G);
   for (const sd of [-1, 1]) box(b, null, sd * 0.8, 0.7, PZ - 0.2, 0.12, 0.2, 0.5, G);
@@ -183,11 +183,11 @@ function podracer() {
   const binder = new THREE.Group(); binder.position.set(0, 0.9 - F[1], 1.9 - F[2]);
   const bb = new BrickBuilder(0.4);
   cyl(bb, null, 0, 0, 0, 0.045, 1.5, 0, 'x', { mat: core, seg: 8 });
-  cyl(bb, null, 0, 0, 0, 0.13, 1.46, 0, 'x', { mat: halo, seg: 10 });
+  cyl(bb, null, 0, 0, 0, 0.16, 1.46, 0, 'x', { mat: halo, seg: 10 });
   binder.add(bb.build({ name: 'binder', shadows: false }));
   front.add(binder);
   return {
-    mesh: b.build({ name: 'podracer' }), seat: [0, 0.62, PZ], control: 'yoke', hover: 0.5,
+    mesh: b.build({ name: 'podracer' }), seat: [0, 0.62, PZ], control: 'yoke', hover: 0.5, glider: { z: PZ - 0.1 },
     steer: [{ obj: front, axis: 'y', amount: 0.16 }], parts: [front],
     fx(s) {
       const t = s.t;
@@ -206,7 +206,7 @@ function podracer() {
 function xwing() {
   const W = C.white, R = C.red, G = C.ltgray, D = C.dkgray, BK = C.black;
   const b = new BrickBuilder(0.4);
-  const eng = glow(0xff4a2a, 1.2);
+  const eng = glow(0xff3018, 1.4, { base: 0xff2000 });
   // cockpit tub
   box(b, null, 0, 0.4, -0.25, 1.5, 0.6, 1.8, W);
   for (const sd of [-1, 1]) {
@@ -268,48 +268,49 @@ function xwing() {
 function atst() {
   const G = C.ltgray, D = C.dkgray, BK = C.black, ST = C.dkstone;
   const b = new BrickBuilder(0.4);
+  const LIFT = 0.3, K = mat(0, LIFT, 0);   // the cab rides on taller legs
   // the head cab (the driver pops out of the roof hatch)
-  box(b, null, 0, 1.68, -0.25, 1.9, 0.86, 1.8, G);
-  frustum(b, null, 0, 1.66, 0.65, 1.25, 1.8, 0.8, 1.3, 0.45, G);
-  box(b, null, 0, 2.08, 0.62, 1.8, 0.08, 0.36, D, { rx: 0.3 });
+  box(b, K, 0, 1.68, -0.25, 1.9, 0.86, 1.8, G);
+  frustum(b, K, 0, 1.66, 0.65, 1.25, 1.8, 0.8, 1.3, 0.45, G);
+  box(b, K, 0, 2.08, 0.62, 1.8, 0.08, 0.36, D, { rx: 0.3 });
   for (const sd of [-1, 1]) {
-    box(b, null, sd * 0.3, 1.75, 1.255, 0.42, 0.1, 0.03, BK);
-    box(b, null, sd * 0.955, 1.88, -0.25, 0.02, 0.06, 1.7, D);
-    box(b, null, sd * 0.955, 1.5, -0.25, 0.02, 0.06, 1.7, D);
-    studs(b, null, sd * 0.78, 2.11, -0.3, 1, 3, G);
-    box(b, null, sd * 0.6, 2.13, -0.28, 0.1, 0.06, 1.25, D);
+    box(b, K, sd * 0.3, 1.75, 1.255, 0.42, 0.1, 0.03, BK);
+    box(b, K, sd * 0.955, 1.88, -0.25, 0.02, 0.06, 1.7, D);
+    box(b, K, sd * 0.955, 1.5, -0.25, 0.02, 0.06, 1.7, D);
+    studs(b, K, sd * 0.78, 2.11, -0.3, 1, 3, G);
+    box(b, K, sd * 0.6, 2.13, -0.28, 0.1, 0.06, 1.25, D);
   }
-  box(b, null, 0, 2.13, 0.32, 1.3, 0.06, 0.1, D);
-  box(b, null, 0, 2.13, -0.88, 1.3, 0.06, 0.1, D);
-  box(b, null, 0, 1.38, 1.0, 1.0, 0.2, 0.42, D);
-  for (const sd of [-1, 1]) cyl(b, null, sd * 0.2, 1.32, 1.45, 0.06, 0.75, BK, 'z', { seg: 8 });
+  box(b, K, 0, 2.13, 0.32, 1.3, 0.06, 0.1, D);
+  box(b, K, 0, 2.13, -0.88, 1.3, 0.06, 0.1, D);
+  box(b, K, 0, 1.38, 1.0, 1.0, 0.2, 0.42, D);
+  for (const sd of [-1, 1]) cyl(b, K, sd * 0.2, 1.32, 1.45, 0.06, 0.75, BK, 'z', { seg: 8 });
   // side weapons: grenade launcher (port) and blaster (starboard)
-  box(b, null, 0.98, 1.6, 0.1, 0.16, 0.22, 0.32, D);
-  cyl(b, null, 1.08, 1.6, 0.28, 0.14, 0.9, D, 'z', { seg: 8 });
-  cyl(b, null, 1.08, 1.6, 0.74, 0.1, 0.04, BK, 'z', { seg: 8 });
-  cyl(b, null, -1.02, 1.62, 0.0, 0.12, 0.45, D, 'z', { seg: 10 });
-  cyl(b, null, -1.02, 1.62, 0.55, 0.06, 0.9, BK, 'z', { seg: 8 });
+  box(b, K, 0.98, 1.6, 0.1, 0.16, 0.22, 0.32, D);
+  cyl(b, K, 1.08, 1.6, 0.28, 0.14, 0.9, D, 'z', { seg: 8 });
+  cyl(b, K, 1.08, 1.6, 0.74, 0.1, 0.04, BK, 'z', { seg: 8 });
+  cyl(b, K, -1.02, 1.62, 0.0, 0.12, 0.45, D, 'z', { seg: 10 });
+  cyl(b, K, -1.02, 1.62, 0.55, 0.06, 0.9, BK, 'z', { seg: 8 });
   // rear pack, antenna, hip housing
-  box(b, null, 0, 1.65, -1.25, 1.6, 0.7, 0.25, D);
-  for (let i = 0; i < 3; i++) box(b, null, 0, 1.45 + i * 0.16, -1.38, 1.2, 0.05, 0.03, ST);
-  rod(b, null, [-0.75, 2.1, -1.05], [-0.8, 2.85, -1.1], 0.025, BK);
-  box(b, null, 0, 1.15, -0.25, 1.3, 0.25, 1.0, D);
-  for (const sd of [-1, 1]) cyl(b, null, sd * 0.75, 1.12, -0.25, 0.22, 0.25, D, 'x', { seg: 12 });
+  box(b, K, 0, 1.65, -1.25, 1.6, 0.7, 0.25, D);
+  for (let i = 0; i < 3; i++) box(b, K, 0, 1.45 + i * 0.16, -1.38, 1.2, 0.05, 0.03, ST);
+  rod(b, K, [-0.75, 2.1, -1.05], [-0.8, 2.85, -1.1], 0.025, BK);
+  box(b, K, 0, 1.15, -0.25, 1.3, 0.25, 1.0, D);
+  for (const sd of [-1, 1]) cyl(b, K, sd * 0.75, 1.12, -0.25, 0.22, 0.25, D, 'x', { seg: 12 });
 
   // legs: hip -> thigh forward-down -> knee -> shin back-down -> ankle -> flat foot
-  const A = 0.6, B = 0.68, CH = 0.18, HY = 1.12, HZ = -0.25, HX = 0.96, FOOT = 0.12;
+  const A = 0.75, B = 0.85, CH = 0.2, HY = 1.12 + LIFT, HZ = -0.25, HX = 0.96, FOOT = 0.12;
   const legs = [];
   for (const sd of [-1, 1]) {
     const hip = new THREE.Group(); hip.position.set(sd * HX, HY, HZ);
     let lb = new BrickBuilder(0.4);
     cyl(lb, null, 0, 0, 0, 0.21, 0.3, D, 'x', { seg: 12 });
-    box(lb, null, 0, -A / 2, 0, 0.22, A, 0.3, G);
+    box(lb, null, 0, -A / 2, 0, 0.26, A, 0.34, G);
     rod(lb, null, [sd * 0.14, -0.08, -0.08], [sd * 0.14, -A + 0.08, -0.06], 0.035, D);
     cyl(lb, null, 0, -A, 0, 0.17, 0.3, D, 'x', { seg: 12 });
     hip.add(lb.build({ name: 'thigh' }));
     const knee = new THREE.Group(); knee.position.set(0, -A, 0); hip.add(knee);
     lb = new BrickBuilder(0.4);
-    box(lb, null, 0, -B / 2, 0, 0.2, B, 0.26, G);
+    box(lb, null, 0, -B / 2, 0, 0.24, B, 0.3, G);
     box(lb, null, 0, -B * 0.35, 0.14, 0.12, B * 0.5, 0.04, D);
     rod(lb, null, [-sd * 0.13, -0.1, 0], [-sd * 0.13, -B + 0.08, 0], 0.03, D);
     cyl(lb, null, 0, -B, 0, 0.13, 0.26, D, 'x', { seg: 10 });
@@ -317,7 +318,7 @@ function atst() {
     const ankle = new THREE.Group(); ankle.position.set(0, -B, 0); knee.add(ankle);
     lb = new BrickBuilder(0.4);
     box(lb, null, 0, -CH / 2, 0.02, 0.16, CH, 0.18, D);
-    box(lb, null, 0, -CH - FOOT / 2, 0.1, 0.5, FOOT, 0.68, D);
+    box(lb, null, 0, -CH - FOOT / 2, 0.1, 0.56, FOOT, 0.74, D);
     box(lb, null, 0, -CH + 0.02, 0.08, 0.38, 0.05, 0.46, G);
     for (const tx of [-0.16, 0.16]) box(lb, null, tx, -CH - FOOT / 2 - 0.01, 0.5, 0.15, FOOT - 0.02, 0.22, ST);
     box(lb, null, 0, -CH - FOOT / 2 - 0.01, -0.3, 0.16, FOOT - 0.02, 0.18, ST);
@@ -338,7 +339,7 @@ function atst() {
     L.hip.rotation.x = -ta; L.knee.rotation.x = -(tb - ta); L.ankle.rotation.x = tb;
   };
   let ph = 0, amp = 0, air = 0;
-  const STRIDE = 0.42;
+  const STRIDE = 0.5;
   const fx = (s, dt) => {
     const onGround = s.grounded && !s.gliding;
     amp += ((onGround ? Math.min(1, s.speed01 * 3) : 0) - amp) * Math.min(1, dt * 4);
@@ -357,7 +358,7 @@ function atst() {
   };
   fx({ speed01: 0, grounded: true, gliding: false, t: 0 }, 0);
   return {
-    mesh, seat: [0, 1.75, -0.25], control: 'bars', parts: legs.map((l) => l.hip), fx,
+    mesh, seat: [0, 1.75 + LIFT, -0.25], control: 'bars', parts: legs.map((l) => l.hip), fx,
   };
 }
 

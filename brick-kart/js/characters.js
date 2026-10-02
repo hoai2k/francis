@@ -392,20 +392,24 @@ function buildVehicle(def, rig) {
   }
   // glider (shared design) above the driver or at the vehicle's mount
   const { glider } = addWheelsAndGlider(def, new THREE.Group(), rig, null, true);
-  if (v.glider) glider.position.set(...v.glider); else glider.position.y += seat.y - SEAT.y;
+  // glider: [x, y, z] fixes the mount; { x?, z? } just shifts it and keeps the height that suits the driver
+  glider.position.y += seat.y - SEAT.y;
+  if (Array.isArray(v.glider)) glider.position.set(...v.glider);
+  else if (v.glider) { glider.position.x += v.glider.x || 0; glider.position.z = v.glider.z ?? glider.position.z; }
   up.add(glider);
   let t = Math.random() * 10;
+  const fs = { speed01: 0, steer: 0, boosting: false, gliding: false, grounded: true, t: 0 };   // reused every frame
   const hoverY = v.hover ? (typeof v.hover === 'number' ? v.hover : 0.35) : 0;
   const update = (dt, s) => {
     t += dt;
     if (hoverY) up.position.y = hoverY + Math.sin(t * 3.1) * 0.06 + (s.boosting ? 0.05 : 0);
     for (const p of v.spin || []) p.obj.rotation[p.axis || 'x'] += (p.rate ?? 10) * (0.15 + s.speed01) * dt;
     for (const p of v.steer || []) p.obj.rotation[p.axis || 'y'] = -s.steer * (p.amount ?? 0.4);
-    v.fx?.({ ...s, t }, dt);
+    if (v.fx) { Object.assign(fs, s); fs.t = t; v.fx(fs, dt); }
   };
   const top = new THREE.Box3().setFromObject(v.mesh).max.y;
   const colors = def.colors?.length ? def.colors : [def.kart ?? C.red, a, C.black, C.ltgray];
-  return { root, body, head: new THREE.Group(), wheels, glider, swheel: ctl, steerControl, driver: rig, shadow: v.mesh, top: Math.max(top, seat.y + rig.height) + hoverY, colors, update };
+  return { root, body, head: new THREE.Group(), wheels, glider, swheel: ctl, steerControl, driver: rig, shadow: [v.mesh, ...(v.parts || [])], top: Math.max(top, seat.y + rig.height) + hoverY, colors, update };
 }
 
 function wheelSpotFor(rig) {

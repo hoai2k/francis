@@ -30,8 +30,8 @@ const thunderHog = {
       sh.box(b, sd * 0.4, 0.42, 0.45, 0.28, 0.06, 0.12, BK);                // foot pegs
     }
     // teardrop tank with a flame band
-    sh.ell(b, 0, 1.13, 0.4, 0.27, 0.2, 0.5, OR, { seg: 16 });
-    sh.ell(b, 0, 1.08, 0.42, 0.28, 0.08, 0.46, C.yellow, { seg: 16 });
+    sh.ell(b, 0, 1.13, 0.4, 0.33, 0.22, 0.52, OR, { seg: 16 });
+    sh.ell(b, 0, 1.07, 0.42, 0.34, 0.09, 0.48, C.yellow, { seg: 16 });
     b.cyl(0, 1.3, 0.3, 0.06, 0.05, LG, { matOpts: CHROME, seg: 8 });
     // V-twin engine
     sh.box(b, 0, 0.53, 0.05, 0.42, 0.36, 0.62, C.dkgray);
@@ -46,6 +46,12 @@ const thunderHog = {
     for (const sd of [-1, 1]) sh.tube(b, [sd * 0.2, 0.95, -1.05], [sd * 0.2, 1.75, -1.2], 0.04, LG, chrome());
     sh.tube(b, [-0.2, 1.75, -1.2], [0.2, 1.75, -1.2], 0.04, LG, chrome());
     sh.box(b, 0, 1.5, -1.16, 0.36, 0.3, 0.08, BK, { rx: -0.18 });
+    // studded leather saddlebags either side of the rear wheel
+    for (const sd of [-1, 1]) {
+      sh.box(b, sd * 0.47, 0.92, -1.4, 0.26, 0.42, 0.7, C.brown);
+      sh.box(b, sd * 0.48, 1.12, -1.4, 0.3, 0.06, 0.74, C.rbrown);
+      for (const z of [-1.6, -1.2]) sh.box(b, sd * 0.605, 0.98, z, 0.02, 0.2, 0.06, LG, chrome());
+    }
     // rear fender + tail light
     sh.arc(b, 0, RR, RZ, RR + 0.12, 0.35, 2.8, 7, 0.5, 0.06, OR);
     sh.box(b, 0, 0.88, -2.08, 0.22, 0.1, 0.08, C.red, glow(0xff2010, 1.2, { rx: 0.4 }));
@@ -217,7 +223,7 @@ const treadHead = {
     // turret, hatch collar, open lid, antenna, roundels, crates
     b.cyl(0, 0.99, -0.3, 0.82, 0.42, GR, { rz: 0.95, seg: 20 });
     b.cyl(0, 1.41, -0.3, 0.7, 0.05, OL, { rz: 0.82, seg: 20 });
-    b.cyl(0, 1.41, -0.42, 0.56, 0.22, OL, { rz: 0.72, seg: 16 });
+    b.cyl(0, 1.41, -0.42, 0.58, 0.3, OL, { rz: 0.74, seg: 16 });
     sh.box(b, 0, 1.86, -1.08, 0.7, 0.5, 0.06, GR, { rx: -0.3 });
     sh.tube(b, [0.55, 1.4, -0.95], [0.6, 2.7, -1.15], 0.02, BK, { seg: 4 });
     sh.box(b, 0.6, 2.55, -1.32, 0.03, 0.2, 0.3, C.yellow);
@@ -261,7 +267,7 @@ const treadHead = {
     const flames = exhaustMover(mesh, [[0.55, 0.75, -2.0], [-0.55, 0.75, -2.0]]);
     let phase = 0;
     return {
-      mesh, seat: [0, 1.55, -0.5], control: 'yoke', parts: [topT, botT, ...sprockets, gun],
+      mesh, seat: [0, 1.47, -0.5], control: 'yoke', parts: [topT, botT, ...sprockets, gun],
       steer: [{ obj: gun, axis: 'y', amount: 0.3 }],
       fx(s, dt) {
         flames();
@@ -449,8 +455,8 @@ const blastSled = {
     // rocket flame: always lit, roars on boost
     const fl = new THREE.Group(); fl.position.set(0, RY, -2.78);
     const flb = new BrickBuilder(0.4);
-    sh.cone(flb, 0, 0, -0.5, 0.28, 1.0, C.orange, { rx: -Math.PI / 2, seg: 12, matOpts: { trans: true, opacity: 0.85, emissive: 0xff5a00, emissiveIntensity: 2.6 } });
-    sh.cone(flb, 0, 0, -0.32, 0.15, 0.64, C.yellow, { rx: -Math.PI / 2, seg: 10, matOpts: { emissive: 0xffe060, emissiveIntensity: 2.2 } });
+    sh.cone(flb, 0, 0, -0.5, 0.28, 1.0, 0xff5a00, { rx: -Math.PI / 2, seg: 12, matOpts: { trans: true, opacity: 0.8, emissive: 0xff3a00, emissiveIntensity: 1.6 } });
+    sh.cone(flb, 0, 0, -0.32, 0.15, 0.64, 0xffc020, { rx: -Math.PI / 2, seg: 10, matOpts: { emissive: 0xffb000, emissiveIntensity: 1.4 } });
     fl.add(flb.build({ name: 'rocketflame' }));
     // sparks off the ski tails
     const sp = new THREE.Group(); sp.position.set(0, 0.05, -2.25);

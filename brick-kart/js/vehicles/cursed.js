@@ -200,12 +200,12 @@ export default [
       // wings: one rigid brick wing per side with glowing lightning on top, flapping
       const wings = [];
       for (const sd of [-1, 1]) {
-        const w = new THREE.Group(); w.position.set(sd * 0.5, 0.55, 0.25);
+        const w = new THREE.Group(); w.position.set(sd * 0.42, 0.55, 0.25);
         const wb = new BrickBuilder(0.4);
         wb.box(sd * 0.3, -0.04, -0.15, 0.6, 0.09, 0.85, N);
         wb.box(sd * 0.75, -0.04, -0.25, 0.4, 0.08, 0.8, N);
         for (let i = 0; i < 4; i++) {
-          const z = 0.05 - i * 0.22, len = 0.5 - i * 0.07;
+          const z = 0.05 - i * 0.22, len = 0.44 - i * 0.07;
           T.rbox(wb, sd * (0.95 + len / 2), 0, z - 0.05, len, 0.06, 0.16, 0, sd * (0.1 + i * 0.12), 0, i % 2 ? N2 : N);
           T.rbox(wb, sd * (0.97 + len), 0.005, z - 0.05 - (0.1 + i * 0.12) * len * 0.5, 0.12, 0.065, 0.17, 0, sd * (0.1 + i * 0.12), 0, 0xd0d4d8);
         }
@@ -240,7 +240,7 @@ export default [
     build(kit) {
       const { THREE, BrickBuilder, C } = kit; const T = tools(kit);
       const RED = 0xb4232a, GOLD = C.yellow, TEAL = C.teal, NAVY = C.dkblue;
-      const HW = 1.15, SEG = 0.56;
+      const HW = 1.15, SEG = 0.54;
       // a rug strip from z0 to z0 + len (top at y = 0): red field, gold borders, little motif
       const strip = (b, z0, len, motif) => {
         const zc = z0 + len / 2;
@@ -326,14 +326,14 @@ export default [
         T.geo(b, T.cone, HORN, T.M(sd * 1.26, 1.86, -0.58, 0.2, 0, sd * -0.3, 0.05, 0.18, 0.05));
       }
       // tail (swishes, follows steering)
-      const tail = new THREE.Group(); tail.position.set(0, 0.85, -1.05);
+      const tail = new THREE.Group(); tail.position.set(0, 0.85, -1.0);
       const tb = new BrickBuilder(0.4);
       for (let i = 0; i < 5; i++) {
-        const s = 1 - i * 0.16, z = -0.2 - i * 0.3, y = -0.05 - Math.sin(i * 0.7) * 0.1 + i * i * 0.012;
+        const s = 1 - i * 0.16, z = -0.2 - i * 0.26, y = -0.05 - Math.sin(i * 0.7) * 0.1 + i * i * 0.012;
         tb.box(0, y - 0.18 * s, z, 0.5 * s, 0.38 * s, 0.34, RD);
         T.geo(tb, T.cone, BEL, T.M(0, y + 0.2 * s, z, -0.3, 0, 0, 0.06 * s + 0.03, 0.18 * s + 0.06, 0.08));
       }
-      T.rbox(tb, 0, 0.12, -1.72, 0.04, 0.32, 0.32, Math.PI / 4, 0, 0, BEL);
+      T.rbox(tb, 0, 0.1, -1.46, 0.04, 0.3, 0.3, Math.PI / 4, 0, 0, BEL);
       tail.add(tb.build({ name: 'tail' }));
       // head with jaw, horns, eyes; fire breath (boost)
       const head = new THREE.Group(); head.position.set(0, 1.72, 1.62);
@@ -353,7 +353,7 @@ export default [
       head.add(hb.build({ name: 'dragonHead' }));
       const fire = new THREE.Group(); fire.position.set(0, -0.15, 0.75); fire.visible = false;
       const fb = new BrickBuilder(0.4);
-      T.geo(fb, T.cone, 0xff8a18, T.M(0, 0, 0.55, Math.PI / 2, 0, 0, 0.26, 1.1, 0.26), { matOpts: { emissive: 0xff5a00, emissiveIntensity: 1.6, trans: true, opacity: 0.85 } });
+      T.geo(fb, T.cone, 0xff8a18, T.M(0, 0, 0.75, Math.PI / 2, 0, 0, 0.28, 1.5, 0.28), { matOpts: { emissive: 0xff5a00, emissiveIntensity: 1.6, trans: true, opacity: 0.85 } });
       T.geo(fb, T.cone, 0xff8a18, T.M(0, 0, 0.3, Math.PI / 2, 0, 0, 0.14, 0.7, 0.14), { matOpts: { emissive: 0xff5a00, emissiveIntensity: 1.6, trans: true, opacity: 0.85 } });
       fire.add(fb.build({ name: 'fire', shadows: false })); head.add(fire);
       // four legs pivoting at the hips

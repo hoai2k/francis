@@ -1,7 +1,7 @@
 // Developer view for movie-character drivers: ?gallery=<universe | driver id | all>
 // lines the drivers up in karts and cycles their gestures. &pose=<gesture> holds one
 // gesture (cheer, taunt, ouch, trick, throwF, throwB, use, win, lose, glide, look, steerL,
-// steerR, drift, pre), &kart=<n> picks the kart, &cols=<n> sets the row length.
+// steerR, drift, pre, boost), &kart=<n> picks the kart, &cols=<n> sets the row length.
 // ?garage=<kart group | kart id | id1,id2 | all> lines up vehicles instead, each driven by
 // &driver=<id> (default Spider-Man); &rot=<radians> turns them (e.g. 3.6 for rear views).
 import * as THREE from 'three';
@@ -64,6 +64,7 @@ export class Gallery {
       else if (name === 'steerR') s.steer = 1;
       else if (name === 'drift') { s.steer = 1; s.drift = 1; }
       else if (name === 'glide') s.gliding = true;
+      else if (name === 'boost') { s.boosting = true; s.speed01 = 1; }
       else if (name === 'look') s.look = true;
       else if (name === 'win' || name === 'lose' || name === 'pre') s.phase = name;
       else if (!it.anim.g || it.anim.g.name !== name) it.anim.play(name);
@@ -71,7 +72,7 @@ export class Gallery {
       if (s.gliding) it.m.glider.scale.set(1, 1, 1);
       it.anim.update(dt, s);
       it.m.steerControl?.(it.anim.steer);
-      it.m.update?.(dt, { speed01: 0.5, steer: it.anim.steer, boosting: false, gliding: s.gliding, grounded: true });
+      it.m.update?.(dt, { speed01: s.speed01, steer: it.anim.steer, boosting: s.boosting, gliding: s.gliding, grounded: true });
     }
   }
   render(r) {
