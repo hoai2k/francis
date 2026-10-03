@@ -8,7 +8,7 @@
 //                         light shields you from incoming shots
 //   Invisibility Cloak  – you fade to a faint shimmer for 6 s: shots, traps and hazards pass through,
 //                         rockets lose you, and you slip along a little faster
-//   Golden Snitch       – chase the Snitch: it towes you on autopilot far up the track at huge
+//   Golden Snitch       – chase the Snitch: it tows you on autopilot far up the track at huge
 //                         speed, knocking karts aside, until you catch it
 import * as THREE from 'three';
 import {
@@ -37,7 +37,6 @@ function snd(ctx, pos, fn) {
 const chime = (ctx, pos, base = 1320, n = 4, vol = 0.06) => snd(ctx, pos, (au, a) => {
   for (let i = 0; i < n; i++) au.tone(base * Math.pow(1.335, i), 0.5, { vol: vol * a, type: 'sine', at: i * 0.045 });
 });
-const whoosh = (ctx, pos, f = 900, d = 0.45) => snd(ctx, pos, (au, a) => au.noiseHit(d, { vol: 0.28 * a, freq: f, sweep: 2.2, q: 1.4 }));
 
 // the tip of the driver's wand (right hand, over the hood)
 function wandTip(k, out) {
@@ -81,10 +80,11 @@ function shove(ctx, o, vx, vz, life = 0.55) {
   });
 }
 // a point on the track at a fractional sample s (smooth motion for runners)
+const TP = new THREE.Vector3();
 function trackPoint(tr, s, lat, out) {
   const i0 = Math.floor(s), f = s - i0;
-  tr.at(i0, lat, 0, V1); tr.at(i0 + 1, lat, 0, V2);
-  out.lerpVectors(V1, V2, f);
+  tr.at(i0 + 1, lat, 0, TP); tr.at(i0, lat, 0, out);
+  out.lerp(TP, f);
   // over jump gaps follow the racing line's height rather than the ground below
   const i = tr.wrap(i0);
   if (tr.GAP[i]) out.y = Math.max(out.y, tr.py(i));
@@ -107,7 +107,7 @@ class Disarm {
     this.speed = Math.max(96, Math.abs(k.speed) + 46);
     this.si = k.loc.i ?? 0; this.loc = {};
     this.t = 0; this.dead = false;
-    this.beam = beamMesh(); this.beam2 = beamMesh(0xffd0c0);
+    this.beam = beamMesh(); this.beam2 = beamMesh(0xff1a08, true);
     ctx.scene.add(this.beam, this.beam2);
     this.mesh.position.copy(this.pos);
     // the cast: a red flash at the wand and a sharp crack
@@ -141,25 +141,25 @@ class Disarm {
     for (const o of ctx.race.karts) {
       if ((o === k && this.t < 0.5) || !live(o)) continue;
       const r = 2.5 * (o.megaScale || 1);
-      if (o.pos.distanceToSquared(this.pos) < r * r && Math.abs(o.pos.y + 1 - this.pos.y) < 3 * (o.megaScale || 1)) { console.warn('DBG strike', this.t.toFixed(2), o === k, ctx.race.karts.indexOf(o)); this.strike(o); return false; }
+      if (o.pos.distanceToSquared(this.pos) < r * r && Math.abs(o.pos.y + 1 - this.pos.y) < 3 * (o.megaScale || 1)) { this.strike(o); return false; }
     }
     this.mesh.position.copy(this.pos);
     this.mesh.rotation.y = this.yaw;
     const u = this.mesh.userData;
     u.spin.rotation.x += dt * 16; u.spin.rotation.z += dt * 11;
-    u.halo.scale.setScalar(4.6 * (0.85 + Math.random() * 0.3));
+    u.halo.scale.setScalar(5.5 * (0.85 + Math.random() * 0.3));
     // red sparks and a pink haze trail
     for (let n = 0; n < 3; n++) fx.spark(this.pos.x + rnd(0.5), this.pos.y + rnd(0.5), this.pos.z + rnd(0.5), rnd(3), rnd(3), rnd(3), n ? 0xff3a20 : 0xffffff, 0.3);
     if (Math.random() < 0.4) fx.puff(this.pos.x, this.pos.y, this.pos.z, 0, 0.5, 0, 0xff8a80, 0.4);
     // the jet from the wand stretches after the bolt, then fades
-    const lo = 1 - this.t / 0.35;
+    const lo = 1 - this.t / 0.5;
     this.beam.visible = this.beam2.visible = lo > 0 && live(k);
     if (this.beam.visible) {
       wandTip(k, this.tip);
-      stretch(this.beam, this.tip, this.pos, 0.45 * lo);
-      stretch(this.beam2, this.tip, this.pos, 0.16 * lo);
+      stretch(this.beam, this.tip, this.pos, 0.7 * lo);
+      stretch(this.beam2, this.tip, this.pos, 0.22 * lo);
       this.beam.material.opacity = 0.85 * lo;
-      this.beam2.material.opacity = lo;
+      this.beam2.material.opacity = 0.9 * lo;
     }
     return true;
   }
@@ -173,6 +173,24 @@ class Disarm {
       au.tone(880, 0.25, { vol: 0.1 * a, type: 'sawtooth', slide: 0.4, filter: 3000 });
     });
     if (ok) steal(this.k, o, ctx);
+    // a close hit: the jet lingers a moment between wand and victim
+    if (this.t < 0.5 && live(this.k)) {
+      const k = this.k, a = wandTip(k, new THREE.Vector3()), b = p.clone(), bm = [beamMesh(), beamMesh(0xff1a08, true)];
+      ctx.scene.add(bm[0], bm[1]);
+      let tt = this.t;
+      ctx.spawn({
+        update(dt) {
+          tt += dt;
+          const lo = 1 - tt / 0.6;
+          if (lo <= 0) return false;
+          if (live(k)) wandTip(k, a);
+          stretch(bm[0], a, b, 0.7 * lo); stretch(bm[1], a, b, 0.22 * lo);
+          bm[0].material.opacity = 0.85 * lo; bm[1].material.opacity = 0.9 * lo;
+          return true;
+        },
+        dispose() { for (const m of bm) { ctx.scene.remove(m); m.material.dispose(); } },
+      });
+    }
   }
   fizzle() { this.ctx.fx.pop(this.pos, 0xff8a70); }
   // blocked (Force Push, saber, Patronus…): the spell breaks up
@@ -357,13 +375,15 @@ class Patronus {
       au.noiseHit(1.2, { vol: 0.2 * a, freq: 600, sweep: 4, q: 0.8, at: 0.1 });
     });
   }
-  extend() { this.guardEnd = this.t + PAT_GUARD; }
+  // a second Patronus takes over the guard; this one's stag keeps running
+  handOff() { this.guardEnd = Math.min(this.guardEnd ?? PAT_GUARD, this.t); }
   update(dt) {
     const ctx = this.ctx, k = this.k, fx = ctx.fx, tr = ctx.track, race = ctx.race;
     this.t += dt;
     const t = this.t;
     // ---- the stag
-    if (this.stag && t < PAT_RUN + 0.45) {
+    if (this.stag && t >= PAT_RUN + 0.45) { disposeOwned(this.stag); this.stag = null; }
+    if (this.stag) {
       this.speed += (this.top - this.speed) * Math.min(1, dt * 1.6);
       this.s += this.speed * dt;
       const i = tr.wrap(Math.floor(this.s)), hw = tr.HW[i] || 8;
@@ -417,7 +437,6 @@ class Patronus {
         }
         for (const e of items.ents) if (e !== this && e.deflect && e.k !== k) e.deflect(this.p, 4, k);
       }
-      if (t >= PAT_RUN + 0.45) { disposeOwned(this.stag); this.stag = null; }
     }
     // ---- the guard: incoming shots near the caster burst on the silver light
     const end = this.guardEnd ?? PAT_GUARD;
@@ -428,7 +447,7 @@ class Patronus {
     this.bubble.scale.set(2.7, 2.2, 3.1).multiplyScalar(1 + this.blocked * 0.12);
     this.blocked = Math.max(0, this.blocked - dt * 3);
     if (on && Math.random() < 0.5) { const a = Math.random() * TAU; fx.spark(k.pos.x + Math.cos(a) * 2.6, k.pos.y + 0.5 + Math.random() * 2, k.pos.z + Math.sin(a) * 2.6, 0, 1.5, 0, 0xdff0ff, 0.4); }
-    return !!this.stag || t < end || (live(k) && t < end + 0.1);
+    return !!this.stag || t < end;
   }
   guard() {
     const ctx = this.ctx, k = this.k, items = ctx.race.items, fx = ctx.fx;
@@ -580,15 +599,15 @@ class Snitch {
     k.model.root.position.copy(k.pos);
     k.model.root.rotation.y = this.yaw;
     // the Snitch itself, fluttering 9-12 units ahead
-    trackPoint(tr, this.s + 10 + Math.sin(t * 2.1) * 1.5, this.snLat, this.sp);
+    trackPoint(tr, this.s + 9 + Math.sin(t * 2.1) * 1.5, this.snLat, this.sp);
     const M = this.mesh;
-    M.position.set(this.sp.x, this.sp.y + 2.4 + Math.sin(t * 5.3) * 0.6, this.sp.z);
+    M.position.set(this.sp.x, this.sp.y + 4.6 + Math.sin(t * 5.3) * 0.7, this.sp.z);
     M.rotation.y = this.yaw + Math.sin(t * 3) * 0.4;
     M.rotation.z = Math.sin(t * 2.4) * 0.3;
     const flap = Math.sin(t * 46) * 0.7;
     M.userData.wings[0].rotation.z = flap; M.userData.wings[1].rotation.z = -flap;
     M.userData.spr.scale.setScalar(3.6 * (0.9 + Math.random() * 0.2));
-    M.scale.setScalar(Math.min(1.6, t * 6));
+    M.scale.setScalar(Math.min(2, t * 6));
     fx.spark(M.position.x, M.position.y, M.position.z, rnd(2), rnd(2), rnd(2), Math.random() < 0.6 ? 0xffd040 : 0xffffff, 0.5);
     // a golden slipstream off the kart
     const f = k.forward(V2);
@@ -610,7 +629,10 @@ class Snitch {
       }
     }
     const chase = chaseOf(ctx, k);
-    if (chase) { chase.fov = Math.max(chase.fov, 70 + 12 * Math.min(1, t * 2)); chase.shake = Math.max(chase.shake || 0, 0.08); }
+    if (chase) {
+      chase.fov = Math.max(chase.fov, 70 + 12 * Math.min(1, t * 2)); chase.shake = Math.max(chase.shake || 0, 0.08);
+      if (chase.init) chase.pos.addScaledVector(f, this.v * dt * 0.45);   // keep the camera from trailing too far behind
+    }
     return true;
   }
   caught() {
@@ -644,27 +666,6 @@ const ICON_PATRONUS = '<svg viewBox="0 0 64 64"><circle cx="32" cy="34" r="27" f
 const ICON_CLOAK = '<svg viewBox="0 0 64 64"><path d="M32 4q-14 2-16 18l-8 36q24 8 48 0l-8-36Q46 6 32 4z" fill="#6c7a90" fill-opacity=".55" stroke="#c8d4e8" stroke-width="3" stroke-dasharray="7 3" stroke-linejoin="round"/><path d="M22 22q10-8 20 0" stroke="#1b2a34" stroke-width="3" fill="none" opacity=".6"/><path d="M18 34q6-3 10 0t10 0 10 0M14 46q8-3 12 0t12 0 12 0" stroke="#e8f0ff" stroke-width="2.5" fill="none" stroke-linecap="round" opacity=".9"/><g fill="#fff"><circle cx="46" cy="14" r="2"/><circle cx="12" cy="28" r="1.5"/><circle cx="52" cy="40" r="1.5"/></g></svg>';
 const ICON_SNITCH = '<svg viewBox="0 0 64 64"><g stroke="#1b2a34" stroke-width="2.5" stroke-linejoin="round"><path d="M24 30Q12 12 2 16q6 4 6 8-4 0-4 4 6 0 8 4-3 2-2 5 10 1 14-7z" fill="#f4f4f4"/><path d="M40 30Q52 12 62 16q-6 4-6 8 4 0 4 4-6 0-8 4 3 2 2 5-10 1-14-7z" fill="#f4f4f4"/><circle cx="32" cy="34" r="11" fill="#f2cd37"/></g><path d="M22 34q10 4 20 0" stroke="#7a5a00" stroke-width="2" fill="none"/><ellipse cx="28" cy="29" rx="3.5" ry="2.2" fill="#fff6c0"/><path d="M10 50l4 2M54 50l-4 2M32 52v6" stroke="#f2cd37" stroke-width="3" stroke-linecap="round"/></svg>';
 
-// ---- DEV (temporary test hook): ?give=<id>[&cpu=1] keeps handing the power out ---------------
-const QS = new URLSearchParams(location.search);
-const GIVE = QS.get('give'), GIVE_CPU = QS.has('cpu');
-function devHook(ctx) {
-  if (!GIVE || ctx.race._hpHook) return;
-  ctx.race._hpHook = true;
-  let t = 0, cool = 0;
-  ctx.spawn({
-    update(dt) {
-      t -= dt; cool -= dt;
-      for (const k of ctx.race.karts) {
-        if (k.human && QS.has('use') && ctx.race.started && k.item === GIVE && !k.stunned && cool <= 0) { ctx.race.items.use(k); cool = +QS.get('use') || 3; }
-        if (t <= 0 && (k.human || GIVE_CPU) && !k.item && !(k.roulette > 0)) { k.item = GIVE; k.itemCount = 1; }
-      }
-      if (t <= 0) t = 1;
-      return true;
-    },
-    dispose() {},
-  });
-}
-
 export default [
   {
     id: 'expelliarmus', name: 'Expelliarmus', color: '#ff3a20', icon: ICON_DISARM, gesture: 'throwF',
@@ -676,7 +677,7 @@ export default [
       const b = ctx.behind(k, 1)[0];
       return !a && live(b) && gapTo(k, b) < 40 ? { back: true } : false;
     },
-    prewarm: (ctx) => { devHook(ctx); return prewarmAll(); },
+    prewarm: () => prewarmAll(),
     use(k, ctx, { back }) { ctx.spawn(new Disarm(k, ctx, !!back)); },
   },
   {
@@ -684,17 +685,15 @@ export default [
     help: 'Swish and flick! The two or three karts just ahead of you float helplessly up into the air, drift along slowly, then drop.',
     odds: [1, 3, 3, 3, 2],
     ai: (k, ctx) => ctx.ahead(k, 3).filter((o) => live(o) && !o.hpFloat && gapTo(k, o) < 140).length >= (held(k, ctx, 5) ? 1 : 2),
-    prewarm: (ctx) => { devHook(ctx); return []; },
     use(k, ctx) { HOLD.delete(k); leviosa(k, ctx); },
   },
   {
     id: 'patronus', name: 'Expecto Patronum', color: '#bfe0ff', icon: ICON_PATRONUS, gesture: 'use',
     help: 'A glowing silver stag charges up the track ahead, bowling karts aside, while its light shields you from incoming shots.',
     odds: [0, 1, 2, 3, 3],
-    ai: (k, ctx) => threatened(k, ctx) || ctx.ahead(k, 2).some((o) => live(o) && gapTo(k, o) < 150),
-    prewarm: (ctx) => { devHook(ctx); return []; },
+    ai: (k, ctx) => !k.hpPatronus?.stag && (threatened(k, ctx) || ctx.ahead(k, 2).some((o) => live(o) && gapTo(k, o) < 150)),
     use(k, ctx) {
-      if (k.hpPatronus) { k.hpPatronus.extend(); return; }
+      k.hpPatronus?.handOff();
       k.hpPatronus = ctx.spawn(new Patronus(k, ctx));
     },
   },
@@ -704,11 +703,11 @@ export default [
     odds: [4, 3, 2, 1, 0],
     // when something is coming, or a rival is right behind; otherwise after holding it a while
     ai: (k, ctx) => {
+      if (k.hpCloak) return false;
       const go = threatened(k, ctx, 36) || ctx.behind(k, 1).some((o) => live(o) && gapTo(k, o) < 14) || held(k, ctx, 7);
       if (go) HOLD.delete(k);
       return go;
     },
-    prewarm: (ctx) => { devHook(ctx); return []; },
     use(k, ctx) {
       HOLD.delete(k);
       if (k.hpCloak) { k.hpCloak.extend(); return; }
@@ -719,8 +718,7 @@ export default [
     id: 'snitch', name: 'Golden Snitch', color: '#f2cd37', icon: ICON_SNITCH, gesture: 'use',
     help: 'The Golden Snitch appears ahead and you chase it: it tows you on autopilot far up the track at blistering speed, knocking karts aside.',
     odds: [0, 0, 0, 2, 5],
-    ai: (k) => k.grounded && !k.stunned && !k.finished && k.respawn <= 0,
-    prewarm: (ctx) => { devHook(ctx); return []; },
+    ai: (k) => !k.hpSnitch && k.grounded && !k.stunned && !k.finished && k.respawn <= 0,
     use(k, ctx) {
       if (k.hpSnitch) { k.hpSnitch.extend(); return; }
       if (k.bulletTime > 0) { k.boost(1); return; }

@@ -4,7 +4,7 @@
 // per-use materials (the ones whose opacity animates) are tagged with own() and freed by
 // disposeOwned().
 import * as THREE from 'three';
-import { BrickBuilder, C, plastic } from '../lego.js';
+import { BrickBuilder, plastic } from '../lego.js';
 
 const cache = new Map();
 export const once = (key, make) => { if (!cache.has(key)) cache.set(key, make()); return cache.get(key); };
@@ -165,7 +165,7 @@ const snitchTemplate = () => once('snitch', () => {
   const wmat = plastic(0xf4f4f4, { trans: true, opacity: 0.85, emissive: 0xcfd8e0, emissiveIntensity: 0.5 });
   [-1, 1].forEach((s) => {
     const wb = new BrickBuilder(1);
-    for (let j = 0; j < 4; j++) wb.boxM(new THREE.Matrix4().compose(new THREE.Vector3(s * (0.75 + j * 0.15), 0.1 + j * 0.05, -0.2 - j * 0.28), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, s * (0.35 + j * 0.18), 0)), new THREE.Vector3(1.9 - j * 0.3, 0.05, 0.32)), 0, { mat: wmat });
+    for (let j = 0; j < 4; j++) wb.boxM(new THREE.Matrix4().compose(new THREE.Vector3(s * (0.6 + j * 0.12), 0.1 + j * 0.05, -0.15 - j * 0.24), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, s * (0.35 + j * 0.18), 0)), new THREE.Vector3(1.4 - j * 0.22, 0.05, 0.3)), 0, { mat: wmat });
     const w = new THREE.Group(); w.add(wb.build({ shadows: false, name: 'snitchWing' }));
     w.position.set(s * 0.55, 0.05, 0);
     g.add(w);
@@ -183,8 +183,8 @@ export function snitchModel() {
 
 // ---- Expelliarmus bolt: a red trans brick inside a hot glow, and the jet from the wand ----------
 const boltTemplate = () => once('bolt', () => {
-  const b = new BrickBuilder(0.6);
-  b.brick(0, -0.35, 0, 1, 1, 3, 0, { mat: plastic(0xff3020, { trans: true, opacity: 0.85, emissive: 0xff2010, emissiveIntensity: 1.6 }) });
+  const b = new BrickBuilder(0.85);
+  b.brick(0, -0.5, 0, 1, 1, 3, 0, { mat: plastic(0xff3020, { trans: true, opacity: 0.9, emissive: 0xff2010, emissiveIntensity: 1.8 }) });
   const crystal = b.build({ shadows: false, name: 'boltBrick' });
   return crystal;
 });
@@ -192,14 +192,16 @@ export function boltModel() {
   const g = new THREE.Group();
   const spin = boltTemplate().clone(true);
   const core = new THREE.Mesh(sphereGeo(), once('boltCore', () => new THREE.MeshBasicMaterial({ color: 0xffffff, fog: false })));
-  core.scale.setScalar(0.32);
-  const halo = glowSprite(0xff2a1a, 4.6, 0.95);
+  core.scale.setScalar(0.3);
+  const shell = new THREE.Mesh(sphereGeo(), once('boltShell', () => new THREE.MeshBasicMaterial({ color: 0xff2a10, transparent: true, opacity: 0.55, depthWrite: false, fog: false })));
+  shell.scale.setScalar(0.95);
+  const halo = glowSprite(0xff2a1a, 5.5, 1);
   const hot = glowSprite(0xffb0a0, 1.8, 1);
-  g.add(spin, core, halo, hot);
+  g.add(spin, core, shell, halo, hot);
   g.userData = { spin, halo };
   return g;
 }
-export function beamMesh(color = 0xff3a2a) { return new THREE.Mesh(boxZGeo(), additive(color, 0.9)); }
+export function beamMesh(color = 0xff3a2a, solid = false) { const m = new THREE.Mesh(boxZGeo(), solid ? own(new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9, depthWrite: false, fog: false })) : additive(color, 0.9)); return m; }
 
 // ---- Wingardium Leviosa feather ---------------------------------------------------------------
 const featherTemplate = () => once('feather', () => {
@@ -246,4 +248,3 @@ export function prewarmAll() {
   out.push(sh);
   return out;
 }
-export { C };
