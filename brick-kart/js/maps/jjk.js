@@ -299,7 +299,7 @@ function sign(b, k, x, y, z, w, rot, vertical = false) {
 
 // ---- the map ------------------------------------------------------------------------------------------
 export default {
-  id: 'jjk', name: 'Cursed Brick Shibuya', subtitle: 'Torii, Shibuya at night and three Domain Expansions', cup: 'movie', seed: 77,
+  id: 'jjk', name: 'Cursed Brick Shibuya', subtitle: 'Season 2 · Shibuya Incident and three Domain Expansions', cup: 'jjk', seed: 77,
   width: 28, shoulder: 6, edge: 'fence', start: 0.5,
   points: [[235,171,0],[241,96,0],[231,20,2],[201,-40,6],[209,-103,12],[213,-171,16],[199,-238,14],[154,-286,8],[79,-310,3],[0,-312,0],[-77,-299,0],[-130,-275,0],[-183,-286,0],[-229,-241,0],[-257,-167,0],[-265,-86,4],[-260,-14,10],[-253,41,16],[-248,77,18],[-236,145,22],[-215,201,20],[-165,233,20],[-89,239,20],[-34,213,10],[28,227,0],[96,213,0],[167,233,0],[217,215,0]],
   sections: [

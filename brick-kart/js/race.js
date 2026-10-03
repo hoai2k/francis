@@ -12,6 +12,7 @@ import { DRIVERS } from './driver.js';
 import { KARTS } from './vehicles.js';
 import { simpleDriver, simpleKart } from './simplified.js';
 import { ABILITY, ABILITIES } from './abilities.js';
+import { MAP_FROM } from './tracks.js';
 import { HUD, splitCells } from './hud.js';
 import { Hazards } from './hazards.js';
 
@@ -122,7 +123,7 @@ export class Race {
     // Use Characters: every kart also gets a movie-character driver (CPU drivers are unique)
     this.useChars = !!opts.useChars && DRIVERS.length > 0;
     // movie tracks favour their own movie's abilities
-    this.movieFrom = ['starwars', 'marvel', 'jjk', 'jurassic'].includes(opts.def?.id) ? opts.def.id : null;
+    this.movieFrom = MAP_FROM[opts.def?.id] || null;
     const shuffle = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
     let grid = opts.grid;   // array of { charIndex, driverIndex?, player }
     if (!grid) {
