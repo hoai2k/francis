@@ -37,7 +37,6 @@ export const CUPS = [
   { id: 'galaxy', name: 'Galaxy Cup', color: '#9a5aff', tracks: ['factory', 'lava', 'space'] },
   { id: 'movie', name: 'Movie Cup', color: '#ff4a3a', tracks: movie.map((t) => t.id) },
   { id: 'jjk', name: 'JJK Run', color: '#8a5cff', tracks: jjk.map((t) => t.id) },
-  { id: 'all', name: 'All-Star Cup', color: '#36aebf', tracks: TRACKS.map((t) => t.id) },
 ].filter((c) => c.tracks.length);
 
 export function trackById(id) { return TRACKS.find((t) => t.id === id) || TRACKS[0]; }

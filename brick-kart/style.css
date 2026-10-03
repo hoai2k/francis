@@ -77,8 +77,17 @@ h2, h3, .logo, .mbtn, .bbtn, .h-pos, .h-lap, .h-msg, .h-count, .h-title h2, .pre
 .cup.focus { transform: scale(1.04); box-shadow: 0 0 0 4px var(--yellow), 0 10px 30px rgba(0,0,0,.4); }
 .cup .trophy { font-size: 54px; filter: drop-shadow(0 4px 4px rgba(0,0,0,.4)); }
 .cup .cn { font-family: 'Lilita One'; font-size: 24px; color: var(--cc); text-shadow: 0 2px 0 var(--ink); }
-.cthumbs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin: 8px 0; }
-.cthumbs img { width: 100%; border-radius: 6px; }
+/* the focused cup's races */
+.cuppv { margin-top: 14px; border-radius: 14px; padding: 10px 12px 12px; background: rgba(0,0,0,.22); box-shadow: inset 0 0 0 2px rgba(255,255,255,.08); }
+.cuph { font-family: 'Lilita One'; font-size: 22px; color: var(--cc); text-shadow: 0 2px 0 var(--ink); margin-bottom: 8px; }
+.cuph span { color: #fff; opacity: .7; font-size: 16px; }
+.cuptracks { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
+.ctrack { position: relative; border-radius: 10px; overflow: hidden; background: rgba(255,255,255,.06); box-shadow: inset 0 0 0 2px rgba(255,255,255,.1); padding-bottom: 7px; }
+.ctrack img { width: 100%; display: block; aspect-ratio: 16/9; }
+.ctrack .cr { position: absolute; top: 6px; left: 6px; font-family: 'Lilita One'; font-size: 14px; background: rgba(0,0,0,.6); border-radius: 6px; padding: 1px 8px; }
+.ctrack .tn { font-family: 'Lilita One'; font-size: 17px; padding: 5px 9px 0; line-height: 1.1; }
+.ctrack .ts { font-size: 12px; font-weight: 800; opacity: .8; padding: 0 9px; }
+.cups .cup .trophy { font-size: 40px; }
 .cup .cl { font-size: 12px; font-weight: 800; opacity: .85; }
 .stats { display: grid; gap: 2px; }
 .st { display: grid; grid-template-columns: 44px 1fr; align-items: center; font-size: 10px; font-weight: 900; gap: 4px; }
@@ -257,20 +266,36 @@ canvas.pod3d { display: block; width: min(640px, 100%); height: min(300px, 38vh)
 @container (max-height: 260px) { .stats.big, .pvblurb { display: none; } }
 @container (max-height: 170px) { .pvkart, .pvfrom { display: none; } .pvname { font-size: 18px; } }
 .picks { overflow-y: auto; min-height: 0; padding: 4px 6px 6px 2px; }
-.dgrid, .kgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(86px, 1fr)); gap: 7px; }
+.dgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(86px, 1fr)); gap: 6px; }
 .uhead, .khead { grid-column: 1 / -1; font-family: 'Lilita One'; font-size: 18px; color: var(--uc, var(--yellow)); text-shadow: 0 2px 0 var(--ink); margin: 6px 0 -2px; border-bottom: 2px solid color-mix(in srgb, var(--uc, #fff) 40%, transparent); }
 .khead { margin-top: 12px; margin-bottom: 6px; }
-.dcard, .kcard { position: relative; border-radius: 10px; padding: 3px 3px 5px; cursor: pointer; text-align: center; background: linear-gradient(170deg, color-mix(in srgb, var(--dc, var(--kc)) 45%, #223 30%), rgba(10,14,24,.85)); box-shadow: inset 0 0 0 2px rgba(255,255,255,.12); transition: transform .1s; outline-offset: 1px; }
-.dcard:hover, .kcard:hover { transform: translateY(-2px) scale(1.03); }
-.dcard img, .kcard img { width: 100%; aspect-ratio: 1; object-fit: contain; display: block; min-height: 40px; }
-.kcard img { aspect-ratio: 4 / 3; }
-.dcard span, .kcard span { display: block; font-weight: 900; font-size: 11px; line-height: 1.1; text-shadow: 0 1px 2px #000; }
+.dcard { position: relative; border-radius: 10px; padding: 3px 3px 5px; cursor: pointer; text-align: center; background: linear-gradient(170deg, color-mix(in srgb, var(--dc) 45%, #223 30%), rgba(10,14,24,.85)); box-shadow: inset 0 0 0 2px rgba(255,255,255,.12); transition: transform .1s; outline-offset: 1px; }
+.dcard:hover { transform: translateY(-2px) scale(1.03); }
+.dcard img { width: 100%; aspect-ratio: 1; object-fit: contain; display: block; }
+.dcard span { display: block; font-weight: 900; font-size: 11px; line-height: 1.1; text-shadow: 0 1px 2px #000; }
 .dcard.taken { opacity: .45; }
-.dcard .tags, .kcard .tags { top: 3px; right: 3px; }
-.csel.step-driver .kgrid, .csel.step-kart .dgrid { display: none; }
-/* the kart step has the whole picker to itself: bigger cards */
-.csel.step-kart .kgrid { grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 10px; }
-.csel.step-kart .kcard span { font-size: 13px; padding-top: 2px; }
+.dcard .tags { top: 3px; right: 3px; }
+/* Simplified mode: a full-width panel and every driver card on screen at once (JS sizes them) */
+.select.simple .panel.xl { width: 100%; height: calc(100vh - 24px); max-height: none; }
+.select.simple .csel { grid-template-columns: clamp(240px, 27%, 400px) 1fr; }
+.select.simple .csel.multi { grid-template-columns: clamp(280px, 36%, 560px) 1fr; }
+.select.simple .picks { overflow: hidden; padding: 4px; }
+.select.simple .stage { min-height: 0; }
+.select.simple .csel { min-height: 0; }
+.select.simple .dgrid { justify-content: center; align-content: start; }
+.select.simple .dcard span { font-size: clamp(8px, calc(var(--cw, 86px) * 0.125), 11px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.select.simple .dgrid.tiny .dcard span { display: none; }
+.select.simple .dgrid.tiny .dcard { padding: 2px; border-radius: 7px; }
+.select.simple .dcard .ptag { font-size: clamp(9px, calc(var(--cw, 86px) * 0.15), 13px); padding: 0 4px; }
+/* choosing a kart in your own preview: arrows either side and a lock-in button */
+.pvcell .karr, .pvcell .kok { pointer-events: auto; position: absolute; border: 0; color: #fff; cursor: pointer; font-family: 'Lilita One'; box-shadow: inset 0 -4px 0 rgba(0,0,0,.3), 0 3px 8px rgba(0,0,0,.4); }
+.pvcell .karr { top: 45%; transform: translateY(-50%); width: 46px; height: 64px; border-radius: 12px; font-size: 26px; background: color-mix(in srgb, var(--pc) 75%, #000); animation: karr 1s ease-in-out infinite; }
+.pvcell .karr.l { left: 8px; } .pvcell .karr.r { right: 8px; animation-direction: reverse; }
+.pvcell .karr:active { transform: translateY(-50%) scale(.92); }
+@keyframes karr { 50% { filter: brightness(1.3); } }
+.pvcell .kok { top: 8px; right: 8px; border-radius: 9px; padding: 5px 10px 3px; font-size: 15px; background: var(--pc); }
+.pvstep em { font-style: normal; opacity: .8; margin-left: 4px; }
+@container (max-width: 300px) { .pvcell .karr { width: 34px; height: 48px; font-size: 18px; left: 4px; } .pvcell .karr.r { left: auto; right: 4px; } .pvcell .kok { top: auto; bottom: 6px; right: 6px; font-size: 12px; padding: 3px 7px 2px; } }
 
 #touch { position: fixed; inset: 0; z-index: 12; pointer-events: none; }
 #touch button { pointer-events: auto; border: 0; color: #fff; font-family: 'Lilita One'; touch-action: none; box-shadow: inset 0 -6px 0 rgba(0,0,0,.3), 0 4px 0 rgba(0,0,0,.35); opacity: .78; }
@@ -289,8 +314,17 @@ canvas.pod3d { display: block; width: min(640px, 100%); height: min(300px, 38vh)
   .stage { min-height: 0; height: 34vh; }
   .csel.multi { grid-template-columns: 1fr; } .csel.multi .stage { height: 40vh; }
   .pvname { font-size: 24px; } .stats.big { display: none; }
-  .dgrid, .kgrid, .csel.step-kart .kgrid { grid-template-columns: repeat(auto-fill, minmax(68px, 1fr)); gap: 5px; }
+  .dgrid { grid-template-columns: repeat(auto-fill, minmax(68px, 1fr)); gap: 5px; }
+  .select.simple .csel, .select.simple .csel.multi { grid-template-columns: 1fr; }
+  .select.simple .panel.xl { height: calc(100vh - 16px); padding: 10px 8px 8px; }
+  .select.simple .panel h2 { font-size: 18px; margin-bottom: 6px; }
+  .select.simple .stage, .select.simple .csel.multi .stage { height: 27vh; }
+  .select.simple .csel { gap: 8px; }
+  .select.simple .joinbar { gap: 5px; margin-bottom: 6px; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); }
+  .select.simple .slot { padding: 3px 7px; font-size: 11px; } .select.simple .slot b { font-size: 13px; } .select.simple .slot em { display: none; }
+  .select.simple .selfoot { margin-top: 6px; flex-wrap: nowrap; } .select.simple .hint2 { font-size: 11px; }
   .cupgrid { grid-template-columns: repeat(2, 1fr); }
+  .cuptracks { grid-template-columns: repeat(2, 1fr); gap: 6px; } .ctrack .tn { font-size: 14px; } .ctrack .ts { display: none; }
   .tgrid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
   .help .cols { grid-template-columns: 1fr; } .items { grid-template-columns: repeat(2, 1fr); }
   .panel { padding: 16px 12px 12px; }
@@ -300,6 +334,12 @@ canvas.pod3d { display: block; width: min(640px, 100%); height: min(300px, 38vh)
   .selfoot { flex-wrap: wrap; }
 }
 @media (max-height: 520px) {
+  .select.simple .panel.xl { height: calc(100vh - 12px); padding: 8px 10px; }
+  .select.simple .panel h2 { display: none; }
+  .select.simple .joinbar { gap: 5px; margin-bottom: 6px; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); }
+  .select.simple .slot { padding: 3px 7px; font-size: 11px; } .select.simple .slot b { font-size: 13px; } .select.simple .slot em { display: none; }
+  .select.simple .selfoot { margin-top: 6px; } .select.simple .hint2 { font-size: 11px; }
+  .select.simple .stats.big { display: none; }
   .logo.small { display: none; }
   .screen.title .logo { transform: scale(.7); }
   .panel { padding: 12px; } .panel h2 { margin-bottom: 8px; }

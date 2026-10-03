@@ -12,7 +12,7 @@ import { DRIVERS, UNIVERSES, combinedStats } from './driver.js';
 import { KARTS } from './vehicles.js';
 import { simpleDriver, simpleKart } from './simplified.js';
 import { ABILITY } from './abilities.js';
-import { Showcase, driverPortrait, kartPortrait } from './showcase.js';
+import { Showcase, driverPortrait } from './showcase.js';
 import { ICONS, ITEMS } from './items.js';
 import { fmt } from './hud.js';
 
@@ -351,43 +351,42 @@ class Game {
     });
   }
 
-  // ---- racer select with drop-in players: pick a driver, then a kart ---------------------------------
+  // ---- racer select with drop-in players -----------------------------------------------------------
+  // Each player picks a driver from the grid (A locks it in), then flips through karts with ◀ ▶ in
+  // their own preview (A locks that in too), so nobody waits on anyone else.
   showSelect(mode) {
     this.mode = mode;
     const max = mode === 'tt' ? 1 : MAX_PLAYERS;
-    // phase: 'driver' (choosing) -> 'waiting' (driver locked) -> 'kart' (everyone locked: choosing a kart) -> 'done'
+    // phase: 'driver' (choosing) -> 'kart' (driver locked, choosing a kart) -> 'done'
     const players = [];
-    let step = 'driver';
     const uni = (id) => UNIVERSES.find((u) => u.id === id) || { name: id, color: '#fff' };
-    // Simplified mode offers a smaller roster (DRIVERS / KARTS indices, in order)
-    const simple = this.settings.simple;
+    // Simplified mode offers a smaller roster (DRIVERS / KARTS indices, in order) in one grid
+    const simple = !!this.settings.simple;
     let allowedD = DRIVERS.map((_, i) => i).filter((i) => !simple || simpleDriver(DRIVERS[i].id));
     let allowedK = KARTS.map((_, i) => i).filter((i) => !simple || simpleKart(KARTS[i].id));
     if (!allowedD.length) allowedD = DRIVERS.map((_, i) => i);
     if (!allowedK.length) allowedK = KARTS.map((_, i) => i);
     let dgroups = '';
+    const groupSizes = [];
     for (const u of UNIVERSES) {
       const list = allowedD.map((i) => [DRIVERS[i], i]).filter(([d]) => d.from === u.id);
       if (!list.length) continue;
-      // Simplified mode: one big grid, no movie headings
+      groupSizes.push(list.length);
       dgroups += (simple ? '' : `<div class="uhead" style="--uc:${u.color}">${esc(u.name)}</div>`) + list.map(([d, i]) => `
         <div class="dcard" data-i="${i}" style="--dc:${hex(d.color ?? 0xffffff)}"><img alt="" data-d="${i}"><span>${esc(d.name)}</span><div class="tags"></div></div>`).join('');
     }
-    // every kart in one grid, in KARTS order
-    const kgroups = allowedK.map((i) => [KARTS[i], i]).map(([k, i]) => `
-        <div class="kcard" data-i="${1000 + i}" style="--kc:${hex(k.kart)}"><img alt="" data-k="${i}"><span>${esc(k.vehicle)}</span><div class="tags"></div></div>`).join('');
     const titles = { gp: 'Grand Prix', race: 'Quick Race', tt: 'Time Trial' };
-    this.setScreen(`<div class="screen select chars"><div class="panel wide xl"><h2>${titles[mode]} · <span class="steptitle">Choose your driver</span></h2>
+    this.setScreen(`<div class="screen select chars${simple ? ' simple' : ''}"><div class="panel wide xl"><h2>${titles[mode]} · Choose your racer</h2>
       <div class="joinbar"></div>
-      <div class="csel step-driver">
+      <div class="csel">
         <div class="stage"><canvas class="pv"></canvas><div class="pvcells"></div></div>
-        <div class="picks"><div class="dgrid">${dgroups}</div><div class="kgrid">${kgroups}</div></div>
+        <div class="picks"><div class="dgrid">${dgroups}</div></div>
       </div>
       <div class="selfoot"><button class="bbtn" data-act="back">◀ Back</button><div class="hint2"></div><button class="bbtn go" data-act="go">Race! ▶</button></div></div></div>`);
     const ui = this.ui;
-    const dcards = [...ui.querySelectorAll('.dcard')], kcards = [...ui.querySelectorAll('.kcard')];
-    const dEl = new Map(dcards.map((c) => [+c.dataset.i, c])), kEl = new Map(kcards.map((c) => [+c.dataset.i - 1000, c]));
-    const picksEl = ui.querySelector('.picks');
+    const dcards = [...ui.querySelectorAll('.dcard')];
+    const dEl = new Map(dcards.map((c) => [+c.dataset.i, c]));
+    const picksEl = ui.querySelector('.picks'), gridEl = ui.querySelector('.dgrid');
     // one preview per player, each drawn into its own cell of the stage
     const stageEl = ui.querySelector('.stage'), cellsEl = ui.querySelector('.pvcells'), canvas = ui.querySelector('canvas.pv');
     const cellRects = () => {
@@ -397,36 +396,50 @@ class Game {
     const show = new Showcase(canvas, { cam: [5.6, 3.6, 8.4], look: [0, 1.25, 0], spin: 0.4, cells: cellRects });
     this.cleanup = () => show.dispose();
     const slotKeys = [], slotHtml = [];   // what each preview cell currently shows
-    let gridKey = '';
+    let gridKey = '', picksKey = '';
     const deviceLabel = (d) => d === 'kb' ? (this.input.split ? 'Keys WASD' : 'Keyboard') : d === 'kb2' ? 'Keys Arrows' : d === 'touch' ? 'Touch' : this.input.padName(d);
     const taken = (me) => new Set(players.filter((p) => p !== me && p.phase !== 'driver').map((p) => p.dcur));
-    // portraits fill in a few per frame (karts once the kart step is reached)
-    const pendingD = [...ui.querySelectorAll('img[data-d]')], pendingK = [...ui.querySelectorAll('img[data-k]')];
-    const fillImgs = (n) => {
-      const q = step === 'kart' ? (pendingK.length ? pendingK : pendingD) : (pendingD.length ? pendingD : pendingK);
-      while (n-- > 0 && q.length) {
-        const img = q.shift();
-        img.src = img.dataset.d !== undefined ? driverPortrait(DRIVERS[+img.dataset.d]) : kartPortrait(KARTS[+img.dataset.k]);
-      }
-    };
+    // portraits fill in a few per frame
+    const pendingD = [...ui.querySelectorAll('img[data-d]')];
+    const fillImgs = (n) => { while (n-- > 0 && pendingD.length) { const img = pendingD.shift(); img.src = driverPortrait(DRIVERS[+img.dataset.d]); } };
     const statBars = (st) => ['speed', 'accel', 'handling', 'weight'].map((k) => `<div class="st"><span>${k.slice(0, 5).toUpperCase()}</span><i style="width:${st[k] * 20}%"></i></div>`).join('');
-    // the whole screen moves to the kart step once every player has locked a driver
-    const sync = () => {
-      const all = players.length && players.every((p) => p.phase !== 'driver');
-      const next = all ? 'kart' : 'driver';
-      for (const p of players) {
-        if (next === 'kart' && p.phase === 'waiting') p.phase = 'kart';
-        if (next === 'driver' && (p.phase === 'kart' || p.phase === 'done')) p.phase = 'waiting';
+    // size the driver grid. Simplified mode: every card on screen at once, as big as they fit (the
+    // panel is full width). Full roster: as many columns as fit, but avoiding movie groups that
+    // end in a row with a single card.
+    const layoutPicks = () => {
+      const W = picksEl.clientWidth, H = picksEl.clientHeight;
+      const key = W + 'x' + H;
+      if (!W || !H || key === picksKey) return;
+      picksKey = key;
+      const gap = 6;
+      if (simple) {
+        const n = dcards.length;
+        let w = 120;
+        const fits = (w) => { const cols = Math.max(1, Math.floor((W - 8 + gap) / (w + gap))), rows = Math.ceil(n / cols); return rows * (w + Math.max(14, w * 0.17) + 8) + (rows - 1) * gap <= H - 10; };
+        while (w > 30 && !fits(w)) w--;
+        const apply = () => {
+          const cols = Math.max(1, Math.floor((W - 8 + gap) / (w + gap)));
+          gridEl.style.gridTemplateColumns = `repeat(${cols}, ${w}px)`;
+          gridEl.style.setProperty('--cw', w + 'px');
+          gridEl.classList.toggle('tiny', w < 52);   // too small for names: pictures only (the preview names them)
+        };
+        apply();
+        // the estimate is rough: grow while everything still fits, then shrink until nothing scrolls
+        const over = () => picksEl.scrollHeight > picksEl.clientHeight + 1;
+        for (let n2 = 0; n2 < 60 && w < 140 && !over(); n2++) { w += 2; apply(); }
+        for (let n2 = 0; n2 < 60 && over() && w > 30; n2++) { w -= 1; apply(); }
+        return;
       }
-      if (next !== step) {
-        step = next;
-        ui.querySelector('.csel').className = 'csel step-' + step;
-        ui.querySelector('.steptitle').textContent = step === 'kart' ? 'Choose your kart' : 'Choose your driver';
-        picksEl.scrollTop = 0;
-        followEl = null;
+      const minW = matchMedia('(max-width: 820px)').matches ? 64 : 86;
+      const maxCols = Math.max(3, Math.floor((W - 8 + gap) / (minW + gap)));
+      let cols = maxCols, best = Infinity;
+      for (let c = maxCols; c >= Math.max(3, Math.ceil(maxCols * 0.6)); c--) {
+        const singles = groupSizes.filter((g) => g > 1 && g % c === 1).length;
+        if (singles < best) { best = singles; cols = c; }
       }
+      gridEl.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
     };
-    // lay the cells out in the grid that keeps them closest to square
+    // lay the preview cells out in the grid that keeps them closest to square
     const layoutCells = () => {
       const n = Math.max(1, cellsEl.children.length), W = stageEl.clientWidth || 1, H = stageEl.clientHeight || 1;
       let cols = 1, best = -Infinity;
@@ -441,14 +454,16 @@ class Game {
       cellsEl.style.gridTemplateRows = `repeat(${Math.ceil(n / cols)}, 1fr)`;
     };
     const cellHtml = (p, d, ch, following) => {
-      const kartStep = p && (p.phase === 'kart' || p.phase === 'done');
+      const kartStep = p && p.phase !== 'driver';
       const who = p ? `<i style="background:${p.color}">P${p.id + 1}</i> ` : '';
+      const kn = allowedK.indexOf(p?.kcur) + 1;
       const tag = !p ? 'Press <b>A</b> / <b>Enter</b> or tap a driver'
         : p.phase === 'driver' ? `${who}pick a <b>driver</b>`
-        : p.phase === 'waiting' ? `${who}is in! Waiting for the others…`
-        : p.phase === 'kart' ? `${who}pick a <b>kart</b>` : `${who}is ready!`;
+        : p.phase === 'kart' ? `${who}pick a <b>kart</b> <em>${kn} / ${allowedK.length}</em>` : `${who}is ready!`;
       const u = uni(d.from);
-      return `<div class="pvstep">${tag}</div>
+      // choosing a kart: arrows either side of it (◀ ▶ on the pad too) and a lock-in button for touch
+      const arrows = p?.phase === 'kart' ? `<button class="karr l" data-act="kprev:${p.id}" aria-label="Previous kart">◀</button><button class="karr r" data-act="knext:${p.id}" aria-label="Next kart">▶</button><button class="kok" data-act="kok:${p.id}">Lock in ✓</button>` : '';
+      return `<div class="pvstep">${tag}</div>${arrows}
         <div class="pvinfo"><div class="pvfrom" style="color:${u.color}">${esc(u.name)}</div>
         <div class="pvname">${esc(kartStep ? ch.vehicle : d.name)}</div>
         <div class="pvblurb">${esc(kartStep ? `${ch.form || bodyName(ch)}${ch.blurb ? ' · ' + ch.blurb : ''}` : `${d.blurb}${d.blurb ? ' · ' : ''}${d.weight[0].toUpperCase() + d.weight.slice(1)}`)}</div>
@@ -482,33 +497,27 @@ class Game {
         if (html !== slotHtml[i]) { cell.innerHTML = html; slotHtml[i] = html; }
       });
     };
-    // the picker scrolls with the first player (in join order) still choosing; once they lock in,
-    // it moves on to the next one. Everyone else still sees their own preview update.
+    // the picker scrolls with the first player (in join order) still choosing a driver; once they
+    // lock in, it moves on to the next one. Everyone else still sees their own preview update.
     let followEl = null;
-    const followed = () => players.find((p) => p.phase === (step === 'kart' ? 'kart' : 'driver')) || null;
+    const followed = () => players.find((p) => p.phase === 'driver') || null;
     const follow = () => {
       const f = followed();
-      const el = f ? (step === 'kart' ? kEl.get(f.kcur) : dEl.get(f.dcur)) : null;
+      const el = f ? dEl.get(f.dcur) : null;
       if (el && el !== followEl) scrollTo(el);
       followEl = el;
     };
     const refresh = (cheerP = null) => {
-      sync();
       for (const c of dcards) {
         const i = +c.dataset.i, here = players.filter((p) => p.dcur === i);
         c.querySelector('.tags').innerHTML = here.map((p) => `<span class="ptag${p.phase !== 'driver' ? ' lock' : ''}" style="background:${p.color}">P${p.id + 1}${p.phase !== 'driver' ? ' ✓' : ''}</span>`).join('');
         c.style.outline = here.length ? `4px solid ${here[here.length - 1].color}` : '';
         c.classList.toggle('taken', players.length > 1 && players.some((p) => p.phase !== 'driver' && p.dcur === i) && !here.some((p) => p.phase === 'driver'));
       }
-      for (const c of kcards) {
-        const i = +c.dataset.i - 1000, here = step === 'kart' ? players.filter((p) => p.kcur === i) : [];
-        c.querySelector('.tags').innerHTML = here.map((p) => `<span class="ptag${p.phase === 'done' ? ' lock' : ''}" style="background:${p.color}">P${p.id + 1}${p.phase === 'done' ? ' ✓' : ''}</span>`).join('');
-        c.style.outline = here.length ? `4px solid ${here[here.length - 1].color}` : '';
-      }
       let html = '';
       for (let s2 = 0; s2 < Math.min(max, players.length + 1); s2++) {
         const p = players[s2];
-        const st = !p ? '' : p.phase === 'driver' ? 'choosing a driver…' : p.phase === 'waiting' ? esc(DRIVERS[p.dcur].name) + ' ✓'
+        const st = !p ? '' : p.phase === 'driver' ? 'choosing a driver…'
           : p.phase === 'kart' ? esc(DRIVERS[p.dcur].name) + ' · choosing a kart…' : esc(DRIVERS[p.dcur].name) + ' · ' + esc(KARTS[p.kcur].vehicle) + ' ✓';
         html += p ? `<div class="slot on" style="--pc:${p.color}"><b>P${p.id + 1}</b> ${esc(deviceLabel(p.device))}<em>${st}</em></div>`
           : `<div class="slot"><b>P${s2 + 1}</b> ${s2 === 0 ? 'Press A / Enter / tap a driver' : 'Press A to join'}</div>`;
@@ -517,7 +526,7 @@ class Game {
       const ready = players.length && players.every((p) => p.phase === 'done');
       ui.querySelector('.go').classList.toggle('ready', !!ready);
       ui.querySelector('.hint2').innerHTML = ready ? 'All set! Press <b>A</b> / <b>Start</b> / <b>Enter</b> to race'
-        : step === 'kart' ? 'Everyone picks a kart · <b>B</b> goes back to drivers'
+        : players.some((p) => p.phase === 'kart') ? '<b>◀ ▶</b> change kart · <b>A</b> lock it in · <b>B</b> back to drivers'
         : (mode !== 'tt' ? 'More players: press <b>A</b> on another controller · 2nd keyboard: <b>Right Shift</b>' : 'Time Trial is solo: beat your best time');
       refreshStage(cheerP);
       follow();
@@ -583,17 +592,24 @@ class Game {
       if (best < 0 && dx) best = (cur + dx + cards.length) % cards.length;   // wrap rows
       return best < 0 ? cur : best;
     };
+    const moveIn = (cards, cur, dx, dy, idOf) => idOf(cards[nav(cards, Math.max(0, cards.findIndex((c) => idOf(c) === cur)), dx, dy)]);
     const lockDriver = (p) => {
       if (taken(p).has(p.dcur)) { this.audio.sfx('wrong'); return; }
-      p.phase = 'waiting';
+      p.phase = 'kart';
       this.audio.sfx('select');
       refresh(p);
     };
+    const stepKart = (p, dir) => {
+      const n = allowedK.length, k = allowedK.indexOf(p.kcur);
+      p.kcur = allowedK[((k < 0 ? 0 : k) + dir + n) % n];
+      this.audio.sfx('click');
+      refresh();
+    };
     const lockKart = (p) => { p.phase = 'done'; this.audio.sfx('select'); refresh(); show.play(players.indexOf(p), 'win'); this.audio.voice(DRIVERS[p.dcur].voice, 'win', 0.9); };
-    const moveIn = (cards, cur, dx, dy, idOf) => idOf(cards[nav(cards, Math.max(0, cards.findIndex((c) => idOf(c) === cur)), dx, dy)]);
     this.screen = {
       update: (dt) => {
         fillImgs(3);
+        layoutPicks();
         layoutCells();
         show.update(dt);
         if (mode !== 'tt' && players.some((p) => p.device === 'kb') && !players.some((p) => p.device === 'kb2') && this.input.edge && KB2_JOIN.some((k) => this.input.edge.has(k))) {
@@ -618,10 +634,8 @@ class Game {
             if (dx || dy) { p.dcur = moveIn(dcards, p.dcur, dx, dy, (c) => +c.dataset.i); this.audio.sfx('click'); refresh(); }
             if (m.ok) { lockDriver(p); continue; }
             if (m.back) { if (p === players[0]) { back(); return; } leave(p); continue; }
-          } else if (p.phase === 'waiting') {
-            if (m.back) { p.phase = 'driver'; this.audio.sfx('back'); refresh(); continue; }
           } else if (p.phase === 'kart') {
-            if (dx || dy) { p.kcur = moveIn(kcards, p.kcur, dx, dy, (c) => +c.dataset.i - 1000); this.audio.sfx('click'); refresh(); }
+            if (dx) stepKart(p, dx);
             if (m.ok) { lockKart(p); continue; }
             if (m.back) { p.phase = 'driver'; this.audio.sfx('back'); refresh(); continue; }
           } else {
@@ -631,21 +645,23 @@ class Game {
           if (m.start) go();
         }
       },
+      // mouse / touch: tapping a driver locks it in (or swaps it for one already choosing a kart)
       click: (i) => {
         let p = players.find((q) => q.device === 'touch' || q.device === 'kb') || players[0];
         if (!p) p = join(isTouchDevice() ? 'touch' : 'kb');
-        if (!p) return;
-        if (i >= 1000) {
-          if (step !== 'kart' || p.phase === 'waiting') return;
-          p.kcur = i - 1000;
-          lockKart(p);
-          return;
-        }
-        if (step !== 'driver' || taken(p).has(i)) return;
-        p.dcur = i;
+        if (!p || taken(p).has(i)) return;
+        p.dcur = i; p.phase = 'driver';
         lockDriver(p);
       },
-      act: (a) => { if (a === 'back') { if (step === 'kart') { for (const p of players) p.phase = 'driver'; refresh(); } else back(); } if (a === 'go') go(); },
+      act: (a) => {
+        if (a === 'back') back();
+        if (a === 'go') go();
+        const [cmd, id] = a.split(':'), p = players.find((q) => q.id === +id);
+        if (!p || p.phase !== 'kart') return;
+        if (cmd === 'kprev') stepKart(p, -1);
+        if (cmd === 'knext') stepKart(p, 1);
+        if (cmd === 'kok') lockKart(p);
+      },
     };
     join(this.p1Device());
     refresh();
@@ -697,15 +713,22 @@ class Game {
 
   // ---- racing ------------------------------------------------------------------------------------------
   showCups() {
-    let focus = 0;
-    const cards = CUPS.map((c, i) => {
-      const imgs = c.tracks.slice(0, 3).map((id) => `<img src="${this.thumbs[TRACKS.findIndex((t) => t.id === id)]}" alt="">`).join('');
-      return `<div class="cup" data-i="${i}" style="--cc:${c.color}"><div class="trophy">🏆</div><div class="cn">${esc(c.name)}</div><div class="cthumbs">${imgs}</div><div class="cl">${c.tracks.map((id) => esc(TRACKS.find((t) => t.id === id).name)).join(' · ')}</div></div>`;
-    }).join('');
-    this.setScreen(`<div class="screen tracks"><div class="panel wide"><h2>Grand Prix · Choose a cup</h2><div class="cupgrid">${cards}</div>
+    let focus = Math.min(this.lastCup ?? 0, CUPS.length - 1), shown = -1;
+    const trackOf = (id) => TRACKS.findIndex((t) => t.id === id);
+    const cards = CUPS.map((c, i) => `<div class="cup" data-i="${i}" style="--cc:${c.color}"><div class="trophy">🏆</div><div class="cn">${esc(c.name)}</div><div class="cl">${c.tracks.length} races</div></div>`).join('');
+    this.setScreen(`<div class="screen tracks cups"><div class="panel wide"><h2>Grand Prix · Choose a cup</h2><div class="cupgrid">${cards}</div>
+      <div class="cuppv"></div>
       <div class="selfoot"><button class="bbtn" data-act="back">◀ Back</button><div class="hint2">${this.settings.cc}cc · ${this.settings.racers} racers · ${this.settings.laps} laps · CPU ${this.settings.difficulty}</div><span></span></div></div></div>`);
-    const refresh = () => this.ui.querySelectorAll('.cup').forEach((c, i) => c.classList.toggle('focus', i === focus));
-    const pick = (i) => { this.audio.sfx('select'); this.startGP(CUPS[i]); };
+    // the focused cup's races, in order, with a picture of each map
+    const preview = () => {
+      if (shown === focus) return;
+      shown = focus;
+      const c = CUPS[focus];
+      this.ui.querySelector('.cuppv').innerHTML = `<div class="cuph" style="--cc:${c.color}">${esc(c.name)} <span>· ${c.tracks.length} races</span></div>
+        <div class="cuptracks">${c.tracks.map((id, n) => { const i = trackOf(id), t = TRACKS[i]; return `<div class="ctrack"><img src="${this.thumbs[i]}" alt=""><div class="cr">Race ${n + 1}</div><div class="tn">${esc(t.name)}</div><div class="ts">${esc(t.subtitle)}</div></div>`; }).join('')}</div>`;
+    };
+    const refresh = () => { this.ui.querySelectorAll('.cup').forEach((c, i) => c.classList.toggle('focus', i === focus)); preview(); };
+    const pick = (i) => { this.lastCup = i; this.audio.sfx('select'); this.startGP(CUPS[i]); };
     this.screen = {
       update: () => {
         for (const [, m] of this.menuEvents) {
