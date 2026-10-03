@@ -34,7 +34,7 @@ const hex = (c) => '#' + c.toString(16).padStart(6, '0');
 
 class Game {
   constructor() {
-    this.settings = load(SKEY, { cc: 100, difficulty: 'normal', laps: 3, racers: 12, music: 0.5, sfx: 0.8, autoGas: false, simple: false, touchSteer: 'both', quality: MOBILE ? 'low' : 'high' });
+    this.settings = load(SKEY, { cc: 100, difficulty: 'normal', laps: 3, racers: 12, music: 0.5, sfx: 0.8, autoGas: false, simple: false, touchSteer: 'both', tiltStyle: 'wheel', tiltSens: 'med', tiltInvert: false, quality: MOBILE ? 'low' : 'high' });
     // at most 12 karts per race (players included)
     if (!(this.settings.racers <= 12)) { this.settings.racers = 12; save(SKEY, this.settings); }
     // characters are always on now: drop the old toggle
@@ -59,7 +59,7 @@ class Game {
     this.ui = document.getElementById('ui');
     this.hudRoot = document.getElementById('hud');
     this.flashEl = document.getElementById('flash');
-    this.input.steerMode = this.settings.touchSteer || 'both';
+    this.applyTilt();
     this.touchRoot = document.getElementById('touch');
     this.input.buildTouch(this.touchRoot);
     this.menuEvents = [];
@@ -309,10 +309,19 @@ class Game {
     });
   }
 
+  // touch steering settings -> the input layer (full lock angle per style and sensitivity)
+  applyTilt() {
+    const s = this.settings, FULL = { wheel: { low: 32, med: 24, high: 16 }, turn: { low: 45, med: 30, high: 20 } };
+    this.input.steerMode = s.touchSteer || 'both';
+    this.input.tiltCfg = { style: s.tiltStyle === 'turn' ? 'turn' : 'wheel', full: (FULL[s.tiltStyle] || FULL.wheel)[s.tiltSens] || 24, invert: !!s.tiltInvert };
+    if (this.input.steerMode !== 'drag' && this.input.tiltOn) this.input.calibrateTilt();
+  }
+
   showOptions(back) {
     const s = this.settings;
     const cyc = (key, list, dir) => { const i = list.indexOf(s[key]); s[key] = list[(i + dir + list.length) % list.length]; save(SKEY, s); };
     const vol = (key, dir) => { s[key] = Math.round(Math.max(0, Math.min(1, s[key] + dir * 0.1)) * 10) / 10; save(SKEY, s); this.audio.setVolumes(s.music, s.sfx); };
+    const tilt = (key, list, dir) => { cyc(key, list, dir); this.applyTilt(); if (s.touchSteer !== 'drag') this.input.enableTilt(); };
     const ccs = [50, 100, 150, 200], diffs = ['easy', 'normal', 'hard'], laps = [1, 2, 3, 4, 5], racers = [4, 6, 8, 10, 12];
     this.menu({
       title: 'Options',
@@ -322,9 +331,13 @@ class Game {
         { label: 'Racers per race', value: () => String(s.racers), left: () => cyc('racers', racers, -1), right: () => cyc('racers', racers, 1) },
         { label: 'Laps', value: () => String(s.laps), left: () => cyc('laps', laps, -1), right: () => cyc('laps', laps, 1) },
         { label: 'Simplified mode', value: () => (s.simple ? 'On' : 'Off'), left: () => { s.simple = !s.simple; save(SKEY, s); }, right: () => { s.simple = !s.simple; save(SKEY, s); } },
-        ...(isTouchDevice() ? [{ label: 'Touch steering', value: () => ({ both: 'Tilt + drag', drag: 'Drag', tilt: 'Tilt' }[s.touchSteer] || 'Tilt + drag'),
-          left: () => { cyc('touchSteer', ['both', 'drag', 'tilt'], -1); this.input.steerMode = s.touchSteer; if (s.touchSteer !== 'drag') this.input.enableTilt(); },
-          right: () => { cyc('touchSteer', ['both', 'drag', 'tilt'], 1); this.input.steerMode = s.touchSteer; if (s.touchSteer !== 'drag') this.input.enableTilt(); } }] : []),
+        // phones: how steering works (dragging always works unless it's tilt only)
+        ...(isTouchDevice() ? [
+          { label: 'Touch steering', value: () => ({ both: 'Tilt + drag', drag: 'Drag only', tilt: 'Tilt only' }[s.touchSteer] || 'Tilt + drag'), left: () => tilt('touchSteer', ['both', 'drag', 'tilt'], -1), right: () => tilt('touchSteer', ['both', 'drag', 'tilt'], 1) },
+          { label: 'Tilt style', value: () => (s.tiltStyle === 'turn' ? 'Turn (gyro)' : 'Wheel'), left: () => tilt('tiltStyle', ['wheel', 'turn'], -1), right: () => tilt('tiltStyle', ['wheel', 'turn'], 1) },
+          { label: 'Tilt sensitivity', value: () => ({ low: 'Low', med: 'Medium', high: 'High' }[s.tiltSens] || 'Medium'), left: () => tilt('tiltSens', ['low', 'med', 'high'], -1), right: () => tilt('tiltSens', ['low', 'med', 'high'], 1) },
+          { label: 'Invert tilt', value: () => (s.tiltInvert ? 'On' : 'Off'), left: () => { s.tiltInvert = !s.tiltInvert; save(SKEY, s); this.applyTilt(); }, right: () => { s.tiltInvert = !s.tiltInvert; save(SKEY, s); this.applyTilt(); } },
+        ] : []),
         { label: 'Auto-accelerate', value: () => (s.autoGas ? 'On' : 'Off'), left: () => { s.autoGas = !s.autoGas; save(SKEY, s); }, right: () => { s.autoGas = !s.autoGas; save(SKEY, s); } },
         { label: 'Music', value: () => Math.round(s.music * 10) + '/10', left: () => vol('music', -1), right: () => vol('music', 1) },
         { label: 'Sound FX', value: () => Math.round(s.sfx * 10) + '/10', left: () => vol('sfx', -1), right: () => vol('sfx', 1) },

@@ -209,21 +209,36 @@ export class Input {
     addEventListener('click', ask); addEventListener('touchend', ask);
   }
 
-  // Tilt steering from the gravity vector. The steer angle is how far the phone has turned (around
-  // the axis through the screen) away from how it was held at calibration, so it works in portrait
-  // or landscape and whichever sign convention the browser uses for gravity.
+  // Tilt steering. Two styles, like mobile racers offer:
+  //  'wheel': rotate the phone like a steering wheel (Asphalt, F1 Mobile, Mario Kart Tour's gyro
+  //           handling). Read from gravity along the screen's left-right axis, so it works with
+  //           the phone held upright or flat.
+  //  'turn':  turn the phone left/right as if pointing it. Read from the gyroscope (rotation
+  //           around the vertical), integrated into an angle that slowly re-centres.
+  // Either way the grip at calibration (each race's GO) is straight ahead. tiltCfg.full is the
+  // angle for full lock; tiltCfg.invert flips it for phones that report the other way round.
   enableTilt() {
     if (this.tiltOn) return;
     const start = () => {
       if (this.tiltOn) return;
       this.tiltOn = true;
-      const g = this.grav = { x: 0, y: 0, n: 0 };
+      const g = this.grav = { x: 0, y: 0, z: 0, n: 0 };
+      this.yaw = 0; this._lastMotion = 0;
       addEventListener('devicemotion', (e) => {
         const a = e.accelerationIncludingGravity;
         if (!a || a.x == null) return;
         const k = g.n ? 0.3 : 1;
-        g.x += (a.x - g.x) * k; g.y += (a.y - g.y) * k; g.n++;
-        if (!this.tiltRef) this.calibrateTilt();
+        g.x += (a.x - g.x) * k; g.y += (a.y - g.y) * k; g.z += ((a.z ?? 0) - g.z) * k; g.n++;
+        const now = performance.now(), dt = this._lastMotion ? Math.min(0.1, (now - this._lastMotion) / 1000) : 0;
+        this._lastMotion = now;
+        // gyroscope: rotation rate (deg/s) around the vertical, in the "up" sign convention
+        const r = e.rotationRate;
+        if (r && r.alpha != null && this.tiltSign) {
+          const L = Math.hypot(g.x, g.y, g.z) || 1, sg = this.tiltSign;
+          const rate = ((r.beta || 0) * g.x + (r.gamma || 0) * g.y + (r.alpha || 0) * g.z) * sg / L;
+          this.yaw = (this.yaw + rate * dt) * Math.exp(-0.15 * dt);   // slow re-centre against drift
+        }
+        if (!this.tiltSign) this.calibrateTilt();
         this.updateTilt();
       });
       addEventListener('orientationchange', () => setTimeout(() => this.calibrateTilt(), 400));
@@ -235,23 +250,39 @@ export class Input {
       DM.requestPermission().then((r) => { if (r === 'granted') start(); }).catch(() => { this.tiltPerm = false; });
     } else if (DM) start();
   }
+  // gravity's component along the screen's left-right axis (device axes: x right, y up in portrait)
+  screenX(g) {
+    const ang = ((screen.orientation?.angle ?? window.orientation ?? 0) + 360) % 360;
+    return ang === 90 ? -g.y : ang === 270 ? g.y : ang === 180 ? -g.x : g.x;
+  }
+  screenY(g) {
+    const ang = ((screen.orientation?.angle ?? window.orientation ?? 0) + 360) % 360;
+    return ang === 90 ? g.x : ang === 270 ? -g.x : ang === 180 ? -g.y : g.y;
+  }
+  // wheel angle in degrees (+ = turned right) for the current gravity reading
+  wheelAngle() {
+    const g = this.grav, L = Math.hypot(g.x, g.y, g.z) || 1;
+    return -Math.asin(Math.max(-1, Math.min(1, this.screenX(g) * this.tiltSign / L))) * 180 / Math.PI;
+  }
   // the current grip becomes "straight ahead" (called at the start of each race too)
   calibrateTilt() {
     const g = this.grav;
-    if (!g || !g.n || Math.hypot(g.x, g.y) < 2) { this.tiltRef = null; return; }
-    const L = Math.hypot(g.x, g.y);
-    this.tiltRef = { x: g.x / L, y: g.y / L };
+    if (!g || !g.n) return;
+    // browsers disagree on gravity's sign (iOS reports it the other way to Android). In any
+    // normal grip the screen faces up / towards you: use that to put readings in one convention
+    // (the "up" vector, Android's)
+    const zs = Math.abs(g.z) > 3 ? Math.sign(g.z) : Math.sign(this.screenY(g)) || 1;
+    this.tiltSign = zs;
+    this.wheel0 = this.wheelAngle();
+    this.yaw = 0;
   }
   updateTilt() {
-    const g = this.grav, r = this.tiltRef, t = this.touch;
-    const L = Math.hypot(g.x, g.y);
-    if (!r || L < 2) { t.tilt = 0; return; }   // lying flat: no steering
-    // signed angle from the reference to the current gravity direction (device x right, y up):
-    // turning the phone clockwise, like a wheel to the right, gives a positive angle
-    const x = g.x / L, y = g.y / L;
-    const ang = Math.atan2(r.x * y - r.y * x, r.x * x + r.y * y);
-    const deg = ang * 180 / Math.PI, dead = 3, full = 24;
-    const v = Math.abs(deg) < dead ? 0 : Math.sign(deg) * Math.min(1, (Math.abs(deg) - dead) / (full - dead));
+    const t = this.touch, c = this.tiltCfg || {};
+    if (!this.tiltSign) { t.tilt = 0; return; }
+    const deg = c.style === 'turn' ? -this.yaw : this.wheelAngle() - this.wheel0;
+    const full = c.full || 24, dead = Math.min(4, full * 0.15);
+    let v = Math.abs(deg) < dead ? 0 : Math.sign(deg) * Math.min(1, (Math.abs(deg) - dead) / (full - dead));
+    if (c.invert) v = -v;
     t.tilt = v;
   }
 }

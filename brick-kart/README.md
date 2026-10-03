@@ -235,11 +235,17 @@ you drop some.
 - **Gliding**: steer while you fly. You land wherever the road is below you. Ground obstacles like hay bales and cupcakes only stop you if you fly low enough to hit them.
 - **Falling off**: the crane puts you back on a safe stretch of road. If you fall again right away, it puts you further ahead next time.
 - Sound mutes when you switch to another tab or window.
-- **Touch steering**: tilt the phone like a steering wheel (however you hold it
-  when the race says GO is straight ahead), or drag a finger left / right anywhere
-  on the screen, which takes over from tilt while your finger is down. Options →
-  Touch steering picks Tilt + drag, Drag or Tilt. iPhones ask for motion access
-  on the first tap.
+- **Touch steering**: drag a finger left / right anywhere on the screen (it steers
+  from where you touched down), and/or tilt the phone. Options on touch devices:
+  - **Touch steering**: Tilt + drag (dragging takes over while a finger is down),
+    Drag only (motion sensors off) or Tilt only.
+  - **Tilt style**: **Wheel** rotates the phone like a steering wheel, the way most
+    mobile racers do it (Asphalt, F1 Mobile, Mario Kart Tour's gyro handling); it
+    works with the phone upright or flat. **Turn (gyro)** turns the phone left /
+    right as if pointing it, read from the gyroscope and slowly re-centring.
+  - **Tilt sensitivity** (how far you tilt for full lock) and **Invert tilt**.
+  However you hold the phone when the race says GO is straight ahead. iPhones ask
+  for motion access on the first tap.
 - Tapping outside a popup menu (Options, How to Play, Pause) closes it.
 
 ## Multiplayer (1–8 players, split-screen)
