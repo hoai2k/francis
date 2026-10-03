@@ -129,7 +129,7 @@ export class Audio {
     }
   }
 
-  // ---- character voices (Use Characters) ------------------------------------------------------
+  // ---- character voices ---------------------------------------------------------------------
   // Tiny formant "voice" lines: a buzzy source through two vowel filters, shaped into
   // syllables. kind: human | deep | squeak | robot | droid | beast; pitch ~1 = 200 Hz.
   voice(v = {}, mood = 'cheer', vol = 1) {

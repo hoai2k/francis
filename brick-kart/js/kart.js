@@ -30,7 +30,7 @@ export class Kart {
     this.race = race;
     this.track = race.track;
     this.ch = ch;
-    this.driver = driver;            // movie-character driver definition (Use Characters) or null
+    this.driver = driver;            // character driver definition (null only if no driver pack loaded)
     this.idx = idx;
     this.player = player;            // local player object or null for AI
     this.human = !!player;
@@ -651,7 +651,7 @@ export class Kart {
     if (this.aura.visible) { this.aura.material.color.setHSL(0.12 + Math.sin(performance.now() * 0.01) * 0.03, 1, 0.55); this.aura.scale.setScalar(1 + Math.sin(performance.now() * 0.02) * 0.08); }
   }
 
-  // a character gesture plus a voice line (Use Characters)
+  // a character gesture plus a voice line
   emote(name, voice = name) {
     if (!this.anim) return;
     if (!this.anim.play(name)) return;

@@ -1,4 +1,4 @@
-// Movie-character drivers for the "Use Characters" option: the driver registry,
+// Character drivers: the driver registry,
 // the seated-rig contract every driver follows, and the animator that gives each
 // driver Mario Kart-style gestures (steering, leaning, cheering, taunting, tricks…).
 //

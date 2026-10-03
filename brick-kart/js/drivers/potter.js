@@ -1,4 +1,4 @@
-// Harry Potter drivers (Use Characters): brick witches and wizards in house robes, each
+// Harry Potter drivers: brick witches and wizards in house robes, each
 // with a wand (or umbrella, sword, sock…) and a signature spell on cheer / win — spell
 // bolts, spark bursts, Patronus animals, Fawkes, the Dark Mark, fireworks (./potter-kit.js).
 import {

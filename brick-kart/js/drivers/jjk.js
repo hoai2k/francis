@@ -1,4 +1,4 @@
-// Jujutsu Kaisen drivers (Use Characters). Faces come from the Cursed Brick
+// Jujutsu Kaisen drivers. Faces come from the Cursed Brick
 // Shibuya face atlas so the drivers match the statues on the track; every driver
 // has a signature cursed technique played on cheer / win with emissive effects
 // (helpers in ./jjk-kit.js).

@@ -22,7 +22,7 @@ export const CHARACTERS = [
   { id: 'dina', name: 'Dino Dina', blurb: 'Big bite', kart: C.green, accent: C.orange, torso: C.lime, legs: C.green, hat: 'dino', hatColor: C.lime, face: 'grin', stats: { speed: 4, accel: 2, handling: 3, weight: 4 } },
 ];
 
-// vehicle names used when "Use Characters" splits racers into a driver + a kart
+// vehicle names for the original karts (racers are a driver + a kart)
 const VEHICLES = { bob: 'Hard Hat Hauler', ava: 'Comet Cruiser', redbeard: 'Plank Plunderer', kara: 'Iron Bastion', rex: 'Turbo Titan', nix: 'Shadow Dart', flo: 'Blaze Runner', wendel: 'Spell Streak', pepper: 'Hot Wok', cassie: 'Dust Devil', bjorn: 'Long Hammer', regina: 'Royal Coach', sam: 'Skate Spark', zorp: 'Saucer Buggy', max: 'Tomb Rover', dina: 'Fossil Flyer' };
 for (const ch of CHARACTERS) ch.vehicle = VEHICLES[ch.id] || ch.name;
 
@@ -167,7 +167,7 @@ function wheelGeo(r, w, capCol, xs) {
 // Seat point for a movie-character driver (see driver.js): hips sit here.
 export const SEAT = new THREE.Vector3(0, 0.62, -0.38);
 
-// Builds the kart + driver. Local forward is +Z. With a driver rig (Use Characters)
+// Builds the kart + driver. Local forward is +Z. With a driver rig
 // the minifig is replaced by the rig, seated in a deeper tub behind a turning wheel.
 export function buildKart(ch, rig = null) {
   if (ch.build) return buildVehicle(ch, rig || emptyRig());

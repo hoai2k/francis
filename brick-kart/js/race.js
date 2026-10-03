@@ -116,12 +116,12 @@ export class Race {
     const used = new Set(humans.map((p) => p.charIndex));
     // Simplified mode: CPU racers come from the simplified roster only (repeating if it's small)
     const simple = !!opts.simple;
-    let others = CHARACTERS.map((_, i) => i).filter((i) => !used.has(i) && (!simple || simpleDriver('classic-' + CHARACTERS[i].id)));
-    if (!others.length) others = CHARACTERS.map((_, i) => i).filter((i) => !used.has(i));
+    const others = CHARACTERS.map((_, i) => i).filter((i) => !used.has(i));
     for (let i = others.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [others[i], others[j]] = [others[j], others[i]]; }
     const total = this.mode === 'tt' ? humans.length : Math.min(MAX_RACERS, Math.max(humans.length, opts.racers ?? MAX_RACERS));
-    // Use Characters: every kart also gets a movie-character driver (CPU drivers are unique)
-    this.useChars = !!opts.useChars && DRIVERS.length > 0;
+    // every kart gets a character driver (CPU drivers are unique while there are enough);
+    // the classic minifig racers are only a fallback if no driver pack loaded
+    this.useChars = DRIVERS.length > 0;
     // movie tracks favour their own movie's abilities
     this.movieFrom = MAP_FROM[opts.def?.id] || null;
     const shuffle = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };

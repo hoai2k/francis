@@ -1,4 +1,4 @@
-// Star Wars drivers (Use Characters). Helmets, faces and colours match the brick
+// Star Wars drivers. Helmets, faces and colours match the brick
 // characters on the Tatooine Podrace map (../maps/starwars-props.js); props such as
 // lightsabers and blasters live in starwars-parts.js and only appear (ignite, twirl,
 // fire) while a gesture plays.

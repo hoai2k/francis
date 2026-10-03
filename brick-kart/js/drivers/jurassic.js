@@ -1,4 +1,4 @@
-// Jurassic World drivers (Use Characters): the park's humans as seated minifigs and a
+// Jurassic World drivers: the park's humans as seated minifigs and a
 // herd of brick dinosaurs (builders in ./jurassic-dinos.js), each with signature
 // Mario Kart-style gestures: Owen's raptor "hold", Claire's flare, Grant's hat wave,
 // Malcolm's laugh, Hammond's amber cane, roars, frills, sneezes, honks and tail swings.

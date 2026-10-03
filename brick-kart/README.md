@@ -20,7 +20,7 @@ Play: <https://hoai2k.github.io/francis/brick-kart/>
 - **Racer select**: player 1 is already in, using whatever controller (or
   keyboard/touch) you used in the menus; more players press A to join.
 - **Options**: engine class (50/100/150/200cc), CPU difficulty, racers per race
-  (4/6/8/10/12; 12 at most, players included), laps, **Use Characters**, **Simplified mode**, auto-accelerate, music and sound
+  (4/6/8/10/12; 12 at most, players included), laps, **Simplified mode**, auto-accelerate, music and sound
   volume, and graphics quality. The game also lowers its render resolution
   automatically if frames run slow, and raises it again when there's headroom.
 
@@ -33,8 +33,7 @@ Choose it in the **workbench** at
 <https://hoai2k.github.io/francis/brick-kart/workbench/>: every character and
 kart is a card you tap to include or leave out (it starts from the current
 set), then **Export** downloads `brick-kart-simplified.json` with the chosen
-ids. The classic racers (Use Characters off) follow the Brick Kart Originals
-drivers.
+ids.
 
 ## Maps (17, in 5 cups)
 
@@ -65,15 +64,14 @@ or the sky.
 
 ## Racers
 
-16 minifig drivers, each with different speed, acceleration, handling and
-weight: Brick Bob, Astro Ava, Cap'n Redbeard, Sir Kara, Robo-Rex, Ninja Nix,
+The 16 original Brick Kart racers are drivers like the movie casts below, each
+with a matching original kart: Brick Bob, Astro Ava, Cap'n Redbeard, Sir Kara, Robo-Rex, Ninja Nix,
 Chief Flo, Wizard Wendel, Chef Pepper, Cowgirl Cassie, Viking Bjorn, Queen
 Regina, Skater Sam, Zorp the Alien, Mummy Max and Dino Dina.
 
-### Use Characters (on by default)
+### Drivers and karts
 
-You pick a **driver** and then a **kart** separately, like Mario Kart (turn
-**Use Characters** off in Options for the classic 16 minifig racers). Every
+You pick a **driver** and then a **kart** separately, like Mario Kart. Every
 player locks in a driver first; then the whole picker switches to the kart
 step. The original 16 Brick Kart racers are also drivers, listed after the
 movie casts, and the classic karts come after the newer vehicles. The drivers are brick-built movie characters from
@@ -256,15 +254,15 @@ setups.
 - `js/maps/*.js`: one file per map (layout, sections, hazards, scenery); `js/maps/kit.js` has shared props
 - `js/hazards.js`: moving traffic/boulders, crossings, geysers, crushers, fire bars and cannons
 - `js/world.js`, `js/decor.js`, `js/lego.js`: sky, ground, lighting, brick-built props and the brick mesh merger
-- `js/characters.js`: minifig drivers and karts (plus the five kart body styles used with Use Characters)
+- `js/characters.js`: minifig drivers and karts (plus the five kart body styles)
 - `js/driver.js`: movie-character drivers: the seated rig contract, weight classes and the gesture animator
 - `js/vehicles.js`, `js/vehicles/*.js`: the kart list and the vehicle packs (the vehicle contract is documented above `buildVehicle` in `js/characters.js`)
 - `js/drivers/*.js`: the driver casts per movie (`kit.js` has the seated figure builder); `js/showcase.js`: the 3D select stage, portraits and podium; `js/gallery.js`: a developer line-up view
 - `js/effects.js`, `js/audio.js`, `js/hud.js`, `js/input.js`: particles, sound, HUD and input devices
 
 For development, `?quick=<map id>` (city, meadow, pirate, candy, jungle, frost, factory, lava, space, jurassic, starwars, marvel, hogwarts, jjk-goodwill, jjk-inventory, jjk, jjk-culling) goes
-straight into a race. Add `&players=2` to test split-screen, and `&chars=1` (or
-`&driver=<driver id>`) to race with movie-character drivers. `?gallery=<movie id
+straight into a race. Add `&players=2` to test split-screen, and `&driver=<driver id>`
+/ `&kart=<kart id>` to pick player 1's driver and kart. `?gallery=<movie id
 | driver id | all>` lines drivers up in their karts; add `&pose=cheer` (taunt,
 ouch, trick, win, lose, glide, look…) to hold a gesture. `?garage=<pack | kart id |
 all>&driver=<id>` does the same for vehicles (`&pose=boost` shows boost effects).

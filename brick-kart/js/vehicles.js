@@ -1,4 +1,4 @@
-// All karts for "Use Characters": the 16 original karts plus vehicle packs in
+// All karts: the 16 original karts plus vehicle packs in
 // js/vehicles/*.js (see buildVehicle in characters.js for the vehicle contract).
 import { CHARACTERS } from './characters.js';
 

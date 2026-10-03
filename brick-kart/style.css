@@ -72,7 +72,6 @@ h2, h3, .logo, .mbtn, .bbtn, .h-pos, .h-lap, .h-msg, .h-count, .h-title h2, .pre
 .slot.on { background: color-mix(in srgb, var(--pc) 30%, transparent); border: 2px solid var(--pc); }
 .slot b { font-family: 'Lilita One'; font-weight: 400; font-size: 16px; margin-right: 4px; }
 .slot em { display: block; font-style: normal; opacity: .85; }
-.cgrid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 8px; }
 .cupgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
 .cup { border-radius: 14px; padding: 12px; background: linear-gradient(170deg, color-mix(in srgb, var(--cc) 45%, transparent), rgba(255,255,255,.04)); box-shadow: inset 0 0 0 2px rgba(255,255,255,.12); cursor: pointer; text-align: center; transition: transform .1s; }
 .cup.focus { transform: scale(1.04); box-shadow: 0 0 0 4px var(--yellow), 0 10px 30px rgba(0,0,0,.4); }
@@ -81,18 +80,12 @@ h2, h3, .logo, .mbtn, .bbtn, .h-pos, .h-lap, .h-msg, .h-count, .h-title h2, .pre
 .cthumbs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin: 8px 0; }
 .cthumbs img { width: 100%; border-radius: 6px; }
 .cup .cl { font-size: 12px; font-weight: 800; opacity: .85; }
-.ccard { position: relative; border-radius: 12px; padding: 8px 10px 10px; cursor: pointer; background: linear-gradient(170deg, color-mix(in srgb, var(--kc) 55%, #fff 10%), color-mix(in srgb, var(--kc) 35%, #000 40%)); box-shadow: inset 0 0 0 2px rgba(255,255,255,.15); transition: transform .1s; outline-offset: 2px; }
-.ccard:hover { transform: translateY(-3px); }
-.ccard img { width: 100%; height: min(15vh, 120px); object-fit: contain; display: block; margin: -4px 0 -4px; filter: drop-shadow(0 6px 6px rgba(0,0,0,.35)); }
-.ccard .nm { font-family: 'Lilita One'; font-size: 16px; text-shadow: 0 2px 0 rgba(0,0,0,.5); }
-.ccard .bl { font-size: 12px; font-weight: 800; opacity: .85; margin-bottom: 4px; }
 .stats { display: grid; gap: 2px; }
 .st { display: grid; grid-template-columns: 44px 1fr; align-items: center; font-size: 10px; font-weight: 900; gap: 4px; }
 .st i { display: block; height: 6px; border-radius: 3px; background: var(--yellow); box-shadow: 0 0 0 1px rgba(0,0,0,.3); }
 .tags { position: absolute; top: 6px; right: 6px; display: flex; flex-direction: column; gap: 3px; align-items: flex-end; }
 .ptag { font-family: 'Lilita One'; font-size: 13px; padding: 1px 7px; border-radius: 6px; box-shadow: 0 2px 0 rgba(0,0,0,.4); }
 .ptag.lock { outline: 2px solid #fff; }
-.ccard.taken img { filter: grayscale(.5) drop-shadow(0 6px 6px rgba(0,0,0,.35)); }
 .selfoot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 14px; }
 .selfoot .bbtn { width: auto; font-size: 18px; padding: 10px 16px 8px; background: var(--dk, #475466); }
 .selfoot .bbtn.go { background: #3a4452; opacity: .6; }
@@ -228,7 +221,7 @@ canvas.pod3d { display: block; width: min(640px, 100%); height: min(300px, 38vh)
 .h-ink i:nth-child(5) { left: 8%; top: 62%; width: 14%; height: 18%; }
 
 /* ---------- touch controls ---------- */
-/* "Use Characters" select: live stage + driver grid by movie + kart strip */
+/* racer select: live stage + driver grid by movie + kart grid */
 .panel.xl { width: min(1400px, 100%); max-height: calc(100vh - 24px); display: flex; flex-direction: column; }
 .screen.select.chars { justify-content: flex-start; padding: 12px; }
 .csel { display: grid; grid-template-columns: minmax(280px, 38%) 1fr; gap: 14px; min-height: 0; flex: 1; }
@@ -297,9 +290,7 @@ canvas.pod3d { display: block; width: min(640px, 100%); height: min(300px, 38vh)
   .csel.multi { grid-template-columns: 1fr; } .csel.multi .stage { height: 40vh; }
   .pvname { font-size: 24px; } .stats.big { display: none; }
   .dgrid, .kgrid, .csel.step-kart .kgrid { grid-template-columns: repeat(auto-fill, minmax(68px, 1fr)); gap: 5px; }
-  .cgrid { grid-template-columns: repeat(4, 1fr); gap: 6px; }
   .cupgrid { grid-template-columns: repeat(2, 1fr); }
-  .ccard { padding: 4px 5px 6px; } .ccard .nm { font-size: 13px; } .ccard .bl, .stats { display: none; }
   .tgrid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
   .help .cols { grid-template-columns: 1fr; } .items { grid-template-columns: repeat(2, 1fr); }
   .panel { padding: 16px 12px 12px; }
@@ -313,6 +304,5 @@ canvas.pod3d { display: block; width: min(640px, 100%); height: min(300px, 38vh)
   .screen.title .logo { transform: scale(.7); }
   .panel { padding: 12px; } .panel h2 { margin-bottom: 8px; }
   .list { gap: 6px; } .mbtn { padding: 8px 14px 6px; font-size: 17px; }
-  .ccard img { margin: -10px 0 -16px; }
   .tpad.left button { width: 72px; height: 72px; } .t-drift { width: 84px; height: 84px; }
 }

@@ -1,9 +1,7 @@
 // The roster for "Simplified mode" (Options → Simplified mode): the drivers and karts the select
 // screen offers, as one grid without movie headings, and the ones CPU racers use when it's on.
 // Lists of ids (DRIVERS[].id / KARTS[].id); null means "all of them". Pick the set in
-// brick-kart/workbench/ (it starts from this one) and export it, then paste the ids here. The
-// classic racers (Use Characters off) follow the drivers list: classic racer "bob" is driver
-// "classic-bob".
+// brick-kart/workbench/ (it starts from this one) and export it, then paste the ids here.
 export const SIMPLIFIED = {
   // 61 drivers
   drivers: [

@@ -1,4 +1,4 @@
-// Small 3D stages for the menus when "Use Characters" is on: the live kart + driver
+// Small 3D stages for the menus: the live kart + driver
 // preview on the select screen, the podium, and cached portrait images of drivers
 // and empty karts.
 import * as THREE from 'three';

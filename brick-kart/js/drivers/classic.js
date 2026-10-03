@@ -1,4 +1,4 @@
-// The original Brick Kart racers as seated drivers (Use Characters), listed first as
+// The original Brick Kart racers as seated drivers, listed first as
 // "Brick Kart Originals". Each one is built to the same bar as the movie casts: its own
 // silhouette, proportions and props, plus a signature cheer and win (classic-a/b.js).
 import { CHARACTERS } from '../characters.js';

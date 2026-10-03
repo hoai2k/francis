@@ -1,4 +1,4 @@
-// Marvel drivers (Use Characters). Faces, torso prints and colours come from the
+// Marvel drivers. Faces, torso prints and colours come from the
 // "Avengers Brick Assemble" map figures; each driver has a signature cheer/win with
 // effect parts (webs, repulsors, Mjolnir lightning, mandalas, Infinity snap…) run by rig.fx.
 import { THREE, BrickBuilder, C, plastic, rod, simpleFace, taperGeo } from './kit.js';

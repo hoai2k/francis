@@ -7,7 +7,7 @@ import { Input, KB2_JOIN, isTouchDevice } from './input.js';
 import { Audio } from './audio.js';
 import { Race } from './race.js';
 import { TRACKS, CUPS } from './tracks.js';
-import { CHARACTERS, buildKart, bodyName } from './characters.js';
+import { CHARACTERS, bodyName } from './characters.js';
 import { DRIVERS, UNIVERSES, combinedStats } from './driver.js';
 import { KARTS } from './vehicles.js';
 import { simpleDriver, simpleKart } from './simplified.js';
@@ -31,14 +31,14 @@ const hex = (c) => '#' + c.toString(16).padStart(6, '0');
 
 class Game {
   constructor() {
-    this.settings = load(SKEY, { cc: 100, difficulty: 'normal', laps: 3, racers: 12, music: 0.5, sfx: 0.8, autoGas: false, useChars: true, simple: false, quality: MOBILE ? 'low' : 'high' });
-    // Use Characters became the default: switch it on once for players who saved settings before
+    this.settings = load(SKEY, { cc: 100, difficulty: 'normal', laps: 3, racers: 12, music: 0.5, sfx: 0.8, autoGas: false, simple: false, quality: MOBILE ? 'low' : 'high' });
     // at most 12 karts per race (players included)
     if (!(this.settings.racers <= 12)) { this.settings.racers = 12; save(SKEY, this.settings); }
-    if (!this.settings.charsDefault) { this.settings.useChars = true; this.settings.charsDefault = 1; save(SKEY, this.settings); }
+    // characters are always on now: drop the old toggle
+    if ('useChars' in this.settings || 'charsDefault' in this.settings) { delete this.settings.useChars; delete this.settings.charsDefault; save(SKEY, this.settings); }
     this.best = load(TKEY, {});
-    // each player slot's last picks, by id: { chars: { 0: { driver, kart } }, classic: { 0: charId } }
-    this.picks = load(PKEY, { chars: {}, classic: {} });
+    // each player slot's last picks, by id: { chars: { 0: { driver, kart } } }
+    this.picks = load(PKEY, { chars: {} });
     const app = document.getElementById('app');
     const r = this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
     r.outputColorSpace = THREE.SRGBColorSpace;
@@ -82,13 +82,11 @@ class Game {
       // developer view of the movie-character drivers
       import('./gallery.js').then(({ Gallery }) => { this.attract = new Gallery(this, q); });
     } else if (q.get('quick')) {
-      // developer shortcut: ?quick=<trackId>&char=<n>&players=<n>
+      // developer shortcut: ?quick=<trackId>&players=<n>; &driver=<id> / &kart=<id> pick player 1's
       const np = +(q.get('players') || 1);
-      // &chars=1 races with movie-character drivers, &driver=<id> picks player 1's driver
-      if (q.get('chars') || q.get('driver')) this.settings.useChars = q.get('chars') !== '0';
       const d0 = Math.max(0, DRIVERS.findIndex((d) => d.id === q.get('driver')));
       const k0 = Math.max(0, KARTS.findIndex((k) => k.id === q.get('kart')));
-      this.players = Array.from({ length: np }, (_, i) => this.makePlayer({ id: i, device: i === 0 ? 'kb' : 'pad' + (i - 1), cursor: (+(q.get('char') || 0) + i) % 8, driver: (d0 + i) % Math.max(1, DRIVERS.length), kart: k0, color: PCOL[i] }));
+      this.players = Array.from({ length: np }, (_, i) => this.makePlayer({ id: i, device: i === 0 ? 'kb' : 'pad' + (i - 1), cursor: 0, driver: (d0 + i) % Math.max(1, DRIVERS.length), kart: k0, color: PCOL[i] }));
       this.startRace({ def: TRACKS.find((t) => t.id === q.get('quick')) || TRACKS[0], mode: q.get('mode') || 'race' });
     } else {
       // show the title right away; build the background race just after it has painted
@@ -108,9 +106,6 @@ class Game {
     if (pads.length) return pads[0];
     return this.lastDevice === 'kb' || !isTouchDevice() ? 'kb' : 'touch';
   }
-
-  // "Use Characters": karts get movie-character drivers
-  charsOn() { return !!this.settings.useChars && DRIVERS.length > 0; }
 
   applyQuality() {
     const hi = this.settings.quality === 'high';
@@ -147,36 +142,8 @@ class Game {
     setTimeout(() => t.remove(), 2600);
   }
 
-  // ---- portraits & thumbnails ------------------------------------------------------
-  // classic racer portraits are only needed in menus, so they're rendered on first use
-  get portraits() { return (this._portraits ||= this.renderPortraits()); }
+  // ---- track thumbnails ------------------------------------------------------------
   get thumbs() { return (this._thumbs ||= TRACKS.map((t) => this.trackThumb(t))); }
-  renderPortraits() {
-    const size = 256;
-    const r = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
-    r.setSize(size, size); r.setPixelRatio(1);
-    r.outputColorSpace = THREE.SRGBColorSpace; r.toneMapping = THREE.ACESFilmicToneMapping;
-    const pm = new THREE.PMREMGenerator(r);
-    const scene = new THREE.Scene();
-    scene.environment = pm.fromScene(new RoomEnvironment(), 0.04).texture;
-    scene.environmentIntensity = 0.8;
-    scene.add(new THREE.HemisphereLight(0xffffff, 0x445566, 1.4));
-    const d = new THREE.DirectionalLight(0xffffff, 2.2); d.position.set(3, 5, 4); scene.add(d);
-    const cam = new THREE.PerspectiveCamera(30, 1, 0.1, 50);
-    cam.position.set(4.2, 3.0, 6.2); cam.lookAt(0, 0.85, 0.1);
-    const out = CHARACTERS.map((ch) => {
-      const k = buildKart(ch);
-      k.root.rotation.y = 0.35;
-      k.head.rotation.y = 0.3;
-      scene.add(k.root);
-      r.render(scene, cam);
-      const url = r.domElement.toDataURL('image/png');
-      scene.remove(k.root);
-      return url;
-    });
-    r.dispose(); r.forceContextLoss?.();
-    return out;
-  }
   trackThumb(def) {
     const c = document.createElement('canvas');
     c.width = 320; c.height = 180;
@@ -232,7 +199,7 @@ class Game {
     this.attract?.dispose();
     const def = TRACKS[Math.floor(Math.random() * TRACKS.length)];
     // the demo race shows off the whole roster: random drivers in random karts
-    this.attract = new Race(this, { def, mode: 'attract', cc: 0.95, difficulty: 'hard', laps: 99, useChars: true, racers: 12 });
+    this.attract = new Race(this, { def, mode: 'attract', cc: 0.95, difficulty: 'hard', laps: 99, racers: 12 });
     this.attract.world.sun.shadow.mapSize.set(this.shadowSize, this.shadowSize);
     this.attract.warmup(this.renderer);
   }
@@ -345,7 +312,6 @@ class Game {
         { label: 'CPU racers', value: () => s.difficulty[0].toUpperCase() + s.difficulty.slice(1), left: () => cyc('difficulty', diffs, -1), right: () => cyc('difficulty', diffs, 1) },
         { label: 'Racers per race', value: () => String(s.racers), left: () => cyc('racers', racers, -1), right: () => cyc('racers', racers, 1) },
         { label: 'Laps', value: () => String(s.laps), left: () => cyc('laps', laps, -1), right: () => cyc('laps', laps, 1) },
-        { label: 'Use Characters', value: () => (s.useChars ? 'On' : 'Off'), left: () => { s.useChars = !s.useChars; save(SKEY, s); }, right: () => { s.useChars = !s.useChars; save(SKEY, s); } },
         { label: 'Simplified mode', value: () => (s.simple ? 'On' : 'Off'), left: () => { s.simple = !s.simple; save(SKEY, s); }, right: () => { s.simple = !s.simple; save(SKEY, s); } },
         { label: 'Auto-accelerate', value: () => (s.autoGas ? 'On' : 'Off'), left: () => { s.autoGas = !s.autoGas; save(SKEY, s); }, right: () => { s.autoGas = !s.autoGas; save(SKEY, s); } },
         { label: 'Music', value: () => Math.round(s.music * 10) + '/10', left: () => vol('music', -1), right: () => vol('music', 1) },
@@ -385,134 +351,8 @@ class Game {
     });
   }
 
-  // ---- character select with drop-in players -------------------------------------------------
+  // ---- racer select with drop-in players: pick a driver, then a kart ---------------------------------
   showSelect(mode) {
-    if (this.charsOn()) return this.showSelectChars(mode);
-    this.mode = mode;
-    const max = mode === 'tt' ? 1 : MAX_PLAYERS;
-    const players = [];   // { id, device, cursor, locked, color }
-    const taken = () => new Set(players.filter((p) => p.locked).map((p) => p.cursor));
-    // Simplified mode offers a smaller roster (CHARACTERS indices, in order)
-    let roster = CHARACTERS.map((_, i) => i).filter((i) => !this.settings.simple || simpleDriver('classic-' + CHARACTERS[i].id));
-    if (!roster.length) roster = CHARACTERS.map((_, i) => i);
-    const cards = roster.map((i) => [CHARACTERS[i], i]).map(([ch, i]) => `
-      <div class="ccard" data-i="${i}" style="--kc:${hex(ch.kart)}">
-        <img src="${this.portraits[i]}" alt="">
-        <div class="nm">${esc(ch.name)}</div><div class="bl">${esc(ch.blurb)}</div>
-        <div class="stats">${['speed', 'accel', 'handling', 'weight'].map((s) => `<div class="st"><span>${s.slice(0, 5).toUpperCase()}</span><i style="width:${ch.stats[s] * 20}%"></i></div>`).join('')}</div>
-        <div class="tags"></div></div>`).join('');
-    const titles = { gp: 'Grand Prix', race: 'Quick Race', tt: 'Time Trial' };
-    this.setScreen(`<div class="screen select"><div class="panel wide"><h2>${titles[mode]} · Choose your racer</h2>
-      <div class="joinbar"></div>
-      <div class="cgrid">${cards}</div>
-      <div class="selfoot"><button class="bbtn" data-act="back">◀ Back</button><div class="hint2"></div><button class="bbtn go" data-act="go">Race! ▶</button></div></div></div>`);
-    const deviceLabel = (d) => d === 'kb' ? (this.input.split ? 'Keys WASD' : 'Keyboard') : d === 'kb2' ? 'Keys Arrows' : d === 'touch' ? 'Touch' : this.input.padName(d);
-    const refresh = () => {
-      const tk = taken();
-      this.ui.querySelectorAll('.ccard').forEach((c) => {
-        const i = +c.dataset.i, here = players.filter((p) => p.cursor === i);
-        c.querySelector('.tags').innerHTML = here.map((p) => `<span class="ptag${p.locked ? ' lock' : ''}" style="background:${p.color}">P${p.id + 1}${p.locked ? ' ✓' : ''}</span>`).join('');
-        c.classList.toggle('taken', tk.has(i));
-        c.style.outline = here.length ? `4px solid ${here[here.length - 1].color}` : '';
-      });
-      const bar = this.ui.querySelector('.joinbar');
-      let html = '';
-      for (let s = 0; s < Math.min(max, players.length + 1); s++) {
-        const p = players[s];
-        html += p ? `<div class="slot on" style="--pc:${p.color}"><b>P${p.id + 1}</b> ${esc(deviceLabel(p.device))}<em>${p.locked ? esc(CHARACTERS[p.cursor].name) : 'choosing…'}</em></div>`
-          : `<div class="slot"><b>P${s + 1}</b> ${s === 0 ? 'Press A / Enter / tap a racer' : 'Press A to join'}</div>`;
-      }
-      bar.innerHTML = html;
-      const ready = players.length && players.every((p) => p.locked);
-      this.ui.querySelector('.go').classList.toggle('ready', !!ready);
-      this.ui.querySelector('.hint2').innerHTML = ready ? 'All set! Press <b>A</b> / <b>Start</b> / <b>Enter</b> to race' : (mode !== 'tt' ? 'More players: press <b>A</b> on another controller · 2nd keyboard: <b>Right Shift</b>' : 'Time Trial is solo: beat your best time');
-    };
-    const join = (device) => {
-      if (players.length >= max || players.some((p) => p.device === device)) return null;
-      const id = [...Array(MAX_PLAYERS).keys()].find((n) => !players.some((p) => p.id === n));
-      const tk = taken(), NC = roster.length;
-      let pos = Math.max(0, roster.findIndex((i) => CHARACTERS[i].id === this.picks.classic?.[id]));
-      for (let n = 0; n < NC && tk.has(roster[pos]); n++) pos = (pos + 1) % NC;
-      const cursor = roster[pos];
-      const p = { id, device, cursor, locked: false, color: PCOL[id] };
-      players.push(p);
-      players.sort((a, b) => a.id - b.id);
-      this.audio.sfx('join');
-      refresh();
-      return p;
-    };
-    const go = () => {
-      if (!players.length || !players.every((p) => p.locked)) return;
-      this.audio.sfx('select');
-      for (const p of players) (this.picks.classic ||= {})[p.id] = CHARACTERS[p.cursor].id;
-      save(PKEY, this.picks);
-      this.players = players.map((p) => this.makePlayer(p));
-      if (mode === 'gp') this.showCups();
-      else this.showTracks(mode);
-    };
-    const leave = (p) => {
-      players.splice(players.indexOf(p), 1);
-      if (p.device === 'kb2') this.input.split = false;
-      this.audio.sfx('back');
-      refresh();
-    };
-    const back = () => { this.input.split = false; this.showMain(); };
-    this.screen = {
-      update: () => {
-        // keyboard 2 join
-        if (mode !== 'tt' && players.some((p) => p.device === 'kb') && !players.some((p) => p.device === 'kb2') && this.input.edge && KB2_JOIN.some((k) => this.input.edge.has(k))) {
-          this.input.split = true; join('kb2');
-        }
-        for (const [dev, m] of this.menuEvents) {
-          let p = players.find((q) => q.device === dev);
-          if (p && (m.ok || m.start || m.back || m.up || m.down || m.left || m.right)) p.acted = true;
-          if (!p) {
-            // a controller that only just showed up takes over an untouched keyboard player 1
-            if ((m.ok || m.start) && dev.startsWith('pad') && players.length === 1 && !players[0].acted && !players[0].device.startsWith('pad')) {
-              players[0].device = dev; players[0].acted = true; this.audio.sfx('join'); refresh(); continue;
-            }
-            if (m.ok || m.start) {
-              if (players.length === 0 && dev === 'kb2') continue;
-              p = join(dev);
-            } else if (m.back && players.length === 0) { back(); return; }
-            continue;
-          }
-          const NC = roster.length, cols = matchMedia('(max-width: 820px)').matches ? 4 : 8;
-          let moved = false;
-          if (!p.locked) {
-            let pos = Math.max(0, roster.indexOf(p.cursor));
-            if (m.left) { pos = (pos + NC - 1) % NC; moved = true; }
-            if (m.right) { pos = (pos + 1) % NC; moved = true; }
-            if (m.up) { pos = (pos + NC - cols) % NC; moved = true; }
-            if (m.down) { pos = (pos + cols) % NC; moved = true; }
-            p.cursor = roster[pos];
-            if (moved) { this.audio.sfx('click'); refresh(); }
-            if (m.ok && !taken().has(p.cursor)) { p.locked = true; this.audio.sfx('select'); refresh(); continue; }
-            if (m.back) { if (p === players[0]) { back(); return; } leave(p); continue; }
-          } else {
-            if (m.back) { p.locked = false; this.audio.sfx('back'); refresh(); continue; }
-            if (m.ok || m.start) { go(); return; }
-          }
-          if (m.start) go();
-        }
-      },
-      click: (i) => {
-        let p = players.find((q) => q.device === 'touch' || q.device === 'kb') || players[0];
-        if (!p) p = join(isTouchDevice() ? 'touch' : 'kb');
-        if (!p) return;
-        if (taken().has(i) && !(p.locked && p.cursor === i)) return;
-        p.cursor = i; p.locked = true;
-        this.audio.sfx('select');
-        refresh();
-      },
-      act: (a) => { if (a === 'back') back(); if (a === 'go') go(); },
-    };
-    join(this.p1Device());
-    refresh();
-  }
-
-  // ---- "Use Characters" select: pick a movie-character driver, then a kart ----------------------------
-  showSelectChars(mode) {
     this.mode = mode;
     const max = mode === 'tt' ? 1 : MAX_PLAYERS;
     // phase: 'driver' (choosing) -> 'waiting' (driver locked) -> 'kart' (everyone locked: choosing a kart) -> 'done'
@@ -902,7 +742,7 @@ class Game {
       this.attract?.dispose(); this.attract = null;
       this.race?.dispose();
       const s = this.settings;
-      this.race = new Race(this, { ...opts, players: this.players, useChars: this.charsOn(), simple: !!s.simple, cc: CC[s.cc] || 0.92, difficulty: s.difficulty, racers: s.racers, laps: opts.mode === 'tt' ? 3 : s.laps, bestTime: opts.mode === 'tt' ? this.best[opts.def.id] : 0 });
+      this.race = new Race(this, { ...opts, players: this.players, simple: !!s.simple, cc: CC[s.cc] || 0.92, difficulty: s.difficulty, racers: s.racers, laps: opts.mode === 'tt' ? 3 : s.laps, bestTime: opts.mode === 'tt' ? this.best[opts.def.id] : 0 });
       this.race.world.sun.shadow.mapSize.set(this.shadowSize, this.shadowSize);
       this.race.onDone = (res) => this.onRaceDone(res);
       this.race.warmup(this.renderer);
@@ -981,13 +821,12 @@ class Game {
     });
   }
 
-  // who a result / standings row is: the movie-character driver (Use Characters) or the classic racer
+  // who a result / standings row is: their driver
   entrant(r) {
-    const d = r.driverIndex >= 0 ? DRIVERS[r.driverIndex] : null;
-    if (d) return { key: 'd' + r.driverIndex, name: d.name, img: driverPortrait(d) };
-    return { key: 'c' + r.charIndex, name: CHARACTERS[r.charIndex].name, img: this.portraits[r.charIndex] };
+    const d = DRIVERS[r.driverIndex] || DRIVERS[0];
+    return { key: 'd' + r.driverIndex, name: d.name, img: driverPortrait(d) };
   }
-  playerKey(p) { return this.charsOn() && p.driverIndex != null ? 'd' + p.driverIndex : 'c' + p.charIndex; }
+  playerKey(p) { return 'd' + p.driverIndex; }
 
   showStandings() {
     const gp = this.gp;
@@ -1023,7 +862,7 @@ class Game {
     if (chars) this.podium3D(top);
   }
 
-  // the top three drivers celebrate on the podium in 3D (Use Characters)
+  // the top three drivers celebrate on the podium in 3D
   podium3D(top) {
     const cv = this.ui.querySelector('canvas.pod3d');
     if (!cv) return;
