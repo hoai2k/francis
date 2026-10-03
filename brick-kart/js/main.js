@@ -529,7 +529,8 @@ class Game {
     for (const u of UNIVERSES) {
       const list = allowedD.map((i) => [DRIVERS[i], i]).filter(([d]) => d.from === u.id);
       if (!list.length) continue;
-      dgroups += `<div class="uhead" style="--uc:${u.color}">${esc(u.name)}</div>` + list.map(([d, i]) => `
+      // Simplified mode: one big grid, no movie headings
+      dgroups += (simple ? '' : `<div class="uhead" style="--uc:${u.color}">${esc(u.name)}</div>`) + list.map(([d, i]) => `
         <div class="dcard" data-i="${i}" style="--dc:${hex(d.color ?? 0xffffff)}"><img alt="" data-d="${i}"><span>${esc(d.name)}</span><div class="tags"></div></div>`).join('');
     }
     // every kart in one grid, in KARTS order
