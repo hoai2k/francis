@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { buildKart } from './characters.js';
 import { buildDriver, DriverAnim } from './driver.js';
+import { plastic } from './lego.js';
 
 function stage(renderer) {
   const scene = new THREE.Scene();
@@ -74,6 +75,45 @@ export function kartPortrait(ch) {
   return url;
 }
 
+// A driver on their own feet (the select screen's driver step on phones). Rigs are built seated, so
+// a minifig's seated hips and thighs are clipped away (cloned materials, so karts elsewhere keep
+// theirs) and standing legs are added in its leg colour. Creatures that aren't minifigs (dinosaurs,
+// droids…) sit on a brick pedestal instead.
+function standDriver(rig) {
+  const root = new THREE.Group(), mats = [];
+  const d = rig.dims;
+  if (d) {
+    const s = d.s, W = d.W ?? 1, L = 0.86 * s, cutY = L + 0.06 * s;
+    // leg colour: the figure's own (or, failing that, whatever its lowest part is made of)
+    let low = null, lowY = Infinity;
+    const box = new THREE.Box3();
+    rig.root.updateMatrixWorld(true);
+    rig.root.traverse((o) => { if (o.isMesh && !Array.isArray(o.material)) { box.setFromObject(o); if (box.min.y < lowY) { lowY = box.min.y; low = o.material; } } });
+    const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -cutY);
+    rig.root.traverse((o) => {
+      if (!o.isMesh) return;
+      const clip = (m) => { const c = m.clone(); c.clippingPlanes = [plane]; mats.push(c); return c; };
+      o.material = Array.isArray(o.material) ? o.material.map(clip) : clip(o.material);
+    });
+    const legM = d.legColor !== undefined ? plastic(d.legColor) : low || plastic(0x0055bf);
+    const add = (w, h, dd, x, y, z) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, dd), legM); m.position.set(x, y, z); root.add(m); };
+    add(0.9 * s * W, 0.2 * s, 0.46 * s, 0, cutY - 0.08 * s, 0);                       // hips
+    for (const sd of [-1, 1]) {
+      add(0.4 * s * W, cutY - 0.32 * s, 0.42 * s, sd * 0.22 * s * W, (cutY - 0.04 * s) / 2, 0);        // legs, feet to hips
+      add(0.42 * s * W, 0.14 * s, 0.6 * s, sd * 0.22 * s * W, 0.07 * s, 0.07 * s);    // feet
+    }
+    rig.root.position.y = L;
+  } else {
+    // a stack of bricks to sit on
+    const w = Math.max(1, rig.width || 1.2);
+    const ped = new THREE.Mesh(new THREE.BoxGeometry(w * 1.1, 0.7, w * 0.9), new THREE.MeshStandardMaterial({ color: 0xc91a09, roughness: 0.34 }));
+    ped.position.y = 0.35; root.add(ped); mats.push(ped.material);
+    rig.root.position.y = 0.85;
+  }
+  root.add(rig.root);
+  return { root, mats, standing: true };
+}
+
 // ---- live stage ------------------------------------------------------------------------------
 // items: [{ ch, driver, x, z, ry, phase }]
 // With a `cells` option (a function returning one { x, y, w, h } rect per item, in canvas CSS pixels)
@@ -84,6 +124,7 @@ export class Showcase {
   constructor(canvas, { cam = [5.2, 3.2, 7.2], look = [0, 1.15, 0], fov = 30, spin = 0.35, cells = null } = {}) {
     this.canvas = canvas;
     this.r = newRenderer(canvas.clientWidth || 400, canvas.clientHeight || 300, canvas);
+    this.r.localClippingEnabled = true;   // standing drivers clip their seated legs away
     this.scene = stage(this.r);
     this.cam = new THREE.PerspectiveCamera(fov, 1, 0.1, 100);
     this.camBase = new THREE.Vector3(...cam); this.lookAt = new THREE.Vector3(...look);
@@ -100,7 +141,8 @@ export class Showcase {
   newPlate() { const p = new THREE.Mesh(this.plateGeo, this.plateMat); p.position.y = -0.15; return p; }
   build(o, i) {
     const rig = o.driver ? buildDriver(o.driver) : null;
-    const m = buildKart(o.ch, rig || emptyRig());
+    // o.stand: the driver alone on their feet, no kart
+    const m = o.stand && rig ? standDriver(rig) : buildKart(o.ch, rig || emptyRig());
     const ox = this.cells ? i * CELL_GAP : 0;
     m.root.position.set((o.x || 0) + ox, o.y || 0, o.z || 0);
     m.root.rotation.y = o.ry ?? 0.6;
@@ -110,7 +152,11 @@ export class Showcase {
     this.measure(it);
     return it;
   }
-  drop(it) { this.scene.remove(it.m.root); if (it.plate) this.scene.remove(it.plate); }
+  drop(it) {
+    this.scene.remove(it.m.root);
+    if (it.plate) this.scene.remove(it.plate);
+    for (const m of it.m.mats || []) m.dispose();
+  }
   // frame a lone kart by its real size (big vehicles pull the camera back)
   measure(it) {
     // measure visible parts only (the folded glider and hidden effects don't count)
@@ -149,7 +195,7 @@ export class Showcase {
         it.nextIdle = 3 + Math.random() * 3;
         it.anim.play(['taunt', 'trick', 'yay', 'cheer'][Math.floor(Math.random() * 4)]);
       }
-      it.anim.update(dt, { steer: Math.sin(this.t * 0.9) * (it.phase === 'pre' ? 0.5 : 0), drift: 0, speed01: 0.3, grounded: true, gliding: false, boosting: false, look: false, phase: it.phase || 'pre', rank: 1 });
+      it.anim.update(dt, { steer: it.m.standing ? 0 : Math.sin(this.t * 0.9) * (it.phase === 'pre' ? 0.5 : 0), stand: !!it.m.standing, drift: 0, speed01: it.m.standing ? 0 : 0.3, grounded: true, gliding: false, boosting: false, look: false, phase: it.phase || 'pre', rank: 1 });
       it.m.steerControl?.(it.anim.steer);
       it.m.update?.(dt, { speed01: 0.35, steer: it.anim.steer, boosting: false, gliding: false, grounded: true });
     }

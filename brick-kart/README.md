@@ -75,8 +75,11 @@ You pick a **driver** and then a **kart** separately, like Mario Kart. Pick a
 driver from the grid and press **A**; then flip through karts with **◀ ▶** in your
 own preview and press **A** again to lock it in (**B** steps back). Every player
 does this at their own pace, so nobody waits for anyone else. On phones there's
-no grid: the preview fills the screen and you flip through drivers with ◀ ▶ too,
-tapping **Lock in**. The original 16 Brick Kart racers are also drivers, listed after the
+no grid: the preview fills the screen and you flip through drivers with ◀ ▶ too
+(they stand on their own until you pick a kart), tapping **Lock in**. The **Back**
+button steps back one stage (ready → kart → driver → menu), coming back from the
+cup or map screen keeps everyone locked in, and each player slot remembers the
+driver and kart it last looked at. The original 16 Brick Kart racers are also drivers, listed after the
 movie casts, and the classic karts come after the newer vehicles. The drivers are brick-built movie characters from
 the Movie Cup: 19 from Marvel, 16 from Star Wars, 16 from Harry Potter, 16 from
 Jujutsu Kaisen and 16 from Jurassic World (83 in all). The Harry Potter cast
@@ -232,6 +235,7 @@ you drop some.
 - **Gliding**: steer while you fly. You land wherever the road is below you. Ground obstacles like hay bales and cupcakes only stop you if you fly low enough to hit them.
 - **Falling off**: the crane puts you back on a safe stretch of road. If you fall again right away, it puts you further ahead next time.
 - Sound mutes when you switch to another tab or window.
+- Tapping outside a popup menu (Options, How to Play, Pause) closes it.
 
 ## Multiplayer (1–8 players, split-screen)
 

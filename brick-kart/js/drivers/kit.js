@@ -80,6 +80,7 @@ export function seatedFig(o = {}) {
   };
   const b = new BrickBuilder(1);
   const legs = o.legs ?? C.blue, skin = o.skin ?? C.fig;
+  d.legColor = legs;   // the select stage stands drivers up in their own leg colour
   // hips + seated thighs (mostly hidden in the tub)
   b.box(0, -0.12 * s, 0, 0.9 * s * W, 0.3 * s, 0.46 * s * D, o.hips ?? legs);
   for (const sd of [-1, 1]) b.box(sd * 0.22 * s * W, -0.08 * s, 0.32 * s, 0.4 * s * W, 0.26 * s, 0.7 * s, legs);

@@ -213,6 +213,8 @@ class Game {
   }
   clearScreen() { this.cleanup?.(); this.cleanup = null; this.ui.innerHTML = ''; this.screen = null; }
   onClick(e) {
+    // a tap on the dimmed backdrop around a popup menu (Options, How to Play, Pause…) closes it
+    if (this.screen?.dismiss && e.target === this.ui.querySelector('.screen')) { this.audio.unlock(); this.audio.sfx('back'); this.screen.dismiss(); return; }
     const el = e.target.closest('[data-i], [data-act]');
     if (!el || !this.screen) return;
     this.audio.unlock();
@@ -221,7 +223,8 @@ class Game {
   }
 
   // generic vertical menu
-  menu({ title, items, back, sub = '', cls = '' }) {
+  // dismissable: a tap outside the panel goes back (not for the main menu, whose back is the title)
+  menu({ title, items, back, sub = '', cls = '', dismissable = true }) {
     let focus = 0;
     const render = () => {
       const html = items.map((it, i) => {
@@ -253,6 +256,7 @@ class Game {
       hover: (i) => { if (i !== focus) { focus = i; refresh(); } },
       click: (i) => { focus = i; const it = items[i]; if (it.disabled) return; this.audio.sfx('select'); (it.action || it.right)?.(); if (!it.action) refresh(); },
       act: (a) => { if (a === 'back' && back) { this.audio.sfx('back'); back(); } },
+      dismiss: back && dismissable ? back : null,
     };
     this.setScreen(render(), sc);
   }
@@ -297,6 +301,7 @@ class Game {
         { label: 'How to Play', action: () => this.showHelp(() => this.showMain()) },
       ],
       back: () => this.showTitle(),
+      dismissable: false,
     });
   }
 
@@ -348,13 +353,15 @@ class Game {
       <div class="hint">${hintHTML('Back')}</div></div></div>`, {
       update: () => { for (const [, m] of this.menuEvents) if (m.back || m.ok || m.start) { this.audio.sfx('back'); back(); return; } },
       act: (a) => { if (a === 'back') back(); },
+      dismiss: back,
     });
   }
 
   // ---- racer select with drop-in players -----------------------------------------------------------
   // Each player picks a driver from the grid (A locks it in), then flips through karts with ◀ ▶ in
   // their own preview (A locks that in too), so nobody waits on anyone else.
-  showSelect(mode) {
+  // resume: coming back from the cup / map screen, everyone is still locked in
+  showSelect(mode, resume = false) {
     this.mode = mode;
     const max = mode === 'tt' ? 1 : MAX_PLAYERS;
     // phase: 'driver' (choosing) -> 'kart' (driver locked, choosing a kart) -> 'done'
@@ -397,6 +404,8 @@ class Game {
     this.cleanup = () => show.dispose();
     const slotKeys = [], slotHtml = [];   // what each preview cell currently shows
     let gridKey = '', picksKey = '';
+    // phones hide the grid: drivers are stepped through with arrows instead
+    const compact = () => !picksEl.offsetWidth;
     const deviceLabel = (d) => d === 'kb' ? (this.input.split ? 'Keys WASD' : 'Keyboard') : d === 'kb2' ? 'Keys Arrows' : d === 'touch' ? 'Touch' : this.input.padName(d);
     const taken = (me) => new Set(players.filter((p) => p !== me && p.phase !== 'driver').map((p) => p.dcur));
     // portraits fill in a few per frame
@@ -453,7 +462,7 @@ class Game {
       cellsEl.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
       cellsEl.style.gridTemplateRows = `repeat(${Math.ceil(n / cols)}, 1fr)`;
     };
-    const cellHtml = (p, d, ch, following) => {
+    const cellHtml = (p, d, ch, following, standing) => {
       const kartStep = p && p.phase !== 'driver';
       const who = p ? `<i style="background:${p.color}">P${p.id + 1}</i> ` : '';
       const kn = allowedK.indexOf(p?.kcur) + 1, dn = allowedD.indexOf(p?.dcur) + 1;
@@ -469,7 +478,7 @@ class Game {
         <div class="pvinfo"><div class="pvfrom" style="color:${u.color}">${esc(u.name)}</div>
         <div class="pvname">${esc(kartStep ? ch.vehicle : d.name)}</div>
         <div class="pvblurb">${esc(kartStep ? `${ch.form || bodyName(ch)}${ch.blurb ? ' · ' + ch.blurb : ''}` : `${d.blurb}${d.blurb ? ' · ' : ''}${d.weight[0].toUpperCase() + d.weight.slice(1)}`)}</div>
-        <div class="pvkart">${kartStep ? `driven by <b>${esc(d.name)}</b>` : `in the <b>${esc(ch.vehicle)}</b>`}</div>
+        ${standing ? '' : `<div class="pvkart">${kartStep ? `driven by <b>${esc(d.name)}</b>` : `in the <b>${esc(ch.vehicle)}</b>`}</div>`}
         <div class="stats big">${statBars(combinedStats(ch.stats, d))}</div></div>${following ? '<div class="pvfollow">▶ picking now</div>' : ''}`;
     };
     const refreshStage = (cheerP) => {
@@ -482,11 +491,13 @@ class Game {
       layoutCells();
       list.forEach((p, i) => {
         const d = DRIVERS[p ? p.dcur : 0], ch = KARTS[p ? p.kcur : 0];
-        const key = (p ? p.id : '-') + '|' + d.id + '|' + ch.id, phase = p?.phase === 'done' ? 'win' : 'pre';
+        // phones: while choosing a driver they stand on their own; the kart joins at the kart step
+        const standing = compact() && (!p || p.phase === 'driver');
+        const key = (p ? p.id : '-') + '|' + d.id + '|' + (standing ? 'stand' : ch.id), phase = p?.phase === 'done' ? 'win' : 'pre';
         if (key !== slotKeys[i]) {
           const ry = show.items[i]?.m.root.rotation.y ?? 0.6;
           const sameDriver = slotKeys[i] && slotKeys[i].split('|').slice(0, 2).join('|') === key.split('|').slice(0, 2).join('|');
-          show.setItem(i, { ch, driver: d, ry, phase });
+          show.setItem(i, { ch, driver: d, ry, phase, stand: standing });
           slotKeys[i] = key;
           if (!sameDriver) show.play(i, 'yay');
         }
@@ -495,7 +506,7 @@ class Game {
         const cell = cellsEl.children[i];
         cell.className = 'pvcell' + (p && p === fp && players.length > 1 ? ' follow' : '');
         cell.style.setProperty('--pc', p ? p.color : 'rgba(255,255,255,.25)');
-        const html = cellHtml(p, d, ch, p && p === fp && players.length > 1);
+        const html = cellHtml(p, d, ch, p && p === fp && players.length > 1, standing);
         if (html !== slotHtml[i]) { cell.innerHTML = html; slotHtml[i] = html; }
       });
     };
@@ -510,6 +521,10 @@ class Game {
       followEl = el;
     };
     const refresh = (cheerP = null) => {
+      // remember what each player slot is looking at, so coming back to this screen restores it
+      this.picks.chars ||= {};
+      for (const p of players) this.picks.chars[p.id] = { driver: DRIVERS[p.dcur].id, kart: KARTS[p.kcur].id };
+      save(PKEY, this.picks);
       for (const c of dcards) {
         const i = +c.dataset.i, here = players.filter((p) => p.dcur === i);
         c.querySelector('.tags').innerHTML = here.map((p) => `<span class="ptag${p.phase !== 'driver' ? ' lock' : ''}" style="background:${p.color}">P${p.id + 1}${p.phase !== 'driver' ? ' ✓' : ''}</span>`).join('');
@@ -565,8 +580,6 @@ class Game {
     const go = () => {
       if (!players.length || !players.every((p) => p.phase === 'done')) return;
       this.audio.sfx('select');
-      for (const p of players) (this.picks.chars ||= {})[p.id] = { driver: DRIVERS[p.dcur].id, kart: KARTS[p.kcur].id };
-      save(PKEY, this.picks);
       this.players = players.map((p) => this.makePlayer({ id: p.id, device: p.device, cursor: 0, driver: p.dcur, kart: p.kcur, color: p.color }));
       if (mode === 'gp') this.showCups();
       else this.showTracks(mode);
@@ -601,8 +614,6 @@ class Game {
       this.audio.sfx('select');
       refresh(p);
     };
-    // phones hide the grid: step through the drivers in order instead (skipping ones already taken)
-    const compact = () => !picksEl.offsetWidth;
     const stepDriver = (p, dir) => {
       const n = allowedD.length, tk = taken(p);
       let k = Math.max(0, allowedD.indexOf(p.dcur));
@@ -667,7 +678,12 @@ class Game {
         lockDriver(p);
       },
       act: (a) => {
-        if (a === 'back') back();
+        // the Back button steps back one stage for the mouse / touch player: ready -> kart -> driver -> menu
+        if (a === 'back') {
+          const p = players.find((q) => q.device === 'touch' || q.device === 'kb') || players[0];
+          if (p && p.phase !== 'driver') { p.phase = p.phase === 'done' ? 'kart' : 'driver'; this.audio.sfx('back'); refresh(); } else back();
+          return;
+        }
         if (a === 'go') go();
         const [cmd, id] = a.split(':'), p = players.find((q) => q.id === +id);
         if (p?.phase === 'driver') {
@@ -681,7 +697,14 @@ class Game {
         if (cmd === 'kok') lockKart(p);
       },
     };
-    join(this.p1Device());
+    if (resume && this.players?.length) {
+      // back from the cup / map screen: the same players, still locked in
+      for (const q of this.players) {
+        if (players.length >= max) break;
+        players.push({ id: q.id, device: q.device, dcur: q.driverIndex ?? allowedD[0], kcur: q.kartIndex ?? allowedK[0], phase: 'done', color: q.color, acted: true });
+      }
+      refresh();
+    } else join(this.p1Device());
     refresh();
   }
 
@@ -719,12 +742,12 @@ class Game {
           if (m.up) { focus = (focus + n - 5) % n; this.audio.sfx('click'); refresh(); }
           if (m.down) { focus = (focus + 5) % n; this.audio.sfx('click'); refresh(); }
           if (m.ok || m.start) { pick(focus); return; }
-          if (m.back) { this.audio.sfx('back'); this.showSelect(mode); return; }
+          if (m.back) { this.audio.sfx('back'); this.showSelect(mode, true); return; }
         }
       },
       hover: (i) => { focus = i; refresh(); },
       click: (i) => pick(i),
-      act: (a) => { if (a === 'back') this.showSelect(mode); },
+      act: (a) => { if (a === 'back') this.showSelect(mode, true); },
     };
     refresh();
   }
@@ -753,12 +776,12 @@ class Game {
           if (m.left || m.up) { focus = (focus + CUPS.length - 1) % CUPS.length; this.audio.sfx('click'); refresh(); }
           if (m.right || m.down) { focus = (focus + 1) % CUPS.length; this.audio.sfx('click'); refresh(); }
           if (m.ok || m.start) { pick(focus); return; }
-          if (m.back) { this.audio.sfx('back'); this.showSelect('gp'); return; }
+          if (m.back) { this.audio.sfx('back'); this.showSelect('gp', true); return; }
         }
       },
       hover: (i) => { focus = i; refresh(); },
       click: (i) => pick(i),
-      act: (a) => { if (a === 'back') this.showSelect('gp'); },
+      act: (a) => { if (a === 'back') this.showSelect('gp', true); },
     };
     refresh();
   }

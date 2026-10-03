@@ -156,6 +156,8 @@ export class DriverAnim {
     if (!s.grounded && !s.gliding) { p.lz -= 0.15; p.rz += 0.15; p.hx = -0.1; }
     if (s.gliding) { p.lx = p.rx = -2.95; p.lz = 0.25; p.rz = -0.25; p.tx = 0.12; p.hx = -0.15; p.tz = -st * 0.25; }
     if (s.look) { p.hy = Math.PI * 0.55; p.ty = 0.45; p.rx = -0.4; p.rz = -0.1; }
+    // standing on the select stage (no kart): arms hang down and sway a little
+    if (s.stand) { p.lx = -0.12 + S(t * 1.1) * 0.08; p.rx = -0.12 - S(t * 1.1) * 0.08; p.lz = p.rz = 0; p.by = 0; }
     if (s.phase === 'pre') {
       p.hy = S(t * 0.8) * 0.7; p.hx = S(t * 0.5) * 0.1; p.by = Math.abs(S(t * 9)) * 0.02;
     } else if (s.phase === 'win') {
