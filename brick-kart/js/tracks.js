@@ -12,7 +12,7 @@ import space from './maps/space.js';
 // Movie Cup maps are loaded independently so a problem in one never stops
 // the rest of the game from starting.
 // Finished movie maps (others are still being built).
-const MOVIE_IDS = ['jurassic', 'starwars', 'marvel'];
+const MOVIE_IDS = ['jurassic', 'starwars', 'marvel', 'hogwarts'];
 // JJK Run: one map per Jujutsu Kaisen season, in story order
 const JJK_IDS = ['jjk-goodwill', 'jjk-inventory', 'jjk', 'jjk-culling'];
 async function loadMaps(ids) {
