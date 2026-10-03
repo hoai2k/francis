@@ -9,8 +9,8 @@ Play: <https://hoai2k.github.io/francis/brick-kart/>
 
 ## Modes
 
-- **Grand Prix**: pick a cup (3 maps each, 4 in the Movie Cup and JJK Run), or the
-  All-Star Cup with all 17.
+- **Grand Prix**: pick a cup (3 maps each, 4 in the Movie Cup and JJK Run). The
+  focused cup shows a preview of its races in order, with a picture of each map.
   Points go 15-12-10-9-8-7-6-5-4-3-2-1, and each cup ends with an award
   ceremony.
 - **Quick Race**: one race on any map. By default there are **12 racers**
@@ -71,9 +71,12 @@ Regina, Skater Sam, Zorp the Alien, Mummy Max and Dino Dina.
 
 ### Drivers and karts
 
-You pick a **driver** and then a **kart** separately, like Mario Kart. Every
-player locks in a driver first; then the whole picker switches to the kart
-step. The original 16 Brick Kart racers are also drivers, listed after the
+You pick a **driver** and then a **kart** separately, like Mario Kart. Pick a
+driver from the grid and press **A**; then flip through karts with **◀ ▶** in your
+own preview and press **A** again to lock it in (**B** steps back). Every player
+does this at their own pace, so nobody waits for anyone else. On phones there's
+no grid: the preview fills the screen and you flip through drivers with ◀ ▶ too,
+tapping **Lock in**. The original 16 Brick Kart racers are also drivers, listed after the
 movie casts, and the classic karts come after the newer vehicles. The drivers are brick-built movie characters from
 the Movie Cup: 19 from Marvel, 16 from Star Wars, 16 from Harry Potter, 16 from
 Jujutsu Kaisen and 16 from Jurassic World (83 in all). The Harry Potter cast
@@ -89,7 +92,9 @@ the race (CPU ones too) gets one of them at the wheel.
   player 1 until they lock in, then with the next player still choosing, and so
   on (marked "picking now"); everyone else can still move their cursor and watch
   their own preview.
-- Each player slot remembers its last driver and kart (or classic racer), saved
+- Simplified mode fits every driver on one screen (cards shrink if they must); the
+  full roster picks a column count that avoids rows with a single card.
+- Each player slot remembers its last driver and kart, saved
   in your browser, and starts on them next time. Stat bars show the kart's stats adjusted by the driver's weight
   class (light drivers accelerate and handle better; heavy ones are faster and
   push harder).

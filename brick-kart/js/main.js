@@ -456,13 +456,15 @@ class Game {
     const cellHtml = (p, d, ch, following) => {
       const kartStep = p && p.phase !== 'driver';
       const who = p ? `<i style="background:${p.color}">P${p.id + 1}</i> ` : '';
-      const kn = allowedK.indexOf(p?.kcur) + 1;
+      const kn = allowedK.indexOf(p?.kcur) + 1, dn = allowedD.indexOf(p?.dcur) + 1;
       const tag = !p ? 'Press <b>A</b> / <b>Enter</b> or tap a driver'
-        : p.phase === 'driver' ? `${who}pick a <b>driver</b>`
+        : p.phase === 'driver' ? `${who}pick a <b>driver</b><em class="dnum">${dn} / ${allowedD.length}</em>`
         : p.phase === 'kart' ? `${who}pick a <b>kart</b> <em>${kn} / ${allowedK.length}</em>` : `${who}is ready!`;
       const u = uni(d.from);
       // choosing a kart: arrows either side of it (◀ ▶ on the pad too) and a lock-in button for touch
-      const arrows = p?.phase === 'kart' ? `<button class="karr l" data-act="kprev:${p.id}" aria-label="Previous kart">◀</button><button class="karr r" data-act="knext:${p.id}" aria-label="Next kart">▶</button><button class="kok" data-act="kok:${p.id}">Lock in ✓</button>` : '';
+      // on phones (no grid) drivers are picked the same way
+      const arrows = p?.phase === 'kart' ? `<button class="karr l" data-act="kprev:${p.id}" aria-label="Previous kart">◀</button><button class="karr r" data-act="knext:${p.id}" aria-label="Next kart">▶</button><button class="kok" data-act="kok:${p.id}">Lock in ✓</button>`
+        : p?.phase === 'driver' ? `<button class="karr l drv" data-act="dprev:${p.id}" aria-label="Previous driver">◀</button><button class="karr r drv" data-act="dnext:${p.id}" aria-label="Next driver">▶</button><button class="kok drv" data-act="dok:${p.id}">Lock in ✓</button>` : '';
       return `<div class="pvstep">${tag}</div>${arrows}
         <div class="pvinfo"><div class="pvfrom" style="color:${u.color}">${esc(u.name)}</div>
         <div class="pvname">${esc(kartStep ? ch.vehicle : d.name)}</div>
@@ -599,6 +601,16 @@ class Game {
       this.audio.sfx('select');
       refresh(p);
     };
+    // phones hide the grid: step through the drivers in order instead (skipping ones already taken)
+    const compact = () => !picksEl.offsetWidth;
+    const stepDriver = (p, dir) => {
+      const n = allowedD.length, tk = taken(p);
+      let k = Math.max(0, allowedD.indexOf(p.dcur));
+      for (let t = 0; t < n; t++) { k = (k + dir + n) % n; if (!tk.has(allowedD[k])) break; }
+      p.dcur = allowedD[k];
+      this.audio.sfx('click');
+      refresh();
+    };
     const stepKart = (p, dir) => {
       const n = allowedK.length, k = allowedK.indexOf(p.kcur);
       p.kcur = allowedK[((k < 0 ? 0 : k) + dir + n) % n];
@@ -631,7 +643,8 @@ class Game {
           }
           const dx = m.left ? -1 : m.right ? 1 : 0, dy = m.up ? -1 : m.down ? 1 : 0;
           if (p.phase === 'driver') {
-            if (dx || dy) { p.dcur = moveIn(dcards, p.dcur, dx, dy, (c) => +c.dataset.i); this.audio.sfx('click'); refresh(); }
+            if (compact()) { if (dx) stepDriver(p, dx); }
+            else if (dx || dy) { p.dcur = moveIn(dcards, p.dcur, dx, dy, (c) => +c.dataset.i); this.audio.sfx('click'); refresh(); }
             if (m.ok) { lockDriver(p); continue; }
             if (m.back) { if (p === players[0]) { back(); return; } leave(p); continue; }
           } else if (p.phase === 'kart') {
@@ -657,6 +670,11 @@ class Game {
         if (a === 'back') back();
         if (a === 'go') go();
         const [cmd, id] = a.split(':'), p = players.find((q) => q.id === +id);
+        if (p?.phase === 'driver') {
+          if (cmd === 'dprev') stepDriver(p, -1);
+          if (cmd === 'dnext') stepDriver(p, 1);
+          if (cmd === 'dok') lockDriver(p);
+        }
         if (!p || p.phase !== 'kart') return;
         if (cmd === 'kprev') stepKart(p, -1);
         if (cmd === 'knext') stepKart(p, 1);
