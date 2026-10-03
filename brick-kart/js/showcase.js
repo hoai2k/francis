@@ -83,7 +83,7 @@ function standDriver(rig) {
   const root = new THREE.Group(), mats = [];
   const d = rig.dims;
   if (d) {
-    const s = d.s, W = d.W ?? 1, L = 0.86 * s, cutY = L + 0.06 * s;
+    const s = d.s, W = d.W ?? 1, L = 0.86 * s, cutY = L + (d.chestY ?? 0.18 * s);   // cut where the torso starts: the seated hips/thighs reach up to it
     // leg colour: the figure's own (or, failing that, whatever its lowest part is made of)
     let low = null, lowY = Infinity;
     const box = new THREE.Box3();
@@ -97,9 +97,9 @@ function standDriver(rig) {
     });
     const legM = d.legColor !== undefined ? plastic(d.legColor) : low || plastic(0x0055bf);
     const add = (w, h, dd, x, y, z) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, dd), legM); m.position.set(x, y, z); root.add(m); };
-    add(0.9 * s * W, 0.2 * s, 0.46 * s, 0, cutY - 0.08 * s, 0);                       // hips
+    add(0.9 * s * W, 0.16 * s, 0.46 * s * (d.D ?? 1), 0, cutY - 0.08 * s, 0);          // hips, up to the torso
     for (const sd of [-1, 1]) {
-      add(0.4 * s * W, cutY - 0.32 * s, 0.42 * s, sd * 0.22 * s * W, (cutY - 0.04 * s) / 2, 0);        // legs, feet to hips
+      add(0.4 * s * W, cutY - 0.3 * s, 0.42 * s, sd * 0.22 * s * W, (cutY - 0.02 * s) / 2, 0);         // legs, feet to hips
       add(0.42 * s * W, 0.14 * s, 0.6 * s, sd * 0.22 * s * W, 0.07 * s, 0.07 * s);    // feet
     }
     rig.root.position.y = L;
@@ -186,9 +186,12 @@ export class Showcase {
   play(i, name) { const it = this.items[i]; return it?.anim?.play(name); }
   setPhase(i, phase) { const it = this.items[i]; if (it) it.phase = phase; }
   animate(dt) {
-    for (const it of this.items) {
-      if (this.spin) it.m.root.rotation.y += dt * this.spin;
-      if (!it.anim) continue;
+    const face = Math.atan2(this.camBase.x - this.lookAt.x, this.camBase.z - this.lookAt.z);
+    this.items.forEach((it, n) => {
+      // standing drivers face the camera and just sway a little; karts turn on the turntable
+      if (it.m.standing) it.m.root.rotation.y = face + Math.sin(this.t * 0.6 + n) * 0.12;
+      else if (this.spin) it.m.root.rotation.y += dt * this.spin;
+      if (!it.anim) return;
       // idle personality: now and then show off a gesture
       it.nextIdle -= dt;
       if (it.idle !== false && it.nextIdle <= 0 && it.phase === 'pre') {
@@ -198,7 +201,7 @@ export class Showcase {
       it.anim.update(dt, { steer: it.m.standing ? 0 : Math.sin(this.t * 0.9) * (it.phase === 'pre' ? 0.5 : 0), stand: !!it.m.standing, drift: 0, speed01: it.m.standing ? 0 : 0.3, grounded: true, gliding: false, boosting: false, look: false, phase: it.phase || 'pre', rank: 1 });
       it.m.steerControl?.(it.anim.steer);
       it.m.update?.(dt, { speed01: 0.35, steer: it.anim.steer, boosting: false, gliding: false, grounded: true });
-    }
+    });
   }
   // aim the camera at a point for a view of the given aspect; fit/fitY frame a single kart
   frame(aspect, ox, fit, fitY) {
