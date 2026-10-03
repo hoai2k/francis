@@ -83,7 +83,9 @@ function standDriver(rig) {
   const root = new THREE.Group(), mats = [];
   const d = rig.dims;
   if (d) {
-    const s = d.s, W = d.W ?? 1, L = 0.86 * s, cutY = L + (d.chestY ?? 0.18 * s);   // cut where the torso starts: the seated hips/thighs reach up to it
+    // cut just above where the torso starts: the seated hips/thighs reach exactly up to it, and a
+    // clipping plane keeps faces lying on it (their top faces would show as a thin slab)
+    const s = d.s, W = d.W ?? 1, L = 0.86 * s, cutY = L + (d.chestY ?? 0.18 * s) + 0.015 * s;
     // leg colour: the figure's own (or, failing that, whatever its lowest part is made of)
     let low = null, lowY = Infinity;
     const box = new THREE.Box3();
