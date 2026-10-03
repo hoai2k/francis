@@ -60,7 +60,7 @@ export default {
     ctx.claim(top.x + 20, top.z - 40, 72);
     // gumballs rolling down the climb (toward the racers)
     const gcols = [0xff3a5a, 0x3ab0ff, 0xffe03a, 0x5ae05a, 0xb05aff, 0xff8a1a];
-    gcols.forEach((c, n) => ctx.hazard(trackMover(ctx, { mesh: gumball(c), from: 3.9, to: 7.95, reverse: true, oneWay: true, lat: [-0.5, 0.2, 0.55, -0.2, 0.4, -0.55][n], speed: 16, radius: 2.6, kind: 'wreck', roll: 2.6, offset: n / gcols.length })));
+    gcols.forEach((c, n) => ctx.hazard(trackMover(ctx, { mesh: gumball(c), from: 3.9, to: 7.95, reverse: true, oneWay: true, lat: [-0.5, 0.2, 0.55, -0.2, 0.4, -0.55][n], speed: 16, radius: 2.6, kind: 'spin', roll: 2.6, offset: n / gcols.length })));
     // lollipop forest, candy canes, gumdrops and ice creams
     const lcols = [C.pink, C.red, C.azure, C.lime, C.orange, C.purple, C.yellow];
     ctx.scatter(90, { minC: 2, maxC: 110, r: 4, pad: 180, test: (x, z) => hole.test(x, z) }, (x, z) => {

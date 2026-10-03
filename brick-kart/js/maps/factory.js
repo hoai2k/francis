@@ -73,7 +73,7 @@ export default {
       const i = tr.kToIndex(k);
       const inside = tr.CURV[i] > 0 ? -1 : 1;
       const c = tr.at(i, inside * (tr.HW[i] + 4), 0);
-      ctx.hazard(spinner(ctx, { center: c, length: tr.HW[i] * 1.5, speed: 1.1, balls: 5, color: C.dkgray, glow: false, kind: 'wreck', height: 1.6 }));
+      ctx.hazard(spinner(ctx, { center: c, length: tr.HW[i] * 1.5, speed: 1.1, balls: 5, color: C.dkgray, glow: false, kind: 'spin', height: 1.6 }));
     }
     // forklifts crossing
     ctx.hazard(crossing(ctx, { mesh: forklift(), k: 16.5, speed: 6, kind: 'bump', radius: 2.6 }));

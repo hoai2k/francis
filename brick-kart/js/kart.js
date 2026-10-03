@@ -70,6 +70,9 @@ export class Kart {
     this.lastSafe = 0;
     this.visYaw = 0; this.visPitch = 0; this.visRoll = 0; this.driftVis = 0; this.squash = 0;
     this.bumpCool = 0; this.wallCool = 0;
+    // collision physics: a sideways "knock" velocity that slides off, a yaw kick and a body rock
+    this.kvx = 0; this.kvz = 0; this.yawKick = 0; this.knockRoll = 0;
+    this.heat = 0;                    // recent hits (decays): back-to-back hits earn extra recovery time
     this.startBoost = 0;
     this.wrongWay = 0;
     this.ctl = { throttle: 0, brake: 0, steer: 0, drift: false, driftPressed: false, itemPressed: false, back: false };
@@ -101,7 +104,7 @@ export class Kart {
     const tr = this.track;
     tr.at(i, lat, 0, this.pos);
     this.yaw = this.moveYaw = tr.yawAt(i);
-    this.speed = 0; this.vy = 0; this.grounded = true;
+    this.speed = 0; this.vy = 0; this.grounded = true; this.kvx = this.kvz = this.yawKick = 0;
     tr.locate(this.pos.x, this.pos.y, this.pos.z, i, this.loc);
     this.lastSafe = this.loc.i;
     this.syncModel(0);
@@ -118,6 +121,33 @@ export class Kart {
     if (instant) this.speed = Math.max(this.speed, this.topSpeed * 1.12);
     this.race.fx.boostBurst(this);
     if (this.human) this.race.audio.sfx('boost');
+  }
+
+  // world-space velocity, knock included
+  velocity(out = { x: 0, z: 0 }) {
+    out.x = Math.sin(this.moveYaw) * this.speed + this.kvx;
+    out.z = Math.cos(this.moveYaw) * this.speed + this.kvz;
+    return out;
+  }
+  // A physical shove: a change of velocity (world space). The part along the direction of travel
+  // speeds the kart up or slows it down (never below 55% in one shove, so a bump can't stop you
+  // dead); the rest knocks it sideways and slides off over a moment. Callers divide impulses by
+  // weight, so heavy karts barely move and light ones get thrown about.
+  shove(dvx, dvz, spin = 0) {
+    if (this.respawn > 0 || this.bulletTime > 0) return;
+    const fx = Math.sin(this.moveYaw), fz = Math.cos(this.moveYaw);
+    const along = dvx * fx + dvz * fz;
+    if (along < 0) this.speed = this.speed > 0 ? Math.max(this.speed * 0.55, this.speed + along) : this.speed + along * 0.5;
+    else this.speed = Math.min(this.speed + along, Math.max(this.speed, this.topSpeed * 1.1));
+    let kx = this.kvx + dvx - fx * along, kz = this.kvz + dvz - fz * along;
+    const m = Math.hypot(kx, kz);
+    if (m > 16) { kx *= 16 / m; kz *= 16 / m; }
+    this.kvx = kx; this.kvz = kz;
+    // the nose swings a little with the shove and the body rocks away from it
+    const lat = dvx * -Math.cos(this.yaw) + dvz * Math.sin(this.yaw);   // > 0: pushed to the right
+    this.yawKick = Math.max(-2.5, Math.min(2.5, this.yawKick + spin - lat * 0.1));
+    this.knockRoll = Math.max(-0.35, Math.min(0.35, this.knockRoll - lat * 0.03));
+    if (Math.abs(lat) > 3) this.cancelDrift();
   }
 
   // --- hits ----------------------------------------------------------------
@@ -165,6 +195,9 @@ export class Kart {
       this.hidden = 0.85;
     }
     this.invuln = Math.max(this.invuln, kind === 'spin' ? 1.4 : 2.2);
+    // hit again soon after the last one: a longer grace period so nobody gets chain-wrecked
+    this.heat += 1;
+    if (this.heat > 1.3) this.invuln += 1.2;
     this.emote('ouch');
     if (this.player) this.player.rumble(kind === 'spin' ? 0.5 : 1, kind === 'spin' ? 250 : 450);
     if (by && by !== this && by.human) by.player?.rumble(0.2, 80);
@@ -182,7 +215,7 @@ export class Kart {
     if (this.respawn > 0) return;
     this.respawn = 1.6; this.respawnPlaced = false;
     this.cancelDrift();
-    this.speed = 0;
+    this.speed = 0; this.kvx = this.kvz = this.yawKick = 0;
     this.setGliding(false);
     this.race.audio.sfx('splash', this.pos);
     this.race.fx.splash(this.pos, this.track.theme.groundOpts?.emissive ? 0xff6a00 : 0x66ccff);
@@ -264,6 +297,7 @@ export class Kart {
     const tr = this.track;
     this.ctl = ctl;
     this.bumpCool -= dt; this.wallCool -= dt;
+    this.heat = Math.max(0, this.heat - dt / 5);
     this.invuln = Math.max(0, this.invuln - dt);
     this.hidden = Math.max(0, this.hidden - dt);
     if (this.goldenTime > 0) this.goldenTime -= dt;
@@ -297,7 +331,7 @@ export class Kart {
     if (this.inkTime > 0) this.inkTime -= dt;
     if (this.goldTurboTime > 0) this.goldTurboTime -= dt;
     if (this.frozenTime > 0) this.frozenTime -= dt;
-    if (this.bulletTime > 0) { this.updateBullet(dt); return; }
+    if (this.bulletTime > 0) { this.kvx = this.kvz = this.yawKick = 0; this.updateBullet(dt); return; }
 
     const stunned = this.spinTime > 0 || this.wreckTime > 0 || this.frozenTime > 0;
     const on = this.race.started && !stunned && !this.finishedCoast;
@@ -383,6 +417,14 @@ export class Kart {
 
     this.pos.x += Math.sin(this.moveYaw) * this.speed * dt;
     this.pos.z += Math.cos(this.moveYaw) * this.speed * dt;
+    // knocked sideways: slide, with tyre grip (much less on ice or in the air) bleeding it off
+    if (this.kvx || this.kvz) {
+      this.pos.x += this.kvx * dt; this.pos.z += this.kvz * dt;
+      const f = Math.exp(-(!this.grounded ? 0.5 : this.surf === 'ice' ? 1.2 : 3.5) * dt);
+      this.kvx *= f; this.kvz *= f;
+      if (this.kvx * this.kvx + this.kvz * this.kvz < 0.01) this.kvx = this.kvz = 0;
+    }
+    if (this.yawKick) { this.yaw += this.yawKick * dt; this.yawKick *= Math.exp(-5 * dt); if (Math.abs(this.yawKick) < 0.01) this.yawKick = 0; }
 
     // --- vertical -----------------------------------------------------------------------
     tr.locate(this.pos.x, this.pos.y, this.pos.z, loc.i, loc);
@@ -428,6 +470,9 @@ export class Kart {
       if (absLat2 > lim) {
         const s = Math.sign(loc.lat), pen = absLat2 - lim;
         this.pos.x -= loc.rx * s * pen; this.pos.z -= loc.rz * s * pen;
+        // a knock into the wall bounces back off it a little
+        const kn = (this.kvx * loc.rx + this.kvz * loc.rz) * s;
+        if (kn > 0) { this.kvx -= loc.rx * s * kn * 1.3; this.kvz -= loc.rz * s * kn * 1.3; }
         const ty = Math.atan2(loc.tx, loc.tz);
         // heading relative to track tangent; reflect the lateral component
         const rel = angleDiff(ty, this.moveYaw);
@@ -552,7 +597,8 @@ export class Kart {
     const glideRoll = this.gliding ? -(this.ctl.steer || 0) * 0.35 : 0;
     const roll = -(this.ctl.steer || 0) * Math.min(1, Math.abs(this.speed) / 30) * 0.08 + this.driftVis * 0.18 + bankRoll + glideRoll;
     this.visRoll += (roll - this.visRoll) * Math.min(1, dt * 8);
-    m.root.rotation.z = this.visRoll + (this.wreckTime > 0 ? Math.sin(this.wreckTime * 20) * 0.2 : 0);
+    this.knockRoll *= Math.exp(-4 * dt);
+    m.root.rotation.z = this.visRoll + this.knockRoll + (this.wreckTime > 0 ? Math.sin(this.wreckTime * 20) * 0.2 : 0);
     // squash & hop
     this.squash = Math.max(0, this.squash - dt * 1.5);
     const sq = this.squash;

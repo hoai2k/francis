@@ -545,7 +545,7 @@ export class Items {
       if (s.t > 0.8 && s.t < 1.4) {
         this.race.fx.debrisOne(s.cloud.position.clone().add(new THREE.Vector3((Math.random() - 0.5) * 3, -1, (Math.random() - 0.5) * 3)), [C.red, C.yellow, C.blue, C.green][Math.floor(Math.random() * 4)], new THREE.Vector3(0, -12, 0), 1.2);
       }
-      if (s.t > 1.1 && !s.hit) { s.hit = true; k.hit('wreck', s.by); }
+      if (s.t > 1.1 && !s.hit) { s.hit = true; k.hit('spin', s.by); }   // like Lightning: a spin-out, not a wreck
       if (s.t > 1.8) { this.scene.remove(s.cloud); this.storms.splice(n, 1); }
     }
     // shockwave rings

@@ -118,7 +118,7 @@ export default {
     // asteroids drifting across the road
     for (const [k, o] of [[2.2, 0], [8.0, 0.3], [15.1, 0.6], [16.0, 0.1]]) {
       const i = tr.kToIndex(k), w = tr.HW[i] + 10;
-      ctx.hazard(mover(ctx, { mesh: asteroid([0xff3a8a, 0x3ad0ff, 0xffe03a, 0x7aff5a][Math.floor(rand() * 4)]), path: [tr.at(i, -w, 0), tr.at(i, w, 0)], loop: false, speed: 7, radius: 3.4, kind: 'wreck', roll: 2, offset: o }));
+      ctx.hazard(mover(ctx, { mesh: asteroid([0xff3a8a, 0x3ad0ff, 0xffe03a, 0x7aff5a][Math.floor(rand() * 4)]), path: [tr.at(i, -w, 0), tr.at(i, w, 0)], loop: false, speed: 7, radius: 3.4, kind: 'spin', roll: 2, offset: o }));
     }
     // rocket ships flying laps
     const rk = new BrickBuilder(1);

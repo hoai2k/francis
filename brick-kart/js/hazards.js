@@ -226,17 +226,26 @@ export class Hazards {
         if (!kind) continue;
         this.cool.set(k, 1.0);
         if (kind === 'bump') {
-          // knocked sideways and slowed, like clipping traffic
+          // clipping traffic or an animal knocks you aside (light karts further) instead of stopping you
           if (k.goldenTime > 0 || k.megaTime > 0 || k.bulletTime > 0) break;
           if (!k.shieldBlocks()) {
-            k.speed *= 0.35; k.spinTime = Math.max(k.spinTime, 0.5); k.cancelDrift();
+            k.speed *= 0.85;
+            this.knock(k, h, 10);
             this.race.audio.sfx('bump', k.pos);
             k.player?.rumble(0.5, 200);
           }
-        } else k.hit(kind);
+        } else if (k.hit(kind) && kind === 'spin') this.knock(k, h, 7);
         break;
       }
     }
+  }
+  // shove a kart away from a hazard (movers expose pos; otherwise off to one side and back a bit)
+  knock(k, h, force) {
+    let nx, nz;
+    if (h.pos) { nx = k.pos.x - h.pos.x; nz = k.pos.z - h.pos.z; }
+    else { const side = Math.random() < 0.5 ? 1 : -1; nx = side * Math.cos(k.yaw) - 0.5 * Math.sin(k.yaw); nz = -side * Math.sin(k.yaw) - 0.5 * Math.cos(k.yaw); }
+    const L = Math.hypot(nx, nz) || 1, f = force / k.weight;
+    k.shove(nx / L * f, nz / L * f);
   }
   near(p, r) { for (const h of this.list) if (h.near(p, r)) return true; return false; }
 }

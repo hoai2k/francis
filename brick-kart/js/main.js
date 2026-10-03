@@ -522,9 +522,7 @@ class Game {
     this.setScreen(`<div class="screen select chars"><div class="panel wide xl"><h2>${titles[mode]} · <span class="steptitle">Choose your driver</span></h2>
       <div class="joinbar"></div>
       <div class="csel step-driver">
-        <div class="stage"><canvas class="pv"></canvas>
-          <div class="pvinfo"><div class="pvfrom"></div><div class="pvname"></div><div class="pvblurb"></div><div class="pvkart"></div><div class="stats big"></div></div>
-          <div class="pvstep"></div></div>
+        <div class="stage"><canvas class="pv"></canvas><div class="pvcells"></div></div>
         <div class="picks"><div class="dgrid">${dgroups}</div><div class="kgrid">${kgroups}</div></div>
       </div>
       <div class="selfoot"><button class="bbtn" data-act="back">◀ Back</button><div class="hint2"></div><button class="bbtn go" data-act="go">Race! ▶</button></div></div></div>`);
@@ -532,9 +530,16 @@ class Game {
     const dcards = [...ui.querySelectorAll('.dcard')], kcards = [...ui.querySelectorAll('.kcard')];
     const dEl = new Map(dcards.map((c) => [+c.dataset.i, c])), kEl = new Map(kcards.map((c) => [+c.dataset.i - 1000, c]));
     const picksEl = ui.querySelector('.picks');
-    const show = new Showcase(ui.querySelector('canvas.pv'), { cam: [5.6, 3.6, 8.4], look: [0, 1.25, 0], spin: 0.4 });
+    // one preview per player, each drawn into its own cell of the stage
+    const stageEl = ui.querySelector('.stage'), cellsEl = ui.querySelector('.pvcells'), canvas = ui.querySelector('canvas.pv');
+    const cellRects = () => {
+      const b = canvas.getBoundingClientRect();
+      return [...cellsEl.children].map((c) => { const r = c.getBoundingClientRect(); return { x: r.left - b.left, y: r.top - b.top, w: r.width, h: r.height }; });
+    };
+    const show = new Showcase(canvas, { cam: [5.6, 3.6, 8.4], look: [0, 1.25, 0], spin: 0.4, cells: cellRects });
     this.cleanup = () => show.dispose();
-    let pv = null, pvKey = '';   // the player the stage follows
+    const slotKeys = [], slotHtml = [];   // what each preview cell currently shows
+    let gridKey = '';
     const deviceLabel = (d) => d === 'kb' ? (this.input.split ? 'Keys WASD' : 'Keyboard') : d === 'kb2' ? 'Keys Arrows' : d === 'touch' ? 'Touch' : this.input.padName(d);
     const taken = (me) => new Set(players.filter((p) => p !== me && p.phase !== 'driver').map((p) => p.dcur));
     // portraits fill in a few per frame (karts once the kart step is reached)
@@ -560,36 +565,76 @@ class Game {
         ui.querySelector('.csel').className = 'csel step-' + step;
         ui.querySelector('.steptitle').textContent = step === 'kart' ? 'Choose your kart' : 'Choose your driver';
         picksEl.scrollTop = 0;
-        const p = pv || players[0];
-        if (p) scrollTo(step === 'kart' ? kEl.get(p.kcur) : dEl.get(p.dcur));
+        followEl = null;
       }
     };
-    const refreshStage = (cheer) => {
-      const p = pv || players[0];
-      const d = DRIVERS[p ? p.dcur : 0], ch = KARTS[p ? p.kcur : 0];
-      const key = (d?.id || '') + '|' + ch.id;
-      if (key !== pvKey) {
-        const ry = show.items[0]?.m.root.rotation.y ?? 0.6;
-        const sameDriver = pvKey.split('|')[0] === d?.id;
-        show.set([{ ch, driver: d, ry, phase: p?.phase === 'done' ? 'win' : 'pre' }]);
-        pvKey = key;
-        if (!sameDriver) show.play(0, 'yay');
+    // lay the cells out in the grid that keeps them closest to square
+    const layoutCells = () => {
+      const n = Math.max(1, cellsEl.children.length), W = stageEl.clientWidth || 1, H = stageEl.clientHeight || 1;
+      let cols = 1, best = -Infinity;
+      for (let c = 1; c <= n; c++) {
+        const r = Math.ceil(n / c), score = Math.min(W / c, (H / r) * 1.2) - (c * r - n) * 8;
+        if (score > best) { best = score; cols = c; }
       }
-      if (show.items[0]) show.items[0].phase = p?.phase === 'done' ? 'win' : 'pre';
-      if (cheer) { show.play(0, 'cheer'); this.audio.voice(d.voice, 'cheer', 0.9); }
-      ui.querySelector('.pvfrom').textContent = uni(d.from).name;
-      ui.querySelector('.pvfrom').style.color = uni(d.from).color;
-      ui.querySelector('.pvname').textContent = step === 'kart' ? ch.vehicle : d.name;
-      ui.querySelector('.pvblurb').textContent = step === 'kart' ? `${ch.form || bodyName(ch)}${ch.blurb ? ' · ' + ch.blurb : ''}` : `${d.blurb}${d.blurb ? ' · ' : ''}${d.weight[0].toUpperCase() + d.weight.slice(1)}`;
-      ui.querySelector('.pvkart').innerHTML = step === 'kart' ? `driven by <b>${esc(d.name)}</b>` : `in the <b>${esc(ch.vehicle)}</b>`;
-      ui.querySelector('.stats.big').innerHTML = statBars(combinedStats(ch.stats, d));
-      const step1 = !p ? 'Press <b>A</b> / <b>Enter</b> or tap a driver'
-        : p.phase === 'driver' ? `P${p.id + 1}: pick a <b>driver</b>`
-        : p.phase === 'waiting' ? `P${p.id + 1} is in! Waiting for the others…`
-        : p.phase === 'kart' ? `P${p.id + 1}: pick a <b>kart</b>` : `P${p.id + 1} is ready!`;
-      ui.querySelector('.pvstep').innerHTML = step1;
+      const key = cols + 'x' + Math.ceil(n / cols);
+      if (key === gridKey) return;
+      gridKey = key;
+      cellsEl.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+      cellsEl.style.gridTemplateRows = `repeat(${Math.ceil(n / cols)}, 1fr)`;
     };
-    const refresh = (cheer = false) => {
+    const cellHtml = (p, d, ch, following) => {
+      const kartStep = p && (p.phase === 'kart' || p.phase === 'done');
+      const who = p ? `<i style="background:${p.color}">P${p.id + 1}</i> ` : '';
+      const tag = !p ? 'Press <b>A</b> / <b>Enter</b> or tap a driver'
+        : p.phase === 'driver' ? `${who}pick a <b>driver</b>`
+        : p.phase === 'waiting' ? `${who}is in! Waiting for the others…`
+        : p.phase === 'kart' ? `${who}pick a <b>kart</b>` : `${who}is ready!`;
+      const u = uni(d.from);
+      return `<div class="pvstep">${tag}</div>
+        <div class="pvinfo"><div class="pvfrom" style="color:${u.color}">${esc(u.name)}</div>
+        <div class="pvname">${esc(kartStep ? ch.vehicle : d.name)}</div>
+        <div class="pvblurb">${esc(kartStep ? `${ch.form || bodyName(ch)}${ch.blurb ? ' · ' + ch.blurb : ''}` : `${d.blurb}${d.blurb ? ' · ' : ''}${d.weight[0].toUpperCase() + d.weight.slice(1)}`)}</div>
+        <div class="pvkart">${kartStep ? `driven by <b>${esc(d.name)}</b>` : `in the <b>${esc(ch.vehicle)}</b>`}</div>
+        <div class="stats big">${statBars(combinedStats(ch.stats, d))}</div></div>${following ? '<div class="pvfollow">▶ picking now</div>' : ''}`;
+    };
+    const refreshStage = (cheerP) => {
+      const list = players.length ? players : [null];
+      const fp = followed();
+      while (cellsEl.children.length > list.length) cellsEl.lastElementChild.remove();
+      while (cellsEl.children.length < list.length) cellsEl.appendChild(document.createElement('div'));
+      show.trim(list.length); slotKeys.length = slotHtml.length = list.length;
+      ui.querySelector('.csel').classList.toggle('multi', list.length > 1);
+      layoutCells();
+      list.forEach((p, i) => {
+        const d = DRIVERS[p ? p.dcur : 0], ch = KARTS[p ? p.kcur : 0];
+        const key = (p ? p.id : '-') + '|' + d.id + '|' + ch.id, phase = p?.phase === 'done' ? 'win' : 'pre';
+        if (key !== slotKeys[i]) {
+          const ry = show.items[i]?.m.root.rotation.y ?? 0.6;
+          const sameDriver = slotKeys[i] && slotKeys[i].split('|').slice(0, 2).join('|') === key.split('|').slice(0, 2).join('|');
+          show.setItem(i, { ch, driver: d, ry, phase });
+          slotKeys[i] = key;
+          if (!sameDriver) show.play(i, 'yay');
+        }
+        show.setPhase(i, phase);
+        if (p && p === cheerP) { show.play(i, 'cheer'); this.audio.voice(d.voice, 'cheer', 0.9); }
+        const cell = cellsEl.children[i];
+        cell.className = 'pvcell' + (p && p === fp && players.length > 1 ? ' follow' : '');
+        cell.style.setProperty('--pc', p ? p.color : 'rgba(255,255,255,.25)');
+        const html = cellHtml(p, d, ch, p && p === fp && players.length > 1);
+        if (html !== slotHtml[i]) { cell.innerHTML = html; slotHtml[i] = html; }
+      });
+    };
+    // the picker scrolls with the first player (in join order) still choosing; once they lock in,
+    // it moves on to the next one. Everyone else still sees their own preview update.
+    let followEl = null;
+    const followed = () => players.find((p) => p.phase === (step === 'kart' ? 'kart' : 'driver')) || null;
+    const follow = () => {
+      const f = followed();
+      const el = f ? (step === 'kart' ? kEl.get(f.kcur) : dEl.get(f.dcur)) : null;
+      if (el && el !== followEl) scrollTo(el);
+      followEl = el;
+    };
+    const refresh = (cheerP = null) => {
       sync();
       for (const c of dcards) {
         const i = +c.dataset.i, here = players.filter((p) => p.dcur === i);
@@ -616,7 +661,8 @@ class Game {
       ui.querySelector('.hint2').innerHTML = ready ? 'All set! Press <b>A</b> / <b>Start</b> / <b>Enter</b> to race'
         : step === 'kart' ? 'Everyone picks a kart · <b>B</b> goes back to drivers'
         : (mode !== 'tt' ? 'More players: press <b>A</b> on another controller · 2nd keyboard: <b>Right Shift</b>' : 'Time Trial is solo: beat your best time');
-      refreshStage(cheer);
+      refreshStage(cheerP);
+      follow();
     };
     // keep the focused card in view; in a group's first row also show its heading (the very top for the first group)
     const scrollTo = (el) => {
@@ -640,10 +686,8 @@ class Game {
       const p = { id, device, dcur: dcur % ND, kcur: (prev.kcur ?? 0) % NK, phase: 'driver', color: PCOL[id] };
       players.push(p);
       players.sort((a, b) => a.id - b.id);
-      pv = p;
       this.audio.sfx('join');
       refresh();
-      scrollTo(dEl.get(p.dcur));
       return p;
     };
     const go = () => {
@@ -657,7 +701,6 @@ class Game {
     const leave = (p) => {
       players.splice(players.indexOf(p), 1);
       if (p.device === 'kb2') this.input.split = false;
-      if (pv === p) pv = players[0] || null;
       this.audio.sfx('back');
       refresh();
     };
@@ -680,15 +723,16 @@ class Game {
     };
     const lockDriver = (p) => {
       if (taken(p).has(p.dcur)) { this.audio.sfx('wrong'); return; }
-      p.phase = 'waiting'; pv = p;
+      p.phase = 'waiting';
       this.audio.sfx('select');
-      refresh(true);
+      refresh(p);
     };
-    const lockKart = (p) => { p.phase = 'done'; pv = p; this.audio.sfx('select'); show.play(0, 'win'); this.audio.voice(DRIVERS[p.dcur].voice, 'win', 0.9); refresh(); };
+    const lockKart = (p) => { p.phase = 'done'; this.audio.sfx('select'); refresh(); show.play(players.indexOf(p), 'win'); this.audio.voice(DRIVERS[p.dcur].voice, 'win', 0.9); };
     const moveIn = (cards, cur, dx, dy, idOf) => idOf(cards[nav(cards, Math.max(0, cards.findIndex((c) => idOf(c) === cur)), dx, dy)]);
     this.screen = {
       update: (dt) => {
         fillImgs(3);
+        layoutCells();
         show.update(dt);
         if (mode !== 'tt' && players.some((p) => p.device === 'kb') && !players.some((p) => p.device === 'kb2') && this.input.edge && KB2_JOIN.some((k) => this.input.edge.has(k))) {
           this.input.split = true; join('kb2');
@@ -709,17 +753,17 @@ class Game {
           }
           const dx = m.left ? -1 : m.right ? 1 : 0, dy = m.up ? -1 : m.down ? 1 : 0;
           if (p.phase === 'driver') {
-            if (dx || dy) { p.dcur = moveIn(dcards, p.dcur, dx, dy, (c) => +c.dataset.i); pv = p; this.audio.sfx('click'); refresh(); scrollTo(dEl.get(p.dcur)); }
+            if (dx || dy) { p.dcur = moveIn(dcards, p.dcur, dx, dy, (c) => +c.dataset.i); this.audio.sfx('click'); refresh(); }
             if (m.ok) { lockDriver(p); continue; }
             if (m.back) { if (p === players[0]) { back(); return; } leave(p); continue; }
           } else if (p.phase === 'waiting') {
-            if (m.back) { p.phase = 'driver'; pv = p; this.audio.sfx('back'); refresh(); continue; }
+            if (m.back) { p.phase = 'driver'; this.audio.sfx('back'); refresh(); continue; }
           } else if (p.phase === 'kart') {
-            if (dx || dy) { p.kcur = moveIn(kcards, p.kcur, dx, dy, (c) => +c.dataset.i - 1000); pv = p; this.audio.sfx('click'); refresh(); scrollTo(kEl.get(p.kcur)); }
+            if (dx || dy) { p.kcur = moveIn(kcards, p.kcur, dx, dy, (c) => +c.dataset.i - 1000); this.audio.sfx('click'); refresh(); }
             if (m.ok) { lockKart(p); continue; }
-            if (m.back) { p.phase = 'driver'; pv = p; this.audio.sfx('back'); refresh(); scrollTo(dEl.get(p.dcur)); continue; }
+            if (m.back) { p.phase = 'driver'; this.audio.sfx('back'); refresh(); continue; }
           } else {
-            if (m.back) { p.phase = 'kart'; pv = p; this.audio.sfx('back'); refresh(); continue; }
+            if (m.back) { p.phase = 'kart'; this.audio.sfx('back'); refresh(); continue; }
             if (m.ok || m.start) { go(); return; }
           }
           if (m.start) go();
@@ -729,7 +773,6 @@ class Game {
         let p = players.find((q) => q.device === 'touch' || q.device === 'kb') || players[0];
         if (!p) p = join(isTouchDevice() ? 'touch' : 'kb');
         if (!p) return;
-        pv = p;
         if (i >= 1000) {
           if (step !== 'kart' || p.phase === 'waiting') return;
           p.kcur = i - 1000;
@@ -1001,9 +1044,9 @@ const ITEM_HELP = {
   cannon: 'Fires straight and bounces off walls. Hold back to fire behind.',
   trap: 'Drop a pile of loose bricks. Ouch! Stick ↑ throws it forward.',
   shield: 'A bubble that blocks the next hit.',
-  golden: 'Invincible and extra fast. Smash through other karts!',
-  storm: 'Rains bricks down on the racers ahead.',
-  bullet: 'Turn into a giant brick bullet that drives itself at huge speed, blasting karts aside.',
+  golden: 'Invincible and extra fast. Bowl other karts over!',
+  storm: 'Rains bricks down on the racers ahead and spins them out.',
+  bullet: 'Turn into a giant brick bullet that drives itself at huge speed, blasting karts aside and spinning them out.',
   rocket3: 'Three homing rockets.',
   cannon3: 'Three bouncer bricks.',
   mega: 'Grow huge for 8 seconds and flatten anyone you touch. A hit shrinks you back.',
