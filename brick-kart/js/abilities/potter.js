@@ -337,7 +337,7 @@ class Patronus {
     const tr = ctx.track;
     this.s = (k.loc.i ?? 0) + 4;
     this.lat = clamp(k.loc.lat ?? 0, -tr.HW[tr.wrap(this.s)] * 0.6, tr.HW[tr.wrap(this.s)] * 0.6);
-    this.speed = Math.max(84, k.speed + 36);
+    this.top = Math.max(84, k.speed + 36); this.speed = Math.max(20, k.speed + 8);
     this.stag = stagModel();
     this.stag.scale.setScalar(0.3);
     ctx.scene.add(this.stag);
@@ -364,6 +364,7 @@ class Patronus {
     const t = this.t;
     // ---- the stag
     if (this.stag && t < PAT_RUN + 0.45) {
+      this.speed += (this.top - this.speed) * Math.min(1, dt * 1.6);
       this.s += this.speed * dt;
       const i = tr.wrap(Math.floor(this.s)), hw = tr.HW[i] || 8;
       // swerve toward the next kart ahead of it
@@ -383,7 +384,7 @@ class Patronus {
       S.rotation.set(Math.cos(this.phase * 0.5) * 0.12, this.yaw, 0);
       u.legs.forEach((g, j) => { g.rotation.x = Math.sin(this.phase * 0.5 * 2 + (j < 2 ? 0 : Math.PI) + (j % 2) * 0.5) * 0.85; });
       const fin = t > PAT_RUN ? 1 - (t - PAT_RUN) / 0.45 : 1;
-      S.scale.setScalar(1.2 * Math.min(1, 0.3 + t * 3) * (fin < 1 ? 1 + (1 - fin) * 0.4 : 1));
+      S.scale.setScalar(1.5 * Math.min(1, 0.3 + t * 3) * (fin < 1 ? 1 + (1 - fin) * 0.4 : 1));
       u.mat.opacity = 0.8 * Math.min(1, t * 4) * fin;
       u.glow.opacity = 0.45 * fin * (0.8 + Math.random() * 0.2);
       u.spr.material.opacity = 0.55 * fin;
@@ -423,7 +424,7 @@ class Patronus {
     const on = t < end && live(k);
     if (on) this.guard(dt);
     const fade = Math.min(1, t * 4) * Math.min(1, Math.max(0, (end - t) / 0.4));
-    this.bubble.material.uniforms.opacity.value = fade * (0.75 + Math.sin(t * 9) * 0.12 + this.blocked * 0.8);
+    this.bubble.material.uniforms.opacity.value = fade * (0.45 + Math.sin(t * 9) * 0.08 + this.blocked * 0.8);
     this.bubble.scale.set(2.7, 2.2, 3.1).multiplyScalar(1 + this.blocked * 0.12);
     this.blocked = Math.max(0, this.blocked - dt * 3);
     if (on && Math.random() < 0.5) { const a = Math.random() * TAU; fx.spark(k.pos.x + Math.cos(a) * 2.6, k.pos.y + 0.5 + Math.random() * 2, k.pos.z + Math.sin(a) * 2.6, 0, 1.5, 0, 0xdff0ff, 0.4); }
@@ -494,7 +495,7 @@ class Cloak {
     k.model.body.visible = true;                 // no ghost blinking: the shimmer is the look
     const left = this.end - this.t;
     this.mat.uniforms.time.value = this.t;
-    this.mat.uniforms.amt.value = (this.t < 0.35 ? 2.2 - this.t * 4 : 0.8) * (left < 0.8 && Math.floor(left * 12) % 2 ? 1.8 : 1);
+    this.mat.uniforms.amt.value = (this.t < 0.4 ? 1.3 - this.t * 2.5 : 0.3) * (left < 0.8 && Math.floor(left * 12) % 2 ? 2.2 : 1);
     // slips along a little faster
     if (k.grounded && !k.stunned && k.speed > k.topSpeed * 0.6) {
       const cap = k.topSpeed * (k.speedMult || 1) * 1.1;
@@ -586,12 +587,12 @@ class Snitch {
     M.rotation.z = Math.sin(t * 2.4) * 0.3;
     const flap = Math.sin(t * 46) * 0.7;
     M.userData.wings[0].rotation.z = flap; M.userData.wings[1].rotation.z = -flap;
-    M.userData.spr.scale.setScalar(4.2 * (0.9 + Math.random() * 0.2));
-    M.scale.setScalar(Math.min(1.25, t * 5));
+    M.userData.spr.scale.setScalar(3.6 * (0.9 + Math.random() * 0.2));
+    M.scale.setScalar(Math.min(1.6, t * 6));
     fx.spark(M.position.x, M.position.y, M.position.z, rnd(2), rnd(2), rnd(2), Math.random() < 0.6 ? 0xffd040 : 0xffffff, 0.5);
     // a golden slipstream off the kart
     const f = k.forward(V2);
-    for (let n = 0; n < 2; n++) fx.spark(k.pos.x - f.x * 2 + rnd(1.2), k.pos.y + 0.6 + Math.random() * 1.4, k.pos.z - f.z * 2 + rnd(1.2), -f.x * 20, 0, -f.z * 20, n ? 0xffd040 : 0xfff6c0, 0.3);
+    if (Math.random() < 0.7) fx.spark(k.pos.x - f.x * 2 + rnd(1.2), k.pos.y + 0.6 + Math.random() * 1.4, k.pos.z - f.z * 2 + rnd(1.2), -f.x * 20, 0, -f.z * 20, 0xffc020, 0.25);
     // buzzing wings
     this.buzz -= dt;
     if (this.buzz <= 0) { this.buzz = 0.11; snd(ctx, M.position, (au, a) => au.noiseHit(0.07, { vol: 0.06 * a, freq: 5200 + Math.random() * 1500, q: 6 })); }
@@ -609,7 +610,7 @@ class Snitch {
       }
     }
     const chase = chaseOf(ctx, k);
-    if (chase) { chase.fov = Math.max(chase.fov, 70 + 22 * Math.min(1, t * 2)); chase.shake = Math.max(chase.shake || 0, 0.08); }
+    if (chase) { chase.fov = Math.max(chase.fov, 70 + 12 * Math.min(1, t * 2)); chase.shake = Math.max(chase.shake || 0, 0.08); }
     return true;
   }
   caught() {

@@ -535,7 +535,9 @@ export default {
     const CX = -112, CZ = -108;
     { // rocky hill
       for (let n = 0; n < 7; n++) { const a = n * 0.9, r = 34 + (n % 3) * 8; b.box(CX + Math.cos(a) * 16, -0.1, CZ + Math.sin(a) * 14, r * 1.6, 5 + (n % 2) * 2, r * 1.3, n % 2 ? DKSTONE : 0x6a665e, { rot: a }); }
-      b.box(CX, 5, CZ, 96, 2, 80, 0x6a665e, { rot: 0.1 });
+      for (let n = 0; n < 7; n++) { const a = n * 0.9, r = 34 + (n % 3) * 8; b.box(CX + Math.cos(a) * 16, 4.9 + (n % 2) * 2, CZ + Math.sin(a) * 14, r * 1.6 + 0.4, 0.4, r * 1.3 + 0.4, SNOW, { rot: a }); }
+      b.box(CX, 5, CZ, 96, 2, 80, 0x6a665e, { rot: 0.1 }); b.box(CX, 7, CZ, 96.4, 0.12, 80.4, 0xc8d0dc, { rot: 0.1 });
+      for (let n = 0; n < 24; n++) { const a = n / 24 * Math.PI * 2; rock(b, CX + Math.cos(a) * 58, -0.5, CZ + Math.sin(a) * 50, 2.2 + rand() * 1.6, rand, [DKSTONE, 0x6a665e, 0x8a8478]); }
       const Y = 7, w = (x, z, sx, sz, h, col = STONE) => b.box(CX + x, Y, CZ + z, sx, h, sz, col, { rot: 0 });
       // main keep with rows of lit windows
       w(0, 0, 54, 24, 24); w(0, 0, 56, 26, 1.2, DKSTONE);
@@ -686,7 +688,7 @@ export default {
       motes(ctx, p.x, 0, p.z, 10, 10, 50, 0x40ff60, 0.9); }
     pl(0x8aff9a, tr.at(K(16.4), 0, 0).x, 12, tr.at(K(16.4), 0, 0).z, 2.2, 120);
     // the creek under the jump
-    { const i = K(17.59), c = tr.at(i, 0, 0); for (let n = 0; n < 6; n++) { const p = tr.at(i + (n % 2 ? 4 : -4), (n - 2.5) * 6, 0); rock(b, p.x, -2.5, p.z, 1.2, rand, [DKSTONE, 0x5a5048]); } void c; }
+    { const i = K(17.59); for (let n = 0; n < 6; n++) { const p = tr.at(i + (n % 2 ? 4 : -4), (n - 2.5) * 6, 0); rock(b, p.x, -2.5, p.z, 1.2, rand, [DKSTONE, 0x5a5048]); } }
 
     // ---- the cliff and the Black Lake ----------------------------------------------------------------------------
     { let n = 0; each(tr, 18.4, 20.05, 7, (i) => { const p = tr.at(i, edgeLat(i) + 7 + (n % 3) * 3, 0); b.box(p.x, -0.1, p.z, 10 + (n % 3) * 4, Math.max(2, p.y - 1 + (n % 2) * 4), 9, n % 2 ? DKSTONE : 0x6a665e, { rot: tr.yawAt(i) + n }); n++; if (n % 2) pine(b, p.x, Math.max(2, p.y - 1), p.z, 1.1, true, 0x1a3a2a); }); }
@@ -695,9 +697,9 @@ export default {
     { const SQ = new THREE.Vector3(185, -2.4, 340), sb = new BrickBuilder(1), SK = 0xb04a5a;
       sb.add(new THREE.ConeGeometry(1, 1, 12).translate(0, 0.5, 0), plastic(SK), 0, 0, 0, 0, 7, 16, 7);
       for (const sd of [-1, 1]) { P.rbox(sb, sd * 5, 12, 0, 6, 0.6, 4, 0, 0, sd * 0.5, 0x9a3a4c); sb.sphere(sd * 4.4, 3.4, 3.6, 1.5, 0xf4f0d0); sb.sphere(sd * 4.6, 3.4, 4.8, 0.8, 0x1b1b1b); }
-      const body = new THREE.Group(); body.add(sb.build({ name: 'squid' })); body.position.copy(SQ); ctx.group.add(body);
+      const body = new THREE.Group(); body.add(sb.build({ name: 'squid' })); body.position.copy(SQ); body.scale.setScalar(1.6); ctx.group.add(body);
       const arms = [];
-      for (let n = 0; n < 6; n++) { const a = n / 6 * Math.PI * 2, g = new THREE.Group(), tb = new BrickBuilder(1); for (let m = 0; m < 7; m++) tb.cyl(0, m * 2.2, 0, 1.2 - m * 0.14, 2.3, m % 2 ? SK : 0x9a3a4c, { seg: 8 }); g.add(tb.build({ name: 'squid-arm' })); g.position.set(SQ.x + Math.cos(a) * 11, -3, SQ.z + Math.sin(a) * 11); ctx.group.add(g); arms.push([g, a]); }
+      for (let n = 0; n < 6; n++) { const a = n / 6 * Math.PI * 2, g = new THREE.Group(), tb = new BrickBuilder(1); for (let m = 0; m < 7; m++) tb.cyl(0, m * 2.2, 0, 1.2 - m * 0.14, 2.3, m % 2 ? SK : 0x9a3a4c, { seg: 8 }); g.add(tb.build({ name: 'squid-arm' })); g.position.set(SQ.x + Math.cos(a) * 15, -3, SQ.z + Math.sin(a) * 15); g.scale.setScalar(1.5); ctx.group.add(g); arms.push([g, a]); }
       anims.push((dt, t) => { body.position.y = SQ.y - 3 + Math.sin(t * 0.6) * 1.5; body.rotation.y = Math.sin(t * 0.2) * 0.4; arms.forEach(([g, a], n) => { g.rotation.set(Math.sin(t * 1.3 + n) * 0.5 + Math.sin(a) * 0.4, 0, Math.cos(t * 1.1 + n * 2) * 0.5 - Math.cos(a) * 0.4); }); }); }
     // first-years' boats with lanterns crossing the lake toward the castle
     for (let n = 0; n < 5; n++) { const bt = new BrickBuilder(1); bt.box(0, 0, 0, 2.2, 0.9, 4.6, WOOD); bt.box(0, 0.9, 1.9, 0.2, 2, 0.2, 0x1b1b1b); bt.sphere(0, 2.9, 1.9, 0.35, 0, { mat: plastic(0xffd070, { emissive: 0xffb040, emissiveIntensity: 2.4 }) }); for (let m = 0; m < 3; m++) bt.cyl((m - 1) * 0.6, 0.9, -0.6 + (m % 2) * 0.8, 0.3, 1.2, [0x15161c, 0x8a1a1a, 0x1a2e6a][m], { seg: 8 });

@@ -136,8 +136,8 @@ const stagTemplate = () => once('stag', () => {
 export function stagModel() {
   const t = stagTemplate();
   const g = t.clone(true);
-  const mat = own(new THREE.MeshBasicMaterial({ color: 0xcfe6ff, transparent: true, opacity: 0.8, depthWrite: false, fog: false }));
-  const glow = own(new THREE.MeshBasicMaterial({ color: 0x5a9aff, transparent: true, opacity: 0.45, depthWrite: false, fog: false, blending: THREE.AdditiveBlending, side: THREE.BackSide }));
+  const mat = own(new THREE.MeshBasicMaterial({ color: 0xa6d2ff, transparent: true, opacity: 0.85, depthWrite: false, fog: false }));
+  const glow = own(new THREE.MeshBasicMaterial({ color: 0x3a7aff, transparent: true, opacity: 0.45, depthWrite: false, fog: false, blending: THREE.AdditiveBlending, side: THREE.BackSide }));
   const legs = [];
   g.traverse((o) => { if (o.isMesh) o.material = mat; });
   g.children.forEach((c, i) => { if (i > 0) legs.push(c); });
