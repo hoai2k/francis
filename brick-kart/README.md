@@ -70,7 +70,9 @@ the race (CPU ones too) gets one of them at the wheel.
   lock them in and celebrates when you're ready. The picker list scrolls with
   player 1 until they lock in, then with the next player still choosing, and so
   on (marked "picking now"); everyone else can still move their cursor and watch
-  their own preview. Stat bars show the kart's stats adjusted by the driver's weight
+  their own preview.
+- Each player slot remembers its last driver and kart (or classic racer), saved
+  in your browser, and starts on them next time. Stat bars show the kart's stats adjusted by the driver's weight
   class (light drivers accelerate and handle better; heavy ones are faster and
   push harder).
 - 40 karts in one grid: the first 8 originals, the Wild Rides, the movie rides,

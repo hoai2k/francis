@@ -19,7 +19,7 @@ const PCOL = ['#ff4a3a', '#3b8bff', '#3bdc5a', '#ffc93b', '#c45aff', '#ff8a1a', 
 const MAX_PLAYERS = 8;
 const POINTS = [15, 12, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 0, 0, 0];
 const CC = { 50: 0.8, 100: 0.92, 150: 1.06, 200: 1.22 };
-const SKEY = 'brickkart.settings.v1', TKEY = 'brickkart.tt.v1';
+const SKEY = 'brickkart.settings.v1', TKEY = 'brickkart.tt.v1', PKEY = 'brickkart.picks.v1';
 const MOBILE = isTouchDevice() && Math.min(screen.width, screen.height) < 820;
 
 function load(key, def) { try { return { ...def, ...JSON.parse(localStorage.getItem(key) || '{}') }; } catch { return { ...def }; } }
@@ -36,6 +36,8 @@ class Game {
     if (!(this.settings.racers <= 12)) { this.settings.racers = 12; save(SKEY, this.settings); }
     if (!this.settings.charsDefault) { this.settings.useChars = true; this.settings.charsDefault = 1; save(SKEY, this.settings); }
     this.best = load(TKEY, {});
+    // each player slot's last picks, by id: { chars: { 0: { driver, kart } }, classic: { 0: charId } }
+    this.picks = load(PKEY, { chars: {}, classic: {} });
     const app = document.getElementById('app');
     const r = this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
     r.outputColorSpace = THREE.SRGBColorSpace;
@@ -423,8 +425,9 @@ class Game {
     const join = (device) => {
       if (players.length >= max || players.some((p) => p.device === device)) return null;
       const id = [...Array(MAX_PLAYERS).keys()].find((n) => !players.some((p) => p.id === n));
-      const tk = taken();
-      let cursor = 0; while (tk.has(cursor)) cursor++;
+      const tk = taken(), NC = CHARACTERS.length;
+      let cursor = Math.max(0, CHARACTERS.findIndex((c) => c.id === this.picks.classic?.[id]));
+      for (let n = 0; n < NC && tk.has(cursor); n++) cursor = (cursor + 1) % NC;
       const p = { id, device, cursor, locked: false, color: PCOL[id] };
       players.push(p);
       players.sort((a, b) => a.id - b.id);
@@ -435,6 +438,8 @@ class Game {
     const go = () => {
       if (!players.length || !players.every((p) => p.locked)) return;
       this.audio.sfx('select');
+      for (const p of players) (this.picks.classic ||= {})[p.id] = CHARACTERS[p.cursor].id;
+      save(PKEY, this.picks);
       this.players = players.map((p) => this.makePlayer(p));
       if (mode === 'gp') this.showCups();
       else this.showTracks(mode);
@@ -506,7 +511,6 @@ class Game {
     // phase: 'driver' (choosing) -> 'waiting' (driver locked) -> 'kart' (everyone locked: choosing a kart) -> 'done'
     const players = [];
     let step = 'driver';
-    this.charPicks ||= {};
     const uni = (id) => UNIVERSES.find((u) => u.id === id) || { name: id, color: '#fff' };
     let dgroups = '';
     for (const u of UNIVERSES) {
@@ -680,10 +684,13 @@ class Game {
     const join = (device) => {
       if (players.length >= max || players.some((p) => p.device === device)) return null;
       const id = [...Array(MAX_PLAYERS).keys()].find((n) => !players.some((p) => p.id === n));
-      const prev = this.charPicks[id] || {};
+      // start on this slot's picks from last time (a fresh slot starts on its own driver)
+      const prev = this.picks.chars?.[id] || {};
+      const di = DRIVERS.findIndex((d) => d.id === prev.driver), ki = KARTS.findIndex((k) => k.id === prev.kart);
       const tk = taken(null);
-      let dcur = prev.dcur ?? id; while (tk.has(dcur % ND)) dcur++;
-      const p = { id, device, dcur: dcur % ND, kcur: (prev.kcur ?? 0) % NK, phase: 'driver', color: PCOL[id] };
+      let dcur = di >= 0 ? di : id % ND;
+      for (let n = 0; n < ND && tk.has(dcur); n++) dcur = (dcur + 1) % ND;
+      const p = { id, device, dcur, kcur: ki >= 0 ? ki : 0, phase: 'driver', color: PCOL[id] };
       players.push(p);
       players.sort((a, b) => a.id - b.id);
       this.audio.sfx('join');
@@ -693,7 +700,8 @@ class Game {
     const go = () => {
       if (!players.length || !players.every((p) => p.phase === 'done')) return;
       this.audio.sfx('select');
-      for (const p of players) this.charPicks[p.id] = { dcur: p.dcur, kcur: p.kcur };
+      for (const p of players) (this.picks.chars ||= {})[p.id] = { driver: DRIVERS[p.dcur].id, kart: KARTS[p.kcur].id };
+      save(PKEY, this.picks);
       this.players = players.map((p) => this.makePlayer({ id: p.id, device: p.device, cursor: 0, driver: p.dcur, kart: p.kcur, color: p.color }));
       if (mode === 'gp') this.showCups();
       else this.showTracks(mode);
