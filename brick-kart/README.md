@@ -128,10 +128,10 @@ the race (CPU ones too) gets one of them at the wheel.
 - After the finish, the top three celebrate and the rest sulk. In a Grand Prix,
   the podium shows the top three drivers celebrating in 3D.
 
-## Movie powers (14)
+## Movie powers (19)
 
 Extra power-ups themed on the Movie Cup films come out of item boxes on **every
-track** (twice as often on their own movie's track); racers further back get the
+track** (twice as often on their own movie's tracks, so JJK powers on every JJK Run map); racers further back get the
 big comeback ones.
 
 - **Star Wars**: Force Push (a Force wave that spins out karts ahead and blows
@@ -142,6 +142,13 @@ big comeback ones.
   karts), Cap's Shield (ricochets between 3 karts and comes back), Web Shot (web
   a kart ahead, or drop a web trap behind), Infinity Snap (half the racers ahead
   crumble to brick dust for a moment).
+- **Harry Potter**: Expelliarmus (a red jet homes in on the kart ahead, spins
+  them out and steals their item for you), Wingardium Leviosa (the two or three
+  karts ahead float helplessly in the air, then drop), Expecto Patronum (a silver
+  stag gallops up the track bowling karts aside while a shield destroys shots at
+  you), Invisibility Cloak (fade to a shimmer for 6 s: items, hazards and karts
+  pass through you and you go a bit faster), Golden Snitch (the Snitch tows you
+  far up the track at huge speed, knocking karts aside).
 - **Jujutsu Kaisen**: Hollow Purple (an unstoppable purple sphere that wrecks
   everything down the track), Domain Expansion: Infinite Void (freezes every
   rival around you), Black Flash (your next bump wrecks a kart), Divine Dogs
