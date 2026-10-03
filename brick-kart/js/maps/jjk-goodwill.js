@@ -316,7 +316,7 @@ export default {
     const water = ctx.makeMask(1600, 1024, (g, toPx, sc) => { g.fillStyle = g.strokeStyle = '#fff'; riverPath(g, toPx, sc, 34); disc(g, toPx, sc, LAKE[0], LAKE[1], 82); strokeTrack(g, tr, toPx, sc, 18, gliding); });
     liquid(ctx, water, 0x2a6a9a, -2.4, { size: 1600, speed: 0.12 });
     // forest floor darker under the trees, golden autumn grass around Kyoto
-    const forest = ctx.makeMask(1600, 512, (g, toPx, sc) => { g.fillStyle = '#fff'; strokeTrack(g, tr, toPx, sc, 80, (i) => inRange(tr, i, 2.2, 8.9)); });
+    const forest = ctx.makeMask(1600, 512, (g, toPx, sc) => { g.fillStyle = '#fff'; strokeTrack(g, tr, toPx, sc, 80, (i) => inRange(tr, i, 2.2, 8.9)); g.fillStyle = g.strokeStyle = '#000'; riverPath(g, toPx, sc, 34); disc(g, toPx, sc, LAKE[0], LAKE[1], 84); strokeTrack(g, tr, toPx, sc, 18, gliding); });
     scene.add(groundPlane(0x2e5226, -0.05, 1600, 1.6, { mask: forest }));
     const kyoto = ctx.makeMask(1600, 512, (g, toPx, sc) => { g.fillStyle = '#fff'; disc(g, toPx, sc, 300, 60, 120); });
     scene.add(groundPlane(0x8a8a3a, -0.04, 1600, 1.6, { mask: kyoto }));
@@ -561,13 +561,5 @@ export default {
       for (let n = 0; n < 18; n++) { const a = rand() * 6.28, r = 500 + rand() * 300, cx = Math.cos(a) * r, cz = Math.sin(a) * r, cy = 150 + rand() * 80; for (let k = 0; k < 4; k++) nb.sphere(cx + (rand() - 0.5) * 50, cy + rand() * 6, cz + (rand() - 0.5) * 30, 14 + rand() * 10, 0, { mat: cm, sy: 0.45 }); }
     }
     pl(0xffb070, 230, 20, 60, 3, 160);
-    // TEMP camera hook
-    { let lt = 0;
-      { ctx.anim((dt, t) => { const r = ctx.world.race; if (!r) return;
-          if (t - lt > 8) { lt = t; console.warn('laps', r.karts.map((kk) => (kk.raceDist / tr.N).toFixed(2)).join(' '), 'state', r.state, r.time?.toFixed?.(1)); }
-          const q = location.hash.slice(1); if (!q) return; const [k, h, back, side, ahead] = q.split(',').map(Number); const i = K(k), p = tr.at(i, side || 0, h), yaw = tr.yawAt(i), L = tr.at(tr.wrap(i + (ahead || 30)), 0, 2);
-          p.x -= Math.sin(yaw) * back; p.z -= Math.cos(yaw) * back;
-          for (const c of [r.introCam, ...r.cams.map((c) => c.chase.cam)]) { if (k < 0) { scene.fog.near = 4000; scene.fog.far = 6000; c.position.set(bounds.cx, 900, bounds.cz + 1); c.lookAt(bounds.cx, 0, bounds.cz); } else { c.position.copy(p); c.lookAt(L); } }
-        }); } }
   },
 };

@@ -4,7 +4,7 @@
 // candles, across the Quidditch pitch dodging Bludgers, past Hagrid's hut and the
 // Whomping Willow, into the Forbidden Forest (Aragog's spiders), then glide over the
 // Black Lake and race the giant squid's tentacles back to the station.
-import { THREE, BrickBuilder, C, plastic, groundPlane, pine, rock, minifig, liquid, disc, strokeTrack, inRange, each, edges, arch, tunnel, mat4, crossing, brickGeometry } from './kit.js';
+import { THREE, BrickBuilder, C, plastic, groundPlane, pine, rock, minifig, liquid, disc, strokeTrack, inRange, each, edges, arch, tunnel, mat4, crossing, brickGeometry, canvasTexture } from './kit.js';
 import * as P from './hogwarts-props.js';
 
 const V1 = new THREE.Vector3(), V2 = new THREE.Vector3();
@@ -718,8 +718,9 @@ export default {
       const layers = 6;
       for (let n = 0; n < layers; n++) { const f = 1 - n / layers; nb.box(x, n * h / layers, z, rad * f * 2, h / layers, rad * f * 1.7, n > layers * 0.55 ? SNOW : n % 2 ? 0x3a4050 : 0x2c3240, { rot: a + n * 0.2 }); }
     }
-    const moon = new THREE.Mesh(new THREE.CircleGeometry(46, 32), new THREE.MeshBasicMaterial({ color: 0xfff6e0, fog: false }));
-    moon.position.set(-520, 380, -880); moon.lookAt(0, 0, 0); scene.add(moon);
+    const moonTex = canvasTexture(128, 128, (g) => { g.fillStyle = '#fff6e0'; g.beginPath(); g.arc(64, 64, 62, 0, 7); g.fill(); g.fillStyle = 'rgba(200,190,170,0.5)'; for (const [x, y, r] of [[44, 50, 12], [80, 76, 9], [70, 38, 6], [50, 86, 7]]) { g.beginPath(); g.arc(x, y, r, 0, 7); g.fill(); } });
+    const moon = new THREE.Sprite(new THREE.SpriteMaterial({ map: moonTex, fog: false, depthWrite: false })); moon.scale.setScalar(100);
+    moon.position.set(-520, 380, -880); scene.add(moon);
     const mg = P.glow(0xd8e0ff, 300, 0.5); mg.position.copy(moon.position); scene.add(mg);
     // owls drifting over the grounds
     for (let n = 0; n < 4; n++) { const ow = P.hedwig(1.1); ow.traverse((o) => { if (o.material && o.material.color && n % 2) o.material = plastic(0x8a6a4a); }); ctx.group.add(ow); const c0 = [[-112, -108], [-200, 60], [0, 200], [200, -100]][n];

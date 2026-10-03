@@ -649,8 +649,19 @@ const GIVE = QS.get('give'), GIVE_CPU = QS.has('cpu');
 function devHook(ctx) {
   if (!GIVE || ctx.race._hpHook) return;
   ctx.race._hpHook = true;
-  let t = 0;
-  ctx.spawn({ update(dt) { t -= dt; if (t > 0) return true; t = 1; for (const k of ctx.race.karts) { if ((k.human || GIVE_CPU) && !k.item && !(k.roulette > 0)) { k.item = GIVE; k.itemCount = 1; } else if (k.human && QS.has('use') && ctx.race.started && k.item === GIVE && !k.stunned) { ctx.race.items.use(k); t = +QS.get('use') || 3; } } return true; }, dispose() {} });
+  let t = 0, cool = 0;
+  ctx.spawn({
+    update(dt) {
+      t -= dt; cool -= dt;
+      for (const k of ctx.race.karts) {
+        if (k.human && QS.has('use') && ctx.race.started && k.item === GIVE && !k.stunned && cool <= 0) { ctx.race.items.use(k); cool = +QS.get('use') || 3; }
+        if (t <= 0 && (k.human || GIVE_CPU) && !k.item && !(k.roulette > 0)) { k.item = GIVE; k.itemCount = 1; }
+      }
+      if (t <= 0) t = 1;
+      return true;
+    },
+    dispose() {},
+  });
 }
 
 export default [

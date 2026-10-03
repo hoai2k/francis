@@ -9,8 +9,8 @@ Play: <https://hoai2k.github.io/francis/brick-kart/>
 
 ## Modes
 
-- **Grand Prix**: pick a cup (3 maps each, 4 in the Movie Cup), or the All-Star Cup
-  with all 13.
+- **Grand Prix**: pick a cup (3 maps each, 4 in JJK Run), or the All-Star Cup
+  with all 16.
   Points go 15-12-10-9-8-7-6-5-4-3-2-1, and each cup ends with an award
   ceremony.
 - **Quick Race**: one race on any map. By default there are **12 racers**
@@ -20,11 +20,23 @@ Play: <https://hoai2k.github.io/francis/brick-kart/>
 - **Racer select**: player 1 is already in, using whatever controller (or
   keyboard/touch) you used in the menus; more players press A to join.
 - **Options**: engine class (50/100/150/200cc), CPU difficulty, racers per race
-  (4/6/8/10/12; 12 at most, players included), laps, **Use Characters**, auto-accelerate, music and sound
+  (4/6/8/10/12; 12 at most, players included), laps, **Use Characters**, **Simplified mode**, auto-accelerate, music and sound
   volume, and graphics quality. The game also lowers its render resolution
   automatically if frames run slow, and raises it again when there's headroom.
 
-## Maps (13, in 4 cups)
+### Simplified mode
+
+**Simplified mode** (Options, off by default, remembered once you turn it on)
+offers a smaller set of drivers and karts on the select screen, and CPU racers
+use only that set too. The set lives in `js/simplified.js` (`null` means all).
+Choose it in the **workbench** at
+<https://hoai2k.github.io/francis/brick-kart/workbench/>: every character and
+kart is a card you tap to include or leave out (it starts from the current
+set), then **Export** downloads `brick-kart-simplified.json` with the chosen
+ids. The classic racers (Use Characters off) follow the Brick Kart Originals
+drivers.
+
+## Maps (16, in 5 cups)
 
 Tracks are wide and banked, with open grass, fences, scenery right next to
 the road, and hazards to dodge. Most of them have **glider ramps**: drive onto
@@ -45,7 +57,10 @@ or the sky.
 | Movie | Jurassic Brick Park | Main Street and the park gate, a Gallimimus stampede, a T. rex that stomps across the road, the raptor pack with Owen, Dilophosaurus spit, swooping Pteranodons, a Spinosaurus river ford, Mount Sibo's lava bombs and a **glide over the Mosasaurus lagoon** |
 | Movie | Tatooine Podrace | A Tatooine canyon with Jawas and a sandcrawler, a **glide** onto the Hoth snowfield with AT-ATs, then the Death Star trench with TIE fighters; C-3PO, R2-D2, Darth Maul, Cad Bane, Din Djarin and Grogu, Vader and more |
 | Movie | Avengers Brick Assemble | The Battle of New York, the Bifrost, Wakanda and the Guardians of the Galaxy, with brick-built Spider-Man, Iron Man and the rest of the Avengers |
-| Movie | Cursed Brick Shibuya | Tokyo Jujutsu High, a torii forest, the Shibuya scramble crossing at night, a **glide into Sukuna's Malevolent Shrine**, Jogo's volcano and Gojo's Unlimited Void; dodge Dismantle slashes, meteors, Hollow Purple and Rika's arm slams |
+| JJK Run | Kyoto Goodwill Clash (Season 1) | A sunset run from Kyoto Jujutsu High through Arashiyama bamboo into the Goodwill Event forest: released curses, Hanami's roots bursting through the road and Todo's Boogie Woogie pads that swap you across the road; a **glide over the lake** to the detention centre where Sukuna wakes, Mahito's sewer, the Yasohachi Bridge, Mechamaru's Ultra Cannon and the baseball finale with fly balls and a home-run jump |
+| JJK Run | Hidden Inventory Okinawa (Season 2) | Summer at Jujutsu High, an Okinawa coast road past an aquarium, a **cliff glide over the turquoise sea**, the Star Religious Group temple, then Tengen's Tomb with its corridor of doors and the barrier tree; dodge Geto's rainbow dragon, Toji's Inverted Spear of Heaven and his storage worm |
+| JJK Run | Cursed Brick Shibuya (Season 2) | Tokyo Jujutsu High, a torii forest, the Shibuya scramble crossing at night, a **glide into Sukuna's Malevolent Shrine**, Jogo's volcano and Gojo's Unlimited Void; dodge Dismantle slashes, meteors, Hollow Purple and Rika's arm slams |
+| JJK Run | Culling Games Colony (Season 3) | The barrier-sealed Tokyo colony with Kogane's scoreboards, Hakari's pachinko **JACKPOT** gate (drive through on 7-7-7 for a huge boost), Higuruma's courtroom with slamming gavels, Kashimo's lightning, a **glide over a flooded crater** under Uro's flipped sky, Ryu's Granite Blast and Kurourushi's cockroaches in Sendai, and Sakurajima |
 
 ## Racers
 
@@ -239,7 +254,7 @@ setups.
 - `js/drivers/*.js`: the driver casts per movie (`kit.js` has the seated figure builder); `js/showcase.js`: the 3D select stage, portraits and podium; `js/gallery.js`: a developer line-up view
 - `js/effects.js`, `js/audio.js`, `js/hud.js`, `js/input.js`: particles, sound, HUD and input devices
 
-For development, `?quick=<map id>` (city, meadow, pirate, candy, jungle, frost, factory, lava, space, jurassic, starwars, marvel, jjk) goes
+For development, `?quick=<map id>` (city, meadow, pirate, candy, jungle, frost, factory, lava, space, jurassic, starwars, marvel, jjk-goodwill, jjk-inventory, jjk, jjk-culling) goes
 straight into a race. Add `&players=2` to test split-screen, and `&chars=1` (or
 `&driver=<driver id>`) to race with movie-character drivers. `?gallery=<movie id
 | driver id | all>` lines drivers up in their karts; add `&pose=cheer` (taunt,

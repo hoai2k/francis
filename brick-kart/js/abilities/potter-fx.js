@@ -37,8 +37,13 @@ export const runeTex = () => once('rune', () => canvasTex(128, 128, (g) => {
   g.beginPath(); g.arc(0, 0, 58, 0, Math.PI * 2); g.stroke();
   g.lineWidth = 2.5; g.beginPath(); g.arc(0, 0, 46, 0, Math.PI * 2); g.stroke();
   for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2; g.fillStyle = 'rgba(255,255,255,0.9)'; g.fillRect(Math.cos(a) * 52 - 3, Math.sin(a) * 52 - 3, 6, 6); }
-  g.lineWidth = 2; g.beginPath();
-  for (let i = 0; i <= 5; i++) { const a = i * 4 / 5 * Math.PI - Math.PI / 2; g[i ? 'lineTo' : 'moveTo'](Math.cos(a) * 44, Math.sin(a) * 44); }
+  // little four-point sparkles and a swirl ("swish and flick")
+  for (let i = 0; i < 6; i++) {
+    const a = i / 6 * Math.PI * 2 + 0.26, x = Math.cos(a) * 30, y = Math.sin(a) * 30, r = 7;
+    g.beginPath(); g.moveTo(x, y - r); g.quadraticCurveTo(x, y, x + r, y); g.quadraticCurveTo(x, y, x, y + r); g.quadraticCurveTo(x, y, x - r, y); g.quadraticCurveTo(x, y, x, y - r); g.fill();
+  }
+  g.lineWidth = 3; g.beginPath();
+  for (let i = 0; i <= 40; i++) { const a = i / 40 * Math.PI * 3, r = 4 + i * 0.45; g[i ? 'lineTo' : 'moveTo'](Math.cos(a) * r, Math.sin(a) * r); }
   g.stroke();
 }));
 export const glowSprite = (color, size, opacity = 1) => {
