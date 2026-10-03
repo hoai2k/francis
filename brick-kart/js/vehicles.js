@@ -8,14 +8,15 @@ export const KART_GROUPS = [
   { id: 'wild', name: 'Wild Rides' },
   { id: 'starwars', name: 'Star Wars Rides' },
   { id: 'heroes', name: 'Marvel & Jurassic Rides' },
+  { id: 'potter', name: 'Wizarding Rides' },
   { id: 'cursed', name: 'Cursed & Fantasy Rides' },
 ];
 // Packs are listed in FINISHED once reviewed; unfinished ones only load in the developer
 // views (?garage=…, ?kart=…, ?packs=all) so half-built vehicles never reach players.
-const FINISHED = ['originals', 'starwars', 'heroes', 'cursed', 'wild'];
+const FINISHED = ['originals', 'starwars', 'heroes', 'potter', 'cursed', 'wild'];
 const q = new URLSearchParams(location.search);
 const dev = q.has('garage') || q.has('kart') || q.has('packs');
-const PACKS = ['originals', 'wild', 'starwars', 'heroes', 'cursed'].filter((id) => dev || FINISHED.includes(id));
+const PACKS = ['originals', 'wild', 'starwars', 'heroes', 'potter', 'cursed'].filter((id) => dev || FINISHED.includes(id));
 // each pack loads on its own so one broken file never stops the game
 const loaded = await Promise.allSettled(PACKS.map((id) => import(`./vehicles/${id}.js`)));
 const packs = {};
@@ -35,16 +36,17 @@ const DOMAIN = {
   carpet: 'fantasy', dragon: 'fantasy', teacup: 'fantasy',
 };
 for (const [pack, list] of Object.entries(packs)) {
-  for (const k of list) k.domain ??= pack === 'originals' ? 'classic' : pack === 'starwars' ? 'starwars' : DOMAIN[k.id] || pack;
+  for (const k of list) k.domain ??= pack === 'originals' ? 'classic' : pack === 'starwars' || pack === 'potter' ? pack : DOMAIN[k.id] || pack;
 }
 
 // the original karts: rebuilt vehicles when that pack is finished, else the classic body styles
 for (const ch of CHARACTERS) { ch.group = 'originals'; ch.domain = 'classic'; }
 const originals = packs.originals?.length ? packs.originals : CHARACTERS;
 const half = Math.ceil(originals.length / 2);
-// one list in display order: half the originals, the wild rides, the movie rides, the other half
+// one list in display order: half the originals, the wild rides, the movie rides (Harry Potter
+// before Jujutsu Kaisen), the other half
 export const KARTS = [
   ...originals.slice(0, half),
-  ...(packs.wild || []), ...(packs.starwars || []), ...(packs.heroes || []), ...(packs.cursed || []),
+  ...(packs.wild || []), ...(packs.starwars || []), ...(packs.heroes || []), ...(packs.potter || []), ...(packs.cursed || []),
   ...originals.slice(half),
 ];

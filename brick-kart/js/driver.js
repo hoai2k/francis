@@ -18,6 +18,7 @@ export const UNIVERSES = [
   { id: 'classic', name: 'Brick Kart Originals', color: '#f2cd37' },
   { id: 'marvel', name: 'Marvel', color: '#e23636' },
   { id: 'starwars', name: 'Star Wars', color: '#ffe81f' },
+  { id: 'potter', name: 'Harry Potter', color: '#d3a625' },
   { id: 'jjk', name: 'Jujutsu Kaisen', color: '#8a5cff' },
   { id: 'jurassic', name: 'Jurassic World', color: '#e8a33a' },
 ];
