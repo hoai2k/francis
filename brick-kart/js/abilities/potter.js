@@ -141,7 +141,7 @@ class Disarm {
     for (const o of ctx.race.karts) {
       if ((o === k && this.t < 0.5) || !live(o)) continue;
       const r = 2.5 * (o.megaScale || 1);
-      if (o.pos.distanceToSquared(this.pos) < r * r && Math.abs(o.pos.y + 1 - this.pos.y) < 3 * (o.megaScale || 1)) { this.strike(o); return false; }
+      if (o.pos.distanceToSquared(this.pos) < r * r && Math.abs(o.pos.y + 1 - this.pos.y) < 3 * (o.megaScale || 1)) { console.warn('DBG strike', this.t.toFixed(2), o === k, ctx.race.karts.indexOf(o)); this.strike(o); return false; }
     }
     this.mesh.position.copy(this.pos);
     this.mesh.rotation.y = this.yaw;
