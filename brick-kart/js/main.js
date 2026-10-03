@@ -10,6 +10,7 @@ import { TRACKS, CUPS } from './tracks.js';
 import { CHARACTERS, buildKart, bodyName } from './characters.js';
 import { DRIVERS, UNIVERSES, combinedStats } from './driver.js';
 import { KARTS } from './vehicles.js';
+import { simpleDriver, simpleKart } from './simplified.js';
 import { ABILITY } from './abilities.js';
 import { Showcase, driverPortrait, kartPortrait } from './showcase.js';
 import { ICONS, ITEMS } from './items.js';
@@ -30,7 +31,7 @@ const hex = (c) => '#' + c.toString(16).padStart(6, '0');
 
 class Game {
   constructor() {
-    this.settings = load(SKEY, { cc: 100, difficulty: 'normal', laps: 3, racers: 12, music: 0.5, sfx: 0.8, autoGas: false, useChars: true, quality: MOBILE ? 'low' : 'high' });
+    this.settings = load(SKEY, { cc: 100, difficulty: 'normal', laps: 3, racers: 12, music: 0.5, sfx: 0.8, autoGas: false, useChars: true, simple: false, quality: MOBILE ? 'low' : 'high' });
     // Use Characters became the default: switch it on once for players who saved settings before
     // at most 12 karts per race (players included)
     if (!(this.settings.racers <= 12)) { this.settings.racers = 12; save(SKEY, this.settings); }
@@ -345,6 +346,7 @@ class Game {
         { label: 'Racers per race', value: () => String(s.racers), left: () => cyc('racers', racers, -1), right: () => cyc('racers', racers, 1) },
         { label: 'Laps', value: () => String(s.laps), left: () => cyc('laps', laps, -1), right: () => cyc('laps', laps, 1) },
         { label: 'Use Characters', value: () => (s.useChars ? 'On' : 'Off'), left: () => { s.useChars = !s.useChars; save(SKEY, s); }, right: () => { s.useChars = !s.useChars; save(SKEY, s); } },
+        { label: 'Simplified mode', value: () => (s.simple ? 'On' : 'Off'), left: () => { s.simple = !s.simple; save(SKEY, s); }, right: () => { s.simple = !s.simple; save(SKEY, s); } },
         { label: 'Auto-accelerate', value: () => (s.autoGas ? 'On' : 'Off'), left: () => { s.autoGas = !s.autoGas; save(SKEY, s); }, right: () => { s.autoGas = !s.autoGas; save(SKEY, s); } },
         { label: 'Music', value: () => Math.round(s.music * 10) + '/10', left: () => vol('music', -1), right: () => vol('music', 1) },
         { label: 'Sound FX', value: () => Math.round(s.sfx * 10) + '/10', left: () => vol('sfx', -1), right: () => vol('sfx', 1) },
@@ -390,7 +392,10 @@ class Game {
     const max = mode === 'tt' ? 1 : MAX_PLAYERS;
     const players = [];   // { id, device, cursor, locked, color }
     const taken = () => new Set(players.filter((p) => p.locked).map((p) => p.cursor));
-    const cards = CHARACTERS.map((ch, i) => `
+    // Simplified mode offers a smaller roster (CHARACTERS indices, in order)
+    let roster = CHARACTERS.map((_, i) => i).filter((i) => !this.settings.simple || simpleDriver('classic-' + CHARACTERS[i].id));
+    if (!roster.length) roster = CHARACTERS.map((_, i) => i);
+    const cards = roster.map((i) => [CHARACTERS[i], i]).map(([ch, i]) => `
       <div class="ccard" data-i="${i}" style="--kc:${hex(ch.kart)}">
         <img src="${this.portraits[i]}" alt="">
         <div class="nm">${esc(ch.name)}</div><div class="bl">${esc(ch.blurb)}</div>
@@ -404,8 +409,8 @@ class Game {
     const deviceLabel = (d) => d === 'kb' ? (this.input.split ? 'Keys WASD' : 'Keyboard') : d === 'kb2' ? 'Keys Arrows' : d === 'touch' ? 'Touch' : this.input.padName(d);
     const refresh = () => {
       const tk = taken();
-      this.ui.querySelectorAll('.ccard').forEach((c, i) => {
-        const here = players.filter((p) => p.cursor === i);
+      this.ui.querySelectorAll('.ccard').forEach((c) => {
+        const i = +c.dataset.i, here = players.filter((p) => p.cursor === i);
         c.querySelector('.tags').innerHTML = here.map((p) => `<span class="ptag${p.locked ? ' lock' : ''}" style="background:${p.color}">P${p.id + 1}${p.locked ? ' ✓' : ''}</span>`).join('');
         c.classList.toggle('taken', tk.has(i));
         c.style.outline = here.length ? `4px solid ${here[here.length - 1].color}` : '';
@@ -425,9 +430,10 @@ class Game {
     const join = (device) => {
       if (players.length >= max || players.some((p) => p.device === device)) return null;
       const id = [...Array(MAX_PLAYERS).keys()].find((n) => !players.some((p) => p.id === n));
-      const tk = taken(), NC = CHARACTERS.length;
-      let cursor = Math.max(0, CHARACTERS.findIndex((c) => c.id === this.picks.classic?.[id]));
-      for (let n = 0; n < NC && tk.has(cursor); n++) cursor = (cursor + 1) % NC;
+      const tk = taken(), NC = roster.length;
+      let pos = Math.max(0, roster.findIndex((i) => CHARACTERS[i].id === this.picks.classic?.[id]));
+      for (let n = 0; n < NC && tk.has(roster[pos]); n++) pos = (pos + 1) % NC;
+      const cursor = roster[pos];
       const p = { id, device, cursor, locked: false, color: PCOL[id] };
       players.push(p);
       players.sort((a, b) => a.id - b.id);
@@ -471,13 +477,15 @@ class Game {
             } else if (m.back && players.length === 0) { back(); return; }
             continue;
           }
-          const NC = CHARACTERS.length, cols = matchMedia('(max-width: 820px)').matches ? 4 : 8;
+          const NC = roster.length, cols = matchMedia('(max-width: 820px)').matches ? 4 : 8;
           let moved = false;
           if (!p.locked) {
-            if (m.left) { p.cursor = (p.cursor + NC - 1) % NC; moved = true; }
-            if (m.right) { p.cursor = (p.cursor + 1) % NC; moved = true; }
-            if (m.up) { p.cursor = (p.cursor + NC - cols) % NC; moved = true; }
-            if (m.down) { p.cursor = (p.cursor + cols) % NC; moved = true; }
+            let pos = Math.max(0, roster.indexOf(p.cursor));
+            if (m.left) { pos = (pos + NC - 1) % NC; moved = true; }
+            if (m.right) { pos = (pos + 1) % NC; moved = true; }
+            if (m.up) { pos = (pos + NC - cols) % NC; moved = true; }
+            if (m.down) { pos = (pos + cols) % NC; moved = true; }
+            p.cursor = roster[pos];
             if (moved) { this.audio.sfx('click'); refresh(); }
             if (m.ok && !taken().has(p.cursor)) { p.locked = true; this.audio.sfx('select'); refresh(); continue; }
             if (m.back) { if (p === players[0]) { back(); return; } leave(p); continue; }
@@ -507,20 +515,25 @@ class Game {
   showSelectChars(mode) {
     this.mode = mode;
     const max = mode === 'tt' ? 1 : MAX_PLAYERS;
-    const ND = DRIVERS.length, NK = KARTS.length;
     // phase: 'driver' (choosing) -> 'waiting' (driver locked) -> 'kart' (everyone locked: choosing a kart) -> 'done'
     const players = [];
     let step = 'driver';
     const uni = (id) => UNIVERSES.find((u) => u.id === id) || { name: id, color: '#fff' };
+    // Simplified mode offers a smaller roster (DRIVERS / KARTS indices, in order)
+    const simple = this.settings.simple;
+    let allowedD = DRIVERS.map((_, i) => i).filter((i) => !simple || simpleDriver(DRIVERS[i].id));
+    let allowedK = KARTS.map((_, i) => i).filter((i) => !simple || simpleKart(KARTS[i].id));
+    if (!allowedD.length) allowedD = DRIVERS.map((_, i) => i);
+    if (!allowedK.length) allowedK = KARTS.map((_, i) => i);
     let dgroups = '';
     for (const u of UNIVERSES) {
-      const list = DRIVERS.map((d, i) => [d, i]).filter(([d]) => d.from === u.id);
+      const list = allowedD.map((i) => [DRIVERS[i], i]).filter(([d]) => d.from === u.id);
       if (!list.length) continue;
       dgroups += `<div class="uhead" style="--uc:${u.color}">${esc(u.name)}</div>` + list.map(([d, i]) => `
         <div class="dcard" data-i="${i}" style="--dc:${hex(d.color ?? 0xffffff)}"><img alt="" data-d="${i}"><span>${esc(d.name)}</span><div class="tags"></div></div>`).join('');
     }
     // every kart in one grid, in KARTS order
-    const kgroups = KARTS.map((k, i) => `
+    const kgroups = allowedK.map((i) => [KARTS[i], i]).map(([k, i]) => `
         <div class="kcard" data-i="${1000 + i}" style="--kc:${hex(k.kart)}"><img alt="" data-k="${i}"><span>${esc(k.vehicle)}</span><div class="tags"></div></div>`).join('');
     const titles = { gp: 'Grand Prix', race: 'Quick Race', tt: 'Time Trial' };
     this.setScreen(`<div class="screen select chars"><div class="panel wide xl"><h2>${titles[mode]} · <span class="steptitle">Choose your driver</span></h2>
@@ -686,11 +699,11 @@ class Game {
       const id = [...Array(MAX_PLAYERS).keys()].find((n) => !players.some((p) => p.id === n));
       // start on this slot's picks from last time (a fresh slot starts on its own driver)
       const prev = this.picks.chars?.[id] || {};
-      const di = DRIVERS.findIndex((d) => d.id === prev.driver), ki = KARTS.findIndex((k) => k.id === prev.kart);
-      const tk = taken(null);
-      let dcur = di >= 0 ? di : id % ND;
-      for (let n = 0; n < ND && tk.has(dcur); n++) dcur = (dcur + 1) % ND;
-      const p = { id, device, dcur, kcur: ki >= 0 ? ki : 0, phase: 'driver', color: PCOL[id] };
+      const di = allowedD.findIndex((i) => DRIVERS[i].id === prev.driver), ki = allowedK.findIndex((i) => KARTS[i].id === prev.kart);
+      const tk = taken(null), nD = allowedD.length;
+      let pos = di >= 0 ? di : id % nD;
+      for (let n = 0; n < nD && tk.has(allowedD[pos]); n++) pos = (pos + 1) % nD;
+      const p = { id, device, dcur: allowedD[pos], kcur: allowedK[ki >= 0 ? ki : 0], phase: 'driver', color: PCOL[id] };
       players.push(p);
       players.sort((a, b) => a.id - b.id);
       this.audio.sfx('join');
@@ -888,7 +901,7 @@ class Game {
       this.attract?.dispose(); this.attract = null;
       this.race?.dispose();
       const s = this.settings;
-      this.race = new Race(this, { ...opts, players: this.players, useChars: this.charsOn(), cc: CC[s.cc] || 0.92, difficulty: s.difficulty, racers: s.racers, laps: opts.mode === 'tt' ? 3 : s.laps, bestTime: opts.mode === 'tt' ? this.best[opts.def.id] : 0 });
+      this.race = new Race(this, { ...opts, players: this.players, useChars: this.charsOn(), simple: !!s.simple, cc: CC[s.cc] || 0.92, difficulty: s.difficulty, racers: s.racers, laps: opts.mode === 'tt' ? 3 : s.laps, bestTime: opts.mode === 'tt' ? this.best[opts.def.id] : 0 });
       this.race.world.sun.shadow.mapSize.set(this.shadowSize, this.shadowSize);
       this.race.onDone = (res) => this.onRaceDone(res);
       this.race.warmup(this.renderer);

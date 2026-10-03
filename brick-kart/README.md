@@ -20,9 +20,21 @@ Play: <https://hoai2k.github.io/francis/brick-kart/>
 - **Racer select**: player 1 is already in, using whatever controller (or
   keyboard/touch) you used in the menus; more players press A to join.
 - **Options**: engine class (50/100/150/200cc), CPU difficulty, racers per race
-  (4/6/8/10/12; 12 at most, players included), laps, **Use Characters**, auto-accelerate, music and sound
+  (4/6/8/10/12; 12 at most, players included), laps, **Use Characters**, **Simplified mode**, auto-accelerate, music and sound
   volume, and graphics quality. The game also lowers its render resolution
   automatically if frames run slow, and raises it again when there's headroom.
+
+### Simplified mode
+
+**Simplified mode** (Options, off by default, remembered once you turn it on)
+offers a smaller set of drivers and karts on the select screen, and CPU racers
+use only that set too. The set lives in `js/simplified.js` (`null` means all).
+Choose it in the **workbench** at
+<https://hoai2k.github.io/francis/brick-kart/workbench/>: every character and
+kart is a card you tap to include or leave out (it starts from the current
+set), then **Export** downloads `brick-kart-simplified.json` with the chosen
+ids. The classic racers (Use Characters off) follow the Brick Kart Originals
+drivers.
 
 ## Maps (13, in 4 cups)
 
