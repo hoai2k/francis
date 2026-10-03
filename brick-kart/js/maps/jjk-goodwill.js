@@ -332,7 +332,7 @@ export default {
     }
     // the great sanmon gate over the road, Gojo standing on its roof
     { const i = K(1.55), p = tr.at(i, 0, 0), span = 2 * (edgeLat(i) + 1);
-      G.sanmon(b, p.x, Math.min(tr.surfaceY(i, -span / 2), tr.surfaceY(i, span / 2)), p.z, span, tr.yawAt(i) + Math.PI / 2);
+      G.sanmon(b, p.x, Math.min(tr.surfaceY(i, -span / 2), tr.surfaceY(i, span / 2)), p.z, span, tr.yawAt(i));
       const gj = P.gojo(2.6); gj.root.position.set(p.x, p.y + 11 + 9.6, p.z); gj.root.rotation.y = tr.yawAt(i) + Math.PI; ctx.group.add(gj.root);
       gj.armR.rotation.set(-0.3, 0, 0.3); anims.push((dt, t) => { gj.armL.rotation.z = -2.4 - Math.sin(t * 4) * 0.4; });
     }

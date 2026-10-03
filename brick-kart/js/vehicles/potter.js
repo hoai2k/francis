@@ -145,7 +145,9 @@ const express = {
     b.box(0, 0.6, -1.82, CW * 2 + 0.06, 0.95, 1.0, SC);
     b.box(0, 1.2, -1.82, CW * 2 + 0.08, 0.04, 1.02, GOLD);
     for (let i = 0; i < 7; i++) ell(b, S(i * 2.3) * 0.45, 1.55, -1.82 + CO(i * 1.7) * 0.3, 0.26, 0.14, 0.24, 0x15181b, { low: true });
-    rbox(b, 0, 1.0, -2.33, 0.14, 0.14, 0.04, 0, 0, 0, C.red, LIT(0xff2020, 1));
+    rbox(b, 0, 0.95, -2.33, 0.34, 0.4, 0.03, 0, 0, 0, GOLD, BRASS);                 // crest on the tender back
+    rbox(b, 0, 0.95, -2.345, 0.24, 0.3, 0.02, 0, 0, 0, DK);
+    for (const sd of [-1, 1]) rbox(b, sd * (CW - 0.12), 0.75, -2.33, 0.14, 0.14, 0.04, 0, 0, 0, C.red, LIT(0xff2020, 1));
     // driving wheels: red spoked discs with crank pins (the right side leads by a quarter turn)
     const wheels = [];
     const mkDriver = (z) => {

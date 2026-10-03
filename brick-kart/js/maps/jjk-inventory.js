@@ -42,13 +42,15 @@ function rainbowDragon(ctx, { home, alt = 50, R = 46, passes, period = 8.5, offs
     const Ap = A.clone().addScaledVector(d, -46); Ap.y = 30;
     const Bp = B.clone().addScaledVector(d, 46); Bp.y = 34;
     const Up = Bp.clone().lerp(C0, 0.5); Up.y = alt + 14;
-    const pts = [new THREE.Vector3(home[0] + R, alt, home[1]), new THREE.Vector3(home[0], alt + 6, home[1] + R), new THREE.Vector3(home[0] - R, alt, home[1]), Ap, A, B, Bp, Up];
+    const at = (f, y) => { const q = A.clone().lerp(B, f); q.y += y; return q; };
+    // several points along the low pass keep the spline from sagging into the road
+    const pts = [new THREE.Vector3(home[0] + R, alt, home[1]), new THREE.Vector3(home[0], alt + 6, home[1] + R), new THREE.Vector3(home[0] - R, alt, home[1]), Ap, at(-0.25, 5), A, at(1 / 3, 0), at(2 / 3, 0), B, at(1.25, 6), Bp, Up];
     const curve = new THREE.CatmullRomCurve3(pts, true, 'centripetal');
     let uA = 0, uB = 0, dA = 1e9, dB = 1e9;
     for (let n = 0; n < 600; n++) { const q = curve.getPointAt(n / 600, V2); const a = q.distanceTo(A), b = q.distanceTo(B); if (a < dA) { dA = a; uA = n / 600; } if (b < dB) { dB = b; uB = n / 600; } }
     if (uB < uA) uB += 1;
     const mid = A.clone().lerp(B, 0.5), L = A.distanceTo(B);
-    const band = new THREE.Mesh(new THREE.PlaneGeometry(5.5, 2 * (tr.HW[i] + 1)).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: rainbowTex(), transparent: true, opacity: 0, depthWrite: false }));
+    const band = new THREE.Mesh(new THREE.PlaneGeometry(5.5, 2 * hw).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: rainbowTex(), transparent: true, opacity: 0, depthWrite: false }));
     band.position.copy(tr.at(i, 0, 0.12)); band.rotation.y = Math.atan2(d.x, d.z);
     ctx.group.add(band);
     return { curve, len: curve.getLength(), uA, uB, A, B, d, L, band, mid };
@@ -57,6 +59,7 @@ function rainbowDragon(ctx, { home, alt = 50, R = 46, passes, period = 8.5, offs
   const m4 = new THREE.Matrix4(), qt = new THREE.Quaternion(), sc = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0), lk = new THREE.Matrix4();
   let cur = loops[0], low = false, roared = -1;
   return {
+    get dbg() { return { op: cur.band.material.opacity, uA: cur.uA, uB: cur.uB, low, k: passes[loops.indexOf(cur)] }; }, // TEMPCAM
     update(dt, t) {
       const tt = t + offset, n = Math.floor(tt / period), u = (tt % period) / period;
       cur = loops[n % loops.length];
@@ -93,10 +96,10 @@ function rainbowDragon(ctx, { home, alt = 50, R = 46, passes, period = 8.5, offs
 }
 
 // Toji's Inverted Spear of Heaven on its chain: rests along one road edge, whirls (red sector
-// flashes on the floor), then sweeps across the road like a wiper to the other end.
+// flashes on the floor), then sweeps over his half of the road like a wiper; hug the far side.
 function tojiChain(ctx, { k, side = 1, period = 3.8, offset = 0 }) {
   const tr = ctx.track, i = tr.kToIndex(k), hw = tr.HW[i];
-  const piv = tr.at(i, side * (hw + 1.4), 0), yaw = tr.yawAt(i), L = hw * 2 + 1.5, H = 1.4;
+  const piv = tr.at(i, side * (hw + 1.4), 0), yaw = tr.yawAt(i), L = hw * 1.3 + 1.4, H = 1.4;   // reaches a bit past the middle: the far side is safe
   const hold = new THREE.Group(); hold.position.copy(piv); hold.rotation.y = yaw; ctx.group.add(hold);
   const arm = new THREE.Group(); hold.add(arm);
   const cb = new BrickBuilder(1);
@@ -114,6 +117,7 @@ function tojiChain(ctx, { k, side = 1, period = 3.8, offset = 0 }) {
   let state = 0, swung = -1;
   const dir = new THREE.Vector3();
   return {
+    get dbg() { return { state }; }, // TEMPCAM
     update(dt, t) {
       const tt = t + offset, n = Math.floor(tt / hd), ph = tt % hd;
       const f0 = n % 2, f1 = 1 - f0;
@@ -134,7 +138,7 @@ function tojiChain(ctx, { k, side = 1, period = 3.8, offset = 0 }) {
       const dx = p.x - piv.x, dz = p.z - piv.z, s = Math.max(1.5, Math.min(L, dx * dir.x + dz * dir.z));
       return Math.hypot(dx - dir.x * s, dz - dir.z * s) < 1.8 && Math.abs(p.y - piv.y - 0.5) < 3 ? 'spin' : null;
     },
-    near(p, r) { return state > 0 && Math.hypot(p.x - piv.x, p.z - piv.z) < L + r; },
+    near(p, r) { return Math.hypot(p.x - piv.x, p.z - piv.z) < L + r; },
   };
 }
 
@@ -159,6 +163,7 @@ function storageWorm(ctx, { k, lat = 0, period = 4.6, offset = 0 }) {
   const lx = Math.cos(yaw), lz = -Math.sin(yaw), fx0 = Math.sin(yaw), fz0 = Math.cos(yaw);
   let up = 0, bit = false;
   return {
+    get dbg() { return { up, op: crack.material.opacity }; }, // TEMPCAM
     update(dt, t) {
       const ph = ((t + offset) % period) / period;
       // 0-.52 hidden, .52-.78 cracking, .78-.84 burst, .84-.94 up, .94-1 sink
