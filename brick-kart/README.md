@@ -27,8 +27,8 @@ Play: <https://hoai2k.github.io/francis/brick-kart/>
 ### Simplified mode
 
 **Simplified mode** (Options, off by default, remembered once you turn it on)
-offers a smaller set of drivers and karts on the select screen, and CPU racers
-use only that set too. The set lives in `js/simplified.js` (`null` means all).
+offers a smaller set (61 drivers and 31 karts) on the select screen, as one
+big grid without movie headings, and CPU racers use only that set too. The set lives in `js/simplified.js` (`null` means all).
 Choose it in the **workbench** at
 <https://hoai2k.github.io/francis/brick-kart/workbench/>: every character and
 kart is a card you tap to include or leave out (it starts from the current
