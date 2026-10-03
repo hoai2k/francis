@@ -72,11 +72,11 @@ Regina, Skater Sam, Zorp the Alien, Mummy Max and Dino Dina.
 ### Drivers and karts
 
 You pick a **driver** and then a **kart** separately, like Mario Kart. Pick a
-driver from the grid and press **A**; then flip through karts with **◀ ▶** in your
+driver from the grid (they stand on their own in your preview) and press **A**; then flip through karts with **◀ ▶** in your
 own preview and press **A** again to lock it in (**B** steps back). Every player
 does this at their own pace, so nobody waits for anyone else. On phones there's
 no grid: the preview fills the screen and you flip through drivers with ◀ ▶ too
-(they stand on their own until you pick a kart), tapping **Lock in**. The **Back**
+tapping **Lock in**. The **Back**
 button steps back one stage (ready → kart → driver → menu), coming back from the
 cup or map screen keeps everyone locked in, and each player slot remembers the
 driver and kart it last looked at. The original 16 Brick Kart racers are also drivers, listed after the
@@ -220,7 +220,7 @@ you drop some.
 
 | Action | Controller | Keyboard | Touch |
 | --- | --- | --- | --- |
-| Steer | Left stick / D-pad | A D / ← → | ◀ ▶ |
+| Steer | Left stick / D-pad | A D / ← → | tilt the phone, or drag left / right anywhere |
 | Accelerate | A or RT | W / ↑ | automatic |
 | Brake / reverse | B or LT | S / ↓ | BRAKE |
 | Hop & drift | RB | Space | DRIFT |
@@ -235,6 +235,11 @@ you drop some.
 - **Gliding**: steer while you fly. You land wherever the road is below you. Ground obstacles like hay bales and cupcakes only stop you if you fly low enough to hit them.
 - **Falling off**: the crane puts you back on a safe stretch of road. If you fall again right away, it puts you further ahead next time.
 - Sound mutes when you switch to another tab or window.
+- **Touch steering**: tilt the phone like a steering wheel (however you hold it
+  when the race says GO is straight ahead), or drag a finger left / right anywhere
+  on the screen, which takes over from tilt while your finger is down. Options →
+  Touch steering picks Tilt + drag, Drag or Tilt. iPhones ask for motion access
+  on the first tap.
 - Tapping outside a popup menu (Options, How to Play, Pause) closes it.
 
 ## Multiplayer (1–8 players, split-screen)

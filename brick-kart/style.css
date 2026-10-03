@@ -289,7 +289,7 @@ canvas.pod3d { display: block; width: min(640px, 100%); height: min(300px, 38vh)
 .select.simple .dcard .ptag { font-size: clamp(9px, calc(var(--cw, 86px) * 0.15), 13px); padding: 0 4px; }
 /* choosing a kart in your own preview: arrows either side and a lock-in button */
 .pvcell .karr, .pvcell .kok { pointer-events: auto; position: absolute; border: 0; color: #fff; cursor: pointer; font-family: 'Lilita One'; box-shadow: inset 0 -4px 0 rgba(0,0,0,.3), 0 3px 8px rgba(0,0,0,.4); }
-.pvcell .karr { top: 45%; transform: translateY(-50%); width: 46px; height: 64px; border-radius: 12px; font-size: 26px; background: color-mix(in srgb, var(--pc) 75%, #000); animation: karr 1s ease-in-out infinite; }
+.pvcell .karr { display: grid; place-items: center; padding: 0; top: 45%; transform: translateY(-50%); width: 46px; height: 64px; border-radius: 12px; font-size: 26px; background: color-mix(in srgb, var(--pc) 75%, #000); animation: karr 1s ease-in-out infinite; }
 .pvcell .karr.l { left: 8px; } .pvcell .karr.r { right: 8px; animation-direction: reverse; }
 .pvcell .karr:active { transform: translateY(-50%) scale(.92); }
 @keyframes karr { 50% { filter: brightness(1.3); } }
@@ -302,7 +302,7 @@ canvas.pod3d { display: block; width: min(640px, 100%); height: min(300px, 38vh)
   .select.chars .picks { display: none; }
   .select.chars .csel, .select.chars .csel.multi { grid-template-columns: 1fr; grid-template-rows: 1fr; }
   .select.chars .stage, .select.chars .csel.multi .stage { height: auto; min-height: 0; }
-  .pvcell .karr.drv, .pvcell .kok.drv { display: block; }
+  .pvcell .karr.drv { display: grid; } .pvcell .kok.drv { display: block; }
   .pvstep .dnum { display: inline; }
   .pvfollow { display: none; }
 }
@@ -311,9 +311,13 @@ canvas.pod3d { display: block; width: min(640px, 100%); height: min(300px, 38vh)
 #touch { position: fixed; inset: 0; z-index: 12; pointer-events: none; }
 #touch button { pointer-events: auto; border: 0; color: #fff; font-family: 'Lilita One'; touch-action: none; box-shadow: inset 0 -6px 0 rgba(0,0,0,.3), 0 4px 0 rgba(0,0,0,.35); opacity: .78; }
 #touch button.on { transform: scale(.94); opacity: 1; filter: brightness(1.2); }
+/* drag-to-steer: the whole screen behind the buttons; a knob shows where the finger went down */
+.tzone { position: absolute; inset: 0; pointer-events: auto; touch-action: none; -webkit-user-select: none; user-select: none; }
+.tknob { position: absolute; left: 0; top: 0; width: 0; height: 0; pointer-events: none; }
+.tknob::before { content: ''; position: absolute; left: -64px; top: -26px; width: 128px; height: 52px; border-radius: 26px; background: rgba(255,255,255,.12); box-shadow: inset 0 0 0 3px rgba(255,255,255,.45); }
+.tknob i { position: absolute; left: -22px; top: -22px; width: 44px; height: 44px; border-radius: 50%; background: rgba(255,255,255,.75); box-shadow: 0 2px 8px rgba(0,0,0,.4); }
+.tknob.hidden { display: none; }
 .tpad { position: absolute; bottom: max(18px, env(safe-area-inset-bottom)); display: flex; gap: 14px; align-items: flex-end; }
-.tpad.left { left: max(16px, env(safe-area-inset-left)); }
-.tpad.left button { width: 86px; height: 86px; border-radius: 50%; background: rgba(40,50,70,.8); font-size: 34px; }
 .tpad.right { right: max(16px, env(safe-area-inset-right)); display: grid; grid-template-columns: auto auto; grid-template-rows: auto auto; gap: 12px; }
 .t-drift { width: 100px; height: 100px; border-radius: 50%; background: var(--red); font-size: 20px; grid-row: 2; grid-column: 2; }
 .t-item { width: 78px; height: 78px; border-radius: 50%; background: var(--blue); font-size: 17px; grid-row: 1; grid-column: 2; justify-self: center; }
@@ -341,5 +345,5 @@ canvas.pod3d { display: block; width: min(640px, 100%); height: min(300px, 38vh)
   .screen.title .logo { transform: scale(.7); }
   .panel { padding: 12px; } .panel h2 { margin-bottom: 8px; }
   .list { gap: 6px; } .mbtn { padding: 8px 14px 6px; font-size: 17px; }
-  .tpad.left button { width: 72px; height: 72px; } .t-drift { width: 84px; height: 84px; }
+  .t-drift { width: 84px; height: 84px; }
 }

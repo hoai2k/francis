@@ -26,7 +26,10 @@ export class Input {
     this.padPrev = new Map();
     this.padNow = new Map();
     this.prevMenu = new Map();     // device -> { dir: {up,down,left,right} timers }
-    this.touch = { left: false, right: false, drift: false, item: false, brake: false, gas: true, pause: false, pressed: new Set(), active: false };
+    this.touch = { drift: false, item: false, brake: false, gas: true, pause: false, pressed: new Set(), active: false, drag: null, tilt: 0 };
+    // touch steering: 'both' (tilt, and dragging overrides it while a finger is down), 'drag' or 'tilt'
+    this.steerMode = 'both';
+    this.tiltOn = false; this.tiltPerm = false;
     this.lastDevice = 'kb';
     this.prevTouchHeld = {};
     addEventListener('keydown', (e) => {
@@ -84,7 +87,7 @@ export class Input {
       c.pause = this.kEdge(L.pause);
     } else if (dev === 'touch') {
       const t = this.touch;
-      c.steer = (t.right ? 1 : 0) - (t.left ? 1 : 0);
+      c.steer = t.drag ? t.drag.axis : this.steerMode !== 'drag' ? t.tilt : 0;
       c.brake = t.brake ? 1 : 0;
       c.throttle = c.brake ? 0 : 1;
       c.drift = t.drift; c.driftPressed = t.edge.has('drift');
@@ -152,10 +155,13 @@ export class Input {
   }
 
   // --- touch overlay -----------------------------------------------------------------
+  // No steering buttons: drag a finger left/right anywhere on the screen (it steers relative to
+  // where it touched down, and the anchor follows past full lock so reversing is instant), and/or
+  // tilt the phone like a steering wheel. Buttons on the right: ITEM, DRIFT, BRAKE.
   buildTouch(root) {
     this.touchRoot = root;
     root.innerHTML = `
-      <div class="tpad left"><button data-k="left" aria-label="Steer left">◀</button><button data-k="right" aria-label="Steer right">▶</button></div>
+      <div class="tzone"></div><div class="tknob hidden"><i></i></div>
       <div class="tpad right"><button data-k="item" class="t-item" aria-label="Use item">ITEM</button><button data-k="drift" class="t-drift" aria-label="Drift / hop">DRIFT</button><button data-k="brake" class="t-brake" aria-label="Brake">BRAKE</button></div>
       <button data-k="pause" class="t-pause" aria-label="Pause">II</button>`;
     const t = this.touch;
@@ -168,6 +174,85 @@ export class Input {
       btn.addEventListener('pointerup', up); btn.addEventListener('pointercancel', up); btn.addEventListener('lostpointercapture', up);
       btn.addEventListener('contextmenu', (e) => e.preventDefault());
     });
+    // drag steering
+    const zone = root.querySelector('.tzone'), knob = root.querySelector('.tknob'), dot = knob.firstElementChild;
+    const R = () => Math.max(46, Math.min(90, innerWidth * 0.12));   // drag distance for full lock
+    const draw = () => {
+      const d = t.drag;
+      knob.classList.toggle('hidden', !d);
+      if (!d) return;
+      knob.style.transform = `translate(${d.x0}px, ${d.y0}px)`;
+      dot.style.transform = `translateX(${d.axis * R()}px)`;
+    };
+    zone.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      this.lastDevice = 'touch'; t.active = true;
+      if (t.drag || this.steerMode === 'tilt') return;
+      zone.setPointerCapture?.(e.pointerId);
+      t.drag = { id: e.pointerId, x0: e.clientX, y0: e.clientY, axis: 0 };
+      draw();
+    });
+    zone.addEventListener('pointermove', (e) => {
+      const d = t.drag;
+      if (!d || d.id !== e.pointerId) return;
+      const r = R(), dx = e.clientX - d.x0;
+      if (Math.abs(dx) > r) d.x0 = e.clientX - Math.sign(dx) * r;   // anchor follows past full lock
+      const v = (e.clientX - d.x0) / r;
+      d.axis = Math.abs(v) < 0.06 ? 0 : v;
+      draw();
+    });
+    const end = (e) => { if (t.drag && t.drag.id === e.pointerId) { t.drag = null; draw(); } };
+    zone.addEventListener('pointerup', end); zone.addEventListener('pointercancel', end); zone.addEventListener('lostpointercapture', end);
+    zone.addEventListener('contextmenu', (e) => e.preventDefault());
+    // iOS only allows motion sensors after a tap: ask on the first one
+    const ask = () => { if (this.steerMode !== 'drag') this.enableTilt(); };
+    addEventListener('click', ask); addEventListener('touchend', ask);
+  }
+
+  // Tilt steering from the gravity vector. The steer angle is how far the phone has turned (around
+  // the axis through the screen) away from how it was held at calibration, so it works in portrait
+  // or landscape and whichever sign convention the browser uses for gravity.
+  enableTilt() {
+    if (this.tiltOn) return;
+    const start = () => {
+      if (this.tiltOn) return;
+      this.tiltOn = true;
+      const g = this.grav = { x: 0, y: 0, n: 0 };
+      addEventListener('devicemotion', (e) => {
+        const a = e.accelerationIncludingGravity;
+        if (!a || a.x == null) return;
+        const k = g.n ? 0.3 : 1;
+        g.x += (a.x - g.x) * k; g.y += (a.y - g.y) * k; g.n++;
+        if (!this.tiltRef) this.calibrateTilt();
+        this.updateTilt();
+      });
+      addEventListener('orientationchange', () => setTimeout(() => this.calibrateTilt(), 400));
+    };
+    const DM = window.DeviceMotionEvent;
+    if (DM && typeof DM.requestPermission === 'function') {
+      if (this.tiltPerm) return;
+      this.tiltPerm = true;
+      DM.requestPermission().then((r) => { if (r === 'granted') start(); }).catch(() => { this.tiltPerm = false; });
+    } else if (DM) start();
+  }
+  // the current grip becomes "straight ahead" (called at the start of each race too)
+  calibrateTilt() {
+    const g = this.grav;
+    if (!g || !g.n || Math.hypot(g.x, g.y) < 2) { this.tiltRef = null; return; }
+    const L = Math.hypot(g.x, g.y);
+    this.tiltRef = { x: g.x / L, y: g.y / L };
+  }
+  updateTilt() {
+    const g = this.grav, r = this.tiltRef, t = this.touch;
+    const L = Math.hypot(g.x, g.y);
+    if (!r || L < 2) { t.tilt = 0; return; }   // lying flat: no steering
+    // signed angle from the reference to the current gravity direction (device x right, y up):
+    // turning the phone clockwise, like a wheel to the right, gives a positive angle
+    const x = g.x / L, y = g.y / L;
+    const ang = Math.atan2(r.x * y - r.y * x, r.x * x + r.y * y);
+    const deg = ang * 180 / Math.PI, dead = 3, full = 24;
+    const v = Math.abs(deg) < dead ? 0 : Math.sign(deg) * Math.min(1, (Math.abs(deg) - dead) / (full - dead));
+    t.tilt = v;
   }
 }
 

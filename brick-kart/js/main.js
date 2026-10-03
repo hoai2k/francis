@@ -16,6 +16,9 @@ import { Showcase, driverPortrait } from './showcase.js';
 import { ICONS, ITEMS } from './items.js';
 import { fmt } from './hud.js';
 
+// arrows: chevrons drawn as SVG (◀ ▶ text gets turned into emoji boxes on iOS; text arrows carry U+FE0E)
+const chev = (d) => `<svg viewBox="0 0 24 24" width="60%" height="60%" aria-hidden="true"><path d="${d}" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const CHEV_L = chev('M15 4 7 12l8 8'), CHEV_R = chev('M9 4l8 8-8 8');
 const PCOL = ['#ff4a3a', '#3b8bff', '#3bdc5a', '#ffc93b', '#c45aff', '#ff8a1a', '#2fd6d0', '#ff6ab4'];
 const MAX_PLAYERS = 8;
 const POINTS = [15, 12, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 0, 0, 0];
@@ -31,7 +34,7 @@ const hex = (c) => '#' + c.toString(16).padStart(6, '0');
 
 class Game {
   constructor() {
-    this.settings = load(SKEY, { cc: 100, difficulty: 'normal', laps: 3, racers: 12, music: 0.5, sfx: 0.8, autoGas: false, simple: false, quality: MOBILE ? 'low' : 'high' });
+    this.settings = load(SKEY, { cc: 100, difficulty: 'normal', laps: 3, racers: 12, music: 0.5, sfx: 0.8, autoGas: false, simple: false, touchSteer: 'both', quality: MOBILE ? 'low' : 'high' });
     // at most 12 karts per race (players included)
     if (!(this.settings.racers <= 12)) { this.settings.racers = 12; save(SKEY, this.settings); }
     // characters are always on now: drop the old toggle
@@ -56,6 +59,7 @@ class Game {
     this.ui = document.getElementById('ui');
     this.hudRoot = document.getElementById('hud');
     this.flashEl = document.getElementById('flash');
+    this.input.steerMode = this.settings.touchSteer || 'both';
     this.touchRoot = document.getElementById('touch');
     this.input.buildTouch(this.touchRoot);
     this.menuEvents = [];
@@ -318,6 +322,9 @@ class Game {
         { label: 'Racers per race', value: () => String(s.racers), left: () => cyc('racers', racers, -1), right: () => cyc('racers', racers, 1) },
         { label: 'Laps', value: () => String(s.laps), left: () => cyc('laps', laps, -1), right: () => cyc('laps', laps, 1) },
         { label: 'Simplified mode', value: () => (s.simple ? 'On' : 'Off'), left: () => { s.simple = !s.simple; save(SKEY, s); }, right: () => { s.simple = !s.simple; save(SKEY, s); } },
+        ...(isTouchDevice() ? [{ label: 'Touch steering', value: () => ({ both: 'Tilt + drag', drag: 'Drag', tilt: 'Tilt' }[s.touchSteer] || 'Tilt + drag'),
+          left: () => { cyc('touchSteer', ['both', 'drag', 'tilt'], -1); this.input.steerMode = s.touchSteer; if (s.touchSteer !== 'drag') this.input.enableTilt(); },
+          right: () => { cyc('touchSteer', ['both', 'drag', 'tilt'], 1); this.input.steerMode = s.touchSteer; if (s.touchSteer !== 'drag') this.input.enableTilt(); } }] : []),
         { label: 'Auto-accelerate', value: () => (s.autoGas ? 'On' : 'Off'), left: () => { s.autoGas = !s.autoGas; save(SKEY, s); }, right: () => { s.autoGas = !s.autoGas; save(SKEY, s); } },
         { label: 'Music', value: () => Math.round(s.music * 10) + '/10', left: () => vol('music', -1), right: () => vol('music', 1) },
         { label: 'Sound FX', value: () => Math.round(s.sfx * 10) + '/10', left: () => vol('sfx', -1), right: () => vol('sfx', 1) },
@@ -341,7 +348,7 @@ class Game {
           <tr><td>Steer</td><td>A / D or ← / →</td></tr><tr><td>Accelerate</td><td>W or ↑</td></tr><tr><td>Brake / reverse</td><td>S or ↓</td></tr>
           <tr><td>Hop & drift</td><td>Space</td></tr><tr><td>Use item</td><td>E or Shift</td></tr><tr><td>Look behind</td><td>Q</td></tr><tr><td>Pause</td><td>Esc / P</td></tr>
           <tr><td>2nd keyboard player</td><td>Arrows, Right Shift = drift, Enter = item (join with Right Shift)</td></tr></table>
-          <h3>📱 Touch</h3><p>◀ ▶ steer, DRIFT, ITEM, BRAKE. Gas is automatic.</p></div>
+          <h3>📱 Touch</h3><p>Tilt the phone like a steering wheel, or drag a finger left / right anywhere on the screen (Options → Touch steering). DRIFT, ITEM, BRAKE on the right. Gas is automatic.</p></div>
         <div><h3>🏁 Tips</h3><ul>
           <li>Hold drift through corners until the sparks turn <b style="color:#7fd4ff">blue</b>, <b style="color:#ff9a1a">orange</b>, then <b style="color:#d05aff">purple</b>, then let go for a mini-turbo.</li>
           <li>Press drift in mid-air off a ramp to do a trick and land with a boost.</li>
@@ -358,7 +365,7 @@ class Game {
   }
 
   // ---- racer select with drop-in players -----------------------------------------------------------
-  // Each player picks a driver from the grid (A locks it in), then flips through karts with ◀ ▶ in
+  // Each player picks a driver from the grid (A locks it in), then flips through karts with ◀︎ ▶︎ in
   // their own preview (A locks that in too), so nobody waits on anyone else.
   // resume: coming back from the cup / map screen, everyone is still locked in
   showSelect(mode, resume = false) {
@@ -389,7 +396,7 @@ class Game {
         <div class="stage"><canvas class="pv"></canvas><div class="pvcells"></div></div>
         <div class="picks"><div class="dgrid">${dgroups}</div></div>
       </div>
-      <div class="selfoot"><button class="bbtn" data-act="back">◀ Back</button><div class="hint2"></div><button class="bbtn go" data-act="go">Race! ▶</button></div></div></div>`);
+      <div class="selfoot"><button class="bbtn" data-act="back">◀︎ Back</button><div class="hint2"></div><button class="bbtn go" data-act="go">Race! ▶︎</button></div></div></div>`);
     const ui = this.ui;
     const dcards = [...ui.querySelectorAll('.dcard')];
     const dEl = new Map(dcards.map((c) => [+c.dataset.i, c]));
@@ -470,16 +477,16 @@ class Game {
         : p.phase === 'driver' ? `${who}pick a <b>driver</b><em class="dnum">${dn} / ${allowedD.length}</em>`
         : p.phase === 'kart' ? `${who}pick a <b>kart</b> <em>${kn} / ${allowedK.length}</em>` : `${who}is ready!`;
       const u = uni(d.from);
-      // choosing a kart: arrows either side of it (◀ ▶ on the pad too) and a lock-in button for touch
+      // choosing a kart: arrows either side of it (◀︎ ▶︎ on the pad too) and a lock-in button for touch
       // on phones (no grid) drivers are picked the same way
-      const arrows = p?.phase === 'kart' ? `<button class="karr l" data-act="kprev:${p.id}" aria-label="Previous kart">◀</button><button class="karr r" data-act="knext:${p.id}" aria-label="Next kart">▶</button><button class="kok" data-act="kok:${p.id}">Lock in ✓</button>`
-        : p?.phase === 'driver' ? `<button class="karr l drv" data-act="dprev:${p.id}" aria-label="Previous driver">◀</button><button class="karr r drv" data-act="dnext:${p.id}" aria-label="Next driver">▶</button><button class="kok drv" data-act="dok:${p.id}">Lock in ✓</button>` : '';
+      const arrows = p?.phase === 'kart' ? `<button class="karr l" data-act="kprev:${p.id}" aria-label="Previous kart">${CHEV_L}</button><button class="karr r" data-act="knext:${p.id}" aria-label="Next kart">${CHEV_R}</button><button class="kok" data-act="kok:${p.id}">Lock in ✓</button>`
+        : p?.phase === 'driver' ? `<button class="karr l drv" data-act="dprev:${p.id}" aria-label="Previous driver">${CHEV_L}</button><button class="karr r drv" data-act="dnext:${p.id}" aria-label="Next driver">${CHEV_R}</button><button class="kok drv" data-act="dok:${p.id}">Lock in ✓</button>` : '';
       return `<div class="pvstep">${tag}</div>${arrows}
         <div class="pvinfo"><div class="pvfrom" style="color:${u.color}">${esc(u.name)}</div>
         <div class="pvname">${esc(kartStep ? ch.vehicle : d.name)}</div>
         <div class="pvblurb">${esc(kartStep ? `${ch.form || bodyName(ch)}${ch.blurb ? ' · ' + ch.blurb : ''}` : `${d.blurb}${d.blurb ? ' · ' : ''}${d.weight[0].toUpperCase() + d.weight.slice(1)}`)}</div>
         ${standing ? '' : `<div class="pvkart">${kartStep ? `driven by <b>${esc(d.name)}</b>` : `in the <b>${esc(ch.vehicle)}</b>`}</div>`}
-        <div class="stats big">${statBars(combinedStats(ch.stats, d))}</div></div>${following ? '<div class="pvfollow">▶ picking now</div>' : ''}`;
+        <div class="stats big">${statBars(combinedStats(ch.stats, d))}</div></div>${following ? '<div class="pvfollow">▶︎ picking now</div>' : ''}`;
     };
     const refreshStage = (cheerP) => {
       const list = players.length ? players : [null];
@@ -491,8 +498,8 @@ class Game {
       layoutCells();
       list.forEach((p, i) => {
         const d = DRIVERS[p ? p.dcur : 0], ch = KARTS[p ? p.kcur : 0];
-        // phones: while choosing a driver they stand on their own; the kart joins at the kart step
-        const standing = compact() && (!p || p.phase === 'driver');
+        // while choosing a driver they stand on their own; the kart joins once they lock in
+        const standing = !p || p.phase === 'driver';
         const key = (p ? p.id : '-') + '|' + d.id + '|' + (standing ? 'stand' : ch.id), phase = p?.phase === 'done' ? 'win' : 'pre';
         if (key !== slotKeys[i]) {
           const ry = show.items[i]?.m.root.rotation.y ?? 0.6;
@@ -543,7 +550,7 @@ class Game {
       const ready = players.length && players.every((p) => p.phase === 'done');
       ui.querySelector('.go').classList.toggle('ready', !!ready);
       ui.querySelector('.hint2').innerHTML = ready ? 'All set! Press <b>A</b> / <b>Start</b> / <b>Enter</b> to race'
-        : players.some((p) => p.phase === 'kart') ? '<b>◀ ▶</b> change kart · <b>A</b> lock it in · <b>B</b> back to drivers'
+        : players.some((p) => p.phase === 'kart') ? '<b>◀︎ ▶︎</b> change kart · <b>A</b> lock it in · <b>B</b> back to drivers'
         : (mode !== 'tt' ? 'More players: press <b>A</b> on another controller · 2nd keyboard: <b>Right Shift</b>' : 'Time Trial is solo: beat your best time');
       refreshStage(cheerP);
       follow();
@@ -725,7 +732,7 @@ class Game {
       return `<div class="tcard" data-i="${i}"><img src="${this.thumbs[i]}" alt=""><div class="tn">${esc(t.name)}</div><div class="ts">${esc(t.subtitle)}</div>${mode === 'tt' && b ? `<div class="tb">Best ${fmt(b)}</div>` : ''}</div>`;
     }).join('') + `<div class="tcard rnd" data-i="${TRACKS.length}"><div class="q">?</div><div class="tn">Random</div><div class="ts">Surprise me</div></div>`;
     this.setScreen(`<div class="screen tracks"><div class="panel wide"><h2>${mode === 'tt' ? 'Time Trial' : 'Quick Race'} · Choose a map</h2>
-      <div class="tgrid">${cards}</div><div class="selfoot"><button class="bbtn" data-act="back">◀ Back</button><div class="hint2">${this.settings.cc}cc · ${this.settings.laps} laps · CPU ${this.settings.difficulty}</div><span></span></div></div></div>`);
+      <div class="tgrid">${cards}</div><div class="selfoot"><button class="bbtn" data-act="back">◀︎ Back</button><div class="hint2">${this.settings.cc}cc · ${this.settings.laps} laps · CPU ${this.settings.difficulty}</div><span></span></div></div></div>`);
     const n = TRACKS.length + 1;
     const refresh = () => this.ui.querySelectorAll('.tcard').forEach((c, i) => c.classList.toggle('focus', i === focus));
     const pick = (i) => {
@@ -759,7 +766,7 @@ class Game {
     const cards = CUPS.map((c, i) => `<div class="cup" data-i="${i}" style="--cc:${c.color}"><div class="trophy">🏆</div><div class="cn">${esc(c.name)}</div><div class="cl">${c.tracks.length} races</div></div>`).join('');
     this.setScreen(`<div class="screen tracks cups"><div class="panel wide"><h2>Grand Prix · Choose a cup</h2><div class="cupgrid">${cards}</div>
       <div class="cuppv"></div>
-      <div class="selfoot"><button class="bbtn" data-act="back">◀ Back</button><div class="hint2">${this.settings.cc}cc · ${this.settings.racers} racers · ${this.settings.laps} laps · CPU ${this.settings.difficulty}</div><span></span></div></div></div>`);
+      <div class="selfoot"><button class="bbtn" data-act="back">◀︎ Back</button><div class="hint2">${this.settings.cc}cc · ${this.settings.racers} racers · ${this.settings.laps} laps · CPU ${this.settings.difficulty}</div><span></span></div></div></div>`);
     // the focused cup's races, in order, with a picture of each map
     const preview = () => {
       if (shown === focus) return;
@@ -862,7 +869,7 @@ class Game {
       this.gp.points.set(e.key, (this.gp.points.get(e.key) || 0) + (POINTS[r.place - 1] || 0));
     });
     const items = mode === 'gp'
-      ? [{ label: 'Standings ▶', action: () => this.showStandings() }]
+      ? [{ label: 'Standings ▶︎', action: () => this.showStandings() }]
       : [{ label: 'Race again', action: () => this.startRace(this.lastRaceOpts) }, { label: 'Choose map', action: () => { this.race.dispose(); this.race = null; this.startAttract(); this.showTracks('race'); } }, { label: 'Main menu', action: () => this.quitToMenu() }];
     this.resultsMenu(`Results · ${this.race.opts.def.name}`, `<div class="results">${rows}</div>`, items);
   }
@@ -905,8 +912,8 @@ class Game {
     gp.grid = [...order].reverse().map((o) => ({ charIndex: o.charIndex, driverIndex: o.driverIndex, kartIndex: o.kartIndex, player: humanChars.get(o.key) || null }));
     const last = gp.round >= gp.tracks.length;
     this.resultsMenu(last ? 'Final Standings' : `Standings after race ${gp.round}/${gp.tracks.length}`, `<div class="results">${rows}</div>`, last
-      ? [{ label: 'Award ceremony ▶', action: () => this.showPodium(order) }]
-      : [{ label: `Next: ${TRACKS.find((t) => t.id === gp.tracks[gp.round]).name} ▶`, action: () => this.nextGPRace() }, { label: 'Quit Grand Prix', action: () => this.quitToMenu() }]);
+      ? [{ label: 'Award ceremony ▶︎', action: () => this.showPodium(order) }]
+      : [{ label: `Next: ${TRACKS.find((t) => t.id === gp.tracks[gp.round]).name} ▶︎`, action: () => this.nextGPRace() }, { label: 'Quit Grand Prix', action: () => this.quitToMenu() }]);
   }
 
   showPodium(order) {

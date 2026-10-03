@@ -222,6 +222,7 @@ export class Race {
       if (n < this.lastCount && n >= 1 && n <= 3) { this.lastCount = n; this.audio.sfx('count'); tr.setStartLights(4 - n, false); this.hud?.count(n); }
       if (this.countdown <= 0) {
         this.state = 'race'; this.started = true; this.time = 0;
+        this.game.input?.calibrateTilt?.();   // tilt steering: however the phone is held at GO is straight ahead
         tr.setStartLights(4, true);
         this.audio.sfx('go');
         this.hud?.count('GO!');
