@@ -73,8 +73,12 @@ You pick a **driver** and then a **kart** separately, like Mario Kart (turn
 player locks in a driver first; then the whole picker switches to the kart
 step. The original 16 Brick Kart racers are also drivers, listed after the
 movie casts, and the classic karts come after the newer vehicles. The drivers are brick-built movie characters from
-the Movie Cup: 19 from Marvel, 16 from Star Wars, 16 from Jujutsu Kaisen and 16
-from Jurassic World (67 in all). Every kart in
+the Movie Cup: 19 from Marvel, 16 from Star Wars, 16 from Harry Potter, 16 from
+Jujutsu Kaisen and 16 from Jurassic World (83 in all). The Harry Potter cast
+(Harry, Hermione, Ron, Dumbledore, Hagrid, Snape, McGonagall, Voldemort, Draco,
+Neville, Luna, Ginny, Sirius, Dobby, Bellatrix and Fred) is listed just above
+the Jujutsu Kaisen one, and each of them casts a signature spell when they
+cheer or win (Patronuses, Fawkes, the Dark Mark, fireworks…). Every kart in
 the race (CPU ones too) gets one of them at the wheel.
 
 - The select screen has a live 3D stage with **a preview for each player**: your
@@ -87,7 +91,7 @@ the race (CPU ones too) gets one of them at the wheel.
   in your browser, and starts on them next time. Stat bars show the kart's stats adjusted by the driver's weight
   class (light drivers accelerate and handle better; heavy ones are faster and
   push harder).
-- 40 karts in one grid: the first 8 originals, the Wild Rides, the movie rides,
+- 46 karts in one grid: the first 8 originals, the Wild Rides, the movie rides,
   then the other 8 originals. The **originals** are themed on their racers: Hard
   Hat Hauler (loader-dumper), Comet Cruiser (moon rover), Plank Plunderer
   (paddle-wheel pirate ship), Iron Bastion (castle on rolling logs), Turbo Titan
@@ -102,6 +106,11 @@ the race (CPU ones too) gets one of them at the wheel.
     gliding or boosting), Chicken Walker (AT-ST that walks), TIE Howler.
   - **Marvel & Jurassic Rides**: Park Jeep 12, Gyrosphere (rolling glass ball),
     Tour Explorer, Royal Talon (Wakandan hover-car), Stark Roadster, Goat Chariot.
+  - **Wizarding Rides** (listed just above the Cursed rides): Flying Anglia
+    (wheels tip flat like rotors when gliding), Hogwarts Express (steam
+    locomotive with moving rods), Knight Bus (leaning triple-decker), Hagrid's
+    Motorbike (with Hedwig in the sidecar), Firebolt (racing broom chasing a
+    Snitch), Buckbeak (gallops, then spreads his wings to fly).
   - **Cursed & Fantasy Rides**: Ijichi's Sedan, Dharma Wheel (giant monowheel),
     Nue (flapping thunderbird), Magic Carpet, Brick Dragon (walks, breathes fire),
     Mad Teacup.
