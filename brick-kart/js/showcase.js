@@ -111,7 +111,55 @@ function standDriver(rig) {
     rig.root.position.y = 0.85;
   }
   root.add(rig.root);
-  return { root, mats, standing: true };
+  return { root, mats, rig, standing: true };
+}
+
+// Standing drivers introduce themselves: they breathe, shift their weight and look around, and every
+// few seconds show off with a move. 'commit' is the jump-spin when a player locks them in.
+// Arm rotations follow the rig contract: x < 0 swings an arm forward/up (-PI straight up), z moves
+// it out sideways (+ for armL on +X, - for armR).
+const smooth = (x) => x * x * (3 - 2 * x);
+const STAND_MOVES = { wave: 1.7, hop: 0.95, spin: 1.05, cheer: 1.5, dance: 2.2, point: 1.3, sig: 0 };
+function standPose(it, n, t, dt, face) {
+  const m = it.m, rig = m.rig, st = it.standSt ||= { next: 0.8 + Math.random() * 1.2, mv: null, last: '' };
+  let ry = face + Math.sin(t * 0.6 + n) * 0.1, rz = Math.sin(t * 1.3 + n) * 0.025, y = 0, arms = null;
+  if (!st.mv && it.phase !== 'win') {
+    st.next -= dt;
+    if (st.next <= 0) {
+      const names = Object.keys(STAND_MOVES).filter((k) => k !== st.last);
+      const name = names[Math.floor(Math.random() * names.length)];
+      st.last = name;
+      if (name === 'sig') { it.anim?.play(['cheer', 'taunt', 'yay'][Math.floor(Math.random() * 3)]); st.next = 3 + Math.random() * 2; }
+      else st.mv = { name, t: 0, dur: STAND_MOVES[name] };
+    }
+  }
+  if (st.mv) {
+    const mv = st.mv;
+    mv.t += dt;
+    const f = Math.min(1, mv.t / mv.dur), w = smooth(Math.min(1, f / 0.15, (1 - f) / 0.2)), tt = mv.t;
+    switch (mv.name) {
+      case 'wave': arms = { lx: -0.15, lz: 0.25, rx: -2.75, rz: -0.25 + Math.sin(tt * 14) * 0.45 }; ry += Math.sin(tt * 3) * 0.08; break;
+      case 'point': arms = { rx: -1.55, rz: 0.12, lx: -0.1, lz: 0.5 }; rz += Math.sin(tt * 9) * 0.03; break;
+      case 'hop': y = Math.abs(Math.sin(f * Math.PI * 2)) * 0.45; arms = { lx: -2.5, lz: 0.55, rx: -2.5, rz: -0.55 }; break;
+      case 'spin': ry += smooth(f) * Math.PI * 2; arms = { lx: -0.25, lz: 1.35, rx: -0.25, rz: -1.35 }; y = Math.sin(f * Math.PI) * 0.12; break;
+      case 'cheer': y = Math.max(0, Math.sin(f * Math.PI * 3)) * 0.18; arms = { lx: -2.85, lz: 0.35 + Math.sin(tt * 10) * 0.18, rx: -2.85, rz: -0.35 - Math.sin(tt * 10) * 0.18 }; break;
+      case 'dance': {
+        const b = Math.sin(tt * 8);
+        rz += b * 0.12 * w; ry += Math.sin(tt * 4) * 0.4 * w; y = Math.abs(b) * 0.09 * w;
+        arms = { lx: -1.3 - b * 0.9, lz: 0.45, rx: -1.3 + b * 0.9, rz: -0.45 };
+        break;
+      }
+      case 'commit': y = Math.sin(f * Math.PI) * 0.75; ry += smooth(f) * Math.PI * 2; arms = { lx: -2.85, lz: 0.45, rx: -2.85, rz: -0.45 }; break;
+    }
+    if (arms) {
+      const aw = mv.name === 'commit' ? Math.min(1, f / 0.1) : w;
+      const blend = (o, x, z) => { if (o && x !== undefined) { o.rotation.x += (x - o.rotation.x) * aw; o.rotation.z += (z - o.rotation.z) * aw; } };
+      blend(rig?.armL, arms.lx, arms.lz); blend(rig?.armR, arms.rx, arms.rz);
+    }
+    if (f >= 1) { st.mv = null; st.next = 1.8 + Math.random() * 2.2; }
+  }
+  m.root.rotation.set(0, ry, rz);
+  m.root.position.y = (it.y || 0) + y;
 }
 
 // ---- live stage ------------------------------------------------------------------------------
@@ -184,23 +232,25 @@ export class Showcase {
   }
   trim(n) { while (this.items.length > n) this.drop(this.items.pop()); }
   play(i, name) { const it = this.items[i]; return it?.anim?.play(name); }
+  // a standing driver's move right now (e.g. 'commit' when locked in)
+  standMove(i, name, dur = 0.95) { const it = this.items[i]; if (it?.m.standing) { it.standSt ||= { next: 2, last: '' }; it.standSt.mv = { name, t: 0, dur }; } }
   setPhase(i, phase) { const it = this.items[i]; if (it) it.phase = phase; }
   animate(dt) {
     const face = Math.atan2(this.camBase.x - this.lookAt.x, this.camBase.z - this.lookAt.z);
     this.items.forEach((it, n) => {
-      // standing drivers face the camera and just sway a little; karts turn on the turntable
-      if (it.m.standing) it.m.root.rotation.y = face + Math.sin(this.t * 0.6 + n) * 0.12;
-      else if (this.spin) it.m.root.rotation.y += dt * this.spin;
-      if (!it.anim) return;
+      // standing drivers face the camera and show off (standPose); karts turn on the turntable
+      if (!it.m.standing && this.spin) it.m.root.rotation.y += dt * this.spin;
+      if (!it.anim) { if (it.m.standing) standPose(it, n, this.t, dt, face); return; }
       // idle personality: now and then show off a gesture
       it.nextIdle -= dt;
-      if (it.idle !== false && it.nextIdle <= 0 && it.phase === 'pre') {
+      if (it.idle !== false && it.nextIdle <= 0 && it.phase === 'pre' && !it.m.standing) {
         it.nextIdle = 3 + Math.random() * 3;
         it.anim.play(['taunt', 'trick', 'yay', 'cheer'][Math.floor(Math.random() * 4)]);
       }
       it.anim.update(dt, { steer: it.m.standing ? 0 : Math.sin(this.t * 0.9) * (it.phase === 'pre' ? 0.5 : 0), stand: !!it.m.standing, drift: 0, speed01: it.m.standing ? 0 : 0.3, grounded: true, gliding: false, boosting: false, look: false, phase: it.phase || 'pre', rank: 1 });
       it.m.steerControl?.(it.anim.steer);
       it.m.update?.(dt, { speed01: 0.35, steer: it.anim.steer, boosting: false, gliding: false, grounded: true });
+      if (it.m.standing) standPose(it, n, this.t, dt, face);
     });
   }
   // aim the camera at a point for a view of the given aspect; fit/fitY frame a single kart

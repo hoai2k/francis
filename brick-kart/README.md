@@ -72,7 +72,9 @@ Regina, Skater Sam, Zorp the Alien, Mummy Max and Dino Dina.
 ### Drivers and karts
 
 You pick a **driver** and then a **kart** separately, like Mario Kart. Pick a
-driver from the grid (they stand on their own in your preview) and press **A**; then flip through karts with **◀ ▶** in your
+driver from the grid (they stand on their own in your preview, introducing
+themselves with waves, hops, twirls, dances and their signature moves) and press
+**A** (they jump-spin with a cheer, then hop into their kart); then flip through karts with **◀ ▶** in your
 own preview and press **A** again to lock it in (**B** steps back). Every player
 does this at their own pace, so nobody waits for anyone else. On phones there's
 no grid: the preview fills the screen and you flip through drivers with ◀ ▶ too

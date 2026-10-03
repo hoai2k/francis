@@ -511,8 +511,9 @@ class Game {
       layoutCells();
       list.forEach((p, i) => {
         const d = DRIVERS[p ? p.dcur : 0], ch = KARTS[p ? p.kcur : 0];
-        // while choosing a driver they stand on their own; the kart joins once they lock in
-        const standing = !p || p.phase === 'driver';
+        // while choosing a driver they stand on their own; the kart joins once they lock in (after
+        // their lock-in jump-spin)
+        const standing = !p || p.phase === 'driver' || (p.phase === 'kart' && performance.now() < (p.kartAt || 0));
         const key = (p ? p.id : '-') + '|' + d.id + '|' + (standing ? 'stand' : ch.id), phase = p?.phase === 'done' ? 'win' : 'pre';
         if (key !== slotKeys[i]) {
           const ry = show.items[i]?.m.root.rotation.y ?? 0.6;
@@ -522,7 +523,7 @@ class Game {
           if (!sameDriver) show.play(i, 'yay');
         }
         show.setPhase(i, phase);
-        if (p && p === cheerP) { show.play(i, 'cheer'); this.audio.voice(d.voice, 'cheer', 0.9); }
+        if (p && p === cheerP) { if (standing) show.standMove(i, 'commit'); else show.play(i, 'cheer'); this.audio.voice(d.voice, 'cheer', 0.9); }
         const cell = cellsEl.children[i];
         cell.className = 'pvcell' + (p && p === fp && players.length > 1 ? ' follow' : '');
         cell.style.setProperty('--pc', p ? p.color : 'rgba(255,255,255,.25)');
@@ -631,6 +632,7 @@ class Game {
     const lockDriver = (p) => {
       if (taken(p).has(p.dcur)) { this.audio.sfx('wrong'); return; }
       p.phase = 'kart';
+      p.kartAt = performance.now() + 1000;   // the kart rolls in after the lock-in jump-spin
       this.audio.sfx('select');
       refresh(p);
     };
@@ -652,6 +654,7 @@ class Game {
     this.screen = {
       update: (dt) => {
         fillImgs(3);
+        if (players.some((p) => p.kartAt && performance.now() >= p.kartAt)) { for (const p of players) if (p.kartAt && performance.now() >= p.kartAt) p.kartAt = 0; refresh(); }
         layoutPicks();
         layoutCells();
         show.update(dt);
