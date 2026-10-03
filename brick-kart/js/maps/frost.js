@@ -62,7 +62,7 @@ export default {
     tunnel(ctx, 3.2, 4.2, { wall: C.azure, roof: C.white, height: 11, lights: 0x7ad8ff });
     for (let i = tr.kToIndex(3.25); i < tr.kToIndex(4.15); i += 9) for (const sd of [-1, 1]) { const p = tr.at(i, (tr.HW[i] + 1) * sd, 0); crystal(b, p.x, p.y, p.z, 1.1, rand, C.azure); }
     // snowballs rolling down the climb
-    for (let n = 0; n < 5; n++) ctx.hazard(trackMover(ctx, { mesh: snowball(), from: 4.4, to: 6.9, reverse: true, oneWay: true, lat: [-0.5, 0.3, 0.6, -0.15, -0.6][n], speed: 17, radius: 3, kind: 'wreck', roll: 3, offset: n / 5 }));
+    for (let n = 0; n < 5; n++) ctx.hazard(trackMover(ctx, { mesh: snowball(), from: 4.4, to: 6.9, reverse: true, oneWay: true, lat: [-0.5, 0.3, 0.6, -0.15, -0.6][n], speed: 17, radius: 3, kind: 'spin', roll: 3, offset: n / 5 }));
     // penguins crossing
     for (const [k, o] of [[12.3, 0], [12.5, 0.5], [14.5, 0.25]]) ctx.hazard(crossing(ctx, { mesh: penguin(), k, speed: 3.5, kind: 'spin', offset: o }));
     // ski lodge + lift

@@ -332,6 +332,8 @@ export class Race {
         let nx = k.pos.x - o.x, nz = k.pos.z - o.z;
         const d = Math.hypot(nx, nz) || 0.01; nx /= d; nz /= d;
         k.pos.x = o.x + nx * (o.r + 1.31); k.pos.z = o.z + nz * (o.r + 1.31);
+        const kn = k.kvx * nx + k.kvz * nz;   // knocked into it: bounce off
+        if (kn < 0) { k.kvx -= nx * kn * 1.3; k.kvz -= nz * kn * 1.3; }
         let vx = Math.sin(k.moveYaw) * k.speed, vz = Math.cos(k.moveYaw) * k.speed;
         const vn = vx * nx + vz * nz;
         if (vn < 0) {
@@ -344,7 +346,10 @@ export class Race {
       }
     }
 
-    // kart vs kart bumping
+    // kart vs kart bumping: an impulse exchange between two masses (the karts' weights). Rear-ending
+    // someone hands them some of your speed; a side swipe knocks both apart sideways (the lighter
+    // kart further) without killing anyone's speed. Only power-ups turn contact into a hit.
+    const va = this._va ||= { x: 0, z: 0 }, vb = this._vb ||= { x: 0, z: 0 };
     for (let a = 0; a < n; a++) for (let b = a + 1; b < n; b++) {
       const A = this.karts[a], B = this.karts[b];
       if (A.respawn > 0 || B.respawn > 0 || A.ghostTime > 0 || B.ghostTime > 0) continue;
@@ -352,34 +357,42 @@ export class Race {
       const d2 = dx * dx + dz * dz;
       const reach = 1.35 * (A.megaScale + B.megaScale) + (A.bulletTime > 0 || B.bulletTime > 0 ? 1.5 : 0);
       if (d2 > reach * reach || Math.abs(A.pos.y - B.pos.y) > 2 * Math.max(A.megaScale, B.megaScale)) continue;
-      // bullets blast through, mega karts flatten normal ones
+      const d = Math.sqrt(d2) || 0.01;
+      const nx = dx / d, nz = dz / d;   // from A to B
+      // bullets blast through, and they, mega and golden karts bowl normal ones over and fling them
+      // aside (a spin-out, like Mario Kart's Bullet Bill and Star, not a full wreck)
+      const fling = (V, by, s, kind) => { V.hit(kind, by); if (V.bumpCool <= 0) { V.bumpCool = 0.5; V.shove(s * nx * 14 / V.weight, s * nz * 14 / V.weight, s * 1.5); } };
       if (A.bulletTime > 0 || B.bulletTime > 0) {
-        if (A.bulletTime > 0 && B.bulletTime <= 0) B.hit('wreck', A);
-        if (B.bulletTime > 0 && A.bulletTime <= 0) A.hit('wreck', B);
+        if (A.bulletTime > 0 && B.bulletTime <= 0) fling(B, A, 1, 'spin');
+        if (B.bulletTime > 0 && A.bulletTime <= 0) fling(A, B, -1, 'spin');
         continue;
       }
-      if (A.megaTime > 0 && B.megaTime <= 0) { B.hit('spin', A); continue; }
-      if (B.megaTime > 0 && A.megaTime <= 0) { A.hit('spin', B); continue; }
-      const d = Math.sqrt(d2) || 0.01;
-      const nx = dx / d, nz = dz / d;
+      if (A.megaTime > 0 && B.megaTime <= 0) { fling(B, A, 1, 'spin'); continue; }
+      if (B.megaTime > 0 && A.megaTime <= 0) { fling(A, B, -1, 'spin'); continue; }
       const over = reach - d;
-      const wa = B.weight / (A.weight + B.weight), wb = 1 - wa;
+      const mA = A.weight, mB = B.weight;
+      const wa = mB / (mA + mB), wb = 1 - wa;
       A.pos.x -= nx * over * wa; A.pos.z -= nz * over * wa;
       B.pos.x += nx * over * wb; B.pos.z += nz * over * wb;
-      if (A.goldenTime > 0 && B.goldenTime <= 0) B.hit('wreck', A);
-      else if (B.goldenTime > 0 && A.goldenTime <= 0) A.hit('wreck', B);
-      else if (A.bumpCool <= 0 && B.bumpCool <= 0) {
+      if (A.goldenTime > 0 && B.goldenTime <= 0) { fling(B, A, 1, 'spin'); continue; }
+      if (B.goldenTime > 0 && A.goldenTime <= 0) { fling(A, B, -1, 'spin'); continue; }
+      A.velocity(va); B.velocity(vb);
+      const close = -((vb.x - va.x) * nx + (vb.z - va.z) * nz);   // closing speed along the contact normal
+      let j = 0;
+      if (close > 0) {
+        // restitution 0.4, and any real contact is felt (a minimum push)
+        j = (close > 0.5 ? Math.max(1.4 * close, 3) : 1.4 * close) * (mA * mB / (mA + mB));
+        A.shove(-nx * j / mA, -nz * j / mA);
+        B.shove(nx * j / mB, nz * j / mB);
+      }
+      if (A.bumpCool <= 0 && B.bumpCool <= 0) {
         A.bumpCool = B.bumpCool = 0.35;
-        // nudge travel directions apart, heavier karts win
-        const ya = Math.atan2(-nx, -nz), yb = Math.atan2(nx, nz);
-        A.moveYaw = lerpAngle(A.moveYaw, ya, 0.25 * wa);
-        B.moveYaw = lerpAngle(B.moveYaw, yb, 0.25 * wb);
-        A.speed *= 1 - 0.12 * wa; B.speed *= 1 - 0.12 * wb;
-        A.anim?.play('bonk'); B.anim?.play('bonk');
+        const hard = Math.min(1, j / 8);
+        if (hard > 0.25) { A.anim?.play('bonk'); B.anim?.play('bonk'); }
         // abilities can react to bumps (e.g. a charged-up punch)
         A.onBump?.(B); B.onBump?.(A);
         if (A.human || B.human) this.audio.sfx('bump', A.pos);
-        A.player?.rumble(0.3 * wa + 0.1, 90); B.player?.rumble(0.3 * wb + 0.1, 90);
+        A.player?.rumble(0.1 + 0.4 * hard * wa, 90); B.player?.rumble(0.1 + 0.4 * hard * wb, 90);
       }
     }
 

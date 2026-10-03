@@ -70,7 +70,7 @@ export default {
     tunnel(ctx, 6.25, 7.65, { wall: C.sand, roof: C.dktan, height: 11, lights: 0xff9a3a });
     [[6.55, -0.4], [6.8, 0.4], [7.1, -0.2], [7.35, 0.45]].forEach(([k, l], n) => ctx.hazard(crusher(ctx, { i: tr.kToIndex(k), lat: l * 13, period: 3.2, offset: n * 0.8, size: 7, color: C.dkstone })));
     // boulders rolling down the temple steps toward the racers
-    for (let n = 0; n < 5; n++) ctx.hazard(trackMover(ctx, { mesh: boulder(), from: 2.6, to: 6.1, reverse: true, oneWay: true, lat: [-0.5, 0.3, 0.6, -0.1, -0.6][n], speed: 18, radius: 3, kind: 'wreck', roll: 3, offset: n / 5 }));
+    for (let n = 0; n < 5; n++) ctx.hazard(trackMover(ctx, { mesh: boulder(), from: 2.6, to: 6.1, reverse: true, oneWay: true, lat: [-0.5, 0.3, 0.6, -0.1, -0.6][n], speed: 18, radius: 3, kind: 'spin', roll: 3, offset: n / 5 }));
     // rope bridge posts and ropes
     each(tr, 8.3, 9.6, 6, (i) => {
       for (const sd of [-1, 1]) {

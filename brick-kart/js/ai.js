@@ -3,11 +3,15 @@
 import { angleDiff } from './kart.js';
 import { ABILITY } from './abilities.js';
 
+// aggro: how keen a CPU is to aim items (and charged punches) at a human player; lower
+// difficulties hold their fire more often, like Mario Kart's gentler CPUs at 50/100cc
 export const DIFFICULTY = {
-  easy: { base: 0.86, skill: 0.25, band: 0.06 },
-  normal: { base: 0.95, skill: 0.6, band: 0.09 },
-  hard: { base: 1.01, skill: 0.95, band: 0.11 },
+  easy: { base: 0.86, skill: 0.25, band: 0.06, aggro: 0.35 },
+  normal: { base: 0.95, skill: 0.6, band: 0.09, aggro: 0.65 },
+  hard: { base: 1.01, skill: 0.95, band: 0.11, aggro: 0.9 },
 };
+// a human who was just hit gets a breather: CPUs won't pile on while they recover
+const recovering = (o) => o.human && (o.heat > 0.6 || o.invuln > 0 || o.stunned);
 
 export class AIDriver {
   constructor(kart, race, diff = 'normal') {
@@ -62,7 +66,12 @@ export class AIDriver {
       }
     }
     // an ability can ask a CPU to steer at a rival (e.g. a charged punch)
-    const aim = k.aimAt;
+    let aim = k.aimAt;
+    if (aim && aim.human) {
+      // decide every few seconds whether to go after this human at all
+      if (this.aimFor !== aim || this.t > this.aimUntil) { this.aimFor = aim; this.aimUntil = this.t + 4; this.aimKeen = Math.random() < this.d.aggro; }
+      if (!this.aimKeen || recovering(aim)) aim = null;
+    }
     if (aim && aim.loc && aim.respawn <= 0 && aim.pos.distanceTo(k.pos) < 45 && tr.HW[aim.loc.i ?? 0]) want = aim.loc.lat / tr.HW[aim.loc.i];
     this.laneTarget = Math.max(-0.85, Math.min(0.85, want));
     this.lane += (this.laneTarget - this.lane) * Math.min(1, dt * 2.2);
@@ -118,7 +127,11 @@ export class AIDriver {
       return Math.abs(angleDiff(k.yaw, a)) < 0.2;
     };
     const threat = race.items.proj.some((p) => p.owner !== k && p.pos.distanceTo(k.pos) < 35);
+    // MK-style fairness: hold aimed shots at a human who was just hit, and on lower difficulties
+    // now and then at any human (the CPU waits and tries again later)
+    const spare = (t) => t && t.human && (recovering(t) || Math.random() > this.d.aggro);
     const ab = ABILITY[k.item];
+    if (ab && ahead?.human && recovering(ahead) && gapAhead < 80 && this.itemTimer > -12) { this.itemTimer = 1.5; return; }
     if (ab) {
       // movie abilities decide for themselves, else use them after a short wait
       let r = false;
@@ -146,6 +159,8 @@ export class AIDriver {
       case 'shield': use = this.itemTimer < -1.5 || threat; break;
       case 'horn': use = threat || race.karts.some((o) => o !== k && o.pos.distanceTo(k.pos) < 10) || this.itemTimer < -10; break;
     }
+    const aimed = !c.back && ['rocket', 'rocket3', 'cannon', 'cannon3', 'ice', 'boomerang', 'bomb'].includes(k.item);
+    if (use && aimed && this.itemTimer > -8 && spare(ahead)) { use = false; c.aimFwd = false; this.itemTimer = 1.2 + Math.random() * 2; return; }
     if (use) { c.itemPressed = true; this.itemTimer = k.item === 'goldturbo' ? 0.35 : 0.5 + Math.random() * (1.5 - this.d.skill); }
   }
 

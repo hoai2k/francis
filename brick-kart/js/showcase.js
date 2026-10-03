@@ -76,8 +76,12 @@ export function kartPortrait(ch) {
 
 // ---- live stage ------------------------------------------------------------------------------
 // items: [{ ch, driver, x, z, ry, phase }]
+// With a `cells` option (a function returning one { x, y, w, h } rect per item, in canvas CSS pixels)
+// every item gets its own turntable and is drawn into its own rect of the one canvas: the per-player
+// previews on the select screen share a single WebGL context however many players there are.
+const CELL_GAP = 400;   // items in cell mode stand this far apart (well past the camera's far plane)
 export class Showcase {
-  constructor(canvas, { cam = [5.2, 3.2, 7.2], look = [0, 1.15, 0], fov = 30, spin = 0.35 } = {}) {
+  constructor(canvas, { cam = [5.2, 3.2, 7.2], look = [0, 1.15, 0], fov = 30, spin = 0.35, cells = null } = {}) {
     this.canvas = canvas;
     this.r = newRenderer(canvas.clientWidth || 400, canvas.clientHeight || 300, canvas);
     this.scene = stage(this.r);
@@ -85,54 +89,57 @@ export class Showcase {
     this.camBase = new THREE.Vector3(...cam); this.lookAt = new THREE.Vector3(...look);
     this.cam.position.copy(this.camBase); this.cam.lookAt(this.lookAt);
     this.spin = spin;
+    this.cells = cells;
     this.items = [];
     this.t = 0;
     // a round turntable plate
-    const plate = new THREE.Mesh(new THREE.CylinderGeometry(3.1, 3.3, 0.3, 40), new THREE.MeshStandardMaterial({ color: 0x2a3a52, roughness: 0.5, metalness: 0.2 }));
-    plate.position.y = -0.15;
-    this.plate = plate;
+    this.plateGeo = new THREE.CylinderGeometry(3.1, 3.3, 0.3, 40);
+    this.plateMat = new THREE.MeshStandardMaterial({ color: 0x2a3a52, roughness: 0.5, metalness: 0.2 });
+    this.plate = this.newPlate();
+  }
+  newPlate() { const p = new THREE.Mesh(this.plateGeo, this.plateMat); p.position.y = -0.15; return p; }
+  build(o, i) {
+    const rig = o.driver ? buildDriver(o.driver) : null;
+    const m = buildKart(o.ch, rig || emptyRig());
+    const ox = this.cells ? i * CELL_GAP : 0;
+    m.root.position.set((o.x || 0) + ox, o.y || 0, o.z || 0);
+    m.root.rotation.y = o.ry ?? 0.6;
+    this.scene.add(m.root);
+    const it = { ...o, m, ox, anim: rig ? new DriverAnim(rig) : null, nextIdle: 2 + Math.random() * 2 };
+    if (this.cells) { it.plate = this.newPlate(); it.plate.position.x = ox; this.scene.add(it.plate); }
+    this.measure(it);
+    return it;
+  }
+  drop(it) { this.scene.remove(it.m.root); if (it.plate) this.scene.remove(it.plate); }
+  // frame a lone kart by its real size (big vehicles pull the camera back)
+  measure(it) {
+    // measure visible parts only (the folded glider and hidden effects don't count)
+    const root = it.m.root, box = new THREE.Box3(), tmp = new THREE.Box3();
+    root.updateMatrixWorld(true);
+    root.traverseVisible((o) => { if (o.isMesh && o.geometry) { o.geometry.computeBoundingBox?.(); tmp.copy(o.geometry.boundingBox).applyMatrix4(o.matrixWorld); box.union(tmp); } });
+    const sph = box.getBoundingSphere(new THREE.Sphere());
+    it.fit = Math.max(0.9, Math.min(1.7, sph.radius / 3.3));
+    it.fitY = Math.max(0.9, Math.min(2.2, sph.center.y));
   }
   set(items, { plate = true } = {}) {
-    for (const it of this.items) this.scene.remove(it.m.root);
-    if (plate && !this.plate.parent) this.scene.add(this.plate);
-    if (!plate && this.plate.parent) this.scene.remove(this.plate);
-    this.items = items.map((o) => {
-      const rig = o.driver ? buildDriver(o.driver) : null;
-      const m = buildKart(o.ch, rig || emptyRig());
-      m.root.position.set(o.x || 0, o.y || 0, o.z || 0);
-      m.root.rotation.y = o.ry ?? 0.6;
-      this.scene.add(m.root);
-      return { ...o, m, anim: rig ? new DriverAnim(rig) : null, nextIdle: 2 + Math.random() * 2 };
-    });
-    // a single kart on the stage: frame it by its real size (big vehicles pull the camera back)
+    for (const it of this.items) this.drop(it);
+    const single = plate && !this.cells;
+    if (single && !this.plate.parent) this.scene.add(this.plate);
+    if (!single && this.plate.parent) this.scene.remove(this.plate);
+    this.items = items.map((o, i) => this.build(o, i));
+    // a single kart on the stage is framed by its size
     this.fit = 1; this.fitY = null;
-    if (this.items.length === 1) {
-      // measure visible parts only (the folded glider and hidden effects don't count)
-      const root = this.items[0].m.root, box = new THREE.Box3(), tmp = new THREE.Box3();
-      root.updateMatrixWorld(true);
-      root.traverseVisible((o) => { if (o.isMesh && o.geometry) { o.geometry.computeBoundingBox?.(); tmp.copy(o.geometry.boundingBox).applyMatrix4(o.matrixWorld); box.union(tmp); } });
-      const sph = box.getBoundingSphere(new THREE.Sphere());
-      this.fit = Math.max(0.9, Math.min(1.7, sph.radius / 3.3));
-      this.fitY = Math.max(0.9, Math.min(2.2, sph.center.y));
-    }
+    if (this.items.length === 1 && !this.cells) { this.fit = this.items[0].fit; this.fitY = this.items[0].fitY; }
   }
+  // cell mode: replace (or add) the item in slot i, keeping the others
+  setItem(i, o) {
+    if (this.items[i]) this.drop(this.items[i]);
+    this.items[i] = this.build(o, i);
+  }
+  trim(n) { while (this.items.length > n) this.drop(this.items.pop()); }
   play(i, name) { const it = this.items[i]; return it?.anim?.play(name); }
   setPhase(i, phase) { const it = this.items[i]; if (it) it.phase = phase; }
-  update(dt) {
-    this.t += dt;
-    const w = this.canvas.clientWidth, h = this.canvas.clientHeight;
-    if (!w || !h) return;
-    if (this.canvas.width !== w || this.canvas.height !== h) this.r.setSize(w, h, false);
-    this.cam.aspect = w / h; this.cam.updateProjectionMatrix();
-    // narrow (portrait) stages pull the camera back so the whole kart fits
-    const back = Math.max(1, 1.15 / this.cam.aspect) * (this.fit || 1);
-    const look = this._look ||= new THREE.Vector3();
-    // single kart: aim a little below its middle so it sits above the name/stats overlay
-    look.copy(this.lookAt); if (this.fitY !== null && this.fitY !== undefined) look.y = this.fitY - 0.85 * this.fit;
-    this._d ||= new THREE.Vector3();
-    this._d.copy(this.camBase).sub(this.lookAt);
-    this.cam.position.copy(look).addScaledVector(this._d, back);
-    this.cam.lookAt(look);
+  animate(dt) {
     for (const it of this.items) {
       if (this.spin) it.m.root.rotation.y += dt * this.spin;
       if (!it.anim) continue;
@@ -146,11 +153,52 @@ export class Showcase {
       it.m.steerControl?.(it.anim.steer);
       it.m.update?.(dt, { speed01: 0.35, steer: it.anim.steer, boosting: false, gliding: false, grounded: true });
     }
-    this.r.render(this.scene, this.cam);
+  }
+  // aim the camera at a point for a view of the given aspect; fit/fitY frame a single kart
+  frame(aspect, ox, fit, fitY) {
+    this.cam.aspect = aspect; this.cam.updateProjectionMatrix();
+    // narrow (portrait) stages pull the camera back so the whole kart fits
+    const back = Math.max(1, 1.15 / aspect) * (fit || 1);
+    const look = this._look ||= new THREE.Vector3();
+    // single kart: aim a little below its middle so it sits above the name/stats overlay
+    look.copy(this.lookAt); look.x += ox;
+    if (fitY !== null && fitY !== undefined) look.y = fitY - 0.85 * fit;
+    this._d ||= new THREE.Vector3();
+    this._d.copy(this.camBase).sub(this.lookAt);
+    this.cam.position.copy(look).addScaledVector(this._d, back);
+    this.cam.lookAt(look);
+  }
+  update(dt) {
+    this.t += dt;
+    const w = this.canvas.clientWidth, h = this.canvas.clientHeight;
+    if (!w || !h) return;
+    if (this.canvas.width !== w || this.canvas.height !== h) this.r.setSize(w, h, false);
+    this.animate(dt);
+    if (!this.cells) {
+      this.frame(w / h, 0, this.fit, this.fitY);
+      this.r.render(this.scene, this.cam);
+      return;
+    }
+    const rects = this.cells() || [];
+    this.r.setScissorTest(false);
+    this.r.clear();
+    this.r.setScissorTest(true);
+    this.items.forEach((it, i) => {
+      const c = rects[i];
+      if (!c || c.w < 4 || c.h < 4) return;
+      const y = h - c.y - c.h;   // WebGL viewports count from the bottom
+      this.r.setViewport(c.x, y, c.w, c.h);
+      this.r.setScissor(c.x, y, c.w, c.h);
+      this.frame(c.w / c.h, it.ox, it.fit, it.fitY);
+      this.r.render(this.scene, this.cam);
+    });
+    this.r.setScissorTest(false);
+    this.r.setViewport(0, 0, w, h);
   }
   dispose() {
-    for (const it of this.items) this.scene.remove(it.m.root);
+    for (const it of this.items) this.drop(it);
     this.items = [];
+    this.plateGeo.dispose(); this.plateMat.dispose();
     this.r.dispose(); this.r.forceContextLoss?.();
   }
 }

@@ -61,16 +61,25 @@ You pick a **driver** and then a **kart** separately, like Mario Kart (turn
 player locks in a driver first; then the whole picker switches to the kart
 step. The original 16 Brick Kart racers are also drivers, listed after the
 movie casts, and the classic karts come after the newer vehicles. The drivers are brick-built movie characters from
-the Movie Cup: 19 from Marvel, 16 from Star Wars, 16 from Jujutsu Kaisen and 16
-from Jurassic World (67 in all). Every kart in
+the Movie Cup: 19 from Marvel, 16 from Star Wars, 16 from Harry Potter, 16 from
+Jujutsu Kaisen and 16 from Jurassic World (83 in all). The Harry Potter cast
+(Harry, Hermione, Ron, Dumbledore, Hagrid, Snape, McGonagall, Voldemort, Draco,
+Neville, Luna, Ginny, Sirius, Dobby, Bellatrix and Fred) is listed just above
+the Jujutsu Kaisen one, and each of them casts a signature spell when they
+cheer or win (Patronuses, Fawkes, the Dark Mark, fireworks…). Every kart in
 the race (CPU ones too) gets one of them at the wheel.
 
-- The select screen has a live 3D stage: the highlighted driver sits in the
-  highlighted kart, shows off, cheers when you lock them in and celebrates when
-  you're ready. Stat bars show the kart's stats adjusted by the driver's weight
+- The select screen has a live 3D stage with **a preview for each player**: your
+  highlighted driver sits in your highlighted kart, shows off, cheers when you
+  lock them in and celebrates when you're ready. The picker list scrolls with
+  player 1 until they lock in, then with the next player still choosing, and so
+  on (marked "picking now"); everyone else can still move their cursor and watch
+  their own preview.
+- Each player slot remembers its last driver and kart (or classic racer), saved
+  in your browser, and starts on them next time. Stat bars show the kart's stats adjusted by the driver's weight
   class (light drivers accelerate and handle better; heavy ones are faster and
   push harder).
-- 40 karts in one grid: the first 8 originals, the Wild Rides, the movie rides,
+- 46 karts in one grid: the first 8 originals, the Wild Rides, the movie rides,
   then the other 8 originals. The **originals** are themed on their racers: Hard
   Hat Hauler (loader-dumper), Comet Cruiser (moon rover), Plank Plunderer
   (paddle-wheel pirate ship), Iron Bastion (castle on rolling logs), Turbo Titan
@@ -85,6 +94,11 @@ the race (CPU ones too) gets one of them at the wheel.
     gliding or boosting), Chicken Walker (AT-ST that walks), TIE Howler.
   - **Marvel & Jurassic Rides**: Park Jeep 12, Gyrosphere (rolling glass ball),
     Tour Explorer, Royal Talon (Wakandan hover-car), Stark Roadster, Goat Chariot.
+  - **Wizarding Rides** (listed just above the Cursed rides): Flying Anglia
+    (wheels tip flat like rotors when gliding), Hogwarts Express (steam
+    locomotive with moving rods), Knight Bus (leaning triple-decker), Hagrid's
+    Motorbike (with Hedwig in the sidecar), Firebolt (racing broom chasing a
+    Snitch), Buckbeak (gallops, then spreads his wings to fly).
   - **Cursed & Fantasy Rides**: Ijichi's Sedan, Dharma Wheel (giant monowheel),
     Nue (flapping thunderbird), Magic Carpet, Brick Dragon (walks, breathes fire),
     Mad Teacup.
@@ -132,8 +146,8 @@ The further back you are, the better your items. The leader mostly gets defensiv
 | Turbo Stud / Triple Turbo | A speed boost (or three) |
 | Gold Turbo | Boost as often as you like for 7 seconds |
 | Stud Bag | Five gold studs at once and a small boost |
-| **Bullet Brick** | Turn into a giant brick bullet that drives itself at huge speed and blasts karts aside (like Bullet Bill) |
-| Golden Brick | Invincible and faster; smash through karts |
+| **Bullet Brick** | Turn into a giant brick bullet that drives itself at huge speed and blasts karts aside, spinning them out (like Bullet Bill) |
+| Golden Brick | Invincible and faster; bowl karts over (they spin out) |
 | Mega Brick | Grow huge for 8 seconds and flatten anyone you touch; a hit shrinks you |
 | Ghost Brick | Items pass through you for 5 seconds, and you steal an item from a rival |
 | Homing Rocket / Triple Rockets | Chases the racer in front of you |
@@ -146,11 +160,30 @@ The further back you are, the better your items. The leader mostly gets defensiv
 | Paint Puddle | A slippery puddle that spins everyone who drives through it |
 | Fake Box | Looks like an item box, but blows up whoever touches it |
 | Ink Splat | Splats ink over the screens of everyone ahead |
-| Brick Storm | Rains bricks down on the racers ahead |
+| Brick Storm | Rains bricks down on the racers ahead and spins them out |
 | Brick Shield | Blocks the next hit |
 | Brick Horn | A shockwave that destroys nearby items (even the Leader Seeker) and spins nearby karts |
 
 When you're hit, your kart breaks into bricks and snaps back together.
+
+## Bumping and fairness
+
+Karts bump like Mario Kart: there's real momentum, and **weight** decides who
+gets pushed. Hitting someone from behind hands them some of your speed; a side
+swipe knocks both karts sideways (the lighter one further) instead of stopping
+anyone, and the knock slides off over a moment (longer on ice). Traffic, cows,
+forklifts and other "bump" hazards shove you aside rather than spinning you.
+Rolling boulders, snowballs, gumballs, asteroids and the factory's wrecking arms
+spin you out and throw you aside instead of wrecking you, and Brick Storm spins
+racers out (like Lightning) instead of wrecking them. Only power-ups turn contact
+into a hit: a Golden, Mega or Bullet Brick bowls you over into a spin-out and
+flings you aside, and only Black Flash wrecks you on contact.
+
+- Getting hit twice in quick succession gives you a longer grace period, so you
+  can't be chain-wrecked.
+- CPUs hold aimed items (rockets, bouncers, bombs, boomerangs, movie powers) at a
+  human who was just hit. On Easy and Normal they also hold their fire at
+  humans more often, the way Mario Kart's CPUs are gentler at lower speeds.
 Gold studs on the track raise your top speed (up to 10). Getting hit makes
 you drop some.
 
