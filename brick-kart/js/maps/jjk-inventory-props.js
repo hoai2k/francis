@@ -176,14 +176,7 @@ export function devotee(s, k = 0) {
 
 // ---- curses and weapons ------------------------------------------------------------------------
 export const RAINBOW = [0xff3a3a, 0xff9a2a, 0xffe03a, 0x4ad84a, 0x3ab8ff, 0x5a5aff, 0xb04aff];
-// one body segment of Geto's rainbow dragon (local +Z forward)
-export function dragonSeg(col, s = 1) {
-  const b = new BrickBuilder(1);
-  b.add(G('dseg', () => new THREE.SphereGeometry(1, 12, 8)), plastic(col, { emissive: col, emissiveIntensity: 0.25 }), 0, 0, 0, 0, 1.7 * s, 1.5 * s, 1.9 * s);
-  spike(b, 0, 1.2 * s, 0, 0.5 * s, 1.4 * s, -0.4, 0, C.white);
-  for (const sd of [-1, 1]) rbox(b, sd * 1.6 * s, -0.3 * s, 0, 1.4 * s, 0.25 * s, 1.0 * s, 0, 0, sd * 0.5, col);
-  return b.build({ name: 'dragon-seg' });
-}
+// head of Geto's rainbow dragon (local +Z forward; the body is instanced in the map)
 export function dragonHead(s = 1) {
   const b = new BrickBuilder(1);
   const W = 0xf4f4f4;

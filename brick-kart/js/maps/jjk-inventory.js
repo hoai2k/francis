@@ -4,7 +4,7 @@
 // and its clapping devotees, then descend into Tengen's Tomb: an endless corridor of doors where
 // Toji sweeps his Inverted Spear of Heaven, and the barrier tree chamber where his storage
 // worm bursts out of the floor.
-import { THREE, BrickBuilder, C, plastic, groundPlane, palm, rock, roundTree, pine, cloud, crossing, liquid, disc, strokeTrack, trackPolygon, inRange, each, edges, arch, mat4, canvasTexture } from './kit.js';
+import { THREE, BrickBuilder, C, plastic, groundPlane, palm, rock, roundTree, pine, cloud, crossing, liquid, disc, strokeTrack, inRange, each, edges, arch, mat4, canvasTexture } from './kit.js';
 import * as P from './jjk-props.js';
 import * as Q from './jjk-inventory-props.js';
 
@@ -59,7 +59,6 @@ function rainbowDragon(ctx, { home, alt = 50, R = 46, passes, period = 8.5, offs
   const m4 = new THREE.Matrix4(), qt = new THREE.Quaternion(), sc = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0), lk = new THREE.Matrix4();
   let cur = loops[0], low = false, roared = -1;
   return {
-    get dbg() { return { op: cur.band.material.opacity, uA: cur.uA, uB: cur.uB, low, k: passes[loops.indexOf(cur)] }; }, // TEMPCAM
     update(dt, t) {
       const tt = t + offset, n = Math.floor(tt / period), u = (tt % period) / period;
       cur = loops[n % loops.length];
@@ -117,7 +116,6 @@ function tojiChain(ctx, { k, side = 1, period = 3.8, offset = 0 }) {
   let state = 0, swung = -1;
   const dir = new THREE.Vector3();
   return {
-    get dbg() { return { state }; }, // TEMPCAM
     update(dt, t) {
       const tt = t + offset, n = Math.floor(tt / hd), ph = tt % hd;
       const f0 = n % 2, f1 = 1 - f0;
@@ -157,13 +155,12 @@ function crackTexture() {
 function storageWorm(ctx, { k, lat = 0, period = 4.6, offset = 0 }) {
   const tr = ctx.track, i = tr.kToIndex(k), T = tr.at(i, lat * tr.HW[i], 0), yaw = tr.yawAt(i);
   const hold = new THREE.Group(); hold.position.copy(T); hold.rotation.y = yaw; ctx.group.add(hold);
-  const w = Q.storageWorm(1.05); w.visible = false; hold.add(w);
+  const w = Q.storageWorm(1.25); w.visible = false; hold.add(w);
   const crack = new THREE.Mesh(new THREE.PlaneGeometry(17, 7).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: crackTexture(), transparent: true, opacity: 0, depthWrite: false }));
   crack.position.y = 0.14; hold.add(crack);
   const lx = Math.cos(yaw), lz = -Math.sin(yaw), fx0 = Math.sin(yaw), fz0 = Math.cos(yaw);
   let up = 0, bit = false;
   return {
-    get dbg() { return { up, op: crack.material.opacity }; }, // TEMPCAM
     update(dt, t) {
       const ph = ((t + offset) % period) / period;
       // 0-.52 hidden, .52-.78 cracking, .78-.84 burst, .84-.94 up, .94-1 sink
@@ -182,12 +179,12 @@ function storageWorm(ctx, { k, lat = 0, period = 4.6, offset = 0 }) {
     test(p) {
       if (up < 0.45) return null;
       const dx = p.x - T.x, dz = p.z - T.z, a = dx * lx + dz * lz, f = dx * fx0 + dz * fz0;
-      return Math.abs(a) < 8.4 && Math.abs(f) < 2.8 && p.y < T.y + 7 ? 'wreck' : null;
+      return Math.abs(a + 0.6) < 9 && Math.abs(f) < 3 && p.y < T.y + 7 ? 'wreck' : null;
     },
     near(p, r) {
       if (crack.material.opacity < 0.2 && up === 0) return false;
       const dx = p.x - T.x, dz = p.z - T.z;
-      return Math.abs(dx * lx + dz * lz) < 8.4 + r && Math.abs(dx * fx0 + dz * fz0) < 3 + r;
+      return Math.abs(dx * lx + dz * lz + 0.6) < 9 + r && Math.abs(dx * fx0 + dz * fz0) < 3 + r;
     },
   };
 }
@@ -321,7 +318,7 @@ export default {
       const tank = new THREE.Mesh(new THREE.BoxGeometry(45, 15.4, 8.4), new THREE.MeshStandardMaterial({ color: 0x2ab0e0, transparent: true, opacity: 0.45, roughness: 0.05, emissive: 0x0a4a7a, emissiveIntensity: 0.5, depthWrite: false }));
       tank.position.set(x, 10.3, z); tank.rotation.y = rot; ctx.group.add(tank);
       const fishG = new THREE.Group(); fishG.position.set(x, 9, z); fishG.rotation.y = rot; ctx.group.add(fishG);
-      const ws = Q.whaleShark(1.0); ws.rotation.y = Math.PI / 2; const wsH = new THREE.Group(); wsH.add(ws); fishG.add(wsH);
+      const ws = Q.whaleShark(1.35); ws.rotation.y = Math.PI / 2; const wsH = new THREE.Group(); wsH.add(ws); fishG.add(wsH);
       const mts = [0, 1].map((n) => { const m = Q.manta(0.8); fishG.add(m); return m; });
       ctx.anim((dt, t) => {
         const s = Math.sin(t * 0.35); wsH.position.set(s * 13, Math.sin(t * 0.6) * 1.2, 0); wsH.rotation.y = Math.cos(t * 0.35) > 0 ? 0 : Math.PI; ws.rotation.z = Math.sin(t * 2) * 0.05;
@@ -329,7 +326,7 @@ export default {
       });
       // AQUARIUM sign on the roof
       const tex = canvasTexture(512, 96, (g, w, h) => { g.fillStyle = '#ffffff'; g.fillRect(0, 0, w, h); g.fillStyle = '#1a7ac8'; g.font = '900 64px Arial Black, Arial'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('AQUARIUM', w / 2, h / 2 + 3); });
-      const sgn = new THREE.Mesh(new THREE.PlaneGeometry(30, 5.6), new THREE.MeshBasicMaterial({ map: tex })); [x, z] = L(0, 4.25);
+      const sgn = new THREE.Mesh(new THREE.PlaneGeometry(30, 5.6), new THREE.MeshBasicMaterial({ map: tex })); [x, z] = L(0, 4.42);
       sgn.position.set(x, 23.5, z); sgn.rotation.y = rot; ctx.group.add(sgn);
       [x, z] = L(0, 4); b.box(x, 19, z, 31, 7, 0.6, C.white, { rot });
       ctx.claim(p.x, p.z, 30);
@@ -466,13 +463,6 @@ export default {
     for (let n = 0; n < 14; n++) { const a = n / 14 * 6.28 + rand() * 0.3, r = 520 + rand() * 200, x = Math.cos(a) * r, z = Math.sin(a) * r; for (let k = 0; k < 4; k++) cloud(nb, x + (rand() - 0.5) * 30, 60 + k * 14, z + (rand() - 0.5) * 30, 4 - k * 0.6, rand); }
     for (let k = 0; k < 10; k++) cloud(nb, (rand() - 0.5) * 900, 120 + rand() * 40, (rand() - 0.5) * 900, 2.4, rand);
     const sun = P.glow(0xfff4c0, 240, 0.8); sun.position.set(450, 600, 320); scene.add(sun);
-    // TEMPCAM
-    { const q = new URLSearchParams(location.search); const ck = q.get('camk'), cw = q.get('camw');
-      if (ck || cw) { let p, tg; if (ck) { const [k, lat, h, dk, th = 2] = ck.split(',').map(Number); p = tr.at(K(k), lat, h); tg = tr.at(K(k + dk), 0, th); } else { const a = cw.split(',').map(Number); p = new THREE.Vector3(a[0], a[1], a[2]); tg = new THREE.Vector3(a[3], a[4], a[5]); }
-        ctx.anim(() => { const r = ctx.world.race; if (!r) return; for (const c of [r.introCam, r.cams?.[0]?.chase.cam, r.tv?.cam]) if (c) { c.position.copy(p); c.lookAt(tg); if (c.far < 3000) { c.far = 3000; c.updateProjectionMatrix(); } } }); }
-      if (q.get('laps')) { let nt = 0; ctx.anim((dt, t) => { const r = ctx.world.race; if (!r || t < nt) return; nt = t + 10; console.warn('LAPS t=' + t.toFixed(0) + ' ' + r.karts.map((k) => k.lap + ':' + (k.raceDist | 0)).join(' ')); }); } }
-    // /TEMPCAM
-    void trackPolygon; void V2;
   },
 };
 
