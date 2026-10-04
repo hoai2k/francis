@@ -407,6 +407,7 @@ export default {
     arch(ctx, 1.75, { cols: [C.red, C.white], text: 'ROUTE 1', bg: '#3a8a3a', fg: '#ffffff' });
     const r1 = (x, z) => x > 150 && z > -20 && z < 260;
     ctx.scatter(240, { minC: 1, maxC: 46, r: 1.6, test: r1 }, (x, z) => P.grassTuft(b, x, z, 1 + rand() * 0.4));
+    each(tr, 1.8, 5.25, 2, (i) => { for (const sd of [-1, 1]) for (let n = 0; n < 2; n++) { const p = tr.at(i, sd * (edgeLat(i) + 1.5 + rand() * 11), 0); if (ctx.free(p.x, p.z, 1)) P.grassTuft(b, p.x + (rand() - 0.5) * 2, p.z + (rand() - 0.5) * 2, 1 + rand() * 0.5); } });
     ctx.scatter(30, { minC: 18, maxC: 90, r: 4, test: r1 }, (x, z) => P.kTree(b, x, z, 1 + rand() * 0.5));
     // one-way grass ledges along the outside
     each(tr, 2.3, 4.9, 7, (i) => { const p = tr.at(i, edgeLat(i) + 16, 0), yaw = tr.yawAt(i); b.box(p.x, 0, p.z, 3, 1.4, 7.6, DKGRASS, { rot: yaw }); b.box(p.x, 1.4, p.z, 3.2, 0.3, 7.8, GRASS, { rot: yaw }); b.box(p.x - Math.cos(yaw) * 1.6, 0, p.z + Math.sin(yaw) * 1.6, 0.4, 1.2, 7.6, 0x9a8a5a, { rot: yaw }); });
