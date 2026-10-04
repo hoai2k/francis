@@ -1,11 +1,13 @@
 // Minecraft powers (see ../abilities.js for the contract). Models live in ./minecraft-fx.js.
 //   Creeper          – dropped behind you (or tossed ahead): it hisses and flashes when a kart comes
 //                      near, then blows up, spinning out everyone close and blasting items away
-//   Totem of Undying – floats over your kart and cancels the next hit with a green-and-gold burst
-//                      and a little boost
-//   Trident          – thrown at the kart ahead; it homes in and Channeling calls lightning down on them
-//   Elytra Rockets   – elytra wings spread on your kart and three firework rockets boost you along
-//   Ender Pearl      – thrown far up the track; you teleport to where it lands in a puff of purple
+//   Totem of Undying – floats over your kart and cancels the next hit (or a fall off the track) with
+//                      a green-and-gold burst and a little boost
+//   Trident          – thrown at the kart ahead; it homes in and Channeling calls lightning down on
+//                      them, leaving a charged patch that spins out karts driving through it
+//   Elytra           – a firework launches you into the air and you glide on elytra wings
+//   Ender Pearl      – thrown at the kart just ahead: you swap places and it spins out; in the lead
+//                      it flies far up the track and you teleport to where it lands
 import * as THREE from 'three';
 import {
   disposeOwned, creeperModel, totemModel, tridentModel, pearlModel, elytraModel, boltModel, flashModel, prewarmAll,
@@ -186,8 +188,20 @@ class Totem {
     const base = Object.getPrototypeOf(k).shieldBlocks;
     this.hook = () => (this.used < 0 && live(k) ? this.save() : base.call(k));
     k.shieldBlocks = this.hook;
+    // ...and it also saves you from a fall: no crane, you're back on the road at once
+    const baseResp = Object.getPrototypeOf(k).startRespawn;
+    this.respHook = () => (this.used < 0 && k.respawn <= 0 && !k.finished ? this.saveFall() : baseResp.call(k));
+    k.startRespawn = this.respHook;
     sparks(ctx, V1.copy(k.pos).setY(k.pos.y + this.top), 14, [0xffd040, 0x40ff60], 5, 3);
     snd(ctx, k.pos, (au, a) => { for (let i = 0; i < 3; i++) au.tone(660 * Math.pow(1.26, i), 0.25, { vol: 0.07 * a, type: 'triangle', at: i * 0.06 }); });
+  }
+  saveFall() {
+    const k = this.k, s = k.pickSpawn();
+    k.cancelDrift();
+    if (k.gliding) k.setGliding?.(false);
+    k.place(s.i, s.lat);
+    k.speed = k.topSpeed * 0.9;
+    this.save();
   }
   save() {
     const k = this.k, ctx = this.ctx, fx = ctx.fx, p = V1.copy(k.pos).setY(k.pos.y + 1.4);
@@ -232,6 +246,7 @@ class Totem {
   }
   dispose() {
     if (this.k.shieldBlocks === this.hook) delete this.k.shieldBlocks;
+    if (this.k.startRespawn === this.respHook) delete this.k.startRespawn;
     if (this.k.mcTotem === this) this.k.mcTotem = null;
     disposeOwned(this.mesh);
   }
@@ -284,11 +299,36 @@ class Trident {
     const ctx = this.ctx;
     ctx.hit(o, 'spin', this.k, 'trident');
     lightning(ctx, o.pos, o);
+    chargedPatch(ctx, o.pos.clone(), this.k, o);
   }
-  strikeGround() { lightning(this.ctx, this.pos.clone().setY(this.loc.y ?? this.pos.y), null); }
+  strikeGround() { const at = this.pos.clone().setY(this.loc.y ?? this.pos.y); lightning(this.ctx, at, null); chargedPatch(this.ctx, at, this.k, null); }
   fizzle() { this.ctx.fx.pop(this.pos, 0x60e8ff); }
   deflect(pos, r) { if (this.pos.distanceToSquared(pos) < r * r) this.dead = true; }
   dispose() { disposeOwned(this.mesh); }
+}
+// Channeling leaves the road crackling where the bolt struck: anyone else who drives through in
+// the next few seconds gets zapped and spins out
+function chargedPatch(ctx, at, by, struck) {
+  const R = 3.6, zapped = new Set([by, struck]);
+  const disc = new THREE.Mesh(new THREE.CircleGeometry(R, 28).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x60e8ff, transparent: true, opacity: 0.4, blending: THREE.AdditiveBlending, depthWrite: false }));
+  disc.position.copy(at); disc.position.y += 0.15;
+  ctx.scene.add(disc);
+  let t = 0;
+  ctx.spawn({
+    update(dt) {
+      t += dt;
+      const fade = Math.min(1, (3.5 - t) / 0.5);
+      disc.material.opacity = (0.22 + Math.random() * 0.25) * fade;
+      if (Math.random() < 0.9) { const a = Math.random() * TAU, r = Math.random() * R; ctx.fx.spark(at.x + Math.cos(a) * r, at.y + 0.3, at.z + Math.sin(a) * r, rnd(2), 2 + Math.random() * 4, rnd(2), Math.random() < 0.5 ? 0x60e8ff : 0xffffff, 0.3); }
+      for (const o of ctx.race.karts) {
+        if (zapped.has(o) || !live(o)) continue;
+        if (Math.hypot(o.pos.x - at.x, o.pos.z - at.z) < R && Math.abs(o.pos.y - at.y) < 3) { zapped.add(o); if (ctx.hit(o, 'spin', by, 'trident')) ctx.fx.pop(o.pos, 0x60e8ff); }
+      }
+      return t < 3.5;
+    },
+    danger(pos, r) { return Math.hypot(pos.x - at.x, pos.z - at.z) < R + r; },
+    dispose() { disc.removeFromParent(); disc.geometry.dispose(); disc.material.dispose(); },
+  });
 }
 // Channeling: a jagged bolt from the sky onto pos (follows a kart if given)
 function lightning(ctx, pos, follow) {
@@ -315,7 +355,7 @@ function lightning(ctx, pos, follow) {
 }
 
 // ============================================================================================
-// Elytra Rockets: wings spread on the kart; each of three rockets is a firework boost
+// Elytra: a firework launches you into the air and the wings carry you in a glide over everything
 // ============================================================================================
 class Elytra {
   constructor(k, ctx) {
@@ -346,11 +386,24 @@ class Elytra {
       for (let i = 0; i < 5; i++) au.noiseHit(0.04, { vol: 0.12 * a, freq: 5000 + Math.random() * 3000, q: 4, at: 0.3 + i * 0.06 + Math.random() * 0.03 });
     });
   }
+  // take off: a firework kicks you up and the kart glides (the game's glider physics, with the
+  // Elytra's wings instead of a glider) until you come back down to the road
+  takeOff() {
+    const k = this.k;
+    this.fire();
+    if (!k.grounded || k.gliding) return;
+    k.cancelDrift();
+    k.vy = 12; k.grounded = false; k.airTime = 0;
+    k.setGliding(true);
+    if (k.model.glider) k.model.glider.visible = false;
+    this.flying = true;
+  }
   update(dt) {
     const k = this.k, fx = this.ctx.fx;
     this.t += dt;
     if (!this.g.parent) return false;
-    const flying = k.boostTime > 0 && this.t - this.last < 2.2;
+    if (this.flying && (!k.gliding || k.respawn > 0)) this.flying = false;
+    const flying = this.flying || (k.boostTime > 0 && this.t - this.last < 2.2);
     this.open += ((flying ? 1 : 0) - this.open) * Math.min(1, dt * 7);
     const flap = Math.sin(this.t * 9) * 0.08 * this.open;
     for (const w of this.wings) {
@@ -363,7 +416,7 @@ class Elytra {
       const f = k.forward(V1);
       for (let n = 0; n < 2; n++) fx.spark(k.pos.x - f.x * 2.2 + rnd(0.4), k.pos.y + 1.0 + rnd(0.3), k.pos.z - f.z * 2.2 + rnd(0.4), -f.x * 16 + rnd(2), rnd(2), -f.z * 16 + rnd(2), Math.random() < 0.5 ? 0xffd040 : 0xffffff, 0.35);
     }
-    return k.item === 'elytra' || this.open > 0.02 || this.t - this.last < 0.3;
+    return this.flying || k.item === 'elytra' || this.open > 0.02 || this.t - this.last < 0.3;
   }
   dispose() { disposeOwned(this.g); if (this.k.mcElytra === this) this.k.mcElytra = null; }
 }
@@ -378,7 +431,12 @@ class Pearl {
     const tr = ctx.track, n = ctx.race.karts.length;
     const rankFrac = n > 1 ? (k.rank - 1) / (n - 1) : 1;
     this.i0 = k.loc.i ?? 0; this.lat0 = k.loc.lat ?? 0;
-    this.land = landing(k, tr, this.i0 + 150 + Math.round(20 * rankFrac), this.i0, this.lat0);
+    // the pearl homes on the kart just ahead and swaps places with it; with nobody close enough
+    // ahead (or when leading) it flies up the track and teleports there instead
+    const a = ctx.ahead(k, 1)[0], gap = a ? a.raceDist - k.raceDist : 0;
+    this.target = live(a) && gap > 2 && gap < tr.N * 0.4 ? a : null;
+    this.flight = this.target ? clamp(gap / 110, 0.55, PEARL_T) : PEARL_T;
+    this.land = this.target ? null : landing(k, tr, this.i0 + 150 + Math.round(20 * rankFrac), this.i0, this.lat0);
     this.dist = ((this.land ? this.land.i : this.i0 + 150) - this.i0 + tr.N) % tr.N;
     this.mesh = pearlModel(); ctx.scene.add(this.mesh);
     this.start = k.pos.clone().setY(k.pos.y + 2.4);
@@ -389,6 +447,18 @@ class Pearl {
     const ctx = this.ctx, k = this.k, fx = ctx.fx, tr = ctx.track;
     this.t += dt;
     if (!live(k)) { fx.pop(this.pos, 0xb050ff); return false; }
+    if (this.target && !live(this.target)) { this.target = null; k.boost(1); fx.pop(this.pos, 0xb050ff); return false; }
+    if (this.target) {
+      // arc from the thrower onto the rival, following it as it moves
+      const u = Math.min(1, this.t / this.flight), T = this.target.pos;
+      this.pos.set(this.start.x + (T.x - this.start.x) * u, this.start.y + (T.y + 1.4 - this.start.y) * u + Math.sin(Math.PI * u) * 9, this.start.z + (T.z - this.start.z) * u);
+      this.mesh.position.copy(this.pos);
+      this.mesh.rotation.set(this.t * 7, this.t * 5, 0);
+      fx.spark(this.pos.x + rnd(0.3), this.pos.y + rnd(0.3), this.pos.z + rnd(0.3), rnd(1.5), rnd(1.5), rnd(1.5), PURPLE[Math.floor(Math.random() * 4)], 0.45);
+      if (u < 1) return true;
+      this.swap();
+      return false;
+    }
     const u = Math.min(1, this.t / PEARL_T);
     // flies along the track, high in an arc, from the thrower to the landing spot
     trackPoint(tr, this.i0 + this.dist * u, this.lat0 + ((this.land?.lat ?? this.lat0) - this.lat0) * u, V1);
@@ -428,6 +498,33 @@ class Pearl {
     // a little cloud of portal sparks lingers round the kart
     let t = 0;
     ctx.spawn({ update(dt) { t += dt; if (live(k) && Math.random() < 0.8) ctx.fx.spark(k.pos.x + rnd(1.4), k.pos.y + 0.4 + Math.random() * 2, k.pos.z + rnd(1.4), rnd(1), 1 + Math.random() * 2, rnd(1), PURPLE[Math.floor(Math.random() * 3)], 0.5); return t < 1.2; }, dispose() {} });
+  }
+  // trade places with the rival: the thrower comes out of the portal with a boost, the rival is
+  // dropped where the thrower was, dizzy
+  swap() {
+    const ctx = this.ctx, k = this.k, o = this.target, race = ctx.race;
+    const mine = { i: k.loc.i, lat: k.loc.lat ?? 0 }, theirs = { i: o.loc.i, lat: o.loc.lat ?? 0 };
+    // a spot over a gap (k mid-glide or mid-jump) can't take the rival: then it only gets knocked
+    const canSwap = k.grounded && !k.gliding && k.spawnOk(mine.i, mine.lat) && o.spawnOk(theirs.i, theirs.lat);
+    const kFrom = V2.copy(k.pos).setY(k.pos.y + 1.2), oFrom = V3.copy(o.pos).setY(o.pos.y + 1.2);
+    for (const p of [kFrom, oFrom]) { sparks(ctx, p, 30, PURPLE, 7, 2, 0.7); flash(ctx, p, 0xb050ff, 3.5, 0.35); }
+    warp(ctx, oFrom);
+    if (canSwap) {
+      const oSpeed = o.speed;
+      k.cancelDrift(); o.cancelDrift?.();
+      k.place(theirs.i, theirs.lat);
+      o.place(mine.i, mine.lat);
+      k.speed = Math.max(oSpeed, k.topSpeed); k.boost(0.8);
+      k.invuln = Math.max(k.invuln, 0.8);
+      const chase = chaseOf(ctx, k);
+      if (chase) { chase.init = false; chase.fov = Math.max(chase.fov || 70, 96); }
+      const oc = chaseOf(ctx, o);
+      if (oc) oc.init = false;
+      if (k.human) race.flash?.(0xd8a0ff);
+    }
+    ctx.hit(o, 'spin', k, 'enderpearl');
+    ctx.ring(o.pos, 7, 0xb050ff);
+    ctx.ring(k.pos, 7, 0xb050ff);
   }
   dispose() { disposeOwned(this.mesh); if (this.k.mcPearl === this) this.k.mcPearl = null; }
 }
@@ -473,7 +570,7 @@ export default [
   },
   {
     id: 'totem', name: 'Totem of Undying', color: '#ffd040', icon: ICON_TOTEM, gesture: 'use',
-    help: 'The Totem of Undying floats over your kart and cancels the next hit with a green-and-gold burst and a little boost.',
+    help: 'The Totem of Undying floats over your kart and saves you once: it cancels the next hit, or if you fall off the track it puts you straight back on the road (no crane), with a green-and-gold burst and a boost.',
     odds: [4, 3, 2, 1, 0],
     ai: (k) => !k.mcTotem,
     use(k, ctx) {
@@ -483,7 +580,7 @@ export default [
   },
   {
     id: 'trident', name: 'Trident', color: '#3aa8a0', icon: ICON_TRIDENT, gesture: 'throwF',
-    help: 'Throw a Trident that homes in on the kart ahead, and Channeling calls a lightning bolt down to spin them out.',
+    help: 'Throw a Trident that homes in on the kart ahead: Channeling calls down lightning that spins them out and leaves a crackling patch on the road that zaps anyone else who drives through it.',
     odds: [1, 4, 4, 3, 1],
     ai: (k, ctx) => {
       const a = ctx.ahead(k, 1)[0];
@@ -494,18 +591,18 @@ export default [
     use(k, ctx, { back }) { ctx.spawn(new Trident(k, ctx, !!back)); },
   },
   {
-    id: 'elytra', name: 'Elytra Rockets', color: '#a8a8c8', icon: ICON_ELYTRA, gesture: 'use', multi: 3,
-    help: 'Elytra wings spread on your kart and three firework rockets each blast you forward.',
+    id: 'elytra', name: 'Elytra', color: '#a8a8c8', icon: ICON_ELYTRA, gesture: 'use',
+    help: 'A firework launches you into the air and Elytra wings spread: glide for a few seconds over hazards, traps and other karts, steering to cut corners across the grass.',
     odds: [2, 3, 4, 4, 2],
     ai: (k) => calm(k) && k.boostTime <= 0.15,
     use(k, ctx) {
       if (!k.mcElytra) k.mcElytra = ctx.spawn(new Elytra(k, ctx));
-      k.mcElytra.fire();
+      k.mcElytra.takeOff();
     },
   },
   {
     id: 'enderpearl', name: 'Ender Pearl', color: '#b050ff', icon: ICON_PEARL, gesture: 'throwF',
-    help: 'Throw an Ender Pearl far up the track and teleport to where it lands in a puff of purple, coming out with a boost.',
+    help: 'Throw an Ender Pearl at the kart just ahead: it swaps places with you and spins out. In the lead, it flies up the track and teleports you there instead.',
     odds: [0, 0, 0, 3, 6],
     ai: (k) => calm(k) && !k.mcPearl,
     use(k, ctx) {

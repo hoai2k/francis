@@ -237,13 +237,17 @@ without a pack (the Stud, Brick and Galaxy Cups) give plain items only.
   splash).
 - **Minecraft**: Creeper (drop it behind or toss it ahead; it hisses, flashes and
   explodes when karts come near, spinning them out and blasting items away), Totem
-  of Undying (cancels the next hit with a green-and-gold burst and a boost), Trident
-  (homes in on the kart ahead and Channeling calls down lightning), Elytra Rockets
-  (wings spread and three firework boosts), Ender Pearl (thrown far up the track;
-  you teleport where it lands).
+  of Undying (cancels the next hit, or catches you if you fall off the track, with a
+  green-and-gold burst and a boost), Trident (homes in on the kart ahead, Channeling
+  calls down lightning and leaves a crackling patch that spins out karts driving
+  through it), Elytra (a firework launches you into the air and you glide on the
+  wings, gaining speed), Ender Pearl (thrown at the kart just ahead: you swap places
+  and they spin out; in the lead it flies up the track and you teleport where it
+  lands).
 - **Pokémon**: Snorlax (a sleeping Snorlax dropped behind you, or tossed ahead,
-  blocks the road; karts bounce off its belly and spin out), Protect (a green dome
-  for 6 s blocks every hit and bounces shots away), Poké Ball (homes in on the kart
+  blocks the road; karts bounce off its belly and spin out), Mirror Coat (for 6 s a
+  green coat sends any attack from another racer straight back at them and bounces
+  shots away; track hazards still hit), Poké Ball (homes in on the kart
   ahead and catches it: it wobbles three times, then they burst out), Quick Attack
   (three dashes with white speed lines that bump aside karts you touch), Thunderbolt
   (lightning strikes every racer ahead: they spin out and shrink for a few seconds).
@@ -251,14 +255,14 @@ without a pack (the Stud, Brick and Galaxy Cups) give plain items only.
   whoever hits it), Lightning Shield (blocks the next hit and pulls nearby gold studs
   to you), Homing Attack (curl into a ball, leap onto the kart ahead and bounce off
   with a boost), Spin Dash (rev up, then blast off, spinning out anyone you ram),
-  Super Sonic (the seven Chaos Emeralds turn your kart gold: invincible and very fast
-  for 7 seconds).
+  Chaos Control (the seven Chaos Emeralds stop time: every other racer crawls along
+  for 4 seconds while you race on with a boost).
 
 ## Power-ups (22)
 
 Drive through the rainbow **?** bricks to get an item. You can hold two: the one you can use now (big slot) and the next one (small slot), which moves up once you use the first.
 
-The further back you are, the better your items. The leader mostly gets defensive items, and the racers at the back get the big comeback items. Whoever is in **last place** always gets a catch-up item that speeds them up: Bullet Brick, Golden Brick, Gold Turbo, Triple Turbo, Mega Brick, a Stud Bag, or a movie or game power that carries them up the track (Hyperspace Jump, the Golden Snitch, the Invisibility Cloak, Ender Pearl, Elytra Rockets, Quick Attack, Spin Dash, Super Sonic). Never one that only hits other racers. Being far behind the leader also improves your odds.
+The further back you are, the better your items. The leader mostly gets defensive items, and the racers at the back get the big comeback items. Whoever is in **last place** always gets a catch-up item that speeds them up: Bullet Brick, Golden Brick, Gold Turbo, Triple Turbo, Mega Brick, a Stud Bag, or a movie or game power that carries them up the track (Hyperspace Jump, the Golden Snitch, the Invisibility Cloak, Ender Pearl, Elytra, Quick Attack, Spin Dash, Chaos Control). Never one that only hits other racers. Being far behind the leader also improves your odds.
 
 | Item | What it does |
 | --- | --- |

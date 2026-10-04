@@ -1,7 +1,8 @@
 // Pokémon power-ups (see ../abilities.js for the contract). Models in ./pokemon-fx.js.
 //   Snorlax       – a sleeping Snorlax dropped behind you (or tossed ahead) blocks part of the
 //                   road, snoring; karts that hit it bounce off its belly and spin out
-//   Protect       – a green Protect dome for 6 s: every hit is blocked and shots bounce away
+//   Mirror Coat   – a green coat for 6 s: attacks from other racers are sent back at them and
+//                   shots bounce away (id 'protect')
 //   Poké Ball     – thrown, it homes in on the kart ahead and catches it: sucked inside, the ball
 //                   wobbles three times, then it bursts out (about 1.5 s lost)
 //   Quick Attack  – three dashes with white speed lines that bump aside karts you touch
@@ -159,15 +160,28 @@ class Snorlax {
 // Protect: a green barrier dome; nothing gets through, shots bounce off
 // ============================================================================================
 const PROTECT_TIME = 6;
+let REFLECTING = false;
 class Protect {
   constructor(k, ctx) {
     this.k = k; this.ctx = ctx; this.t = 0; this.end = PROTECT_TIME; this.blocked = 0;
     this.dome = protectDome();
     k.model.root.add(this.dome);
-    // while it's up, every hit is blocked (without using up a Brick Shield)
-    const self = this, base = Object.getPrototypeOf(k).shieldBlocks;
-    this.wrap = function () { if (self.t < self.end) { self.ping(k.pos); return true; } return base.call(k); };
-    k.shieldBlocks = this.wrap;
+    // Mirror Coat: while it's up, an attack from another racer is sent straight back at them
+    // (without using up a Brick Shield). Track hazards still hit as usual.
+    const self = this, base = Object.getPrototypeOf(k).hit;
+    this.wrap = function (kind, by = null) {
+      if (self.t < self.end && by && by !== k && !REFLECTING) {
+        self.ping(k.pos);
+        if (live(by)) {
+          REFLECTING = true; // two mirrors never bounce a hit back and forth
+          try { ctx.hit(by, kind, k, 'mirrorcoat'); } finally { REFLECTING = false; }
+          self.bounceTo(by);
+        }
+        return false;
+      }
+      return base.call(k, kind, by);
+    };
+    k.hit = this.wrap;
     ctx.ring(k.pos, 8, 0x5aff7a);
     snd(ctx, k.pos, (au, a) => {
       for (const [f, d] of [[523, 0], [784, 0.06], [1047, 0.12]]) au.tone(f, 0.5, { vol: 0.07 * a, type: 'triangle', at: d, slide: 1.02 });
@@ -179,6 +193,15 @@ class Protect {
     this.blocked = 1;
     this.ctx.fx.pop(p, 0x8aff9a);
     snd(this.ctx, p, (au, a) => { au.tone(1568, 0.25, { vol: 0.09 * a, type: 'triangle', slide: 0.97 }); au.noiseHit(0.1, { vol: 0.2 * a, freq: 5000, q: 1 }); });
+  }
+  // a green flash streaks from the dome to whoever attacked
+  bounceTo(o) {
+    const ctx = this.ctx, a = this.k.pos, b = o.pos;
+    for (let n = 0; n <= 10; n++) {
+      const u = n / 10;
+      ctx.fx.spark(a.x + (b.x - a.x) * u, a.y + 1.5 + (b.y - a.y) * u + Math.sin(Math.PI * u) * 2, a.z + (b.z - a.z) * u, 0, 1, 0, n % 2 ? 0x8aff9a : 0xffffff, 0.4);
+    }
+    ctx.ring(b, 6, 0x5aff7a);
   }
   update(dt) {
     const k = this.k, ctx = this.ctx, items = ctx.race.items;
@@ -210,7 +233,7 @@ class Protect {
     return true;
   }
   dispose() {
-    if (this.k.shieldBlocks === this.wrap) delete this.k.shieldBlocks;
+    if (this.k.hit === this.wrap) delete this.k.hit;
     disposeOwned(this.dome);
     if (this.k.pkProtect === this) this.k.pkProtect = null;
   }
@@ -506,8 +529,8 @@ export default [
     use(k, ctx, { back, aimFwd }) { HOLD.delete(k); ctx.spawn(new Snorlax(k, ctx, !back && !!aimFwd)); },
   },
   {
-    id: 'protect', name: 'Protect', color: '#5aff7a', icon: ICON_PROTECT, gesture: 'use',
-    help: 'A green Protect dome surrounds your kart for 6 seconds: every hit is blocked and shots bounce right off it.',
+    id: 'protect', name: 'Mirror Coat', color: '#5aff7a', icon: ICON_PROTECT, gesture: 'use',
+    help: 'A shining green coat surrounds your kart for 6 seconds: any attack from another racer is sent straight back at them, and shots bounce off. Track hazards still get you.',
     odds: [5, 3, 2, 1, 0],
     ai: (k, ctx) => {
       if (k.pkProtect) return false;
