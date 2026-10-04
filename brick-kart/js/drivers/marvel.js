@@ -435,25 +435,23 @@ const strange = {
 };
 
 // ---------------------------------------------------------------------------- Ant-Man
-function antMats() {
-  const lens = (g) => { g.fillStyle = '#ff4a2a'; for (const sd of [-1, 1]) { g.beginPath(); g.ellipse(128 + sd * 22, 58, 15, 17, 0, 0, 7); g.fill(); } };
-  const face = faceMat('mv-antman', (g, w, h) => {
-    g.fillStyle = '#8f969e'; g.fillRect(0, 0, w, h);
-    g.fillStyle = '#5a6068'; g.fillRect(0, 0, w, 14); g.fillRect(0, h - 10, w, 10);
-    g.fillStyle = '#b3121b'; g.fillRect(122, 0, 12, 36);
-    g.fillStyle = '#2a2e34'; g.beginPath(); g.roundRect(96, 80, 64, 36, 10); g.fill();
-    g.strokeStyle = '#8f969e'; g.lineWidth = 3; for (let k = 0; k < 4; k++) { g.beginPath(); g.moveTo(106 + k * 14, 86); g.lineTo(106 + k * 14, 110); g.stroke(); }
-    g.fillStyle = '#1b1b1b'; for (const sd of [-1, 1]) { g.beginPath(); g.ellipse(128 + sd * 22, 58, 19, 21, 0, 0, 7); g.fill(); }
-    lens(g);
-    g.fillStyle = '#5a6068'; for (const x of [40, 216]) { g.beginPath(); g.arc(x, 64, 18, 0, 7); g.fill(); }
-  }, lens);
-  const decal = decalMat('mv-antman', (g, w, h) => {
-    g.fillStyle = '#b3121b'; g.fillRect(0, 0, w, h);
-    g.fillStyle = '#1b1d22'; g.fillRect(w / 2 - 22, 0, 44, h); g.fillRect(0, 50, 18, h); g.fillRect(w - 18, 50, 18, h);
-    g.fillStyle = '#b3121b'; g.fillRect(w / 2 - 6, 0, 12, h);
-    g.fillStyle = '#8f969e'; g.fillRect(0, h - 24, w, 14); g.fillStyle = '#b3121b'; g.beginPath(); g.arc(w / 2, h - 17, 9, 0, 7); g.fill();
-  });
-  return { face, decal };
+// helmet/head parts laid on a cylinder head (Ant-Man, Thanos, Loki): angle th round from the
+// front, height y, distance out from the axis, size (w along the surface, h, dp outward)
+const onHead = (b, th, y, out, w, h, dp, col, tilt = 0, roll = 0, geo = null) => b.addMatrix(
+  geo || cached('mvBoxC', () => new THREE.BoxGeometry(1, 1, 1)), typeof col === 'number' ? plastic(col) : col,
+  new THREE.Matrix4().compose(new THREE.Vector3(Math.sin(th) * out, y, Math.cos(th) * out), new THREE.Quaternion().setFromEuler(new THREE.Euler(tilt, th, roll, 'YXZ')), new THREE.Vector3(w, h, dp)));
+// a round disc facing out of the head
+const headDisc = (b, th, y, out, rad, thick, col, tilt = 0) => onHead(b, th, y, out, rad, thick, rad, col, PI / 2 + tilt, 0, cached('mvDiscC', () => new THREE.CylinderGeometry(1, 1, 1, 24)));
+// a tapering curved tube from p along dir, bending by (bx, by, bz) per segment
+function tube(b, p, dir, n, len, r0, r1, bend, col, col2 = col) {
+  let d = new THREE.Vector3(...dir).normalize(), a = new THREE.Vector3(...p);
+  for (let i = 0; i < n; i++) {
+    const c = a.clone().addScaledVector(d, len);
+    rod(b, a.toArray(), c.toArray(), r0 + (r1 - r0) * i / Math.max(1, n - 1), i % 2 ? col2 : col, 8);
+    if (i < n - 1) b.sphere(c.x, c.y, c.z, r0 + (r1 - r0) * (i + 0.5) / Math.max(1, n - 1), i % 2 ? col2 : col);
+    a = c; d.add(new THREE.Vector3(...bend)).normalize();
+  }
+  return a;
 }
 const antman = {
   id: 'antman', name: 'Ant-Man', blurb: 'Small hero, big moves', weight: 'light', color: 0xff4a2a,
@@ -465,14 +463,85 @@ const antman = {
     win: (f, t) => ({ lx: UP + S(t * 8) * 0.2, rx: UP - S(t * 8) * 0.2, lz: 0.45, rz: -0.45, hx: -0.25, by: abs(S(t * 8)) * 0.05 }),
   },
   build() {
-    const { face, decal } = antMats();
+    const red = 0xb3121b, dkRed = 0x6e0a10, black = 0x1c1e22, silver = 0xaab2ba, steel = 0x6a7280;
+    // helmet print: dark faceplate behind the lenses and respirator, red crest, panel seams
+    const face = printFace('antmanK', { skin: '#9aa2aa' }, (g, X, h) => {
+      g.fillStyle = '#4a5058'; g.fillRect(-X, 0, X - 120, h); g.fillRect(120, 0, X - 120, h);     // dark back of the helmet
+      g.fillStyle = '#2a2e34';
+      g.beginPath(); g.moveTo(-62, 34); g.quadraticCurveTo(0, 20, 62, 34); g.lineTo(58, 92); g.quadraticCurveTo(0, 132, -58, 92); g.closePath(); g.fill();
+      g.fillStyle = '#b3121b'; g.beginPath(); g.moveTo(-16, 0); g.lineTo(16, 0); g.lineTo(9, 30); g.lineTo(-9, 30); g.closePath(); g.fill();
+      for (const sd of [-1, 1]) {
+        strokePath(g, '#5a626c', 3, [sd * 76, 0, sd * 80, 64, sd * 70, 128]);
+        strokePath(g, '#5a626c', 3, [sd * 64, 100, sd * 40, 116, sd * 20, 128]);
+      }
+    });
+    const decal = decalMat('antmanK', (g, w, h) => {
+      g.fillStyle = '#b3121b'; g.fillRect(0, 0, w, h);
+      g.fillStyle = '#1c1e22';                                                       // black flanks and centre panel
+      g.beginPath(); g.moveTo(0, 30); g.lineTo(34, 54); g.lineTo(40, h); g.lineTo(0, h); g.closePath(); g.fill();
+      g.beginPath(); g.moveTo(w, 30); g.lineTo(w - 34, 54); g.lineTo(w - 40, h); g.lineTo(w, h); g.closePath(); g.fill();
+      g.beginPath(); g.moveTo(52, 56); g.lineTo(76, 56); g.lineTo(72, h); g.lineTo(56, h); g.closePath(); g.fill();
+      g.fillStyle = '#7a0c12';                                                       // chest plates
+      for (const sd of [-1, 1]) { g.beginPath(); g.moveTo(64 + sd * 6, 10); g.lineTo(64 + sd * 40, 16); g.lineTo(64 + sd * 34, 46); g.lineTo(64 + sd * 8, 50); g.closePath(); g.fill(); }
+      g.strokeStyle = '#aab2ba'; g.lineWidth = 3;                                    // silver piping and zip
+      g.beginPath(); g.moveTo(64, 0); g.lineTo(64, h); g.stroke();
+      for (const sd of [-1, 1]) { g.beginPath(); g.moveTo(64 + sd * 36, 54); g.lineTo(64 + sd * 26, h); g.stroke(); }
+      g.fillStyle = '#aab2ba'; for (const sd of [-1, 1]) { g.beginPath(); g.arc(64 + sd * 22, 30, 4, 0, 7); g.fill(); }
+    });
     const rig = hero({
-      name: 'antman', face, decal, top: 0x8f969e, skin: 0x8f969e, torso: 0xb3121b, arms: 0xb3121b, hands: M.black, legs: M.black, neck: M.black,
-      hair: (hb, d, k, v) => {
-        for (const sd of [-1, 1]) rod(hb, [sd * 0.14 * k, d.headH - 0.02, 0.1 * k], [sd * 0.3 * k, d.headH + 0.3, -0.1 * k], 0.022, 0x5a6068, 5);
-        hb.box(0, d.headH - 0.03, -0.1 * k, 0.12 * k, 0.08, 0.6 * k, 0xb3121b);
+      name: 'antman', face, decal, top: silver, skin: silver, torso: red, arms: red, hands: black, legs: black, neck: black, hips: black,
+      hair: (hb, d) => {
+        const r = d.headR, H = d.headH;
+        blob(hb, 0, H, -0.02 * r, 1.0 * r, 0.3 * H, 1.0 * r, silver);                       // rounded helmet top
+        let prev = null;                                                                     // red crest over the top
+        for (let j = 0; j <= 10; j++) {
+          const a = 0.12 + j / 10 * (PI - 0.3), p = [0, H + Math.sin(a) * 0.31 * H, Math.cos(a) * 1.02 * r];
+          if (prev) rod(hb, prev, p, 0.15 * r, j % 2 ? red : dkRed, 8);
+          prev = p;
+        }
+        for (const sd of [-1, 1]) {
+          // big round lenses: silver bezel, dark-red glass, a glint
+          headDisc(hb, sd * 0.38, 0.58 * H, 1.03 * r, 0.32 * r, 0.12 * r, silver);
+          headDisc(hb, sd * 0.38, 0.58 * H, 1.07 * r, 0.25 * r, 0.1 * r, plastic(0x7a0a14, { rough: 0.1, metal: 0.25, emissive: 0x3a0006 }));
+          headDisc(hb, sd * 0.38 + 0.09, 0.65 * H, 1.12 * r, 0.045 * r, 0.03 * r, plastic(0xffc0c0, { emissive: 0xff8080, emissiveIntensity: 0.6 }));
+          // round ear discs with red cores, tubes from the respirator back to them
+          headDisc(hb, sd * PI / 2, 0.5 * H, 1.0 * r, 0.34 * r, 0.12 * r, steel);
+          headDisc(hb, sd * PI / 2, 0.5 * H, 1.06 * r, 0.22 * r, 0.06 * r, silver);
+          headDisc(hb, sd * PI / 2, 0.5 * H, 1.09 * r, 0.11 * r, 0.04 * r, red);
+          tube(hb, [sd * 0.3 * r, 0.2 * H, 1.1 * r], [sd * 1, -0.15, -0.35], 7, 0.17 * r, 0.06 * r, 0.06 * r, [0, 0.06, -0.12], steel, 0x8a929c);
+          // antennae from the top of the helmet
+          tube(hb, [sd * 0.4 * r, 1.08 * H, 0.5 * r], [sd * 0.35, 1, 0.25], 4, 0.16 * r, 0.035 * r, 0.025 * r, [0, -0.05, -0.35], black);
+        }
+        // the silver respirator with its vents
+        hb.addMatrix(taperGeo(0.6 * r, 0.44 * r, 0.24 * r, 0.32 * H, 0.26 * H), plastic(silver), mat4(0, 0.2 * H, 0.96 * r, PI / 2, 0, 0));
+        blob(hb, 0, 0.2 * H, 1.18 * r, 0.24 * r, 0.14 * H, 0.08 * r, silver);
+        for (let j = -2; j <= 2; j++) hb.box(j * 0.075 * r, 0.1 * H, 1.25 * r, 0.035 * r, 0.2 * H, 0.03 * r, 0x23262c);
+        hb.cyl(0, -0.04 * H, 0, 1.03 * r, 0.07 * H, black, { seg: 20 });                    // collar ring
       },
-      arm: (ab, sd, d) => { ab.box(0, -0.38 * d.s, 0, 0.255 * d.s, 0.07 * d.s, 0.285 * d.s, M.black); ab.box(0, -0.2 * d.s, 0, 0.26 * d.s, 0.06 * d.s, 0.29 * d.s, M.black); },
+      extra: (b, d) => {
+        const s = d.s, W = d.W, D = d.D, zf = 0.23 * s * D;
+        // the belt with its Pym particle discs
+        b.box(0, d.chestY - 0.02 * s, 0, 0.96 * s * W, 0.12 * s, 0.5 * s * D, silver);
+        b.box(0, d.chestY - 0.03 * s, zf + 0.02 * s, 0.2 * s, 0.14 * s, 0.04 * s, steel);
+        b.cyl(0, d.chestY - 0.02 * s, zf + 0.04 * s, 0.05 * s, 0.1 * s, red, { seg: 12 });
+        for (const x of [-0.34, -0.22, 0.22, 0.34]) {
+          b.addMatrix(cached('mvDiscC', () => new THREE.CylinderGeometry(1, 1, 1, 24)), plastic(red), mat4(x * s * W, d.chestY + 0.04 * s, zf + 0.01 * s, PI / 2, 0, 0, 0.045 * s, 0.04 * s, 0.045 * s));
+          b.addMatrix(cached('mvDiscC', () => new THREE.CylinderGeometry(1, 1, 1, 24)), plastic(silver), mat4(x * s * W, d.chestY + 0.04 * s, zf + 0.035 * s, PI / 2, 0, 0, 0.02 * s, 0.02 * s, 0.02 * s));
+        }
+        // black harness straps over the shoulders, silver studs
+        for (const sd of [-1, 1]) {
+          b.boxM(mat4(sd * 0.2 * s, 0.94 * s, 0, 0, 0, sd * -0.25, 0.14 * s, 0.05 * s, 0.46 * s * D), black);
+          b.sphere(sd * 0.21 * s, 0.97 * s, 0.17 * s, 0.03 * s, silver);
+        }
+      },
+      arm: (ab, sd, d) => {
+        const s = d.s;
+        ab.sphere(0, 0.01 * s, 0, 0.145 * s, red, { sy: 0.8 });
+        ab.box(0, -0.24 * s, 0, 0.258 * s, 0.05 * s, 0.288 * s, black);
+        ab.box(0, -0.56 * s, 0, 0.262 * s, 0.24 * s, 0.292 * s, black);                   // black gauntlets
+        ab.box(0, -0.5 * s, 0.145 * s, 0.14 * s, 0.1 * s, 0.02 * s, silver);              // wrist controls
+        ab.box(0, -0.48 * s, 0.155 * s, 0.05 * s, 0.04 * s, 0.01 * s, red);
+      },
     });
     rig.fx = (name, f, t) => {
       let k = 1;
@@ -490,45 +559,177 @@ const starlord = {
   id: 'starlord', name: 'Star-Lord', blurb: 'Legendary outlaw dancer', weight: 'medium', color: 0xd9641c,
   voice: { kind: 'human', pitch: 1.05 }, style: { cheer: 'spin', win: 'spin', trick: 'twist' },
   gestures: {
-    // the Walkman dance
+    // both element blasters blazing
     cheer: (f, t) => {
-      const b = S(t * 9);
-      return { ty: b * 0.35, tz: -b * 0.12, hx: -0.12 + abs(b) * 0.18, hz: b * 0.2, lx: -1.3 + b * 0.9, rx: -1.3 - b * 0.9, lz: 0.55, rz: -0.55, by: abs(b) * 0.08 };
+      const r = S(t * 22);
+      return { lx: -1.55 - Math.max(0, r) * 0.3, rx: -1.55 - Math.max(0, -r) * 0.3, lz: -0.1, rz: 0.1, hx: -0.08, ty: S(t * 3) * 0.22, tz: S(t * 6) * 0.05, by: abs(S(t * 11)) * 0.04 };
     },
     taunt: (f, t, rig, a) => {
       const b = S(t * 10);
       return { [a.tauntSide > 0 ? 'lx' : 'rx']: -1.65, [a.tauntSide > 0 ? 'lz' : 'rz']: a.tauntSide * 0.3, hy: a.tauntSide * 1.2, ty: a.tauntSide * 0.35 + b * 0.15, tz: b * 0.08, by: abs(b) * 0.05 };
     },
-    // twin blasters twirling
+    // the Walkman dance, blasters twirling
     win: (f, t) => {
-      const b = S(t * 8);
-      return { lx: -1.9, rx: -1.9, lz: 0.35, rz: -0.35, ty: b * 0.25, tz: b * 0.08, hz: -b * 0.15, hx: -0.15, by: abs(b) * 0.06 };
+      const b = S(t * 9);
+      return { lx: -1.9 + b * 0.35, rx: -1.9 - b * 0.35, lz: 0.4, rz: -0.4, ty: b * 0.3, tz: b * 0.1, hz: -b * 0.18, hx: -0.12 + abs(b) * 0.15, by: abs(b) * 0.08 };
     },
     use: (f) => ({ rx: -1.6, rz: 0.05, hx: -0.1 }),
   },
   build() {
-    const { face, decal } = mapMats('starlord');
+    const jacket = 0x6e1812, jacketDk = 0x440c08, silver = 0x9ea6b0, gunmetal = 0x3a3e46, hair = 0x6e4024, hairLt = 0x8a5632;
+    const skinS = '#f2c9a0', hairS = '#6e4024';
+    // his head under the mask: swept brown hair all round (the face itself is behind the mask)
+    const face = printFace('starlordHairK', { skin: hairS }, (g, X, h) => {
+      for (let x = -X; x < X; x += 9) strokePath(g, x % 2 ? '#5a3218' : '#7e4c2a', 2.5, [x, 0, x + 4, 50, x - 2, 100, x + 3, 112, x, h]);
+    });
+    // the face mask: a curved plate over the front of the head, from forehead to jaw and round to
+    // the ears. Its print is mapped straight onto the plate (u: -1.65..1.65 rad round the head,
+    // v: jaw to brow), so it is drawn in plate coordinates.
+    const TH = 3.3, mx = (th) => 128 + th / TH * 256, my = (f) => (0.9 - f) / 0.93 * 128;
+    const EYE = 0.28;                                                               // goggle angle either side of the nose
+    const maskMat = faceMat('starlordMask4K', (g, w, h) => {
+      g.fillStyle = '#464a51'; g.fillRect(0, 0, w, h);
+      g.fillStyle = '#2a2d32';                                                       // darker trim at the edges
+      g.fillRect(0, 0, 7, h); g.fillRect(w - 7, 0, 7, h);
+      for (const sd of [-1, 1]) {                                                    // recess behind the cheek vents
+        const x0 = mx(sd * 0.9), x1 = mx(sd * 1.18);
+        g.fillRect(Math.min(x0, x1), my(0.52), abs(x1 - x0), my(0.18) - my(0.52));
+      }
+      g.fillStyle = '#26292e'; g.beginPath(); g.ellipse(128, my(0.2), 30, 26, 0, 0, 7); g.fill();   // shadow round the mouthpiece
+      g.fillStyle = '#c08a18';                                                       // one gold band round both eyes
+      for (const sd of [-1, 1]) { g.beginPath(); g.ellipse(mx(sd * EYE), my(0.56), 27, 30, 0, 0, 7); g.fill(); }
+      g.fillRect(mx(-EYE), my(0.64), mx(EYE) - mx(-EYE), my(0.47) - my(0.64));
+      for (const sd of [-1, 1]) {                                                    // fine seams, lighter grey
+        strokePath(g, '#8a9098', 2.5, [mx(sd * 0.56), my(0.86), mx(sd * 0.62), my(0.72), mx(sd * 0.7), my(0.56)]);
+        strokePath(g, '#8a9098', 2.5, [mx(sd * 0.86), my(0.55), mx(sd * 0.6), my(0.42), mx(sd * 0.3), my(0.34)]);
+        strokePath(g, '#8a9098', 2.5, [mx(sd * 0.82), my(0.16), mx(sd * 0.5), my(0.04), mx(sd * 0.3), my(-0.02)]);
+      }
+    });
+    const decal = decalMat('starlordK', (g, w, h) => {
+      g.fillStyle = '#6e1812'; g.fillRect(0, 0, w, h);
+      g.fillStyle = '#5c6a7e';                                                     // grey-blue henley
+      g.beginPath(); g.moveTo(42, 0); g.lineTo(86, 0); g.lineTo(80, h); g.lineTo(48, h); g.closePath(); g.fill();
+      g.fillStyle = skinS; g.beginPath(); g.moveTo(54, 0); g.lineTo(74, 0); g.lineTo(64, 16); g.closePath(); g.fill();
+      g.strokeStyle = '#3e4a5a'; g.lineWidth = 2.5; g.beginPath(); g.moveTo(64, 16); g.lineTo(64, 42); g.stroke();
+      g.fillStyle = '#cfd4da'; for (const y of [24, 34]) { g.beginPath(); g.arc(64, y, 2.2, 0, 7); g.fill(); }
+      g.fillStyle = '#440c08';                                                     // wide lapels
+      for (const sd of [-1, 1]) { g.beginPath(); g.moveTo(64 + sd * 20, 0); g.lineTo(64 + sd * 44, 0); g.lineTo(64 + sd * 30, 44); g.lineTo(64 + sd * 20, 62); g.closePath(); g.fill(); }
+      g.strokeStyle = '#3a0804'; g.lineWidth = 3;
+      for (const sd of [-1, 1]) { g.beginPath(); g.moveTo(64 + sd * 20, 60); g.lineTo(64 + sd * 17, h); g.stroke(); }
+      g.strokeStyle = 'rgba(40,4,2,0.55)'; g.lineWidth = 2;                         // padded panels
+      for (const y of [74, 88]) for (const sd of [-1, 1]) { g.beginPath(); g.moveTo(64 + sd * 24, y); g.lineTo(64 + sd * 60, y - 4); g.stroke(); }
+      g.fillStyle = '#2a1a12'; g.fillRect(44, 106, 40, 11);                        // belt
+      g.fillStyle = '#d0d4da'; g.fillRect(58, 104, 12, 15); g.fillStyle = '#2a1a12'; g.fillRect(61, 107, 6, 9);
+    });
     const rig = hero({
-      name: 'starlord', face, decal, top: 0x5a6068, skin: M.skin, torso: M.coat, arms: M.coat, hands: M.skin, legs: 0x2e3238,
-      hair: (hb, d, k, v) => { for (const sd of [-1, 1]) hb.cyl(sd * 0.4 * k, 0.22 * v, 0, 0.12 * k, 0.3 * v, M.orange, { seg: 8 }); hb.box(0, d.headH - 0.03, 0, 0.1 * k, 0.1 * k, 0.84 * k, M.orange); },
-      extra: (b, d) => { const s = d.s; b.box(0, 0.86 * s, -0.16 * s, 0.82 * s, 0.16 * s, 0.26 * s, M.coat); b.box(0, 0.05 * s, -0.25 * s * d.D, 0.92 * s, 0.5 * s, 0.06 * s, M.coat); },
-      arm: (ab, sd, d) => ab.box(0, -0.52 * d.s, 0, 0.255 * d.s, 0.08 * d.s, 0.285 * d.s, 0x3a2a20),
+      name: 'starlord', face, decal, top: hair, skin: M.skin, torso: jacket, arms: jacket, hands: M.skin, legs: 0x3a3632, hips: 0x2a1a12,
+      hair: (hb, d) => {
+        const r = d.headR, H = d.headH, cy = cached('slCyl', () => new THREE.CylinderGeometry(1, 1, 1, 24));
+        const arc = cached('slArc', () => new THREE.CylinderGeometry(1, 1, 1, 28, 1, true, -TH / 2, TH).translate(0, 0.5, 0));
+        const arcC = cached('slArcC', () => new THREE.CylinderGeometry(1, 1, 1, 28, 1, false, -TH / 2, TH).translate(0, 0.5, 0));
+        const browC = cached('slBrowC', () => new THREE.CylinderGeometry(1, 1, 1, 16, 1, false, -0.85, 1.7).translate(0, 0.5, 0));
+        // swept-back hair: crown, back and the quiff above the mask
+        blob(hb, 0, 0.98 * H, -0.06 * r, 1.08 * r, 0.24 * H, 1.08 * r, hair);
+        blob(hb, 0, 0.62 * H, -0.42 * r, 1.06 * r, 0.45 * H, 0.72 * r, hair);
+        blob(hb, 0.12 * r, 1.1 * H, 0.42 * r, 0.7 * r, 0.2 * H, 0.46 * r, hair, -0.55, 0, -0.18);
+        blob(hb, -0.32 * r, 1.08 * H, 0.36 * r, 0.5 * r, 0.17 * H, 0.42 * r, hairLt, -0.5, 0, 0.35);
+        blob(hb, 0.4 * r, 1.04 * H, 0.5 * r, 0.42 * r, 0.14 * H, 0.36 * r, hairLt, -0.6, 0, -0.5);
+        // the face mask plate, its rims and a small brow ridge
+        hb.add(arc, maskMat, 0, -0.03 * H, 0, 0, 1.05 * r, 0.93 * H, 1.05 * r);
+        hb.add(arcC, plastic(0x2e3136), 0, 0.86 * H, 0, 0, 1.08 * r, 0.05 * H, 1.08 * r);
+        hb.add(arcC, plastic(0x2e3136), 0, -0.06 * H, 0, 0, 1.08 * r, 0.06 * H, 1.08 * r);
+        hb.add(browC, plastic(0x8a9098), 0, 0.72 * H, 0, 0, 1.09 * r, 0.05 * H, 1.09 * r);
+        const disc = (th, y, rad, out, thick, mat) => hb.addMatrix(cy, mat, new THREE.Matrix4().compose(
+          new THREE.Vector3(Math.sin(th) * out, y, Math.cos(th) * out), new THREE.Quaternion().setFromEuler(new THREE.Euler(PI / 2, th, 0, 'YXZ')), new THREE.Vector3(rad, thick, rad)));
+        // a piece laid on the mask: angle th round the head, height y, out from the axis; tilt/roll in its own frame
+        const onMask = (th, y, out, w, h, dp, col, tilt = 0, roll = 0, geo = null) => hb.addMatrix(geo || cached('unitboxc', () => new THREE.BoxGeometry(1, 1, 1)), plastic(col),
+          new THREE.Matrix4().compose(new THREE.Vector3(Math.sin(th) * out, y, Math.cos(th) * out), new THREE.Quaternion().setFromEuler(new THREE.Euler(tilt, th, roll, 'YXZ')), new THREE.Vector3(w, h, dp)));
+        const lite = 0x8a9098, dark = 0x484c53, gold = 0xc08a18;
+        // raised central ridge: forehead, the gold bridge between the goggles, down the nose to the mouthpiece
+        onMask(0, 0.77 * H, 1.07 * r, 0.11 * r, 0.2 * H, 0.08 * r, lite);
+        onMask(0, 0.56 * H, 1.075 * r, 0.24 * r, 0.17 * H, 0.06 * r, gold);
+        onMask(0, 0.42 * H, 1.09 * r, 0.16 * r, 0.14 * H, 0.1 * r, lite, -0.35);
+        // the breathing mouthpiece: a tapered snout with a slatted grille and side filters
+        const snout = taperGeo(0.66 * r, 0.44 * r, 0.3 * r, 0.32 * H, 0.22 * H);
+        hb.addMatrix(snout, plastic(dark), mat4(0, 0.2 * H, 0.98 * r, PI / 2, 0, 0));
+        hb.box(0, 0.11 * H, 1.26 * r, 0.36 * r, 0.18 * H, 0.04 * r, 0x1e2126);                   // dark recess
+        for (let j = 0; j < 4; j++) hb.box(0, (0.125 + j * 0.042) * H, 1.285 * r, 0.4 * r, 0.018 * H, 0.03 * r, lite);   // slats
+        hb.boxM(mat4(0, 0.36 * H, 1.15 * r, -0.5, 0, 0, 0.52 * r, 0.035 * H, 0.2 * r), lite);           // snout cap
+        for (const sd of [-1, 1]) {
+          const fp = new THREE.Vector3(sd * 0.3 * r, 0.2 * H, 1.15 * r);
+          hb.addMatrix(cy, plastic(gunmetal), mat4(fp.x, fp.y, fp.z, 0, sd * -0.5, PI / 2, 0.1 * r, 0.12 * r, 0.1 * r));
+          hb.addMatrix(cy, plastic(lite), mat4(fp.x + sd * 0.05 * r, fp.y, fp.z - 0.03 * r, 0, sd * -0.5, PI / 2, 0.065 * r, 0.04 * r, 0.065 * r));
+          // round goggle eyes: raised gold surround, thin black outline, pure red lens
+          disc(sd * EYE, 0.56 * H, 0.29 * r, 1.06 * r, 0.06 * r, plastic(gold));
+          disc(sd * EYE, 0.56 * H, 0.215 * r, 1.085 * r, 0.06 * r, plastic(0x101114));
+          disc(sd * EYE, 0.56 * H, 0.19 * r, 1.1 * r, 0.06 * r, plastic(0xd00000, { emissive: 0x900000, emissiveIntensity: 0.3 }));
+          // angular brow plates sweeping up and back over the goggles
+          onMask(sd * 0.4, 0.78 * H, 1.08 * r, 0.5 * r, 0.075 * H, 0.09 * r, lite, 0, sd * 0.32);
+          onMask(sd * 0.8, 0.85 * H, 1.07 * r, 0.42 * r, 0.06 * H, 0.07 * r, dark, 0, sd * 0.12);
+          // cheek plates angling down from the goggles to the mouthpiece
+          onMask(sd * 0.5, 0.33 * H, 1.08 * r, 0.48 * r, 0.11 * H, 0.07 * r, dark, 0, sd * 0.5);
+          onMask(sd * 0.5, 0.36 * H, 1.12 * r, 0.3 * r, 0.035 * H, 0.03 * r, gold, 0, sd * 0.5);            // gold cheek accent
+          onMask(sd * 0.5, 0.29 * H, 1.115 * r, 0.42 * r, 0.02 * H, 0.03 * r, lite, 0, sd * 0.5);
+          hb.boxM(mat4(Math.sin(sd * TH / 2) * 1.065 * r, 0.43 * H, Math.cos(sd * TH / 2) * 1.065 * r, 0, sd * TH / 2, 0, 0.07 * r, 0.96 * H, 0.1 * r), gunmetal);
+          for (let j = 0; j < 4; j++) {                                                 // ribbed cheek vents
+            const th = sd * (0.98 + j * 0.03), y = (0.22 + j * 0.075) * H;
+            hb.boxM(mat4(Math.sin(th) * 1.07 * r, y, Math.cos(th) * 1.07 * r, 0, th, 0, 0.3 * r, 0.045 * H, 0.08 * r), j % 2 ? 0x2e3136 : lite);
+          }
+          // ribbed hoses from the mouthpiece back along the jaw to the earpieces
+          const P = [[0.36, 0.14, 1.12], [0.72, 0.08, 0.9], [1.03, 0.1, 0.52], [1.13, 0.3, 0.0]];
+          const pt = (u) => { const k = Math.min(2, Math.floor(u * 3)), f = u * 3 - k; return P[k].map((v, i) => (v + (P[k + 1][i] - v) * f) * (i === 1 ? H : r) * (i === 0 ? sd : 1)); };
+          for (let j = 0; j < 12; j++) rod(hb, pt(j / 12), pt((j + 1) / 12), 0.055 * r, j % 2 ? gunmetal : 0x5a6068, 6);
+          hb.addMatrix(cy, plastic(0xe0701e), mat4(sd * 1.1 * r, 0.52 * H, -0.04 * r, 0, 0, PI / 2, 0.4 * r, 0.16 * r, 0.4 * r));   // earpieces
+          hb.addMatrix(cy, plastic(gunmetal), mat4(sd * 1.19 * r, 0.52 * H, -0.04 * r, 0, 0, PI / 2, 0.27 * r, 0.06 * r, 0.27 * r));
+          hb.addMatrix(cy, plastic(silver), mat4(sd * 1.22 * r, 0.52 * H, -0.04 * r, 0, 0, PI / 2, 0.15 * r, 0.06 * r, 0.15 * r));
+        }
+      },
+      extra: (b, d) => {
+        const s = d.s, W = d.W, D = d.D, zf = 0.23 * s * D;
+        // high leather collar standing up round the neck
+        b.boxM(mat4(0, 0.99 * s, -0.15 * s, -0.25, 0, 0, 0.54 * s, 0.22 * s, 0.05 * s), jacket);
+        for (const sd of [-1, 1]) b.boxM(mat4(sd * 0.23 * s, 0.97 * s, -0.04 * s, 0, sd * 0.6, sd * -0.22, 0.05 * s, 0.18 * s, 0.22 * s), jacket);
+        // the long coat: tails at the back and skirts over the hips
+        b.box(0, -0.4 * s, -0.235 * s * D, 0.94 * s * W, 0.72 * s, 0.07 * s, jacket);
+        for (const sd of [-1, 1]) b.boxM(mat4(sd * 0.47 * s * W, -0.04 * s, 0.04 * s, 0, 0, sd * 0.07, 0.06 * s, 0.52 * s, 0.52 * s), jacket);
+        // the Walkman clipped on his left hip, cord up to the collar
+        const wx = 0.3 * s * W, wy = d.chestY + 0.1 * s, wz = zf + 0.035 * s;
+        b.box(wx, wy, wz, 0.18 * s, 0.25 * s, 0.07 * s, 0x6f8cb4);
+        b.box(wx, wy + 0.05 * s, wz + 0.03 * s, 0.13 * s, 0.11 * s, 0.02 * s, 0xd0d4da);
+        b.box(wx + 0.05 * s, wy + 0.25 * s, wz, 0.05 * s, 0.035 * s, 0.05 * s, M.orange);
+        rod(b, [wx - 0.05 * s, wy + 0.25 * s, wz], [0.14 * s, 0.82 * s, zf - 0.005 * s], 0.012 * s, 0x30343a, 5);
+      },
+      arm: (ab, sd, d) => {
+        const s = d.s;
+        ab.sphere(0, 0.01 * s, 0, 0.15 * s, jacketDk, { sy: 0.72 });                  // padded shoulder
+        ab.box(0, -0.3 * s, 0, 0.258 * s, 0.035 * s, 0.288 * s, jacketDk);              // sleeve strap
+        ab.box(0, -0.54 * s, 0, 0.262 * s, 0.1 * s, 0.292 * s, jacketDk);               // cuffs
+      },
     });
     const s = rig.dims.s;
     const mk = (arm) => {
       const g = prop(arm, 0, HAND * s, 0, (b) => {
-        b.box(0, -0.06, 0.05, 0.1, 0.12, 0.2, 0x3a3e46);
-        b.boxM(mat4(0, -0.3, 0.06, 0, 0, 0, 0.12, 0.42, 0.14), 0x5a6068);
-        b.boxM(mat4(0, -0.3, 0.135, 0, 0, 0, 0.06, 0.3, 0.02), M.orange);
-        b.cyl(0, -0.62, 0.06, 0.04, 0.12, 0x2a2e34, { seg: 6 });
+        b.box(0, -0.08, 0.04, 0.1, 0.14, 0.12, 0x2a2e34);                 // grip in the fist
+        b.boxM(mat4(0, -0.28, 0.12, 0, 0, 0, 0.13, 0.42, 0.15), 0x8a9098);
+        b.sphere(0, -0.12, 0.14, 0.1, 0x5a6068);                           // the element chamber
+        b.boxM(mat4(0, -0.3, 0.205, 0, 0, 0, 0.06, 0.32, 0.03), M.orange);
+        b.cyl(0, -0.66, 0.12, 0.045, 0.24, 0x2a2e34, { seg: 8 });
+        b.cyl(0, -0.7, 0.12, 0.065, 0.06, 0xc8ccd2, { seg: 8 });
       }, 'blaster');
-      g.visible = false; return g;
+      g.visible = false;
+      const fl = beam(g, -0.72, 0xffb040, { r0: 0.03, r1: 0.08, flash: 0.13 });
+      fl.g.position.z = 0.12;
+      return { g, fl };
     };
-    const gL = mk(rig.armL), gR = mk(rig.armR);
+    const L = mk(rig.armL), R = mk(rig.armR);
     rig.fx = (name, f, t) => {
-      const w = name === 'win', r = w || name === 'use' || name === 'throwF';
-      vis(gL, w); vis(gR, r);
-      if (w) { gL.rotation.x = -t * 14; gR.rotation.x = -t * 14 + 1.5; } else gR.rotation.x = 0;
+      const c = name === 'cheer', w = name === 'win', u = name === 'use' || name === 'throwF';
+      const drawn = c && f > 0.08 && f < 0.95;
+      vis(L.g, w || drawn); vis(R.g, w || u || drawn);
+      if (w) { L.g.rotation.x = -t * 14; R.g.rotation.x = -t * 14 + 1.5; } else { L.g.rotation.x = 0; R.g.rotation.x = 0; }
+      const r = S(t * 22);
+      L.fl.set(drawn && r > 0.55 ? 0.9 : 0, 1 + S(t * 50) * 0.3);
+      R.fl.set((drawn && r < -0.55) || (name === 'use' && f > 0.3 && f < 0.6) ? 0.9 : 0, 1 + S(t * 50) * 0.3);
     };
     return rig;
   },
@@ -1098,27 +1299,97 @@ const loki = {
     use: (f) => ({ rx: -1.65, rz: 0.1, hx: -0.12 }),
   },
   build() {
-    const { face, decal } = mapMats('loki');
-    const gold = 0xd8a830;
+    const gold = 0xd8a830, goldDk = 0xa87a1c, green = 0x1f6a3a, dkGreen = 0x123e24, leather = 0x1c1e1a, hairC = 0x16141a;
+    const skinS = '#f0dcc8';
+    // pale and sharp: arched brows, green eyes, high cheekbones and a sly smirk
+    const face = printFace('lokiK', { skin: skinS }, (g, X, h) => {
+      g.fillStyle = '#16141a';                                                     // black hair behind the cheek guards
+      g.beginPath(); g.moveTo(-X, 0); g.lineTo(X, 0); g.lineTo(X, h); g.lineTo(70, h); g.lineTo(66, 40); g.lineTo(-66, 40); g.lineTo(-70, h); g.lineTo(-X, h); g.closePath(); g.fill();
+      strokePath(g, '#16141a', 5, [-40, 50, -26, 42, -10, 50]);
+      strokePath(g, '#16141a', 5, [40, 46, 26, 38, 10, 49]);                         // one brow cocked
+      for (const sd of [-1, 1]) {
+        g.fillStyle = 'rgba(90,70,80,0.25)'; g.beginPath(); g.ellipse(sd * 23, 66, 12, 7, 0, 0, 7); g.fill();
+        g.fillStyle = '#3a8a5a'; g.beginPath(); g.ellipse(sd * 23, 61, 7, 8, 0, 0, 7); g.fill();
+        eye(g, sd * 23, 61, 4.5, 5.5, '#101814');
+        strokePath(g, '#1a1418', 2.5, [sd * 32, 55, sd * 23, 52, sd * 14, 55]);
+        strokePath(g, 'rgba(150,110,100,0.6)', 2.5, [sd * 40, 76, sd * 32, 88, sd * 26, 96]);   // cheekbones
+      }
+      strokePath(g, '#c8a890', 2.5, [-1, 64, 3, 80, -4, 84]);                        // fine nose
+      strokePath(g, '#6a2a30', 4, [-14, 100, 2, 104, 18, 93]);                       // the sly smirk
+      strokePath(g, '#c8a890', 2, [-6, 116, 0, 119, 6, 116]);
+    });
+    const decal = decalMat('lokiK', (g, w, h) => {
+      g.fillStyle = '#1c1e1a'; g.fillRect(0, 0, w, h);
+      g.fillStyle = '#1f6a3a';                                                     // green tunic in a deep V
+      g.beginPath(); g.moveTo(34, 0); g.lineTo(94, 0); g.lineTo(64, 76); g.closePath(); g.fill();
+      g.fillRect(52, 76, 24, h);
+      g.strokeStyle = '#d8a830'; g.lineWidth = 4;                                  // gold trim
+      g.beginPath(); g.moveTo(30, 0); g.lineTo(64, 84); g.lineTo(98, 0); g.stroke();
+      g.lineWidth = 3;
+      for (const sd of [-1, 1]) {
+        g.beginPath(); g.moveTo(64 + sd * 14, 84); g.lineTo(64 + sd * 14, h); g.stroke();
+        g.beginPath(); g.moveTo(64 + sd * 34, 40); g.lineTo(64 + sd * 56, 70); g.stroke();       // leather straps
+        g.beginPath(); g.moveTo(64 + sd * 30, 52); g.lineTo(64 + sd * 54, 86); g.stroke();
+      }
+      g.fillStyle = '#d8a830'; for (const y of [92, 108]) { g.beginPath(); g.arc(64, y, 3.5, 0, 7); g.fill(); }
+    });
     const rig = hero({
-      name: 'loki', extraHeight: 0.4, face, decal, top: gold, skin: 0xf2d8c0, torso: 0x1f5a34, arms: 0x1f5a34, hands: M.black, legs: M.black,
-      hair: (hb, d, k, v) => {
-        hb.sphere(0, 0.62 * v, 0, 0.43 * k, gold, { sy: 0.4 });
-        for (const sd of [-1, 1]) for (let j = 0; j < 6; j++) hb.boxM(mat4(sd * (0.26 + j * 0.03) * k, (0.72 + j * 0.17) * v, (0.12 - j * j * 0.03) * k, -0.3 - j * 0.24, 0, 0, (0.12 - j * 0.012) * k, 0.24 * v, 0.13 * k), gold);
-        hb.box(0, -0.32 * v, -0.22 * k, 0.9 * k, 0.95 * v, 0.38 * k, M.black);
+      name: 'loki', extraHeight: 0.55, face, decal, top: gold, skin: 0xf0dcc8, torso: leather, arms: leather, hands: M.black, legs: leather, hips: leather,
+      hair: (hb, d) => {
+        const r = d.headR, H = d.headH;
+        // slicked-back black hair to the shoulders
+        blob(hb, 0, 0.42 * H, -0.5 * r, 0.96 * r, 0.56 * H, 0.52 * r, hairC);
+        blob(hb, 0, 0.02 * H, -0.62 * r, 0.84 * r, 0.28 * H, 0.26 * r, hairC, 0.25);
+        // the golden horned helmet: cap, brow band dipping to a point, cheek guards
+        blob(hb, 0, 0.98 * H, -0.04 * r, 1.06 * r, 0.24 * H, 1.06 * r, gold);
+        hb.addMatrix(cached('lokiBand', () => new THREE.CylinderGeometry(1, 1, 1, 24, 1, false, -1.9, 3.8).translate(0, 0.5, 0)), plastic(gold), mat4(0, 0.8 * H, 0, 0, 0, 0, 1.06 * r, 0.2 * H, 1.06 * r));
+        onHead(hb, 0, 0.78 * H, 1.05 * r, 0.2 * r, 0.2 * r, 0.08 * r, gold, 0, PI / 4);
+        for (const sd of [-1, 1]) {
+          onHead(hb, sd * 1.12, 0.5 * H, 1.05 * r, 0.32 * r, 0.62 * H, 0.08 * r, gold);
+          onHead(hb, sd * 1.06, 0.2 * H, 1.06 * r, 0.22 * r, 0.22 * r, 0.08 * r, gold, 0, PI / 4);
+          onHead(hb, sd * 1.12, 0.5 * H, 1.1 * r, 0.12 * r, 0.5 * H, 0.04 * r, goldDk);
+          // the long horns, sweeping up and back
+          const tip = tube(hb, [sd * 0.5 * r, 0.9 * H, 0.82 * r], [sd * 0.12, 1, 0.35], 11, 0.17 * r, 0.15 * r, 0.035 * r, [sd * 0.01, -0.03, -0.17], gold, goldDk);
+          hb.sphere(tip.x, tip.y, tip.z, 0.035 * r, gold);
+        }
       },
-      extra: (b, d) => { const s = d.s; b.boxM(mat4(0, 0.6 * s, -0.24 * s * d.D - 0.03, 0.08, 0, 0, 0.98 * s, 0.98 * s, 0.06), M.loki); for (const sd of [-1, 1]) b.sphere(sd * 0.3 * s, 0.92 * s, -0.02, 0.13 * s, gold, { sy: 0.6 }); },
-      arm: (ab, sd, d) => ab.box(0, -0.5 * d.s, 0, 0.255 * d.s, 0.1 * d.s, 0.285 * d.s, gold),
+      extra: (b, d) => {
+        const s = d.s, W = d.W, D = d.D;
+        // flowing green cape from the shoulders, lined dark
+        b.boxM(mat4(0, 0.3 * s, -0.26 * s * D - 0.04, 0.07, 0, 0, 1.02 * s * W, 1.42 * s, 0.05 * s), green);
+        b.boxM(mat4(0, 0.3 * s, -0.26 * s * D - 0.0, 0.07, 0, 0, 0.98 * s * W, 1.38 * s, 0.03 * s), dkGreen);
+        for (const sd of [-1, 1]) blob(b, sd * 0.3 * s, 0.94 * s, -0.08 * s, 0.22 * s, 0.08 * s, 0.24 * s, green);
+        // high collar
+        b.boxM(mat4(0, 1.0 * s, -0.14 * s, -0.25, 0, 0, 0.5 * s, 0.22 * s, 0.05 * s), green);
+        for (const sd of [-1, 1]) b.boxM(mat4(sd * 0.22 * s, 0.98 * s, -0.03 * s, 0, sd * 0.6, sd * -0.2, 0.05 * s, 0.2 * s, 0.22 * s), green);
+        // long leather coat skirts with gold-edged hems
+        for (const sd of [-1, 1]) {
+          b.boxM(mat4(sd * 0.47 * s * W, -0.04 * s, 0.04 * s, 0, 0, sd * 0.07, 0.06 * s, 0.52 * s, 0.52 * s), leather);
+          b.boxM(mat4(sd * 0.5 * s * W, -0.04 * s, 0.31 * s, 0, 0, sd * 0.07, 0.065 * s, 0.52 * s, 0.03 * s), gold);
+        }
+        b.box(0, d.chestY - 0.02 * s, 0, 0.95 * s * W, 0.1 * s, 0.49 * s * D, 0x2a2418);       // belt
+        b.box(0, d.chestY - 0.03 * s, 0.245 * s * D, 0.14 * s, 0.12 * s, 0.03 * s, gold);
+      },
+      arm: (ab, sd, d) => {
+        const s = d.s;
+        ab.boxM(mat4(sd * 0.03 * s, 0.07 * s, 0, 0, 0, sd * -0.35, 0.26 * s, 0.05 * s, 0.3 * s), gold);    // gold shoulder plates
+        ab.boxM(mat4(sd * 0.06 * s, -0.01 * s, 0, 0, 0, sd * -0.35, 0.24 * s, 0.04 * s, 0.29 * s), goldDk);
+        ab.box(0, -0.3 * s, 0, 0.256 * s, 0.1 * s, 0.286 * s, green);                            // green sleeve band
+        ab.box(0, -0.56 * s, 0, 0.262 * s, 0.16 * s, 0.292 * s, leather);                         // bracers, gold-edged
+        ab.box(0, -0.48 * s, 0, 0.266 * s, 0.025 * s, 0.296 * s, gold);
+      },
     });
     const s = rig.dims.s;
+    // the scepter: gold shaft, curved prongs cradling the glowing blue Mind Stone
     const sc = prop(rig.armR, 0, HAND * s, 0, (b) => {
-      b.box(0, -1.0, 0, 0.06, 1.3, 0.06, gold);
-      b.boxM(mat4(0, -1.08, 0.09, 0.45, 0, 0, 0.05, 0.3, 0.05), gold);
-      b.boxM(mat4(0, -1.08, -0.09, -0.45, 0, 0, 0.05, 0.3, 0.05), gold);
-      b.box(0, -1.08, 0, 0.1, 0.12, 0.1, 0x8a9098);
+      rod(b, [0, 0.35, 0], [0, -0.95, 0], 0.035, gold, 8);
+      for (const y of [0.3, -0.2, -0.85]) b.cyl(0, y, 0, 0.05, 0.05, goldDk, { seg: 10 });
+      b.cyl(0, -1.0, 0, 0.07, 0.08, 0x3a3e46, { seg: 10 });
+      for (const sd of [-1, 1]) tube(b, [0, -1.0, 0], [0, -1, sd * 0.9], 5, 0.07, 0.035, 0.015, [0, -0.3, -sd * 0.28], M.silver);
+      b.sphere(0, -1.13, 0, 0.065, 0, { mat: glow(0x3ab0ff, 2.4) });
     }, 'scepter');
     sc.visible = false;
-    const gem = beam(sc, -0.94, 0x3ab0ff, { r0: 0.02, r1: 0.02, flash: 0.1 });
+    const gem = beam(sc, -1.13, 0x3ab0ff, { r0: 0.02, r1: 0.02, flash: 0.1 });
     rig.fx = (name, f, t) => {
       const on = name === 'cheer' || name === 'win' || name === 'use' || name === 'throwF' || name === 'taunt';
       vis(sc, on);
@@ -1144,23 +1415,80 @@ const thanos = {
     use: (f) => ({ lx: -2.55, lz: 0.32, hy: 0.3 }),
   },
   build() {
-    const { face, decal } = mapMats('thanos');
-    const gold = 0xd8a830, armor = 0x2a3a6a;
+    const skin = 0x7d4f94, skinDk = 0x5a3470, gold = 0xd8a830, goldDk = 0xa8781c, suit = 0x26408a, suitDk = 0x1a2c60;
+    const skinS = '#7d4f94', groove = '#3e2050', headR = 0.33, headH = 0.52;
+    // the titan's face: heavy brow over small hard blue eyes, deep cheek lines, grim mouth, furrowed chin
+    const face = printFace('thanosK', { skin: skinS, headR, headH }, (g, X, h) => {
+      g.strokeStyle = 'rgba(62,32,80,0.45)'; g.lineWidth = 2.5;
+      for (const y of [18, 28]) { g.beginPath(); g.moveTo(-30, y); g.quadraticCurveTo(0, y - 5, 30, y); g.stroke(); }
+      for (const sd of [-1, 1]) {
+        g.fillStyle = 'rgba(40,16,56,0.55)'; g.beginPath(); g.ellipse(sd * 24, 62, 15, 8, 0, 0, 7); g.fill();
+        g.fillStyle = '#5a8ae0'; g.beginPath(); g.ellipse(sd * 24, 63, 4.5, 4.5, 0, 0, 7); g.fill();
+        g.fillStyle = '#0c0a14'; g.beginPath(); g.arc(sd * 24, 63, 2.4, 0, 7); g.fill();
+        strokePath(g, groove, 10, [sd * 46, 52, sd * 28, 50, sd * 6, 58]);          // heavy brow
+        strokePath(g, groove, 3.5, [sd * 22, 74, sd * 34, 92, sd * 30, 108]);          // deep cheek lines
+      }
+      g.fillStyle = '#6a4080'; g.beginPath(); g.moveTo(-6, 66); g.lineTo(6, 66); g.lineTo(12, 84); g.lineTo(-12, 84); g.closePath(); g.fill();   // broad nose
+      strokePath(g, groove, 3, [-12, 84, 0, 88, 12, 84]);
+      strokePath(g, '#2a1238', 5, [-22, 100, 0, 97, 22, 100]);                         // grim mouth
+      strokePath(g, '#2a1238', 4, [-22, 100, -26, 103, -27, 106]); strokePath(g, '#2a1238', 4, [22, 100, 26, 103, 27, 106]);
+      for (let x = -15; x <= 15; x += 10) strokePath(g, groove, 4, [x, 109, x * 1.04, 117, x * 1.06, 125]);   // chin furrows
+    });
+    const decal = decalMat('thanosK', (g, w, h) => {
+      g.fillStyle = '#26408a'; g.fillRect(0, 0, w, h);
+      g.fillStyle = '#d8a830';                                                       // gold breastplate
+      g.beginPath(); g.moveTo(0, 0); g.lineTo(w, 0); g.lineTo(w - 8, 46); g.quadraticCurveTo(64, 92, 8, 46); g.closePath(); g.fill();
+      g.strokeStyle = '#a8781c'; g.lineWidth = 3;
+      g.beginPath(); g.moveTo(64, 4); g.lineTo(64, 66); g.stroke();
+      for (const sd of [-1, 1]) {
+        g.beginPath(); g.moveTo(64 + sd * 8, 20); g.quadraticCurveTo(64 + sd * 30, 30, 64 + sd * 52, 18); g.stroke();
+        g.beginPath(); g.moveTo(64 + sd * 8, 44); g.quadraticCurveTo(64 + sd * 28, 52, 64 + sd * 46, 40); g.stroke();
+      }
+      g.strokeStyle = '#1a2c60'; g.lineWidth = 3;                                    // quilted undersuit
+      for (const y of [86, 100, 114]) { g.beginPath(); g.moveTo(10, y); g.lineTo(w - 10, y); g.stroke(); }
+      g.beginPath(); g.moveTo(64, 72); g.lineTo(64, h); g.stroke();
+    });
     const rig = hero({
-      name: 'thanos', s: 1.58, wide: 1.22, deep: 1.2, face, decal, top: M.thanos, skin: M.thanos, torso: armor, arms: armor, hands: M.thanos, legs: armor,
-      extra: (b, d) => { const s = d.s; b.boxM(mat4(0, 0.97 * s, 0, 0, 0, 0, 0.62 * s, 0.1 * s, 0.4 * s), gold); },
+      name: 'thanos', s: 1.62, wide: 1.32, deep: 1.2, headR, headH, face, decal, top: skin, skin, neck: skin, torso: suit, arms: suit, hands: skin, legs: suitDk, hips: suitDk,
+      hair: (hb, d) => {
+        const r = d.headR, H = d.headH;
+        blob(hb, 0, H, -0.02 * r, 1.0 * r, 0.26 * H, 1.0 * r, skin);                    // bald dome
+        for (const sd of [-1, 1]) {
+          blob(hb, sd * 0.36 * r, 0.64 * H, 0.84 * r, 0.42 * r, 0.075 * H, 0.15 * r, 0x6e4486, 0, sd * 0.4, sd * 0.15);   // heavy brow
+          blob(hb, sd * 0.99 * r, 0.52 * H, -0.05 * r, 0.07 * r, 0.12 * H, 0.11 * r, skin);                          // ears
+        }
+        // the ridged chin: raised furrows over a jutting jaw
+      },
+      extra: (b, d) => {
+        const s = d.s, W = d.W, D = d.D, zf = 0.23 * s * D;
+        b.cyl(0, 0.88 * s, -0.01, 0.2 * s, 0.15 * s, skin, { seg: 12 });                // thick neck
+        b.cyl(0, 0.9 * s, -0.01, 0.27 * s, 0.07 * s, gold, { seg: 16 });                  // gold collar
+        b.boxM(mat4(0, 0.74 * s, zf + 0.015 * s, -0.05, 0, 0, 0.12 * s, 0.32 * s, 0.05 * s), goldDk);   // breastplate ridge
+        b.box(0, d.chestY - 0.03 * s, 0, 0.96 * s * W, 0.14 * s, 0.5 * s * D, gold);     // belt
+        b.box(0, d.chestY - 0.05 * s, zf + 0.02 * s, 0.24 * s, 0.18 * s, 0.04 * s, goldDk);
+      },
       arm: (ab, sd, d) => {
         const s = d.s;
-        ab.box(0, -0.12 * s, 0, 0.3 * s, 0.2 * s, 0.34 * s, gold);
-        if (sd > 0) { ab.cyl(0, -0.74 * s, 0, 0.135 * s, 0.4 * s, gold, { seg: 10 }); ab.box(0, -0.46 * s, 0, 0.29 * s, 0.1 * s, 0.31 * s, gold); }
+        // huge layered gold pauldrons
+        blob(ab, sd * 0.04 * s, 0.06 * s, 0, 0.25 * s, 0.14 * s, 0.25 * s, gold, 0, 0, sd * -0.3);
+        blob(ab, sd * 0.06 * s, -0.06 * s, 0, 0.23 * s, 0.09 * s, 0.23 * s, goldDk, 0, 0, sd * -0.3);
+        ab.box(0, -0.6 * s, 0, 0.27 * s, 0.22 * s, 0.3 * s, gold);                        // bracers
+        ab.box(0, -0.42 * s, 0, 0.275 * s, 0.03 * s, 0.305 * s, goldDk);
+        if (sd > 0) {                                                                   // the Infinity Gauntlet
+          ab.cyl(0, -0.82 * s, 0, 0.14 * s, 0.24 * s, gold, { seg: 12 });
+          ab.box(0, -0.84 * s, 0.07 * s, 0.26 * s, 0.1 * s, 0.1 * s, gold);
+          for (let j = 0; j < 4; j++) ab.box((-0.09 + j * 0.06) * s, -0.9 * s, 0.03 * s, 0.05 * s, 0.1 * s, 0.07 * s, goldDk);
+          ab.box(-0.15 * s, -0.75 * s, 0.05 * s, 0.06 * s, 0.14 * s, 0.07 * s, goldDk);
+        }
       },
     });
     const s = rig.dims.s;
-    // the Infinity Stones on the gauntlet (left hand)
-    const st = [0x2a6aff, 0xffd020, 0xff2020, 0xa040ff, 0x20ff60];
-    const g = gems(st.map((c, k) => (k < 4 ? [-0.1 * s + k * 0.067 * s, -0.66 * s, 0.13 * s, 0.032 * s, c] : [0, -0.56 * s, 0.135 * s, 0.045 * s, c])).concat([[0.13 * s, -0.6 * s, 0.02, 0.04 * s, 0xff8a10]]));
+    // the six Infinity Stones: four knuckles, the back of the hand and the thumb
+    const st = [0x2a6aff, 0xff2020, 0xa040ff, 0x20ff60];
+    const g = gems(st.map((c, k) => [(-0.09 + k * 0.06) * s, -0.82 * s, 0.13 * s, 0.03 * s, c])
+      .concat([[0, -0.7 * s, 0.15 * s, 0.05 * s, 0xffd020], [-0.16 * s, -0.72 * s, 0.09 * s, 0.035 * s, 0xff8a10]]));
     rig.armL.add(g);
-    const snap = beam(rig.armL, -0.78 * s, 0xffd890, { r0: 0.01, r1: 0.01, flash: 0.14 });
+    const snap = beam(rig.armL, -0.9 * s, 0xffd890, { r0: 0.01, r1: 0.01, flash: 0.14 });
     rig.fx = (name, f, t) => {
       let k = 0;
       if (name === 'cheer') k = bump(seg(f, 0.48, 0.75));
