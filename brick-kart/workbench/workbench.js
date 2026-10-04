@@ -1,5 +1,7 @@
 // Brick Kart workbench: choose the drivers and karts for Simplified mode and export them as
 // JSON. The selection starts from the set in js/simplified.js (everything when that's null).
+// Each card also has a bin button that marks it for removal from the game entirely; the marks
+// go in the export as "remove" and are kept in this browser until Reset.
 import { DRIVERS, UNIVERSES } from '../js/driver.js';
 import { KARTS, KART_GROUPS } from '../js/vehicles.js';
 import { SIMPLIFIED } from '../js/simplified.js';
@@ -15,6 +17,18 @@ const base = {
   karts: new Set(SIMPLIFIED.karts ?? KARTS.map((k) => k.id)),
 };
 const sel = { drivers: new Set(base.drivers), karts: new Set(base.karts) };
+// suggested removals from the game (never also selected)
+const del = { drivers: new Set(), karts: new Set() };
+const KEY = 'brick-kart-workbench-remove';
+try {
+  const saved = JSON.parse(localStorage.getItem(KEY) || 'null');
+  for (const kind of ['drivers', 'karts']) for (const id of saved?.[kind] || []) {
+    if (!(kind === 'drivers' ? DRIVERS : KARTS).some((x) => x.id === id)) continue; // gone since
+    del[kind].add(id); sel[kind].delete(id);
+  }
+} catch { /* storage unavailable: start clean */ }
+const saveDel = () => { try { localStorage.setItem(KEY, JSON.stringify({ drivers: [...del.drivers], karts: [...del.karts] })); } catch { /* ignore */ } };
+const BIN = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4.5h6V7M6.5 7l1 13h9l1-13M10 11v6M14 11v6"/></svg>';
 
 const groups = {
   drivers: UNIVERSES.map((u) => ({ id: u.id, name: u.name, color: u.color, items: DRIVERS.filter((d) => d.from === u.id) })),
@@ -23,7 +37,8 @@ const groups = {
 };
 
 const cardHtml = (kind, it) => `<div class="card${kind === 'karts' ? ' kart' : ''}" tabindex="0" role="checkbox" data-kind="${kind}" data-id="${esc(it.id)}"
-  style="--c:${hex(kind === 'karts' ? it.kart : it.color)}"><img alt="" data-src="${kind}:${esc(it.id)}"><span>${esc(kind === 'karts' ? it.vehicle : it.name)}</span><div class="chk">✓</div></div>`;
+  style="--c:${hex(kind === 'karts' ? it.kart : it.color)}"><img alt="" data-src="${kind}:${esc(it.id)}"><span>${esc(kind === 'karts' ? it.vehicle : it.name)}</span><div class="chk">✓</div>
+  <button class="bin" type="button" tabindex="-1" title="Mark for removal from the game" aria-label="Mark ${esc(kind === 'karts' ? it.vehicle : it.name)} for removal">${BIN}</button></div>`;
 
 function build(kind) {
   $('#' + kind).innerHTML = groups[kind].filter((g) => g.items.length).map((g) => `
@@ -36,26 +51,44 @@ build('karts');
 
 function refresh() {
   for (const c of document.querySelectorAll('.card')) {
-    const on = sel[c.dataset.kind].has(c.dataset.id);
-    c.classList.toggle('off', !on);
+    const on = sel[c.dataset.kind].has(c.dataset.id), gone = del[c.dataset.kind].has(c.dataset.id);
+    c.classList.toggle('off', !on && !gone);
+    c.classList.toggle('del', gone);
     c.setAttribute('aria-checked', on);
+    const bin = c.querySelector('.bin');
+    bin.title = gone ? 'Keep it in the game (undo removal)' : 'Mark for removal from the game';
+    bin.setAttribute('aria-pressed', gone);
   }
   for (const kind of ['drivers', 'karts']) {
     for (const g of groups[kind]) {
       const sp = document.querySelector(`#${kind} [data-group="${g.id}"] .ghead span`);
-      if (sp) sp.textContent = `${g.items.filter((it) => sel[kind].has(it.id)).length} / ${g.items.length}`;
+      const n = g.items.filter((it) => del[kind].has(it.id)).length;
+      if (sp) sp.textContent = `${g.items.filter((it) => sel[kind].has(it.id)).length} / ${g.items.length}${n ? ` · 🗑 ${n}` : ''}`;
     }
   }
-  $('#count').innerHTML = `<b>${sel.drivers.size}</b> / ${DRIVERS.length} characters · <b>${sel.karts.size}</b> / ${KARTS.length} karts`;
+  const nDel = del.drivers.size + del.karts.size;
+  $('#count').innerHTML = `<b>${sel.drivers.size}</b> / ${DRIVERS.length} characters · <b>${sel.karts.size}</b> / ${KARTS.length} karts`
+    + (nDel ? ` · <i title="${del.drivers.size} characters, ${del.karts.size} karts marked for removal">🗑 ${nDel} to remove</i>` : '');
 }
 refresh();
 
+// tapping a card marked for removal takes the mark off (it comes back unselected)
 const toggle = (card) => {
-  const set = sel[card.dataset.kind], id = card.dataset.id;
-  if (set.has(id)) set.delete(id); else set.add(id);
+  const kind = card.dataset.kind, set = sel[kind], id = card.dataset.id;
+  if (del[kind].delete(id)) saveDel();
+  else if (set.has(id)) set.delete(id); else set.add(id);
   refresh();
 };
+const trash = (card) => {
+  const kind = card.dataset.kind, id = card.dataset.id;
+  const name = card.querySelector('span').textContent;
+  if (del[kind].delete(id)) toast(`${name} stays in the game`);
+  else { del[kind].add(id); sel[kind].delete(id); toast(`${name} marked for removal`); }
+  saveDel(); refresh();
+};
 document.addEventListener('click', (e) => {
+  const bin = e.target.closest('.bin');
+  if (bin) { trash(bin.closest('.card')); return; }
   const card = e.target.closest('.card');
   if (card) { toggle(card); return; }
   const t = e.target.closest('[data-tab]');
@@ -68,20 +101,25 @@ document.addEventListener('click', (e) => {
   const g = e.target.closest('[data-gall], [data-gnone]');
   if (g) {
     const [kind, gid] = (g.dataset.gall || g.dataset.gnone).split(':');
-    for (const it of groups[kind].find((x) => x.id === gid).items) { if (g.dataset.gall) sel[kind].add(it.id); else sel[kind].delete(it.id); }
+    for (const it of groups[kind].find((x) => x.id === gid).items) { if (g.dataset.gall) { if (!del[kind].has(it.id)) sel[kind].add(it.id); } else sel[kind].delete(it.id); }
     refresh();
   }
 });
 document.addEventListener('keydown', (e) => {
   const card = e.target.closest?.('.card');
   if (card && (e.key === ' ' || e.key === 'Enter')) { e.preventDefault(); toggle(card); }
+  if (card && (e.key === 'Delete' || e.key === 'Backspace')) { e.preventDefault(); trash(card); }
 });
 
 // the visible tab's buttons act on that tab
 const activeKind = () => ($('#karts').classList.contains('hidden') ? 'drivers' : 'karts');
-$('#all').onclick = () => { const k = activeKind(); for (const it of (k === 'drivers' ? DRIVERS : KARTS)) sel[k].add(it.id); refresh(); };
+$('#all').onclick = () => { const k = activeKind(); for (const it of (k === 'drivers' ? DRIVERS : KARTS)) if (!del[k].has(it.id)) sel[k].add(it.id); refresh(); };
 $('#none').onclick = () => { sel[activeKind()].clear(); refresh(); };
-$('#reset').onclick = () => { sel.drivers = new Set(base.drivers); sel.karts = new Set(base.karts); refresh(); toast('Back to the set in the game'); };
+$('#reset').onclick = () => {
+  sel.drivers = new Set(base.drivers); sel.karts = new Set(base.karts);
+  del.drivers.clear(); del.karts.clear(); saveDel();
+  refresh(); toast('Back to the set in the game, no removals');
+};
 
 // export in game order
 const payload = () => ({
@@ -90,6 +128,11 @@ const payload = () => ({
   exported: new Date().toISOString(),
   drivers: DRIVERS.filter((d) => sel.drivers.has(d.id)).map((d) => d.id),
   karts: KARTS.filter((k) => sel.karts.has(k.id)).map((k) => k.id),
+  // suggested removals from the game entirely (with names, so the list reads on its own)
+  remove: {
+    drivers: DRIVERS.filter((d) => del.drivers.has(d.id)).map((d) => ({ id: d.id, name: d.name })),
+    karts: KARTS.filter((k) => del.karts.has(k.id)).map((k) => ({ id: k.id, name: k.vehicle })),
+  },
 });
 $('#export').onclick = () => {
   const p = payload();
@@ -98,7 +141,8 @@ $('#export').onclick = () => {
   const a = Object.assign(document.createElement('a'), { href: url, download: 'brick-kart-simplified.json' });
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 2000);
-  toast(`Exported ${p.drivers.length} characters and ${p.karts.length} karts`);
+  const n = p.remove.drivers.length + p.remove.karts.length;
+  toast(`Exported ${p.drivers.length} characters and ${p.karts.length} karts${n ? `, ${n} to remove` : ''}`);
 };
 $('#copy').onclick = async () => {
   try { await navigator.clipboard.writeText(JSON.stringify(payload(), null, 2)); toast('JSON copied'); } catch { toast('Copy failed: use Export instead'); }

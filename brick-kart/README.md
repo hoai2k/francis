@@ -33,7 +33,10 @@ Choose it in the **workbench** at
 <https://hoai2k.github.io/francis/brick-kart/workbench/>: every character and
 kart is a card you tap to include or leave out (it starts from the current
 set), then **Export** downloads `brick-kart-simplified.json` with the chosen
-ids.
+ids. Each card also has a **🗑 bin** button (or press Delete on a focused card)
+that marks it to be removed from the game entirely; marked cards turn red with
+a REMOVE stamp, stay marked in that browser until **Reset**, and are listed in
+the export under `remove` (ids and names).
 
 ## Maps (17, in 5 cups)
 
