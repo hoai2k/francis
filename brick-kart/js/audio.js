@@ -159,7 +159,7 @@ export class Audio {
       taunt: [['a', 1.3, 1.25, 0.07, 0.06], ['a', 1.3, 1.2, 0.07, 0.06], ['a', 1.35, 1.2, 0.09, 0]],
       throw: [['a', 1.15, 0.95, 0.14, 0]],
     };
-    const line = LINES[mood] || LINES.cheer;
+    const line = v.say?.[mood] || LINES[mood] || LINES.cheer;
     let t = c.currentTime + 0.01;
     const out = c.createGain(); out.gain.value = 0.32 * vol; out.connect(this.sfxGain);
     for (const [vw, p0, p1, dur, gap] of line) {

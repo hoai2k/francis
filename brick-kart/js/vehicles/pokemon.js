@@ -40,8 +40,8 @@ const pokeballKart = {
     // the red top half: a cowl behind the driver on a hinge (tips back on boost)
     const lid = new THREE.Group(); lid.position.set(0, CY, CZ);
     const lb = new BrickBuilder(0.4), LL = shape(lb);
-    lb.addMatrix(hemiBack, shellMat(RD), new THREE.Matrix4().makeScale(RX, RY, RZ));
-    LL.stud(0, RY - 0.02, -0.2, 0.18, RD);
+    lb.addMatrix(hemiBack, shellMat(RD), new THREE.Matrix4().makeScale(RX, RY * 0.72, RZ));
+    LL.stud(0, RY * 0.72 - 0.02, -0.2, 0.18, RD);
     LL.box(0, 0.06, -RZ * 0.98, RX * 1.2, 0.1, 0.12, BK);
     lid.add(lb.build({ name: 'pokeballLid' }));
     // the button glows white-blue when you boost
@@ -224,17 +224,19 @@ const rapidash = {
     const { sprung } = kit; const f = fitOf(kit.rig);
     const CR = 0xfaf0d2, CR2 = 0xe8dcb8, HOOF = 0x7a7a88;
     const b = new BrickBuilder(0.4), L = shape(b);
-    L.ell(0, 1.05, -0.2, 0.52, 0.45, 1.0, CR);
-    L.ell(0, 1.1, -0.95, 0.5, 0.42, 0.48, CR);
-    L.ell(0, 1.05, 0.65, 0.5, 0.48, 0.5, CR);
-    L.box(0, 1.47, -0.3, 0.62, 0.06, 0.6, 0x9a2a1a);   // a saddle blanket
-    // neck rising to the head
-    for (let i = 0; i < 6; i++) { const u = i / 5; L.ell(0, 1.3 + u * 0.6, 0.85 + u * 0.4, 0.26 - u * 0.04, 0.3, 0.26, CR); }
+    L.ell(0, 1.08, -0.2, 0.56, 0.47, 1.05, CR);
+    L.ell(0, 1.12, -0.98, 0.52, 0.44, 0.5, CR);
+    L.ell(0, 1.1, 0.68, 0.52, 0.5, 0.52, CR);
+    L.box(0, 1.5, -0.3, 0.66, 0.06, 0.62, 0x9a2a1a);   // a saddle blanket
+    for (const sd of [-1, 1]) L.box(sd * 0.55, 1.25, -0.3, 0.04, 0.4, 0.5, 0xd8a020);
+    // the neck rising to the head
+    L.ell(0, 1.55, 1.0, 0.27, 0.48, 0.3, CR, { rx: 0.55 });
+    L.ell(0, 1.9, 1.22, 0.22, 0.32, 0.24, CR, { rx: 0.4 });
     const mesh = b.build({ name: 'rapidash' });
     const flames = [];
     // flaming mane along the neck
     const mane = new THREE.Group(); mane.position.set(0, 0, 0);
-    for (let i = 0; i < 5; i++) { const u = i / 4, fl = flame(mane, 0, 1.55 + u * 0.6, 0.62 + u * 0.4, 0.26 - u * 0.03); fl.rotation.x = -0.8; flames.push(fl); }
+    for (let i = 0; i < 4; i++) { const u = i / 3, fl = flame(mane, 0, 1.62 + u * 0.55, 0.72 + u * 0.38, 0.32 - u * 0.05); fl.rotation.x = -0.9; flames.push(fl); }
     // head with the horn
     const head = new THREE.Group(); head.position.set(0, 2.05, 1.38);
     head.add(part((H) => {
@@ -351,13 +353,15 @@ const koraidon = {
     const b = new BrickBuilder(0.4), L = shape(b);
     L.ell(0, 0.95, -0.3, 0.62, 0.45, 1.1, RD);
     L.ell(0, 0.8, -0.1, 0.5, 0.32, 0.95, WT);
-    // the tyre-like coil on its chest
-    L.ring(0, 1.0, 0.75, 0.42, 0.13, 0x2a2a30, { rx: PI / 2 });
-    L.cyl(0, 1.0, 0.75, 0.22, 0.2, 0xf2cd37, { rx: PI / 2 });
     L.ell(0, 1.12, 0.55, 0.5, 0.42, 0.45, RD);
+    // white chest plates and purple-blue tread bands, like the tyre on its front
+    for (let i = 0; i < 4; i++) L.box(0, 0.85 + i * 0.12, 0.92 - i * 0.06, 0.5 - i * 0.04, 0.07, 0.12, i % 2 ? PU : WT, { rx: -0.5 });
     // neck and the long tail
     L.ell(0, 1.45, 0.85, 0.28, 0.4, 0.3, RD, { rx: 0.5 });
-    for (let i = 0; i < 6; i++) L.ell(0, 0.95 - i * 0.04 + (i > 3 ? (i - 3) * 0.08 : 0), -1.3 - i * 0.28, 0.24 - i * 0.03, 0.22 - i * 0.025, 0.2, i % 2 ? RD : RD2);
+    L.ell(0, 0.95, -1.45, 0.26, 0.22, 0.6, RD, { rx: 0.08 });
+    L.ell(0, 1.0, -2.05, 0.17, 0.15, 0.5, RD2, { rx: -0.12 });
+    L.cone(0, 1.08, -2.6, 0.12, 0.4, RD, { rx: -PI / 2 - 0.2 });
+    for (let i = 0; i < 4; i++) L.cone(0, 1.2 - i * 0.02, -1.2 - i * 0.35, 0.06, 0.18, 0xf2cd37, { rx: -0.5 });
     L.box(0, 1.42, -0.4, 0.6, 0.06, 0.6, PU);   // saddle patch
     const mesh = b.build({ name: 'koraidon' });
     const head = new THREE.Group(); head.position.set(0, 1.85, 1.15);
@@ -376,8 +380,11 @@ const koraidon = {
       const p = new THREE.Group(); p.position.set(sd * 0.3, 1.95, 1.05);
       const fl = new THREE.Group(); p.add(fl);
       fl.add(part((W) => {
-        FEATHER.forEach((c, i) => W.box(sd * (0.3 + i * 0.3), -0.02 * i, -0.06 * i, 0.32, 0.06, 0.6 - i * 0.05, c));
-        W.box(sd * 0.75, 0.04, 0.22, 1.5, 0.05, 0.08, 0xf4f4f4);
+        // a white leading edge with rows of tapered feathers fading yellow -> green -> blue -> violet
+        W.box(sd * 0.85, 0.04, 0.24, 1.7, 0.06, 0.1, 0xf4f4f4);
+        FEATHER.forEach((c, i) => {
+          for (let j = 0; j < 2; j++) W.box(sd * (0.22 + i * 0.33 + j * 0.15), -0.01 * i, -0.08 - i * 0.07, 0.13, 0.04, 0.55 + i * 0.12, c, { ry: sd * (0.15 + i * 0.06) });
+        });
       }, 'koraidonWing'));
       return { p, fl, sd };
     });
