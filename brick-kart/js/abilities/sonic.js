@@ -361,7 +361,7 @@ function superSonic(k, ctx) {
   if (k.human) ctx.race.flash?.(0xfff0a0);
   if (SUPERS.has(k)) { SUPERS.get(k).extend(); return; }
   // the emeralds spiral in, then circle the kart
-  const ring = emeraldRing(0.42); ring.position.y = 1.4; k.model.root.add(ring);
+  const ring = emeraldRing(0.52); ring.position.y = 1.5; k.model.root.add(ring);
   const gems = ring.userData.gems;
   // the kart (and driver) turn gold
   const swapped = [];
