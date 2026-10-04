@@ -170,9 +170,8 @@ const cassie = {
         // arched brows, one cocked up over the open eye
         P.curve(7, -26, 20, -36, 34, -27, '#6a3410', 7);
         P.curve(-7, -22, -20, -28, -33, -21, '#6a3410', 7);
-        // freckles over the nose, rosy cheeks, a small nose
+        // freckles over the nose, a small nose
         for (const sd of [-1, 1]) {
-          P.ell(sd * 34, 14, 10, 7, 'rgba(240,100,100,0.75)');
           for (const [x, y] of [[12, 8], [20, 12], [27, 8]]) P.ell(sd * x, y, 2.2, 2.2, '#b06a30');
         }
         P.curve(-5, 9, 0, 13, 5, 9, '#b07a10', 3);
@@ -187,7 +186,8 @@ const cassie = {
         const s = d.s, at = (y) => cassAt(d, y), fz = (y) => at(y)[1] / 2;
         // the vest: a shell over the shirt, open down the front to a V
         b.add(taperGeo(+(0.92 * d.W + 0.035).toFixed(3), +(0.7 * d.W + 0.035).toFixed(3), 0.8, +(0.46 * d.D + 0.03).toFixed(3), +(0.42 * d.D + 0.03).toFixed(3)), plastic(VEST), 0, d.chestY + 0.01 * s, 0, 0, s, s, s);
-        b.add(taperGeo(0.14 * s, 0.4 * s, 0.6 * s, 0.03, 0.03), plastic(SHIRT), 0, 0.6 * s, fz(0.6 * s) + 0.02, 0, 1, 1, 1);
+        // (stops at the collar line so the red V never pokes up beside her face)
+        b.add(taperGeo(0.14 * s, 0.34 * s, 0.36 * s, 0.03, 0.03), plastic(SHIRT), 0, 0.6 * s, fz(0.6 * s) + 0.02, 0, 1, 1, 1);
         // shirt: white pearl snaps; vest buttons below the V
         for (const y of [0.64, 0.76]) b.sphere(0, y * s, fz(y * s) + 0.045, 0.025 * s, 0xffffff);
         for (const y of [0.36, 0.48]) b.sphere(0, y * s, fz(y * s) + 0.03, 0.032 * s, GOLD);
