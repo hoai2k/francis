@@ -359,7 +359,7 @@ export default {
     ctx.anim((dt, t) => { for (const f of anims) f(dt, t); });
     const pl = (col, x, y, z, I, d) => { const l = new THREE.PointLight(col, I, d, 1.3); l.position.set(x, y, z); scene.add(l); return l; };
     const lampMat = plastic(0xffd890, { emissive: 0xffb040, emissiveIntensity: 2 });
-    const glowMat = plastic(MC.glow, { emissive: 0xffc040, emissiveIntensity: 1.6 });
+    const glowMat = plastic(0xf0b030, { emissive: 0xff9a10, emissiveIntensity: 1.1 });
     const lavaMat = plastic(MC.lava, { emissive: 0xff5000, emissiveIntensity: 1.8 });
     const waterMat = plastic(0x3a6ad8, { trans: true, opacity: 0.8, rough: 0.1 });
     // rigs that wander around a home spot
@@ -630,7 +630,7 @@ export default {
       return sheet;
     };
     portal(11.27, 18);
-    const exitPortal = portal(18.76, 27, 4);
+    const exitPortal = portal(18.76, 36, 4);
     { const pm = P.portalMat(); anims.push((dt, t) => { pm.map.offset.set(Math.sin(t * 0.7) * 0.2, -t * 0.25); pm.opacity = 0.62 + Math.sin(t * 3) * 0.1; }); void exitPortal; }
 
     // ================= THE NETHER ===========================================================================

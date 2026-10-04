@@ -40,8 +40,8 @@ const pokeballKart = {
     // the red top half: a cowl behind the driver on a hinge (tips back on boost)
     const lid = new THREE.Group(); lid.position.set(0, CY, CZ);
     const lb = new BrickBuilder(0.4), LL = shape(lb);
-    lb.addMatrix(hemiBack, shellMat(RD), new THREE.Matrix4().makeScale(RX, RY, RZ));
-    LL.stud(0, RY - 0.02, -0.2, 0.18, RD);
+    lb.addMatrix(hemiBack, shellMat(RD), new THREE.Matrix4().makeScale(RX, RY * 0.72, RZ));
+    LL.stud(0, RY * 0.72 - 0.02, -0.2, 0.18, RD);
     LL.box(0, 0.06, -RZ * 0.98, RX * 1.2, 0.1, 0.12, BK);
     lid.add(lb.build({ name: 'pokeballLid' }));
     // the button glows white-blue when you boost

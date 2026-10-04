@@ -15,7 +15,7 @@ const BOX = () => geo('box', () => new THREE.BoxGeometry(1, 1, 1).translate(0, 0
 // ---- colours ---------------------------------------------------------------------------
 export const MC = {
   grass: 0x5d9b3a, grass2: 0x4f8a30, dirt: 0x8a5e3c, dirt2: 0x76502f, path: 0x9a8048, stone: 0x8a8a8a, stone2: 0x7a7a7a, cobble: 0x6e6e6e, cobble2: 0x5a5a5a,
-  log: 0x6b5233, log2: 0x4e3a22, plank: 0xb8945f, plank2: 0x9c7a48, dkplank: 0x4a3420, spruce: 0x6a4e30, leaves: 0x3f8a2a, leaves2: 0x34772a, birch: 0xe6e2d6, birchLeaf: 0x6aa040,
+  log: 0x6b5233, log2: 0x4e3a22, plank: 0xb8945f, plank2: 0x9c7a48, dkplank: 0x4a3420, spruce: 0x6a4e30, leaves: 0x2f7a22, leaves2: 0x266a1c, birch: 0xe6e2d6, birchLeaf: 0x4f8a2c,
   sand: 0xdbcf8e, sand2: 0xc9bc7a, sandstone: 0xd8ca8a, water: 0x3a6ad8, lava: 0xff6a10, obsidian: 0x1e1430, obsidian2: 0x2e2048,
   netherrack: 0x7a2e2e, netherrack2: 0x5e2222, nbrick: 0x3a1c22, nbrick2: 0x2a1418, glow: 0xffd870, soul: 0x4a3a2c, quartz: 0xe8e0d6,
   wool: 0xeeeeee, pig: 0xf0a0a0, cowB: 0x4a3424, gold: 0xf2cd37, iron: 0xd8d8d8, diamond: 0x4ae0e0, redstone: 0xd02020, emerald: 0x20c050, coal: 0x222222, lapis: 0x2850c0,

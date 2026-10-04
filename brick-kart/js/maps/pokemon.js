@@ -151,7 +151,7 @@ function geodudeRoll(ctx, { k, period = 6.5, offset = 0 }) {
 // Gyarados rises out of the sea beside the causeway, charges up (mouth glows, a line flashes
 // across the road) and sweeps a Hyper Beam across the road, then sinks back.
 function hyperBeam(ctx, { k, period = 7.2, offset = 0 }) {
-  const tr = ctx.track, i = tr.kToIndex(k), E = tr.HW[i] + tr.SH[i], s = 1.25;
+  const tr = ctx.track, i = tr.kToIndex(k), E = tr.HW[i] + tr.SH[i], s = Math.max(1.25, (tr.at(i, 0, 0).y + 7.5) / 11.7);
   const S = tr.at(i, E + 17, 0); S.y = -2.6;
   const c = tr.at(i, 0, 0);
   const holder = new THREE.Group(); holder.position.copy(S); holder.rotation.y = Math.atan2(c.x - S.x, c.z - S.z);
@@ -197,6 +197,48 @@ function hyperBeam(ctx, { k, period = 7.2, offset = 0 }) {
       const dx = p.x - c.x, dz = p.z - c.z, fx = Math.sin(tr.yawAt(i)), fz = Math.cos(tr.yawAt(i));
       return Math.abs(dx * fx + dz * fz) < 3.5 + r && Math.abs(dx * fz - dz * fx) < E + r;
     },
+  };
+}
+
+// Gyarados leaping out of the sea right across the glide path: the water churns and a ring
+// marks where it will burst out, then it arcs over the gliders and dives back in.
+function gyaradosLeap(ctx, { k, period = 6.2, offset = 0, dir = 1 }) {
+  const tr = ctx.track, i = tr.kToIndex(k), W = 34;
+  const A = tr.at(i, dir * W, 0), B = tr.at(i, -dir * W, 0); A.y = B.y = -6;
+  const H = 40, s = 1.7, hold = new THREE.Group(), gy = P.fig(P.gyarados, s, 'gyarados');
+  gy.rotation.x = Math.PI / 2; gy.position.set(0, 0, -6 * s); hold.add(gy); ctx.group.add(hold);
+  const yaw = Math.atan2(B.x - A.x, B.z - A.z);
+  const ringMat = new THREE.MeshBasicMaterial({ color: 0xe8f8ff, transparent: true, opacity: 0, depthWrite: false });
+  const ring = new THREE.Mesh(new THREE.RingGeometry(4, 6, 24).rotateX(-Math.PI / 2), ringMat); ring.position.set(A.x, -2.3, A.z); ctx.group.add(ring);
+  const ring2 = ring.clone(); ring2.position.set(B.x, -2.3, B.z); ctx.group.add(ring2);
+  const pos = new THREE.Vector3(), tail = new THREE.Vector3();
+  let state = 0, splashed = false;
+  const at = (u, out) => out.lerpVectors(A, B, u).setY(-6 + Math.sin(u * Math.PI) * H);
+  return {
+    pos,
+    update(dt, t) {
+      const ph = ((t + offset) % period) / period;
+      // 0-.4 below, .4-.62 water churns, .62-1 leaps across
+      if (ph < 0.62) {
+        state = ph < 0.4 ? 0 : 1; hold.visible = false; splashed = false; pos.set(0, -100, 0);
+        ringMat.opacity = state ? 0.4 + 0.4 * Math.abs(Math.sin(t * 10)) : 0; ring.scale.setScalar(1 + Math.sin(t * 6) * 0.15);
+        if (state && Math.random() < 0.3) fxOf(ctx)?.puff(A.x + (Math.random() - 0.5) * 8, -2, A.z + (Math.random() - 0.5) * 8, 0, 4 + Math.random() * 4, 0, 0xe8f8ff, 0.8);
+        return;
+      }
+      state = 2; const u = (ph - 0.62) / 0.38;
+      at(u, pos); at(Math.max(0, u - 0.04), tail);
+      hold.visible = true; hold.position.copy(pos);
+      hold.rotation.order = 'YXZ'; hold.rotation.set(-Math.atan2(pos.y - tail.y, Math.hypot(pos.x - tail.x, pos.z - tail.z)), yaw, 0);
+      ringMat.opacity = Math.max(0, 0.8 - u * 3);
+      if (!splashed) { splashed = true; fxOf(ctx)?.splash(V2.set(A.x, -2.4, A.z), 0xe8f8ff); sfx(ctx, 'splash', A); }
+      if (u > 0.97) fxOf(ctx)?.splash(V2.set(B.x, -2.4, B.z), 0xe8f8ff);
+    },
+    test(p) {
+      if (state !== 2) return null;
+      for (let m = 0; m < 3; m++) { at(Math.max(0, ((pos.x - A.x) * (B.x - A.x) + (pos.z - A.z) * (B.z - A.z)) / (W * W * 4) - m * 0.05), V1); if (V1.distanceTo(p) < 4.2) return 'bump'; }
+      return null;
+    },
+    near(p, r) { return state === 2 && pos.distanceTo(p) < 6 + r; },
   };
 }
 
@@ -248,7 +290,7 @@ const flap = (g, t, sp = 9, amp = 0.7) => { const f = Math.sin(t * sp) * amp; g.
 export default {
   id: 'pokemon', name: 'Kanto Brick Route', subtitle: 'Pallet Town, Viridian Forest, Mt. Moon, a sea glide and the Stadium', cup: 'games', seed: 151,
   width: 28, shoulder: 7, edge: 'fence', start: 0.5,
-  points: [[-55, 295, 0], [55, 302, 0], [160, 284, 0], [233, 225, 0], [270, 143, 0], [277, 53, 0], [260, -35, 0], [277, -119, 0], [240, -196, 0], [163, -240, 0], [75, -224, 0], [-9, -251, 4], [-97, -268, 12], [-178, -244, 20], [-244, -185, 26], [-284, -108, 28], [-304, -13, 18], [-295, 79, 6], [-264, 163, 0], [-214, 231, 0], [-143, 275, 0]],
+  points: [[-55, 295, 0], [55, 302, 0], [160, 284, 0], [233, 225, 0], [270, 143, 0], [277, 53, 0], [260, -35, 0], [277, -119, 0], [240, -196, 0], [163, -240, 0], [75, -224, 0], [-9, -251, 4], [-97, -268, 12], [-178, -244, 20], [-244, -185, 26], [-284, -108, 28], [-304, -13, 20], [-295, 79, 9], [-264, 163, 2], [-214, 231, 0], [-143, 275, 0]],
   sections: [
     { from: 20.4, to: 1.7, surface: 'pallet', shoulder: 7 },
     { from: 1.7, to: 5.3, surface: 'dirt', edge: 'open', shoulder: 9 },
@@ -258,16 +300,16 @@ export default {
     { from: 10.6, to: 12.2, surface: 'rock', edge: 'wall', shoulder: 3, support: 'bank' },
     { from: 12.2, to: 13.6, surface: 'cave', edge: 'wall', shoulder: 2, width: 26, support: 'bank' },
     { from: 13.6, to: 15.12, surface: 'rock', edge: 'wall', shoulder: 3, support: 'bank' },
-    { from: 15.18, to: 16.82, gap: true },
-    { from: 16.82, to: 17.9, surface: 'pier', edge: 'wall', shoulder: 3, support: 'bank' },
-    { from: 17.9, to: 18.6, surface: 'city', shoulder: 5 },
-    { from: 18.6, to: 20.4, surface: 'stadium', edge: 'wall', shoulder: 3, width: 40 },
+    { from: 15.18, to: 16.6, gap: true },
+    { from: 16.6, to: 17.9, surface: 'pier', edge: 'wall', shoulder: 3, support: 'pillar' },
+    { from: 17.9, to: 19.0, surface: 'city', shoulder: 5 },
+    { from: 19.0, to: 20.4, surface: 'stadium', edge: 'wall', shoulder: 3, width: 40 },
   ],
-  items: [1.0, 3.2, 5.8, 8.3, 10.9, 13.0, 17.4, 19.15],
-  boosts: [[2.0, 0], [4.9, -0.35], [6.6, 0.3], [9.3, 0], [11.7, 0], [14.6, -0.3], [18.2, 0], [19.9, 0.35], [20.3, -0.35]],
+  items: [1.0, 3.2, 5.8, 8.3, 10.9, 13.0, 17.65, 19.45],
+  boosts: [[2.0, 0], [4.9, -0.35], [6.6, 0.3], [9.3, 0], [11.7, 0], [14.6, -0.3], [18.25, 0], [19.75, 0.35], [20.3, -0.35]],
   ramps: [9.45],
   gliders: [15.06],
-  studs: [[0.3, -0.4, 8], [1.6, 0.3, 6], [2.6, 0, 6], [4.3, -0.3, 6], [6.2, 0, 8], [7.9, 0.3, 6], [9.0, -0.3, 6], [10.3, 0, 6], [12.5, 0, 8], [14.0, -0.3, 6], [17.0, 0, 6], [18.9, -0.5, 6], [18.9, 0.5, 6], [19.6, 0, 6]],
+  studs: [[0.3, -0.4, 8], [1.6, 0.3, 6], [2.6, 0, 6], [4.3, -0.3, 6], [6.2, 0, 8], [7.9, 0.3, 6], [9.0, -0.3, 6], [10.3, 0, 6], [12.5, 0, 8], [14.0, -0.3, 6], [17.0, 0, 6], [18.7, 0, 6], [19.2, -0.5, 6], [19.2, 0.5, 6], [19.9, 0, 6]],
   theme: {
     sky: [0x2f86e8, 0xd2ecff, 0x7ab8d8], fog: [0xcfe6f6, 260, 1250], sun: { color: 0xfff4dc, intensity: 2.8, dir: [0.45, 1, 0.35] },
     hemi: [0xe4f2ff, 0x5a8a4a, 1.25], envIntensity: 0.8,
@@ -310,10 +352,10 @@ export default {
     const hop = (g, ph, amp = 0.6, sp = 4) => anims.push((dt, t) => { g.position.y = Math.abs(Math.sin(t * sp + ph)) * amp; });
 
     // ---- ground: the sea (west bay under the glide), beach, forest floor, mountain rock --------
-    const BAY = [[-1500, -1500], [-345, -1500], [-345, -95], [-262, -92], [-215, -45], [-222, 30], [-258, 95], [-305, 165], [-345, 260], [-345, 1500], [-1500, 1500]];
+    const BAY = [[-1500, -1500], [-345, -1500], [-345, -95], [-262, -92], [-215, -45], [-222, 30], [-258, 95], [-290, 170], [-262, 222], [-300, 255], [-345, 300], [-345, 1500], [-1500, 1500]];
     const poly = (g, toPx, pts) => { g.beginPath(); pts.forEach(([x, z], n) => { const [px, py] = toPx(x, z); if (n) g.lineTo(px, py); else g.moveTo(px, py); }); g.closePath(); g.fill(); };
     const creek = (g, toPx, sc, w) => { g.lineWidth = w * sc; g.lineCap = g.lineJoin = 'round'; g.beginPath(); [[150, -420], [140, -300], [100, -238], [80, -160], [40, -60]].forEach(([x, z], n) => { const [px, py] = toPx(x, z); if (n) g.lineTo(px, py); else g.moveTo(px, py); }); g.stroke(); };
-    const gliding = (i) => inRange(tr, i, 15.12, 16.9), jump = (i) => inRange(tr, i, 9.52, 9.66);
+    const gliding = (i) => inRange(tr, i, 15.12, 16.65), jump = (i) => inRange(tr, i, 9.52, 9.66);
     const hole = ctx.makeMask(3000, 2048, (g, toPx, sc) => {
       g.fillStyle = '#fff'; g.fillRect(0, 0, 2048, 2048);
       g.fillStyle = g.strokeStyle = '#000';
@@ -322,7 +364,7 @@ export default {
     ctx.cutGround(hole);
     const water = ctx.makeMask(3000, 2048, (g, toPx, sc) => { g.fillStyle = g.strokeStyle = '#fff'; poly(g, toPx, BAY); creek(g, toPx, sc, 14); strokeTrack(g, tr, toPx, sc, 8, jump); });
     liquid(ctx, water, 0x1a7ad0, -2.4, { size: 3000, speed: 0.03, rough: 0.08, opacity: 0.92 });
-    const beach = ctx.makeMask(1600, 1024, (g, toPx, sc) => { g.fillStyle = '#fff'; g.save(); g.lineWidth = 28 * sc; g.strokeStyle = '#fff'; g.lineJoin = 'round'; g.beginPath(); BAY.slice(2, 9).forEach(([x, z], n) => { const [px, py] = toPx(x, z); if (n) g.lineTo(px, py); else g.moveTo(px, py); }); g.stroke(); g.restore(); });
+    const beach = ctx.makeMask(1600, 1024, (g, toPx, sc) => { g.fillStyle = '#fff'; g.save(); g.lineWidth = 28 * sc; g.strokeStyle = '#fff'; g.lineJoin = 'round'; g.beginPath(); BAY.slice(2, 11).forEach(([x, z], n) => { const [px, py] = toPx(x, z); if (n) g.lineTo(px, py); else g.moveTo(px, py); }); g.stroke(); g.restore(); });
     scene.add(groundPlane(SAND, -0.06, 1600, 1.6, { mask: beach, rough: 0.9 }));
     const FOREST = [[150, -290, 90], [60, -300, 80], [230, -260, 70], [120, -150, 60], [200, -150, 45], [40, -160, 45]];
     const forest = ctx.makeMask(1600, 1024, (g, toPx, sc) => { g.fillStyle = '#fff'; for (const [x, z, r] of FOREST) disc(g, toPx, sc, x, z, r); });
@@ -438,10 +480,13 @@ export default {
     { const p = spot(11.55, -(edgeLat(K(11.55)) + 10), 6); const stone = new THREE.Group(); const sb = new BrickBuilder(1); new P.Local(sb).sphere(0, 1.2, 0, 1.0, 0, { mat: P.neon(0xd8e0ff, 1.4), sy: 1.3 }); stone.add(sb.build({ name: 'moonstone' }), P.glow(0xc8d8ff, 7, 0.7)); stone.position.copy(p); ctx.group.add(stone); ctx.claim(p.x, p.z, 7);
       for (let n = 0; n < 4; n++) { const cf = P.fig(P.clefairy, 1.2); ctx.group.add(cf); anims.push((dt, t) => { const a = t * 0.8 + n * Math.PI / 2; cf.position.set(p.x + Math.cos(a) * 4, Math.abs(Math.sin(t * 5 + n)) * 0.6, p.z + Math.sin(a) * 4); cf.rotation.y = -a; }); } }
     // cave mouth and the cave itself
-    { const i = K(12.15), c = tr.at(i, 0, 0), yaw = tr.yawAt(i), w = edgeLat(i) + 4;
-      for (let m = 0; m < 4; m++) b.box(c.x - Math.sin(yaw) * m * 1.5, 0, c.z - Math.cos(yaw) * m * 1.5, w * 2 + 10 + m * 6, c.y + 14 + m * 3, 3, m % 2 ? ROCK2 : ROCK, { rot: yaw });
-      // the opening (dark) is cut through by drawing the tunnel's road over it: add a dark lintel band instead
-      b.box(c.x + Math.sin(yaw) * 1.6, c.y + 11.4, c.z + Math.cos(yaw) * 1.6, w * 2 + 2, 1.4, 1, 0x3a342e, { rot: yaw }); }
+    { const i = K(12.15), c = tr.at(i, 0, 0), yaw = tr.yawAt(i), e = edgeLat(i) + 2.6, fx = Math.sin(yaw), fz = Math.cos(yaw);
+      for (let m = 0; m < 4; m++) {
+        const x = c.x - fx * m * 1.6, z = c.z - fz * m * 1.6, ww = 12 + m * 5, top = c.y + 15 + m * 3;
+        for (const sd of [-1, 1]) { const q = tr.at(i, sd * (e + ww / 2), 0); b.box(q.x - fx * m * 1.6, 0, q.z - fz * m * 1.6, ww, top, 3.2, m % 2 ? ROCK2 : ROCK, { rot: yaw }); }
+        b.box(x, c.y + 12.4, z, 2 * e + 0.4, top - c.y - 12.4, 3.2, m % 2 ? ROCK2 : ROCK, { rot: yaw });
+      }
+      b.box(c.x + fx * 1.7, c.y + 11.6, c.z + fz * 1.7, 2 * e + 2, 1.2, 0.6, 0x3a342e, { rot: yaw }); }
     tunnel(ctx, 12.18, 13.62, { wall: 0x5a524a, roof: 0x3e3832, height: 11, lights: 0x7ae8e0, stud: false });
     { const crys = [0x7ae8e0, 0xb87aff, 0x7ab0ff].map((c) => P.neon(c, 1.8));
       each(tr, 12.25, 13.55, 6, (i) => { for (const sd of [-1, 1]) { if (rand() < 0.3) continue; const q = tr.at(i, sd * (edgeLat(i) + 0.2), 0), m = crys[Math.floor(rand() * 3)]; const L = new P.Local(nb, q.x, q.y + 1 + rand() * 6, q.z, rand() * 6, 0.8 + rand() * 0.6); L.spike(0, 0, 0, 0.5, 2.2, 0.3, sd * 0.5, 0, { mat: m }); L.spike(0.3, 0, 0.2, 0.35, 1.5, -0.3, sd * 0.9, 0, { mat: m }); } });
@@ -465,27 +510,28 @@ export default {
       anims.push((dt, t) => { const a = t * 0.12; lp.position.set(c.x + Math.cos(a) * 34, -2.6 + Math.sin(t * 1.2) * 0.25, c.z + Math.sin(a) * 60); lp.rotation.y = Math.atan2(-Math.sin(a) * 34, Math.cos(a) * 60); lp.rotation.z = Math.sin(t * 0.9) * 0.05; }); }
     for (let n = 0; n < 7; n++) { const mk = P.fig(P.magikarp, 1.2); ctx.group.add(mk); const x0 = -330 - (n % 3) * 30 + (n * 37 % 50), z0 = -60 + n * 30, per = 3 + (n % 3) * 0.7, ph = n * 0.9;
       anims.push((dt, t) => { const u = ((t + ph) % per) / per, j = u < 0.45 ? u / 0.45 : -1; mk.visible = j >= 0; if (j >= 0) { mk.position.set(x0 + j * 5, -2.4 + Math.sin(j * Math.PI) * 4, z0); mk.rotation.set(0, Math.PI / 2, Math.sin(t * 20) * 0.4 - (j - 0.5) * 1.6); if (j > 0.95 && Math.random() < 0.3) fxOf(ctx)?.splash(mk.position, 0xd8f0ff); } }); }
-    // a Gyarados leaping out of the bay in big arcs (scenery)
+    // Gyarados leaping across the glide path (dodge it in the air), and one far out in the bay
+    ctx.hazard(gyaradosLeap(ctx, { k: 15.85, period: 6.2, offset: 0 }));
+    ctx.hazard(gyaradosLeap(ctx, { k: 16.3, period: 6.2, offset: 3.1, dir: -1 }));
     { const gy = P.fig(P.gyarados, 1.6); const hold = new THREE.Group(); gy.rotation.x = Math.PI / 2; gy.position.set(0, 0, -9); hold.add(gy); ctx.group.add(hold);
-      anims.push((dt, t) => { const per = 9, u = (t % per) / per; if (u > 0.4) { hold.visible = false; return; } const f = u / 0.4; hold.visible = true; hold.position.set(-390 + f * 70, -8 + Math.sin(f * Math.PI) * 26, 20 + f * 20); hold.rotation.set(-(f - 0.5) * 2.2, 1.1, 0, 'YXZ'); }); }
+      anims.push((dt, t) => { const per = 9, u = (t % per) / per; if (u > 0.4) { hold.visible = false; return; } const f = u / 0.4; hold.visible = true; hold.position.set(-420 + f * 70, -8 + Math.sin(f * Math.PI) * 26, 20 + f * 20); hold.rotation.set(-(f - 0.5) * 2.2, 1.1, 0, 'YXZ'); }); }
     // lighthouse on the rocks and a few buoys
     { const x = -360, z = 130; let y = -3; for (let n = 0; n < 4; n++) y = b.cyl(x, y, z, 8 - n, 1.4, n % 2 ? ROCK : ROCK2, { seg: 10 }); for (let n = 0; n < 7; n++) y = b.cyl(x, y, z, 2.6 - n * 0.12, 2.6, n % 2 ? C.white : C.red, { seg: 14 }); b.cyl(x, y, z, 2.2, 2, 0x2a3a4a, { seg: 12 }); nb.sphere(x, y + 1, z, 1.2, 0, { mat: P.neon(0xfff0a0, 2.2) }); b.cone(x, y + 2, z, 2.6, 2.4, C.red, { seg: 12 }); const bm = P.glow(0xfff4c0, 20, 0.6); bm.position.set(x, y + 1, z); ctx.group.add(bm); }
     for (let n = 0; n < 6; n++) { const x = -330 + (n % 2) * 40, z = -60 + n * 40; const bu = new THREE.Group(); const bb = new BrickBuilder(1); bb.cyl(0, -1, 0, 0.9, 2, n % 2 ? C.red : C.white, { seg: 10 }); bb.cone(0, 1, 0, 0.7, 1.4, n % 2 ? C.white : C.red, { seg: 10 }); bu.add(bb.build({ name: 'buoy' })); bu.position.set(x, -2.4, z); ctx.group.add(bu); anims.push((dt, t) => { bu.position.y = -2.4 + Math.sin(t * 1.5 + n) * 0.3; bu.rotation.z = Math.sin(t * 1.1 + n) * 0.12; }); }
 
     // ---- Cerulean causeway and city ------------------------------------------------------------------------
-    arch(ctx, 16.95, { cols: [0x2a6ad8, C.white], text: 'CERULEAN CITY', bg: '#1a4aa8', fg: '#ffffff' });
-    edges(ctx, 16.85, 17.9, 6, 1.2, (p) => { b.cyl(p.x, p.y + 0.5, p.z, 0.18, 4, 0x3a3a3a, { seg: 6 }); nb.sphere(p.x, p.y + 4.7, p.z, 0.45, 0, { mat: P.neon(0xfff2c0, 1.2) }); });
+    arch(ctx, 16.75, { cols: [0x2a6ad8, C.white], text: 'CERULEAN CITY', bg: '#1a4aa8', fg: '#ffffff' });
+    edges(ctx, 16.65, 17.9, 6, 1.2, (p) => { b.cyl(p.x, p.y + 0.5, p.z, 0.18, 4, 0x3a3a3a, { seg: 6 }); nb.sphere(p.x, p.y + 4.7, p.z, 0.45, 0, { mat: P.neon(0xfff2c0, 1.2) }); });
     // Gyarados' Hyper Beam across the causeway
-    ctx.hazard(hyperBeam(ctx, { k: 17.2, period: 7.2, offset: 0 }));
-    ctx.hazard(hyperBeam(ctx, { k: 17.62, period: 7.2, offset: 3.6 }));
+    ctx.hazard(hyperBeam(ctx, { k: 18.5, period: 7.2, offset: 0 }));
     { const p = spot(18.05, -(edgeLat(K(18.05)) + 16), 15); P.gym(b, p.x, p.z, faceYaw(p, 18.05), { roof: 0x2a6ad8, wall: 0xe8f0f8, name: 'CERULEAN GYM' }); ctx.claim(p.x, p.z, 15);
       // the water-drop emblem
       nb.sphere(p.x, 14, p.z, 2.2, 0, { mat: plastic(0x5ab8ff, { trans: true, opacity: 0.8 }) }); nb.cone(p.x, 15.4, p.z, 1.6, 2.6, 0, { mat: plastic(0x5ab8ff, { trans: true, opacity: 0.8 }) }); }
-    for (const [k, sd] of [[17.95, -1], [18.35, -1], [18.5, 1], [17.85, 1]]) { const p = spot(k, sd * (edgeLat(K(k)) + 7), 6.5); if (sd > 0 && !hole.test(p.x, p.z)) continue; P.kantoHouse(b, p.x, p.z, faceYaw(p, k), { roof: 0x2a6ad8, wall: 0xf4f0e4 }); ctx.claim(p.x, p.z, 7); }
+    for (const [k, sd] of [[17.95, -1], [18.35, -1], [18.75, -1], [17.85, 1], [18.9, 1]]) { const p = spot(k, sd * (edgeLat(K(k)) + 7), 6.5); if (sd > 0 && !hole.test(p.x, p.z)) continue; P.kantoHouse(b, p.x, p.z, faceYaw(p, k), { roof: 0x2a6ad8, wall: 0xf4f0e4 }); ctx.claim(p.x, p.z, 7); }
     { const p = spot(18.2, -(edgeLat(K(18.2)) + 4), 2); P.signPost(b, 'CERULEAN CITY', p.x, p.z, faceYaw(p, 18.2)); }
     ctx.scatter(16, { minC: 4, maxC: 50, r: 3, test: (x, z) => x < -150 && z > 120 && z < 230 && hole.test(x, z) }, (x, z) => P.kTree(b, x, z, 1 + rand() * 0.3));
     // Psyduck and Slowpoke wandering across the road
-    for (const [k, fn, sp, s] of [[18.05, P.psyduck, 4, 1.2], [18.4, P.slowpoke, 2.6, 1.2]]) {
+    for (const [k, fn, sp, s] of [[18.75, P.psyduck, 4, 1.2], [18.92, P.slowpoke, 2.6, 1.2]]) {
       const g = P.fig(fn, s); const hold = new THREE.Group(); hold.add(g);
       ctx.hazard(crossing(ctx, { mesh: hold, k, speed: sp, radius: 2.0, kind: 'bump', span: 1.05 }));
     }
@@ -493,11 +539,11 @@ export default {
     still(P.squirtle, 1.0, 17.5, edgeLat(K(17.5)) + 1, 1);
 
     // ---- Pokémon Stadium -------------------------------------------------------------------------------------------
-    arch(ctx, 18.6, { cols: [C.red, C.white], text: 'POKéMON STADIUM', bg: '#1a2a6a', fg: '#f6d23a', height: 13 });
+    arch(ctx, 19.0, { cols: [C.red, C.white], text: 'POKéMON STADIUM', bg: '#1a2a6a', fg: '#f6d23a', height: 13 });
     { // tiers of stands with cheering crowds on both sides, flags and light towers
       const tops = [C.red, C.blue, C.yellow, C.green, C.white, C.orange, 0x9a6ab8, C.azure];
       let n = 0;
-      each(tr, 18.68, 20.35, 3, (i) => {
+      each(tr, 19.08, 20.35, 3, (i) => {
         const yaw = tr.yawAt(i);
         for (const sd of [-1, 1]) {
           for (let t = 0; t < 6; t++) {
@@ -510,12 +556,12 @@ export default {
         }
         n++;
       });
-      for (const [k, sd] of [[18.8, 1], [19.4, -1], [19.95, 1], [19.0, -1]]) { const i = K(k), p = tr.at(i, sd * (edgeLat(i) + 22), 0); b.box(p.x, 0, p.z, 1.6, 26, 1.6, 0x8a8e92); b.box(p.x, 26, p.z, 6, 3, 1, 0x3a3a3a, { rot: tr.yawAt(i) + Math.PI / 2 }); for (let m = -1; m <= 1; m++) nb.box(p.x + Math.cos(tr.yawAt(i) + Math.PI / 2) * m * 1.8, 26.6, p.z - Math.sin(tr.yawAt(i) + Math.PI / 2) * m * 1.8, 1.4, 1.8, 1.2, 0, { mat: P.neon(0xffffff, 2) }); }
+      for (const [k, sd] of [[19.15, 1], [19.6, -1], [20.05, 1], [19.25, -1]]) { const i = K(k), p = tr.at(i, sd * (edgeLat(i) + 22), 0); b.box(p.x, 0, p.z, 1.6, 26, 1.6, 0x8a8e92); b.box(p.x, 26, p.z, 6, 3, 1, 0x3a3a3a, { rot: tr.yawAt(i) + Math.PI / 2 }); for (let m = -1; m <= 1; m++) nb.box(p.x + Math.cos(tr.yawAt(i) + Math.PI / 2) * m * 1.8, 26.6, p.z - Math.sin(tr.yawAt(i) + Math.PI / 2) * m * 1.8, 1.4, 1.8, 1.2, 0, { mat: P.neon(0xffffff, 2) }); }
       // giant Poké Balls on the corners of the stands
-      for (const [k, sd] of [[18.7, 1], [18.7, -1], [20.3, 1], [20.3, -1]]) { const i = K(k), p = tr.at(i, sd * (edgeLat(i) + 9), 0); P.pokeball(new P.Local(b, p.x, 9, p.z, tr.yawAt(i) + Math.PI, 1), 0, 0, 0, 3.2); }
+      for (const [k, sd] of [[19.1, 1], [19.1, -1], [20.3, 1], [20.3, -1]]) { const i = K(k), p = tr.at(i, sd * (edgeLat(i) + 9), 0); P.pokeball(new P.Local(b, p.x, 9, p.z, tr.yawAt(i) + Math.PI, 1), 0, 0, 0, 3.2); }
     }
     // the big screen on a gantry over the road
-    { const i = K(19.55), c = tr.at(i, 0, 0), yaw = tr.yawAt(i), w = edgeLat(i) + 2;
+    { const i = K(19.85), c = tr.at(i, 0, 0), yaw = tr.yawAt(i), w = edgeLat(i) + 2;
       for (const sd of [-1, 1]) { const p = tr.at(i, sd * (w + 1), 0); b.box(p.x, 0, p.z, 2, 26, 2, 0x5a5e62, { rot: yaw }); }
       b.box(c.x, 15, c.z, 2 * w + 4, 1.4, 2.4, 0x5a5e62, { rot: yaw }); b.box(c.x, 15.6, c.z, 30, 15, 1.6, 0x1a1a1e, { rot: yaw });
       const tex = P.screenTexture();
@@ -523,15 +569,15 @@ export default {
       scr.position.set(c.x - Math.sin(yaw) * 0.85, 23.1, c.z - Math.cos(yaw) * 0.85); scr.rotation.y = yaw + Math.PI; ctx.group.add(scr);
       const back = scr.clone(); back.position.set(c.x + Math.sin(yaw) * 0.85, 23.1, c.z + Math.cos(yaw) * 0.85); back.rotation.y = yaw; ctx.group.add(back);
       anims.push((dt, t) => { const f = Math.floor(t / 3) % 4; tex.offset.set((f % 2) * 0.5, f < 2 ? 0.5 : 0); }); }
-    for (const [k, lf, off] of [[19.0, -0.35, 0], [19.25, 0.3, 1.7], [19.8, -0.1, 3.4], [20.1, 0.45, 2.4]]) ctx.hazard(voltorbMine(ctx, { k, latF: lf, period: 5.2, offset: off }));
+    for (const [k, lf, off] of [[19.3, -0.35, 0], [19.55, 0.3, 1.7], [20.0, -0.1, 3.4], [20.15, 0.45, 2.4]]) ctx.hazard(voltorbMine(ctx, { k, latF: lf, period: 5.2, offset: off }));
     // Charizard circling above the stadium, a Pikachu balloon
-    { const cz = P.charizard(2.2); ctx.group.add(cz); const c = tr.at(K(19.5), 0, 0); const fl = P.glow(0xffa040, 6, 0.8); fl.position.set(0, -1.5 * 2.2, -2.6 * 2.2); cz.add(fl);
+    { const cz = P.charizard(2.2); ctx.group.add(cz); const c = tr.at(K(19.7), 0, 0); const fl = P.glow(0xffa040, 6, 0.8); fl.position.set(0, -1.5 * 2.2, -2.6 * 2.2); cz.add(fl);
       anims.push((dt, t) => { const a = t * 0.3; cz.position.set(c.x + Math.cos(a) * 55, 42 + Math.sin(t * 0.8) * 4, c.z + Math.sin(a) * 45); cz.rotation.y = -a; cz.rotation.z = 0.3; flap(cz, t, 4, 0.5); fl.material.opacity = 0.6 + 0.3 * Math.sin(t * 11); }); }
-    { const pk = P.fig(P.pikachu, 4.5); ctx.group.add(pk); const c = tr.at(K(18.9), -(edgeLat(K(18.9)) + 30), 0); const bl = new BrickBuilder(1); new P.Local(bl).limb(0, 0, 0, 0, 30, 0, 0.06, 0xe0e0e0); const rope = bl.build(); rope.position.set(c.x, 0, c.z); ctx.group.add(rope);
+    { const pk = P.fig(P.pikachu, 4.5); ctx.group.add(pk); const c = tr.at(K(19.3), -(edgeLat(K(19.3)) + 30), 0); const bl = new BrickBuilder(1); new P.Local(bl).limb(0, 0, 0, 0, 30, 0, 0.06, 0xe0e0e0); const rope = bl.build(); rope.position.set(c.x, 0, c.z); ctx.group.add(rope);
       anims.push((dt, t) => { pk.position.set(c.x + Math.sin(t * 0.4) * 1.5, 30 + Math.sin(t * 0.7) * 1.2, c.z); pk.rotation.y = Math.sin(t * 0.3) * 0.6 + 1.2; pk.rotation.z = Math.sin(t * 0.5) * 0.06; }); }
     // starters cheering on the stadium sidelines
-    for (const [k, fn, sd] of [[18.95, P.bulbasaur, 1], [19.35, P.charmander, -1], [19.7, P.squirtle, 1], [20.05, P.pikachu, -1], [19.15, P.jigglypuff, -1], [19.9, P.eevee, 1]]) { const i = K(k), p = tr.at(i, sd * (tr.HW[i] + 1.2), 0); const g = P.fig(fn, 1.1); g.position.copy(p); g.rotation.y = faceYaw(p, k); ctx.group.add(g); hop(g, k * 3, 0.5, 4.5); }
-    pointLight(scene, tr.at(K(19.5), 0, 0), 26, 0xffffff, 2.5, 160);
+    for (const [k, fn, sd] of [[19.2, P.bulbasaur, 1], [19.45, P.charmander, -1], [19.7, P.squirtle, 1], [20.1, P.pikachu, -1], [19.3, P.jigglypuff, -1], [20.0, P.eevee, 1]]) { const i = K(k), p = tr.at(i, sd * (tr.HW[i] + 1.2), 0); const g = P.fig(fn, 1.1); g.position.copy(p); g.rotation.y = faceYaw(p, k); ctx.group.add(g); hop(g, k * 3, 0.5, 4.5); }
+    pointLight(scene, tr.at(K(19.7), 0, 0), 26, 0xffffff, 2.5, 160);
 
     // ---- infield: rolling hills, trees, wild Pokémon ------------------------------------------------------------------
     for (const [x, z, r, h] of [[40, 40, 60, 6], [-80, -60, 45, 5], [120, -90, 40, 4], [-120, 120, 40, 4], [100, 160, 35, 3]]) {
