@@ -10,7 +10,8 @@ import { AIDriver } from './ai.js';
 import { CHARACTERS } from './characters.js';
 import { DRIVERS } from './driver.js';
 import { KARTS } from './vehicles.js';
-import { simpleDriver, simpleKart } from './simplified.js';
+import { simpleDriver, simpleKart, simpleGlider } from './simplified.js';
+import { GLIDERS } from './gliders.js';
 import { ABILITY, ABILITIES } from './abilities.js';
 import { MAP_FROM } from './tracks.js';
 import { HUD, splitCells } from './hud.js';
@@ -158,13 +159,21 @@ export class Race {
           const pick = (fresh.length ? fresh : pool)[Math.floor(Math.random() * (fresh.length || pool.length))];
           g.kartIndex = pick; usedK.add(pick);
         });
+        // CPU gliders: half the time one from the driver's own movie / game, otherwise any
+        let allG = GLIDERS.map((_, i) => i).filter((i) => !simple || simpleGlider(GLIDERS[i].id));
+        if (!allG.length) allG = GLIDERS.map((_, i) => i);
+        ai.forEach((g) => {
+          const from = DRIVERS[g.driverIndex]?.from, own = allG.filter((i) => GLIDERS[i].group === (from === 'classic' ? 'originals' : from));
+          const pool = own.length && Math.random() < 0.5 ? own : allG;
+          g.gliderIndex = pool[Math.floor(Math.random() * pool.length)];
+        });
       }
-      grid.push(...ai, ...humans.map((p) => ({ charIndex: p.charIndex, driverIndex: p.driverIndex, kartIndex: p.kartIndex, player: p })));
+      grid.push(...ai, ...humans.map((p) => ({ charIndex: p.charIndex, driverIndex: p.driverIndex, kartIndex: p.kartIndex, gliderIndex: p.gliderIndex, player: p })));
     }
     grid.forEach((g, n) => {
       const drv = this.useChars ? DRIVERS[g.driverIndex ?? n % DRIVERS.length] : null;
       const ch = this.useChars ? (KARTS[g.kartIndex] || CHARACTERS[g.charIndex] || KARTS[0]) : CHARACTERS[g.charIndex];
-      const k = new Kart(this, ch, n, g.player, drv);
+      const k = new Kart(this, ch, n, g.player, drv, GLIDERS[g.gliderIndex] || null);
       k.driverIndex = drv ? DRIVERS.indexOf(drv) : -1;
       const row = n;
       const i = this.track.wrap(Math.round(-7 - row * 3.4));

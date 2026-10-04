@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { buildKart } from './characters.js';
+import { buildGlider } from './gliders.js';
 import { buildDriver, DriverAnim } from './driver.js';
 import { plastic } from './lego.js';
 
@@ -72,6 +73,31 @@ export function kartPortrait(ch) {
   const url = r.domElement.toDataURL('image/png');
   scene.remove(k.root);
   cache.set('k' + ch.id, url);
+  return url;
+}
+
+// a glider on its own, open, seen from the front and a little above
+export function gliderPortrait(def) {
+  if (cache.has('g' + def.id)) return cache.get('g' + def.id);
+  const { r, scene } = portraitRig();
+  let url = '';
+  try {
+    const g = new THREE.Group();
+    buildGlider(def, g, def.colors?.[0], def.colors?.[1]);
+    g.rotation.y = 0.5;
+    scene.add(g);
+    g.updateMatrixWorld(true);
+    const sph = new THREE.Box3().setFromObject(g).getBoundingSphere(new THREE.Sphere());
+    const cam = new THREE.PerspectiveCamera(30, 1, 0.05, 100);
+    // gliders are wide and flat: frame them tighter than their bounding sphere, from a little above
+    const d = sph.radius / Math.sin(15 * Math.PI / 180) * 0.68;
+    cam.position.set(sph.center.x + d * 0.3, sph.center.y + d * 0.55, sph.center.z + d * 0.78);
+    cam.lookAt(sph.center);
+    r.render(scene, cam);
+    url = r.domElement.toDataURL('image/png');
+    scene.remove(g);
+  } catch (e) { console.error('portrait failed for glider', def.id, e); }
+  cache.set('g' + def.id, url);
   return url;
 }
 
@@ -212,20 +238,47 @@ export class Showcase {
   build(o, i) {
     const rig = o.driver ? buildDriver(o.driver) : null;
     // o.stand: the driver alone on their feet, no kart
-    const m = o.stand && rig ? standDriver(rig) : buildKart(o.ch, rig || emptyRig());
+    const m = o.stand && rig ? standDriver(rig) : buildKart(o.ch, rig || emptyRig(), o.glider || null);
     const ox = this.cells ? i * CELL_GAP : 0;
     m.root.position.set((o.x || 0) + ox, o.y || 0, o.z || 0);
     m.root.rotation.y = o.ry ?? 0.6;
     this.scene.add(m.root);
     const it = { ...o, m, ox, anim: rig ? new DriverAnim(rig) : null, nextIdle: 2 + Math.random() * 2 };
     if (this.cells) { it.plate = this.newPlate(); it.plate.position.x = ox; this.scene.add(it.plate); }
-    this.measure(it);
+    it.glide = false;
+    if (o.glide) this.setGlide(i, true, it); else this.measure(it);
     return it;
   }
   drop(it) {
     this.scene.remove(it.m.root);
     if (it.plate) this.scene.remove(it.plate);
     for (const m of it.m.mats || []) m.dispose();
+  }
+  // swap the glider on the kart in slot i (keeps the driver and kart as they are)
+  setGlider(i, def) {
+    const it = this.items[i], g = it?.m.glider;
+    if (!g || it.m.standing) return;
+    buildGlider(def, g, it.ch.kart, it.ch.accent);
+    it.glider = def; it.gfxS = null;
+    this.measure(it);
+  }
+  // show the kart flying under its open glider (the camera pulls back to fit the wing in)
+  setGlide(i, on, it = this.items[i]) {
+    if (!it || it.m.standing || !it.m.glider) return;
+    it.glide = on;
+    it.gfxS = null;   // fx clock starts again
+    it.m.glider.visible = on;
+    it.m.glider.scale.set(1, 1, 1); it.m.glider.rotation.z = 0;
+    if (!on) it.m.root.position.y = it.y || 0;
+    this.measure(it);
+  }
+  // slide the view in cell i up (dir 1) or down (dir -1) out of its cell, call mid() (swap what's
+  // shown) and slide the new view in from the other side
+  slide(i, dir, mid) {
+    const it = this.items[i];
+    if (!it) { mid(); return; }
+    if (it.slideFx?.mid) it.slideFx.mid();
+    it.slideFx = { t: 0, dir, mid };
   }
   // frame a lone kart by its real size (big vehicles pull the camera back)
   measure(it) {
@@ -234,8 +287,15 @@ export class Showcase {
     root.updateMatrixWorld(true);
     root.traverseVisible((o) => { if (o.isMesh && o.geometry) { o.geometry.computeBoundingBox?.(); tmp.copy(o.geometry.boundingBox).applyMatrix4(o.matrixWorld); box.union(tmp); } });
     const sph = box.getBoundingSphere(new THREE.Sphere());
-    it.fit = Math.max(0.9, Math.min(1.7, sph.radius / 3.3));
-    it.fitY = Math.max(0.9, Math.min(2.2, sph.center.y));
+    // the open glider view stands further back so the whole wing shows
+    if (it.glide) {
+      // aim higher too: the frame normally sits the kart above the name overlay
+      it.fit = Math.max(1.35, Math.min(2.4, sph.radius / 3.3 * 1.4));
+      it.fitY = Math.min(4.9, sph.center.y + 0.7 + 0.45 * it.fit);   // +0.7: it floats above the plate
+    } else {
+      it.fit = Math.max(0.9, Math.min(1.7, sph.radius / 3.3));
+      it.fitY = Math.max(0.9, Math.min(2.2, sph.center.y));
+    }
   }
   set(items, { plate = true } = {}) {
     for (const it of this.items) this.drop(it);
@@ -269,9 +329,17 @@ export class Showcase {
         it.nextIdle = 3 + Math.random() * 3;
         it.anim.play(['taunt', 'trick', 'yay', 'cheer'][Math.floor(Math.random() * 4)]);
       }
-      it.anim.update(dt, { steer: it.m.standing ? 0 : Math.sin(this.t * 0.9) * (it.phase === 'pre' ? 0.5 : 0), stand: !!it.m.standing, drift: 0, speed01: it.m.standing ? 0 : 0.3, grounded: true, gliding: false, boosting: false, look: false, phase: it.phase || 'pre', rank: 1 });
+      const glide = !!it.glide;
+      it.anim.update(dt, { steer: it.m.standing ? 0 : Math.sin(this.t * 0.9) * (it.phase === 'pre' ? 0.5 : 0), stand: !!it.m.standing, drift: 0, speed01: it.m.standing ? 0 : 0.3, grounded: !glide, gliding: glide, boosting: false, look: false, phase: it.phase || 'pre', rank: 1 });
       it.m.steerControl?.(it.anim.steer);
-      it.m.update?.(dt, { speed01: 0.35, steer: it.anim.steer, boosting: false, gliding: false, grounded: true });
+      it.m.update?.(dt, { speed01: 0.35, steer: it.anim.steer, boosting: false, gliding: glide, grounded: !glide });
+      if (glide) {
+        // floating above the turntable, swaying under the wing
+        it.m.root.position.y = (it.y || 0) + 0.7 + Math.sin(this.t * 1.7) * 0.15;
+        it.m.glider.rotation.z = Math.sin(this.t * 1.3) * 0.06;
+        const gfx = it.m.glider.userData.fx;
+        if (gfx) { const s = it.gfxS ||= { t: 0, open: 1, steer: 0, speed01: 0.6 }; s.t += dt; s.steer = it.anim.steer; gfx(s, dt); }
+      }
       if (it.m.standing) standPose(it, n, this.t, dt, face);
     });
   }
@@ -308,7 +376,20 @@ export class Showcase {
       const c = rects[i];
       if (!c || c.w < 4 || c.h < 4) return;
       const y = h - c.y - c.h;   // WebGL viewports count from the bottom
-      this.r.setViewport(c.x, y, c.w, c.h);
+      // switching kart <-> glider: the view slides out of its cell and the new one slides in
+      let off = 0;
+      const sf = it.slideFx;
+      if (sf) {
+        sf.t += dt;
+        const D = 0.2;
+        if (sf.t < D) { const u = sf.t / D; off = sf.dir * u * u; }
+        else {
+          if (sf.mid) { const m = sf.mid; sf.mid = null; m(); }
+          const u = Math.min(1, (sf.t - D) / D); off = -sf.dir * (1 - u) * (1 - u);
+          if (u >= 1) it.slideFx = null;
+        }
+      }
+      this.r.setViewport(c.x, y + off * c.h, c.w, c.h);
       this.r.setScissor(c.x, y, c.w, c.h);
       this.frame(c.w / c.h, it.ox, it.fit, it.fitY);
       this.r.render(this.scene, this.cam);

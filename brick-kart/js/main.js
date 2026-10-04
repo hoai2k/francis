@@ -10,7 +10,8 @@ import { TRACKS, CUPS } from './tracks.js';
 import { CHARACTERS, bodyName } from './characters.js';
 import { DRIVERS, UNIVERSES, combinedStats } from './driver.js';
 import { KARTS } from './vehicles.js';
-import { simpleDriver, simpleKart } from './simplified.js';
+import { simpleDriver, simpleKart, simpleGlider } from './simplified.js';
+import { GLIDERS, GLIDER_GROUPS, gliderIndex } from './gliders.js';
 import { ABILITY } from './abilities.js';
 import { Showcase, driverPortrait } from './showcase.js';
 import { ICONS, ITEMS } from './items.js';
@@ -20,6 +21,7 @@ import { fmt } from './hud.js';
 // arrows: chevrons drawn as SVG (◀ ▶ text gets turned into emoji boxes on iOS; text arrows carry U+FE0E)
 const chev = (d) => `<svg viewBox="0 0 24 24" width="60%" height="60%" aria-hidden="true"><path d="${d}" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 const CHEV_L = chev('M15 4 7 12l8 8'), CHEV_R = chev('M9 4l8 8-8 8');
+const GLIDER_GROUP_NAMES = Object.fromEntries(GLIDER_GROUPS.map((g) => [g.id, g]));
 const PCOL = ['#ff4a3a', '#3b8bff', '#3bdc5a', '#ffc93b', '#c45aff', '#ff8a1a', '#2fd6d0', '#ff6ab4'];
 const MAX_PLAYERS = 8;
 const POINTS = [15, 12, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 0, 0, 0];
@@ -83,7 +85,7 @@ class Game {
     this.ui.addEventListener('click', (e) => this.onClick(e));
     this.ui.addEventListener('mouseover', (e) => { const b = e.target.closest('[data-i]'); if (b && this.screen?.hover) this.screen.hover(+b.dataset.i); });
     const q = new URLSearchParams(location.search);
-    if (q.get('gallery') || q.get('garage')) {
+    if (q.get('gallery') || q.get('garage') || (q.get('glider') && !q.get('quick'))) {
       // developer view of the movie-character drivers
       import('./gallery.js').then(({ Gallery }) => { this.attract = new Gallery(this, q); });
     } else if (q.get('quick')) {
@@ -91,7 +93,8 @@ class Game {
       const np = +(q.get('players') || 1);
       const d0 = Math.max(0, DRIVERS.findIndex((d) => d.id === q.get('driver')));
       const k0 = Math.max(0, KARTS.findIndex((k) => k.id === q.get('kart')));
-      this.players = Array.from({ length: np }, (_, i) => this.makePlayer({ id: i, device: i === 0 ? 'kb' : 'pad' + (i - 1), cursor: 0, driver: (d0 + i) % Math.max(1, DRIVERS.length), kart: k0, color: PCOL[i] }));
+      const g0 = gliderIndex(q.get('glider'));
+      this.players = Array.from({ length: np }, (_, i) => this.makePlayer({ id: i, device: i === 0 ? 'kb' : 'pad' + (i - 1), cursor: 0, driver: (d0 + i) % Math.max(1, DRIVERS.length), kart: k0, glider: g0, color: PCOL[i] }));
       this.startRace({ def: TRACKS.find((t) => t.id === q.get('quick')) || TRACKS[0], mode: q.get('mode') || 'race' });
     } else {
       // show the title right away; build the background race just after it has painted
@@ -385,7 +388,8 @@ class Game {
   showSelect(mode, resume = false) {
     this.mode = mode;
     const max = mode === 'tt' ? 1 : MAX_PLAYERS;
-    // phase: 'driver' (choosing) -> 'kart' (driver locked, choosing a kart) -> 'done'
+    // phase: 'driver' (choosing) -> 'kart' (driver locked, choosing a kart, or with up / down a
+    // glider: p.sub = 'kart' | 'glider') -> 'done'
     const players = [];
     const uni = (id) => UNIVERSES.find((u) => u.id === id) || { name: id, color: '#fff' };
     // Simplified mode offers a smaller roster (DRIVERS / KARTS indices, in order) in one grid
@@ -394,6 +398,8 @@ class Game {
     let allowedK = KARTS.map((_, i) => i).filter((i) => !simple || simpleKart(KARTS[i].id));
     if (!allowedD.length) allowedD = DRIVERS.map((_, i) => i);
     if (!allowedK.length) allowedK = KARTS.map((_, i) => i);
+    let allowedG = GLIDERS.map((_, i) => i).filter((i) => !simple || simpleGlider(GLIDERS[i].id));
+    if (!allowedG.length) allowedG = GLIDERS.map((_, i) => i);
     let dgroups = '';
     const groupSizes = [];
     for (const u of UNIVERSES) {
@@ -483,24 +489,30 @@ class Game {
       cellsEl.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
       cellsEl.style.gridTemplateRows = `repeat(${Math.ceil(n / cols)}, 1fr)`;
     };
+    const gGroup = (gl) => GLIDER_GROUP_NAMES[gl.group] || { name: 'Glider', color: '#fff' };
     const cellHtml = (p, d, ch, following, standing) => {
-      const kartStep = p && p.phase !== 'driver';
+      const kartStep = p && p.phase !== 'driver', glideStep = kartStep && p.sub === 'glider';
+      const gl = GLIDERS[p?.gcur ?? 0];
       const who = p ? `<i style="background:${p.color}">P${p.id + 1}</i> ` : '';
-      const kn = allowedK.indexOf(p?.kcur) + 1, dn = allowedD.indexOf(p?.dcur) + 1;
+      const kn = allowedK.indexOf(p?.kcur) + 1, dn = allowedD.indexOf(p?.dcur) + 1, gn = allowedG.indexOf(p?.gcur) + 1;
       const tag = !p ? 'Press <b>A</b> / <b>Enter</b> or tap a driver'
         : p.phase === 'driver' ? `${who}pick a <b>driver</b><em class="dnum">${dn} / ${allowedD.length}</em>`
-        : p.phase === 'kart' ? `${who}pick a <b>kart</b> <em>${kn} / ${allowedK.length}</em>` : `${who}is ready!`;
-      const u = uni(d.from);
-      // choosing a kart: arrows either side of it (◀︎ ▶︎ on the pad too) and a lock-in button for touch
+        : p.phase === 'kart' ? (glideStep ? `${who}pick a <b>glider</b> <em>${gn} / ${allowedG.length}</em>` : `${who}pick a <b>kart</b> <em>${kn} / ${allowedK.length}</em>`) : `${who}is ready!`;
+      const u = glideStep ? gGroup(gl) : uni(d.from);
+      // choosing a kart: arrows either side of it (◀︎ ▶︎ on the pad too) and a lock-in button for touch;
+      // the Kart / Glider switch (▲ ▼ on the pad) flips between the two choices
       // on phones (no grid) drivers are picked the same way
-      const arrows = p?.phase === 'kart' ? `<button class="karr l" data-act="kprev:${p.id}" aria-label="Previous kart">${CHEV_L}</button><button class="karr r" data-act="knext:${p.id}" aria-label="Next kart">${CHEV_R}</button><button class="kok" data-act="kok:${p.id}">Lock in ✓</button>`
+      const what = glideStep ? 'glider' : 'kart';
+      const arrows = p?.phase === 'kart' ? `<button class="karr l" data-act="kprev:${p.id}" aria-label="Previous ${what}">${CHEV_L}</button><button class="karr r" data-act="knext:${p.id}" aria-label="Next ${what}">${CHEV_R}</button><button class="kok" data-act="kok:${p.id}">Lock in ✓</button>
+          <div class="ksw"><button class="${glideStep ? '' : 'on'}" data-act="ksub:${p.id}:kart">▲ Kart</button><button class="${glideStep ? 'on' : ''}" data-act="ksub:${p.id}:glider">▼ Glider</button></div>`
         : p?.phase === 'driver' ? `<button class="karr l drv" data-act="dprev:${p.id}" aria-label="Previous driver">${CHEV_L}</button><button class="karr r drv" data-act="dnext:${p.id}" aria-label="Next driver">${CHEV_R}</button><button class="kok drv" data-act="dok:${p.id}">Lock in ✓</button>` : '';
+      const sw = p?.swDir && performance.now() - p.swAt < 700 ? ` sw${p.swDir > 0 ? 'd' : 'u'}` : '';
       return `<div class="pvstep">${tag}</div>${arrows}
-        <div class="pvinfo"><div class="pvfrom" style="color:${u.color}">${esc(u.name)}</div>
-        <div class="pvname">${esc(kartStep ? ch.vehicle : d.name)}</div>
-        <div class="pvblurb">${esc(kartStep ? `${ch.form || bodyName(ch)}${ch.blurb ? ' · ' + ch.blurb : ''}` : `${d.blurb}${d.blurb ? ' · ' : ''}${d.weight[0].toUpperCase() + d.weight.slice(1)}`)}</div>
-        ${standing ? '' : `<div class="pvkart">${kartStep ? `driven by <b>${esc(d.name)}</b>` : `in the <b>${esc(ch.vehicle)}</b>`}</div>`}
-        <div class="stats big">${statBars(combinedStats(ch.stats, d))}</div></div>${following ? '<div class="pvfollow">▶︎ picking now</div>' : ''}`;
+        <div class="pvinfo${sw}"><div class="pvfrom" style="color:${u.color}">${esc(u.name)}</div>
+        <div class="pvname">${esc(glideStep ? gl.name : kartStep ? ch.vehicle : d.name)}</div>
+        <div class="pvblurb">${esc(glideStep ? gl.blurb || 'Glider' : kartStep ? `${ch.form || bodyName(ch)}${ch.blurb ? ' · ' + ch.blurb : ''}` : `${d.blurb}${d.blurb ? ' · ' : ''}${d.weight[0].toUpperCase() + d.weight.slice(1)}`)}</div>
+        ${standing ? '' : `<div class="pvkart">${glideStep ? `on the <b>${esc(ch.vehicle)}</b> with <b>${esc(d.name)}</b>` : kartStep ? `driven by <b>${esc(d.name)}</b>${p.phase === 'done' ? ` · <b>${esc(gl.name)}</b>` : ''}` : `in the <b>${esc(ch.vehicle)}</b>`}</div>`}
+        ${glideStep ? '' : `<div class="stats big">${statBars(combinedStats(ch.stats, d))}</div>`}</div>${following ? '<div class="pvfollow">▶︎ picking now</div>' : ''}`;
     };
     const refreshStage = (cheerP) => {
       const list = players.length ? players : [null];
@@ -516,12 +528,18 @@ class Game {
         // their lock-in jump-spin)
         const standing = !p || p.phase === 'driver' || (p.phase === 'kart' && performance.now() < (p.kartAt || 0));
         const key = (p ? p.id : '-') + '|' + d.id + '|' + (standing ? 'stand' : ch.id), phase = p?.phase === 'done' ? 'win' : 'pre';
+        const gl = GLIDERS[p?.gcur ?? 0], glide = !standing && p?.phase === 'kart' && p.sub === 'glider';
         if (key !== slotKeys[i]) {
           const ry = show.items[i]?.m.root.rotation.y ?? 0.6;
           const sameDriver = slotKeys[i] && slotKeys[i].split('|').slice(0, 2).join('|') === key.split('|').slice(0, 2).join('|');
-          show.setItem(i, { ch, driver: d, ry, phase, stand: standing });
+          show.setItem(i, { ch, driver: d, ry, phase, stand: standing, glider: gl, glide });
           slotKeys[i] = key;
           if (!sameDriver) show.play(i, 'yay');
+        } else if (!standing) {
+          // a new glider or the kart / glider view: changed in place (no rebuild)
+          const it = show.items[i];
+          if (it && it.glider !== gl) show.setGlider(i, gl);
+          if (it && it.glide !== glide && !it.slideFx) show.setGlide(i, glide);
         }
         show.setPhase(i, phase);
         if (p && p === cheerP) { if (standing) show.standMove(i, 'commit'); else show.play(i, 'cheer'); this.audio.voice(d.voice, 'cheer', 0.9); }
@@ -545,7 +563,7 @@ class Game {
     const refresh = (cheerP = null) => {
       // remember what each player slot is looking at, so coming back to this screen restores it
       this.picks.chars ||= {};
-      for (const p of players) this.picks.chars[p.id] = { driver: DRIVERS[p.dcur].id, kart: KARTS[p.kcur].id };
+      for (const p of players) this.picks.chars[p.id] = { driver: DRIVERS[p.dcur].id, kart: KARTS[p.kcur].id, glider: GLIDERS[p.gcur]?.id };
       save(PKEY, this.picks);
       for (const c of dcards) {
         const i = +c.dataset.i, here = players.filter((p) => p.dcur === i);
@@ -557,7 +575,7 @@ class Game {
       for (let s2 = 0; s2 < Math.min(max, players.length + 1); s2++) {
         const p = players[s2];
         const st = !p ? '' : p.phase === 'driver' ? 'choosing a driver…'
-          : p.phase === 'kart' ? esc(DRIVERS[p.dcur].name) + ' · choosing a kart…' : esc(DRIVERS[p.dcur].name) + ' · ' + esc(KARTS[p.kcur].vehicle) + ' ✓';
+          : p.phase === 'kart' ? esc(DRIVERS[p.dcur].name) + (p.sub === 'glider' ? ' · choosing a glider…' : ' · choosing a kart…') : esc(DRIVERS[p.dcur].name) + ' · ' + esc(KARTS[p.kcur].vehicle) + ' · ' + esc(GLIDERS[p.gcur].name) + ' ✓';
         html += p ? `<div class="slot on" style="--pc:${p.color}"><b>P${p.id + 1}</b> ${esc(deviceLabel(p.device))}<em>${st}</em></div>`
           : `<div class="slot"><b>P${s2 + 1}</b> ${s2 === 0 ? 'Press A / Enter / tap a driver' : 'Press A to join'}</div>`;
       }
@@ -565,7 +583,7 @@ class Game {
       const ready = players.length && players.every((p) => p.phase === 'done');
       ui.querySelector('.go').classList.toggle('ready', !!ready);
       ui.querySelector('.hint2').innerHTML = ready ? 'All set! Press <b>A</b> / <b>Start</b> / <b>Enter</b> to race'
-        : players.some((p) => p.phase === 'kart') ? '<b>◀︎ ▶︎</b> change kart · <b>A</b> lock it in · <b>B</b> back to drivers'
+        : players.some((p) => p.phase === 'kart') ? '<b>◀︎ ▶︎</b> change · <b>▲ ▼</b> kart / glider · <b>A</b> lock it in · <b>B</b> back'
         : (mode !== 'tt' ? 'More players: press <b>A</b> on another controller · 2nd keyboard: <b>Right Shift</b>' : 'Time Trial is solo: beat your best time');
       refreshStage(cheerP);
       follow();
@@ -588,11 +606,11 @@ class Game {
       const id = [...Array(MAX_PLAYERS).keys()].find((n) => !players.some((p) => p.id === n));
       // start on this slot's picks from last time (a fresh slot starts on its own driver)
       const prev = this.picks.chars?.[id] || {};
-      const di = allowedD.findIndex((i) => DRIVERS[i].id === prev.driver), ki = allowedK.findIndex((i) => KARTS[i].id === prev.kart);
+      const di = allowedD.findIndex((i) => DRIVERS[i].id === prev.driver), ki = allowedK.findIndex((i) => KARTS[i].id === prev.kart), gi = allowedG.findIndex((i) => GLIDERS[i].id === prev.glider);
       const tk = taken(null), nD = allowedD.length;
       let pos = di >= 0 ? di : id % nD;
       for (let n = 0; n < nD && tk.has(allowedD[pos]); n++) pos = (pos + 1) % nD;
-      const p = { id, device, dcur: allowedD[pos], kcur: allowedK[ki >= 0 ? ki : 0], phase: 'driver', color: PCOL[id] };
+      const p = { id, device, dcur: allowedD[pos], kcur: allowedK[ki >= 0 ? ki : 0], gcur: allowedG[gi >= 0 ? gi : 0], sub: 'kart', phase: 'driver', color: PCOL[id] };
       players.push(p);
       players.sort((a, b) => a.id - b.id);
       this.audio.sfx('join');
@@ -602,7 +620,7 @@ class Game {
     const go = () => {
       if (!players.length || !players.every((p) => p.phase === 'done')) return;
       this.audio.sfx('select');
-      this.players = players.map((p) => this.makePlayer({ id: p.id, device: p.device, cursor: 0, driver: p.dcur, kart: p.kcur, color: p.color }));
+      this.players = players.map((p) => this.makePlayer({ id: p.id, device: p.device, cursor: 0, driver: p.dcur, kart: p.kcur, glider: p.gcur, color: p.color }));
       if (mode === 'gp') this.showCups();
       else this.showTracks(mode);
     };
@@ -632,7 +650,7 @@ class Game {
     const moveIn = (cards, cur, dx, dy, idOf) => idOf(cards[nav(cards, Math.max(0, cards.findIndex((c) => idOf(c) === cur)), dx, dy)]);
     const lockDriver = (p) => {
       if (taken(p).has(p.dcur)) { this.audio.sfx('wrong'); return; }
-      p.phase = 'kart';
+      p.phase = 'kart'; p.sub = 'kart';
       p.kartAt = performance.now() + 1000;   // the kart rolls in after the lock-in jump-spin
       this.audio.sfx('select');
       refresh(p);
@@ -646,10 +664,23 @@ class Game {
       refresh();
     };
     const stepKart = (p, dir) => {
-      const n = allowedK.length, k = allowedK.indexOf(p.kcur);
-      p.kcur = allowedK[((k < 0 ? 0 : k) + dir + n) % n];
+      if (p.sub === 'glider') {
+        const n = allowedG.length, k = allowedG.indexOf(p.gcur);
+        p.gcur = allowedG[((k < 0 ? 0 : k) + dir + n) % n];
+      } else {
+        const n = allowedK.length, k = allowedK.indexOf(p.kcur);
+        p.kcur = allowedK[((k < 0 ? 0 : k) + dir + n) % n];
+      }
       this.audio.sfx('click');
       refresh();
+    };
+    // flip between choosing the kart and the glider: the preview slides up (dir 1, pressing down)
+    // or down (dir -1) out of its cell and back in as the other view, pulled back for the glider
+    const switchSub = (p, dir, to = p.sub === 'glider' ? 'kart' : 'glider') => {
+      if (to === p.sub) return;
+      const i = players.indexOf(p);
+      this.audio.sfx('click');
+      show.slide(i, dir, () => { p.sub = to; p.swDir = dir; p.swAt = performance.now(); refresh(); show.setGlide(i, to === 'glider'); });
     };
     const lockKart = (p) => { p.phase = 'done'; this.audio.sfx('select'); refresh(); show.play(players.indexOf(p), 'win'); this.audio.voice(DRIVERS[p.dcur].voice, 'win', 0.9); };
     this.screen = {
@@ -684,8 +715,9 @@ class Game {
             if (m.back) { if (p === players[0]) { back(); return; } leave(p); continue; }
           } else if (p.phase === 'kart') {
             if (dx) stepKart(p, dx);
+            if (dy) switchSub(p, dy);
             if (m.ok) { lockKart(p); continue; }
-            if (m.back) { p.phase = 'driver'; this.audio.sfx('back'); refresh(); continue; }
+            if (m.back) { if (p.sub === 'glider') switchSub(p, -1, 'kart'); else { p.phase = 'driver'; this.audio.sfx('back'); refresh(); } continue; }
           } else {
             if (m.back) { p.phase = 'kart'; this.audio.sfx('back'); refresh(); continue; }
             if (m.ok || m.start) { go(); return; }
@@ -716,6 +748,7 @@ class Game {
           if (cmd === 'dok') lockDriver(p);
         }
         if (!p || p.phase !== 'kart') return;
+        if (cmd === 'ksub') switchSub(p, a.split(':')[2] === 'glider' ? 1 : -1, a.split(':')[2]);
         if (cmd === 'kprev') stepKart(p, -1);
         if (cmd === 'knext') stepKart(p, 1);
         if (cmd === 'kok') lockKart(p);
@@ -725,7 +758,7 @@ class Game {
       // back from the cup / map screen: the same players, still locked in
       for (const q of this.players) {
         if (players.length >= max) break;
-        players.push({ id: q.id, device: q.device, dcur: q.driverIndex ?? allowedD[0], kcur: q.kartIndex ?? allowedK[0], phase: 'done', color: q.color, acted: true });
+        players.push({ id: q.id, device: q.device, dcur: q.driverIndex ?? allowedD[0], kcur: q.kartIndex ?? allowedK[0], gcur: q.gliderIndex ?? allowedG[0], sub: 'kart', phase: 'done', color: q.color, acted: true });
       }
       refresh();
     } else join(this.p1Device());
@@ -735,7 +768,7 @@ class Game {
   makePlayer(p) {
     const input = this.input;
     return {
-      id: p.id, device: p.device, charIndex: p.cursor, driverIndex: p.driver ?? null, kartIndex: p.kart ?? null, color: p.color,
+      id: p.id, device: p.device, charIndex: p.cursor, driverIndex: p.driver ?? null, kartIndex: p.kart ?? null, gliderIndex: p.glider ?? null, color: p.color,
       autoGas: this.settings.autoGas || p.device === 'touch',
       rumble: (s, ms) => input.rumble(p.device, s, ms),
     };

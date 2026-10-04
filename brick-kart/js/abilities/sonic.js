@@ -6,8 +6,8 @@
 //                       bounce off it with a boost
 //   Spin Dash         – rev up in a cloud of dust, then blast off at huge speed, spinning out
 //                       anyone you ram
-//   Super Sonic       – the seven Chaos Emeralds circle you and your kart turns gold: invincible
-//                       and very fast for 7 s, bowling karts aside
+//   Chaos Control     – the seven Chaos Emeralds stop time: every other racer crawls for 4 s
+//                       while you race on with a boost
 import * as THREE from 'three';
 import {
   TAU, angleDiff, clamp, live, snd, ringSnd, additive, glowSprite, glowTex, goldMat,
@@ -345,38 +345,46 @@ function spinDash(k, ctx) {
   return ctx.spawn(ent);
 }
 
-// ---- Super Sonic ---------------------------------------------------------------------------------
-const SS_TIME = 7;
-function superSonic(k, ctx) {
-  k.goldenTime = Math.max(k.goldenTime, SS_TIME);
+// ---- Chaos Control -----------------------------------------------------------------------------
+// Chaos Control: the emeralds stop time for everybody else. Every other racer crawls at a
+// fraction of their top speed for a few seconds (a frozen-blue shimmer on each) while the user
+// keeps full speed with a boost and the emeralds circle them.
+const CC_TIME = 4, CC_SLOW = 0.45;
+function chaosControl(k, ctx) {
   k.boost(1.2);
   const chord = () => snd(ctx, k.pos, (au, a) => {
-    [0, 4, 7, 12, 16, 19, 24].forEach((n, i) => au.tone(440 * Math.pow(2, (n + 3) / 12), 0.22, { vol: 0.09 * a, type: 'square', filter: 4000, at: i * 0.06 }));
-    au.noiseHit(0.9, { vol: 0.25 * a, freq: 2500, sweep: 0.4, q: 0.6 });
+    [24, 19, 16, 12, 7, 4, 0].forEach((n, i) => au.tone(440 * Math.pow(2, (n + 3) / 12), 0.26, { vol: 0.09 * a, type: 'square', filter: 3000, at: i * 0.07 }));
+    au.noiseHit(1.1, { vol: 0.25 * a, freq: 900, sweep: 0.25, q: 0.6 });
   });
   chord();
   const p0 = V1.copy(k.pos).setY(k.pos.y + 1.3);
-  flash(ctx, p0, 0xffe070, 9, 0.5);
-  ctx.ring(k.pos, 12, 0xffd040);
-  if (k.human) ctx.race.flash?.(0xfff0a0);
+  flash(ctx, p0, 0x9fe8ff, 9, 0.5);
+  ctx.ring(k.pos, 16, 0x80d8ff);
+  if (k.human) ctx.race.flash?.(0xc8f0ff);
+  // everyone else is caught in it (a fresh use restarts the clock)
+  for (const o of ctx.race.karts) if (o !== k && !o.finished) o.chaosSlow = { by: k, until: ctx.race.time + CC_TIME };
   if (SUPERS.has(k)) { SUPERS.get(k).extend(); return; }
-  // the emeralds spiral in, then circle the kart
   const ring = emeraldRing(0.52); ring.position.y = 1.5; k.model.root.add(ring);
   const gems = ring.userData.gems;
-  // the kart (and driver) turn gold
-  const swapped = [];
-  k.model.body.traverse((o) => {
-    if (!o.isMesh) return;
-    const m = o.material, std = (x) => x && x.isMeshStandardMaterial && !x.transparent;
-    if (Array.isArray(m) ? m.some(std) : std(m)) { swapped.push([o, m]); o.material = goldMat(); }
-  });
-  let t = 0, life = SS_TIME, boosted = false;
+  let t = 0, life = CC_TIME, boosted = false;
   const ent = {
-    name: 'supersonic', kart: k,
-    extend() { life = t + SS_TIME; boosted = false; },
+    name: 'chaoscontrol', kart: k,
+    extend() { life = t + CC_TIME; boosted = false; },
     update(dt) {
       t += dt;
-      if (k.respawn > 0 || t > life + 0.6 || (t > 0.5 && k.goldenTime <= 0)) return false;
+      const now = ctx.race.time;
+      // hold every caught kart down to a crawl; golden karts shrug it off
+      for (const o of ctx.race.karts) {
+        const c = o.chaosSlow;
+        if (!c || c.by !== k) continue;
+        if (now > c.until || o.finished || k.respawn > 0) { o.chaosSlow = null; continue; }
+        if (o.goldenTime > 0) continue;
+        const cap = o.topSpeed * CC_SLOW;
+        if (o.speed > cap) o.speed -= (o.speed - cap) * Math.min(1, dt * 6);
+        o.boostTime = Math.min(o.boostTime, 0);
+        if (Math.random() < 0.35) ctx.fx.spark(o.pos.x + (Math.random() - 0.5) * 2.4, o.pos.y + 0.4 + Math.random() * 2, o.pos.z + (Math.random() - 0.5) * 2.4, 0, 0.4, 0, Math.random() < 0.5 ? 0x9fe8ff : 0xffffff, 0.6);
+      }
+      if (k.respawn > 0 || t > life + 0.6) return false;
       const intro = Math.min(1, t / 0.8), out = Math.max(0, (t - life) / 0.6);
       const R = 2.7 + (1 - intro) * 5 + out * 4;
       gems.forEach((g, n) => {
@@ -387,15 +395,15 @@ function superSonic(k, ctx) {
       });
       ring.rotation.y = Math.sin(t * 0.7) * 0.2;
       if (t > life * 0.5 && !boosted) { boosted = true; k.boost(0.8, false); }
-      if (Math.random() < 0.7) {
+      if (Math.random() < 0.6) {
         const a = Math.random() * TAU;
-        ctx.fx.spark(k.pos.x + Math.sin(a) * 2, k.pos.y + 0.5 + Math.random() * 2, k.pos.z + Math.cos(a) * 2, 0, 2 + Math.random() * 2, 0, Math.random() < 0.6 ? 0xffe070 : 0xffffff, 0.45);
+        ctx.fx.spark(k.pos.x + Math.sin(a) * 2, k.pos.y + 0.5 + Math.random() * 2, k.pos.z + Math.cos(a) * 2, 0, 2 + Math.random() * 2, 0, Math.random() < 0.6 ? 0x9fe8ff : 0xffffff, 0.45);
       }
       return true;
     },
     dispose() {
       ring.removeFromParent();
-      for (const [o, m] of swapped) o.material = m;
+      for (const o of ctx.race.karts) if (o.chaosSlow?.by === k) o.chaosSlow = null;
       if (SUPERS.get(k) === ent) SUPERS.delete(k);
     },
   };
@@ -491,11 +499,11 @@ export default [
     use(k, ctx) { done(k); spinDash(k, ctx); },
   },
   {
-    id: 'supersonic', name: 'Super Sonic', color: '#ffd040', icon: ICON_SUPER,
-    help: 'The seven Chaos Emeralds circle you and your kart turns gold: invincible and very fast for 7 seconds, bowling karts aside.',
+    id: 'supersonic', name: 'Chaos Control', color: '#ffd040', icon: ICON_SUPER,
+    help: 'The seven Chaos Emeralds stop time: every other racer slows to a crawl for 4 seconds while you keep racing with a boost.',
     odds: [0, 0, 0, 3, 6],
     gesture: 'use',
     ai: (k) => inControl(k),
-    use(k, ctx) { superSonic(k, ctx); },
+    use(k, ctx) { chaosControl(k, ctx); },
   },
 ];

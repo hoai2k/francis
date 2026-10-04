@@ -122,9 +122,9 @@ const tornado = {
         extra = air || s.boosting ? 30 : 0;
         prop.rotation.z += extra * dt;
         blur.visible = s.speed01 > 0.5 || air;
-        // takes off on its own wings: no glider needed
+        // takes off on its own wings: no glider needed (unless the player picked one)
         glider ||= findGlider(sprung);
-        if (glider && s.gliding) glider.visible = false;
+        if (glider && s.gliding && glider.userData.gliderId === 'kartwing') glider.visible = false;
         pitch += ((s.gliding ? -0.16 + S(s.t * 2) * 0.03 : s.boosting && s.grounded ? -0.04 : 0) - pitch) * ease(dt, 4);
         roll += ((s.gliding ? s.steer * 0.35 : 0) - roll) * ease(dt, 4);
         pitchAbout(sprung, pitch, 0, 0.75, s.gliding ? 0.15 : 0);
