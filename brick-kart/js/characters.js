@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { BrickBuilder, C, plastic, faceTexture, studGeo } from './lego.js';
+import { buildGlider } from './gliders.js';
 
 export const CHARACTERS = [
   { id: 'bob', name: 'Brick Bob', blurb: 'All-round builder', kart: C.yellow, accent: C.black, torso: C.orange, legs: C.blue, hat: 'hardhat', hatColor: C.yellow, face: 'grin', stats: { speed: 3, accel: 3, handling: 3, weight: 3 } },
@@ -169,8 +170,9 @@ export const SEAT = new THREE.Vector3(0, 0.62, -0.38);
 
 // Builds the kart + driver. Local forward is +Z. With a driver rig
 // the minifig is replaced by the rig, seated in a deeper tub behind a turning wheel.
-export function buildKart(ch, rig = null) {
-  if (ch.build) return buildVehicle(ch, rig || emptyRig());
+// glider = a glider definition (gliders.js); the default Brick Wing when left out.
+export function buildKart(ch, rig = null, glider = null) {
+  if (ch.build) return buildVehicle(ch, rig || emptyRig(), glider);
   const root = new THREE.Group();
   const body = new THREE.Group();
   root.add(body);
@@ -239,8 +241,8 @@ export function buildKart(ch, rig = null) {
   buildHat(ch, head);
   body.add(head);
 
-  const { wheels, glider } = addWheelsAndGlider(ch, body);
-  return { root, body, head, wheels, glider, colors: [k, a, ch.torso, ch.legs, C.black, C.ltgray] };
+  const { wheels, glider: gl } = addWheelsAndGlider(ch, body, null, null, false, glider);
+  return { root, body, head, wheels, glider: gl, colors: [k, a, ch.torso, ch.legs, C.black, C.ltgray] };
 }
 
 // A kart for a movie-character driver: side tub walls hide the legs, the rig sits on
@@ -324,9 +326,9 @@ function finishCharacterKart(ch, rig, root, body, b) {
   rig.root.position.copy(SEAT);
   up.add(rig.root);
   const head = new THREE.Group();   // the driver animator turns the real head
-  const { wheels, glider } = addWheelsAndGlider(ch, body, rig, st);
-  glider.position.y += st.lift;
-  return { root, body, head, wheels, glider, swheel, steerControl: (v) => { swheel.rotation.z = -v * 0.9; }, driver: rig, shadow: kartMesh, top: SEAT.y + rig.height + st.lift, colors: [k, a, rig.def.color ?? C.white, C.black, C.ltgray, C.dkgray] };
+  const { wheels, glider: gl } = addWheelsAndGlider(ch, body, rig, st, false, glider);
+  gl.position.y += st.lift;
+  return { root, body, head, wheels, glider: gl, swheel, steerControl: (v) => { swheel.rotation.z = -v * 0.9; }, driver: rig, shadow: kartMesh, top: SEAT.y + rig.height + st.lift, colors: [k, a, rig.def.color ?? C.white, C.black, C.ltgray, C.dkgray] };
 }
 // ---- custom vehicles (js/vehicles/*.js) ----------------------------------------------------
 // A vehicle definition: { id, name, form, blurb, group, stats, colors: [main, accent, ...],
@@ -352,7 +354,7 @@ export function emptyRig() {
   return { root: new THREE.Group(), height: 1.8, width: 1.2, shoulder: new THREE.Vector3(0.56, 1.2, 0), armLen: 0.86, def: {} };
 }
 const VKIT = { THREE, BrickBuilder, C, plastic, limb, wheelGeo, wheelMat, SEAT };
-function buildVehicle(def, rig) {
+function buildVehicle(def, rig, gdef = null) {
   const root = new THREE.Group(), body = new THREE.Group(); root.add(body);
   const up = new THREE.Group(); body.add(up);     // the sprung/hovering part: body, driver, controls
   // the vehicle can size itself to the driver: rig = { height, width, shoulder: {x,y,z}, armLen }
@@ -399,7 +401,7 @@ function buildVehicle(def, rig) {
     wheels.push({ g, spin, front: !!w.front, r: w.r });
   }
   // glider (shared design) above the driver or at the vehicle's mount
-  const { glider } = addWheelsAndGlider(def, new THREE.Group(), rig, null, true);
+  const { glider } = addWheelsAndGlider(def, new THREE.Group(), rig, null, true, gdef);
   // glider: [x, y, z] fixes the mount; { x?, z? } just shifts it and keeps the height that suits the driver
   glider.position.y += seat.y - SEAT.y;
   if (Array.isArray(v.glider)) glider.position.set(...v.glider);
@@ -425,11 +427,11 @@ function wheelSpotFor(rig) {
   return new THREE.Vector3(0, s.y - Math.cos(R) * L, s.z + Math.sin(R) * L);
 }
 
-function addWheelsAndGlider(ch, body, rig = null, st = null, gliderOnly = false) {
+function addWheelsAndGlider(ch, body, rig = null, st = null, gliderOnly = false, gdef = null) {
   const k = ch.kart ?? C.red, a = ch.accent ?? C.black;
   // wheels: rear pair share one axle mesh; front wheels steer individually
   const wheels = [];
-  if (gliderOnly) return { wheels, glider: makeGlider(k, a, rig) };
+  if (gliderOnly) return { wheels, glider: makeGlider(k, a, rig, gdef) };
   const mkWheel = (x, y, z, r, w, front, xs) => {
     const g = new THREE.Group();
     g.position.set(x, y, z);
@@ -449,22 +451,16 @@ function addWheelsAndGlider(ch, body, rig = null, st = null, gliderOnly = false)
     mkWheel(1.38, 0.36, 1.35, 0.36, 0.34, true, [0]); mkWheel(-1.38, 0.36, 1.35, 0.36, 0.34, true, [0]);
   }
 
-  const glider = makeGlider(k, a, rig);
+  const glider = makeGlider(k, a, rig, gdef);
   body.add(glider);
   return { wheels, glider };
 }
 
-// glider: brick wing on a mast, shown while gliding
-function makeGlider(k, a, rig) {
-  const gb = new BrickBuilder(0.4);
-  gb.cyl(0, 0, 0, 0.06, 1.7, C.black, { seg: 6 });
-  gb.boxM(new THREE.Matrix4().compose(new THREE.Vector3(0, 1.75, 0.1), new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.12, 0, 0)), new THREE.Vector3(1.6, 0.1, 1.5)), k);
-  for (const sd of [-1, 1]) {
-    gb.boxM(new THREE.Matrix4().compose(new THREE.Vector3(sd * 1.75, 1.62, 0.05), new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.12, 0, sd * -0.18)), new THREE.Vector3(2.0, 0.1, 1.3)), a);
-    gb.boxM(new THREE.Matrix4().compose(new THREE.Vector3(sd * 3.1, 1.45, -0.05), new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.12, 0, sd * -0.3)), new THREE.Vector3(1.0, 0.1, 0.9)), k);
-    gb.cyl(sd * 0.1, 0.4, 0, 0.03, 1.4, C.ltgray, { seg: 4 });
-  }
-  const glider = gb.build({ name: 'glider' });
+// glider: the chosen design (gliders.js) on its mount above the driver, shown while gliding
+function makeGlider(k, a, rig, gdef) {
+  const glider = new THREE.Group();
+  glider.name = 'glider';
+  buildGlider(gdef, glider, k, a);
   glider.position.set(0, 1.2, -0.7);
   // a tall driver holds the glider bar above their head
   if (rig) {

@@ -1,6 +1,6 @@
 // The roster for "Simplified mode" (Options → Simplified mode): the drivers and karts the select
 // screen offers, as one grid without movie headings, and the ones CPU racers use when it's on.
-// Lists of ids (DRIVERS[].id / KARTS[].id); null means "all of them". Pick the set in
+// Lists of ids (DRIVERS[].id / KARTS[].id / GLIDERS[].id); null means "all of them". Pick the set in
 // brick-kart/workbench/ (it starts from this one) and export it, then paste the ids here.
 export const SIMPLIFIED = {
   // 82 drivers
@@ -25,8 +25,11 @@ export const SIMPLIFIED = {
     'carpet', 'dragon', 'minecart', 'saddlepig', 'tntcart', 'pokeballkart', 'rapidash', 'arcanine',
     'koraidon', 'speedstar', 'tornado', 'eggmobile', 'bjorn', 'regina', 'sam', 'zorp', 'dina',
   ],
+  // gliders (null = all of them)
+  gliders: null,
 };
 
-// is this driver / kart id in the simplified set?
+// is this driver / kart / glider id in the simplified set?
 export const simpleDriver = (id) => !SIMPLIFIED.drivers || SIMPLIFIED.drivers.includes(id);
 export const simpleKart = (id) => !SIMPLIFIED.karts || SIMPLIFIED.karts.includes(id);
+export const simpleGlider = (id) => !SIMPLIFIED.gliders || SIMPLIFIED.gliders.includes(id);

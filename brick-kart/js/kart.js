@@ -26,16 +26,17 @@ export function lerpAngle(a, b, t) {
 const clampN = (v, lo, hi, def = 0) => (Number.isFinite(v) ? Math.max(lo, Math.min(hi, v)) : def);
 
 export class Kart {
-  constructor(race, ch, idx, player = null, driver = null) {
+  constructor(race, ch, idx, player = null, driver = null, glider = null) {
     this.race = race;
     this.track = race.track;
     this.ch = ch;
     this.driver = driver;            // character driver definition (null only if no driver pack loaded)
+    this.gliderDef = glider;         // glider definition (gliders.js); null = the default Brick Wing
     this.idx = idx;
     this.player = player;            // local player object or null for AI
     this.human = !!player;
     const rig = driver ? buildDriver(driver) : null;
-    const m = buildKart(ch, rig);
+    const m = buildKart(ch, rig, glider);
     if (rig) this.anim = new DriverAnim(rig);
     this.camLift = m.top ? Math.max(0, m.top - 2.2) * 0.85 : 0;   // tall drivers: chase camera rides higher
     this.model = m;
@@ -668,6 +669,8 @@ export class Kart {
       this.gliderT = Math.min(1, (this.gliderT || 0) + dt * 4);
       m.glider.scale.set(this.gliderT, 1, 1);
       m.glider.rotation.z = Math.sin(performance.now() * 0.004) * 0.05;
+      const gfx = m.glider.userData.fx;
+      if (gfx) { const s = this._gfx ||= { t: 0, steer: 0, speed01: 0 }; s.t += dt; s.steer = this.ctl?.steer || 0; s.speed01 = Math.min(1, Math.abs(this.speed) / (this.topSpeed || 1)); gfx(s, dt); }
     }
     this.bubble.visible = this.shieldTime > 0;
     if (this.bubble.visible) this.bubble.scale.setScalar(1 + Math.sin(performance.now() * 0.006) * 0.03);

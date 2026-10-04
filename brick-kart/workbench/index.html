@@ -87,10 +87,11 @@
   </div>
 </header>
 <main>
-  <p class="note">Pick the drivers and karts for <b>Simplified mode</b>. Tap a card to include or leave it out. Tap its <b>🗑 bin</b> (or press Delete) to suggest removing that character or kart from the game entirely; tap the bin again to undo. Then <b>Export</b> and send the JSON file to Claude. <b>Reset</b> goes back to the set that's in the game now and clears the bin marks.</p>
-  <div class="tabs"><button data-tab="drivers" class="on">Characters</button><button data-tab="karts">Karts</button></div>
+  <p class="note">Pick the drivers, karts and gliders for <b>Simplified mode</b>. Tap a card to include or leave it out. Tap its <b>🗑 bin</b> (or press Delete) to suggest removing that character, kart or glider from the game entirely; tap the bin again to undo. Then <b>Export</b> and send the JSON file to Claude. <b>Reset</b> goes back to the set that's in the game now and clears the bin marks.</p>
+  <div class="tabs"><button data-tab="drivers" class="on">Characters</button><button data-tab="karts">Karts</button><button data-tab="gliders">Gliders</button></div>
   <div id="drivers"></div>
   <div id="karts" class="hidden"></div>
+  <div id="gliders" class="hidden"></div>
 </main>
 <div id="toast"></div>
 <script type="module" src="./workbench.js"></script>
