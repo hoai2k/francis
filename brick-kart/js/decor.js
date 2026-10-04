@@ -30,9 +30,15 @@ export function tree(b, x, y, z, s = 1, leaf = C.green) {
   b.brick(x, yy, z, 2, 2, 3, leaf === C.green ? C.lime : leaf, { pitch: p });
 }
 
+export function roundTreeSmooth(b, x, y, z, s = 1, leaf = C.green) {
+  b.cyl(x, y, z, 0.4 * s, 3 * s, C.rbrown, { seg: 8 });
+  b.sphere(x, y + 4.2 * s, z, 2.2 * s, leaf);
+  b.sphere(x + 0.9 * s, y + 5.2 * s, z + 0.4 * s, 1.4 * s, leaf === C.green ? C.lime : leaf);
+}
 // A brick-built leafy tree: a trunk of stacked round bricks and a stepped canopy of studded
 // bricks (wide in the middle, narrower above and below, alternate layers turned 45 degrees).
 export function roundTree(b, x, y, z, s = 1, leaf = C.green) {
+  if (!LEGO.on) return roundTreeSmooth(b, x, y, z, s, leaf);
   let yy = y;
   for (let k = 0; k < 3; k++) yy = b.cyl(x, yy, z, 0.42 * s, 1.0 * s, C.rbrown, { seg: 10 });
   // layers are boxes: in the scenery builder they get studded tops and brick courses as textures
@@ -44,9 +50,18 @@ export function roundTree(b, x, y, z, s = 1, leaf = C.green) {
   b.brick(x, yy, z, 1, 1, 2, light, { pitch: p });
 }
 
+export function pineSmooth(b, x, y, z, s = 1, snow = false, col = C.dkgreen) {
+  b.cyl(x, y, z, 0.4 * s, 2 * s, C.brown, { seg: 8 });
+  const tiers = [[3.0, 3.6, 1.2], [2.3, 3.0, 3.4], [1.5, 2.6, 5.4]];
+  for (const [r, h, yo] of tiers) {
+    b.cone(x, y + yo * s, z, r * s, h * s, col, { seg: 8 });
+    if (snow) b.cone(x, y + (yo + h * 0.45) * s, z, r * 0.62 * s, h * 0.58 * s, C.white, { seg: 8 });
+  }
+}
 // A brick-built pine: square studded plates stepping in to a point, alternate ones turned 45
 // degrees; snowy ones have white plates on their steps.
 export function pine(b, x, y, z, s = 1, snow = false, col = C.dkgreen) {
+  if (!LEGO.on) return pineSmooth(b, x, y, z, s, snow, col);
   let yy = b.cyl(x, y, z, 0.4 * s, 1.6 * s, C.brown, { seg: 8 });
   const p = 0.62 * s;
   for (let n = 8, k = 0; n >= 2; n--, k++) {
@@ -90,11 +105,33 @@ export function lamp(b, x, y, z, glow = 0xffe28a) {
   b.sphere(x, y + 6.8, z, 0.55, C.yellow, { matOpts: { emissive: glow, emissiveIntensity: 1.6 } });
 }
 
-// scenery detail: 'high' or 'low' (the Fast graphics setting) - set before a map is built
+// scenery detail: 'high' or 'low' (the Fast graphics setting), and LEGO.on (the Legoized option:
+// brick-built props, studded/coursed surfaces); both set before a map is built. The smooth originals
+// of the legoized props are kept below (…Smooth) for comparison.
 let DETAIL = 'high';
-export function setDetail(d) { DETAIL = d === 'low' ? 'low' : 'high'; }
+export const LEGO = { on: true };
+export function setDetail(d, lego = true) { DETAIL = d === 'low' ? 'low' : 'high'; LEGO.on = lego; }
 
+export function buildingSmooth(b, x, z, w, d, floors, col, r, opts = {}) {
+  const glass = opts.glass ?? 0x2d4d6d;
+  const glassMat = plastic(glass, { rough: 0.08, metal: 0.4, emissive: opts.night ? 0xffd070 : 0, emissiveIntensity: opts.night ? 0.25 : 1 });
+  const trim = opts.trim ?? C.white;
+  let y = opts.y ?? 0;
+  b.box(x, y, z, w + 0.6, 0.5, d + 0.6, C.dkgray);
+  y += 0.5;
+  for (let f = 0; f < floors; f++) {
+    b.box(x, y, z, w - 0.6, 3, d - 0.6, col);
+    b.box(x, y + 0.8, z, w - 0.35, 1.5, d - 0.35, 0, { mat: glassMat });
+    b.box(x, y + 3, z, w, 0.3, d, f % 3 === 2 ? trim : col);
+    y += 3.3;
+  }
+  const sw = Math.max(1, Math.round(w / 4)), sd = Math.max(1, Math.round(d / 4));
+  b.brick(x, y, z, sw, sd, 1, col, { pitch: w / sw });
+  y += 0.4 * (w / sw);
+  return roofTop(b, x, y, z, w, d, r);
+}
 export function building(b, x, z, w, d, floors, col, r, opts = {}) {
+  if (!LEGO.on) return buildingSmooth(b, x, z, w, d, floors, col, r, opts);
   const glass = opts.glass ?? 0x2d4d6d;
   const glassMat = plastic(glass, { rough: 0.08, metal: 0.4, emissive: opts.night ? 0xffd070 : 0, emissiveIntensity: opts.night ? 0.25 : 1 });
   const trim = opts.trim ?? C.white;
@@ -122,6 +159,10 @@ export function building(b, x, z, w, d, floors, col, r, opts = {}) {
   for (const [sx, sz, ox, oz] of [[w - 0.2, 0.6, 0, (d - 0.8) / 2], [w - 0.2, 0.6, 0, -(d - 0.8) / 2], [0.6, d - 1.4, (w - 0.8) / 2, 0], [0.6, d - 1.4, -(w - 0.8) / 2, 0]]) {
     b.box(x + ox, y, z + oz, sx, 0.8, sz, trim === C.white ? col : trim);
   }
+  return roofTop(b, x, y, z, w, d, r);
+}
+// rooftop extras: an antenna, a water tank or a helipad
+function roofTop(b, x, y, z, w, d, r) {
   const t = r();
   if (t < 0.25) { b.cyl(x, y, z, 0.2, 8, C.ltgray, { seg: 6 }); b.sphere(x, y + 8.2, z, 0.5, C.red, { matOpts: { emissive: 0xff2000, emissiveIntensity: 2 } }); }
   else if (t < 0.45) { b.cyl(x + w * 0.2, y, z + d * 0.2, 1.8, 3.4, C.rbrown, { seg: 12 }); b.cone(x + w * 0.2, y + 3.4, z + d * 0.2, 2, 1.4, C.dkgray, { seg: 12 }); }
@@ -181,14 +222,36 @@ export function cloud(b, x, y, z, s, r) {
   }
 }
 
-export function mountain(b, x, y, z, rad, h, r, cols = [C.ltgray, C.dkgray], cap = C.white) {
+// Stepped brick mountain. With `track`, any layer that would poke up through the road (a road
+// point inside the layer's footprint lying below its top) is shrunk until it clears the road, so
+// roads can climb a mountain's shoulder without driving through its bricks.
+export function mountain(b, x, y, z, rad, h, r, cols = [C.ltgray, C.dkgray], cap = C.white, track = null) {
   const layers = Math.max(4, Math.round(h / 4));
   const lh = h / layers;
+  // road samples (across the road and shoulders) near enough to matter
+  const pts = [];
+  if (track) {
+    for (let i = 0; i < track.N; i += 2) {
+      for (const f of [-1, -0.66, -0.33, 0, 0.33, 0.66, 1]) {
+        const p = track.at(i, f * (track.HW[i] + track.SH[i]), 0);
+        if (Math.hypot(p.x - x, p.z - z) < rad * 1.6 + 6) pts.push(p);
+      }
+    }
+  }
   for (let k = 0; k < layers; k++) {
     const f = 1 - k / layers;
-    const rr = rad * f + 2;
+    let rr = rad * f + 2;
     const top = k > layers * 0.62;
-    b.box(x + (r() - 0.5) * rad * 0.1, y + k * lh, z + (r() - 0.5) * rad * 0.1, rr * 2, lh, rr * 2 * (0.8 + r() * 0.3), top ? cap : cols[k % cols.length], { rot: r() * 0.4 });
+    const cx = x + (r() - 0.5) * rad * 0.1, cz = z + (r() - 0.5) * rad * 0.1, stretch = 0.8 + r() * 0.3, rot = r() * 0.4;
+    const y0 = y + k * lh, y1 = y0 + lh, cs = Math.cos(rot), sn = Math.sin(rot);
+    const hits = (rr) => pts.some((p) => {
+      if (p.y >= y1 - 0.05) return false;              // road runs over this layer: fine
+      const dx = p.x - cx, dz = p.z - cz, lx = dx * cs - dz * sn, lz = dx * sn + dz * cs;
+      return Math.abs(lx) < rr + 2 && Math.abs(lz) < rr * stretch + 2;
+    });
+    while (pts.length && rr > 1.5 && hits(rr)) rr *= 0.88;
+    if (pts.length && hits(rr)) continue;
+    b.box(cx, y0, cz, rr * 2, lh, rr * 2 * stretch, top ? cap : cols[k % cols.length], { rot });
   }
 }
 

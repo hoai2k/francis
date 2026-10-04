@@ -863,7 +863,7 @@ export default {
     // ================= JUNGLE FILL, CLOUDS =================
     // jungle-covered hills out towards the coast
     ctx.scatter(14, { minC: 70, maxC: 150, r: 34, pad: 200, test: (x, z) => jungleOK(x, z) && hole.test(x + 40, z) && hole.test(x - 40, z) && hole.test(x, z + 40) && hole.test(x, z - 40) }, (x, z) => {
-      mountain(b, x, 0, z, 26 + rand() * 12, 24 + rand() * 26, rand, [C.dkgreen, C.green, 0x2f6a2a], C.dkgreen);
+      mountain(b, x, 0, z, 26 + rand() * 12, 24 + rand() * 26, rand, [C.dkgreen, C.green, 0x2f6a2a], C.dkgreen, ctx.track);
       for (let k = 0; k < 6; k++) { const a = rand() * TAU, r = 22 + rand() * 12; jungleTree(b, x + Math.cos(a) * r, z + Math.sin(a) * r, 1.3, rand); }
     });
     ctx.scatter(620, { minC: 2, maxC: 190, r: 3.5, pad: 260, tries: 40, test: jungleOK }, (x, z, c) => { const u = rand(); if (u < 0.5) jungleTree(b, x, z, 1 + rand() * 0.9, rand); else if (u < 0.68) palm(b, x, 0, z, 1 + rand() * 0.6, rand); else if (u < 0.82) roundTree(b, x, 0, z, 1.6 + rand() * 1.2, pick(rand, [C.dkgreen, C.green, 0x2f6a2a])); else fern(b, x, z, 1.5 + rand(), rand); void c; });

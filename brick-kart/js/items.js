@@ -66,16 +66,17 @@ const TABLES = [
   [0.75, { boost3: 13, rocket3: 11, mega: 10, golden: 10, goldturbo: 9, seeker: 7, ink: 8, ghost: 6, bomb: 5, cannon3: 5, bullet: 6 }],
   [1.01, { bullet: 24, golden: 15, goldturbo: 15, seeker: 7, mega: 10, boost3: 10, rocket3: 7 }],
 ];
-// Dead last always gets a real comeback item: only the big ones, never a defensive dud
-const LAST = { bullet: 22, golden: 16, goldturbo: 16, mega: 12, seeker: 9, boost3: 8, rocket3: 7 };
-// movie abilities join the tables (see abilities.js); the ones that favour last place (odds of 4+
-// in the last band) are comeback powers and join the last-place table too
+// Dead last always gets a catch-up item: speed (boosts, Golden / Bullet Brick, Mega, studs) or a
+// movie power that carries you up the track, never one that just hits other racers
+const LAST = { bullet: 22, golden: 16, goldturbo: 16, boost3: 14, mega: 8, studbag: 6 };
+const LAST_ABILITIES = { hyperjump: 10, snitch: 10, cloak: 4 };
+// movie abilities join the tables (see abilities.js); the catch-up ones join the last-place table
 for (const a of ABILITIES) {
   ITEMS[a.id] = { name: a.name, color: a.color || '#ffffff' };
   ICONS[a.id] = a.icon || ICONS.boost;
   if (a.multi) MULTI[a.id] = a.multi;
   TABLES.forEach(([, t], band) => { if (a.odds[band] > 0) t[a.id] = a.odds[band]; });
-  if (a.odds[4] >= 4) LAST[a.id] = a.odds[4];
+  if (LAST_ABILITIES[a.id]) LAST[a.id] = LAST_ABILITIES[a.id];
 }
 export function rollItem(rankFrac, rand = Math.random, gapBehind = 0, trackFrom = null) {
   const last = rankFrac >= 0.999;

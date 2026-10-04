@@ -730,7 +730,7 @@ export default {
     {
       const k = 13.05, sd = -1, p = sideP(k, sd, 40);
       if (far(p.x, p.z, 22) && ctx.free(p.x, p.z, 20)) {
-        mountain(b, p.x, 0, p.z, 26, 34, rand, [SW.snow, 0xdfe8ee], SW.snow);
+        mountain(b, p.x, 0, p.z, 26, 34, rand, [SW.snow, 0xdfe8ee], SW.snow, ctx.track);
         const yaw = faceRoad(k, sd);
         const fx = p.x + Math.sin(yaw) * 20, fz = p.z + Math.cos(yaw) * 20;
         b.box(fx, 0, fz, 22, 12, 8, 0xdfe8ee, { rot: yaw });
@@ -774,7 +774,7 @@ export default {
     }
     // snowy mountains, ice
     const mts = [[-190, -20, 32, 40], [-10, 175, 30, 36], [120, 150, 26, 32], [-260, 60, 28, 30], [170, 0, 22, 26], [-110, 150, 24, 26]].map(([x, z, r, h]) => [x * 0.79, z * 0.79, r * 0.9, h]);
-    for (const [x, z, r, h] of mts) if (far(x, z, r * 0.8) && ctx.free(x, z, r * 0.7)) { mountain(b, x, 0, z, r, h, rand, [SW.snow, 0xd8e2ea, 0xb8c8d6], SW.snow); ctx.claim(x, z, r); }
+    for (const [x, z, r, h] of mts) if (far(x, z, r * 0.8) && ctx.free(x, z, r * 0.7)) { mountain(b, x, 0, z, r, h, rand, [SW.snow, 0xd8e2ea, 0xb8c8d6], SW.snow, ctx.track); ctx.claim(x, z, r); }
     ctx.scatter(40, { minC: 4, maxC: 70, r: 3, pad: 60, test: (x, z) => isSnow(x, z) && hole.test(x, z) }, (x, z) => (rand() < 0.5 ? crystal(b, x, 0, z, 1.2, rand, SW.ice) : rock(b, x, 0, z, 1.4, rand, [SW.snow, 0xd8e2ea])));
 
     // ---------------------------------------------------------------- Imperial bridge & Death Star trench

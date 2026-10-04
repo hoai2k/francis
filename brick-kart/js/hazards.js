@@ -17,7 +17,7 @@ export function mover(ctx, { mesh, path, speed = 10, loop = true, oneWay = false
   let d = offset * total;
   const pos = new THREE.Vector3();
   const h = {
-    pos,
+    pos, radius,
     update(dt, t) {
       d += speed * dt;
       let s = loop || oneWay ? ((d % total) + total) % total : total - Math.abs(((d % (2 * total)) + 2 * total) % (2 * total) - total);
@@ -234,10 +234,32 @@ export class Hazards {
             this.race.audio.sfx('bump', k.pos);
             k.player?.rumble(0.5, 200);
           }
-        } else if (k.hit(kind) && kind === 'spin') this.knock(k, h, 7);
+        } else if (kind === 'spin' && h.pos && h.radius) this.glance(k, h);
+        else if (k.hit(kind) && kind === 'spin') this.knock(k, h, 7);
         break;
       }
     }
+  }
+  // A rolling ball / moving obstacle: hit square in the middle and it stops you (spin-out); clip it
+  // towards a side and you're thrown off the other way, spun partly round and slowed, but keep
+  // driving.
+  glance(k, h) {
+    if (k.invincible || k.megaTime > 0 || k.finishedCoast) return;
+    if (k.shieldBlocks()) return;
+    const rx = -Math.cos(k.yaw), rz = Math.sin(k.yaw);                    // the kart's right
+    const side = ((h.pos.x - k.pos.x) * rx + (h.pos.z - k.pos.z) * rz) / (h.radius + 1.2);
+    if (Math.abs(side) < 0.3) {
+      if (k.hit('spin')) { k.speed *= 0.3; this.knock(k, h, 4); }
+      return;
+    }
+    const away = side > 0 ? -1 : 1, f = 11 / k.weight;                  // ball on the right: off to the left
+    k.cancelDrift();
+    k.speed *= 0.62;
+    k.shove(rx * away * f, rz * away * f, -away * 3.2);
+    k.invuln = Math.max(k.invuln, 0.5);
+    k.emote?.('ouch');
+    this.race.audio.sfx('bump', k.pos);
+    k.player?.rumble(0.6, 220);
   }
   // shove a kart away from a hazard (movers expose pos; otherwise off to one side and back a bit)
   knock(k, h, force) {

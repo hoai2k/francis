@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { BrickBuilder, C, plastic, baseplateMat, brickGeometry, faceTexture } from '../lego.js';
 import { groundPlane } from '../world.js';
+import { LEGO } from '../decor.js';
 export { tree, roundTree, pine, palm, rock, lamp, building, snowman, crystal, tower, wallSeg, cloud, mountain, grandstand, billboard, minifig, canvasTexture, pick, rng } from '../decor.js';
 export { mover, trackMover, crossing, geyser, crusher, spinner, cannon } from '../hazards.js';
 export { THREE, BrickBuilder, C, plastic, baseplateMat, brickGeometry, faceTexture, groundPlane };
@@ -181,7 +182,7 @@ export function house(b, x, z, w, d, h, col, roof = C.red, rot = 0) {
   b.box(x + sa * (d / 2 + 0.05), 0, z + ca * (d / 2 + 0.05), 1.6, 2.6, 0.2, C.rbrown, { rot });
   for (const sd of [-1, 1]) {
     const wx = x + sa * (d / 2 + 0.05) + ca * sd * w * 0.28, wz = z + ca * (d / 2 + 0.05) - sa * sd * w * 0.28;
-    b.box(wx, h * 0.45 - 0.2, wz, 1.6, 1.6, 0.2, C.white, { rot, smooth: true });   // window frame
+    if (LEGO.on) b.box(wx, h * 0.45 - 0.2, wz, 1.6, 1.6, 0.2, C.white, { rot, smooth: true });   // window frame
     b.box(wx + sa * 0.06, h * 0.45, wz + ca * 0.06, 1.2, 1.2, 0.15, C.azure, { rot, matOpts: { trans: true, opacity: 0.7 } });
   }
 }
@@ -240,7 +241,8 @@ export function jungleTree(b, x, z, s, r) {
     const a = k / 7 * Math.PI * 2 + r();
     b.boxM(mat4(x + Math.sin(a) * 3 * s, h - 0.4 * s, z + Math.cos(a) * 3 * s, 0.35, a, 0, 2.2 * s, 0.3 * s, 7 * s), k % 2 ? C.green : C.dkgreen);
   }
-  b.brick(x, h - 0.6 * s, z, 3, 3, 3, C.dkgreen, { pitch: 1.1 * s });
+  if (LEGO.on) b.brick(x, h - 0.6 * s, z, 3, 3, 3, C.dkgreen, { pitch: 1.1 * s });
+  else b.sphere(x, h, z, 1.8 * s, C.dkgreen);
   if (r() < 0.5) for (let k = 0; k < 3; k++) b.cyl(x + (r() - 0.5) * 3 * s, h * 0.35, z + (r() - 0.5) * 3 * s, 0.12, h * 0.6, C.green, { seg: 4 });
 }
 export function fern(b, x, z, s, r) {

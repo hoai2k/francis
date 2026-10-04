@@ -13,14 +13,12 @@ Play: <https://hoai2k.github.io/francis/brick-kart/>
   focused cup shows a preview of its races in order, with a picture of each map.
   Points go 15-12-10-9-8-7-6-5-4-3-2-1, and each cup ends with an award
   ceremony.
-- **Quick Race**: one race on any map. By default there are **12 racers**
-  (you plus CPU racers). You can change the number in Options.
+- **Quick Race**: one race on any map, always with **12 racers** (you plus CPU racers).
 - **Time Trial**: race alone with 3 Turbo Studs. Your best time on each map is
   saved in your browser.
 - **Racer select**: player 1 is already in, using whatever controller (or
   keyboard/touch) you used in the menus; more players press A to join.
-- **Options**: engine class (50/100/150/200cc), CPU difficulty, racers per race
-  (4/6/8/10/12; 12 at most, players included), laps, **Simplified mode**, auto-accelerate, music and sound
+- **Options**: engine class (50/100/150/200cc), CPU difficulty, laps, **Legoized** (brick-built props, on by default; off shows the original smooth props for comparison), **Simplified mode**, auto-accelerate, music and sound
   volume, and graphics quality. The game also lowers its render resolution
   automatically if frames run slow, and raises it again when there's headroom.
 
@@ -170,7 +168,7 @@ big comeback ones.
 
 Drive through the rainbow **?** bricks to get an item. You can hold two: the one you can use now (big slot) and the next one (small slot), which moves up once you use the first.
 
-The further back you are, the better your items. The leader mostly gets defensive items, and the racers at the back get the big comeback items. Whoever is in **last place** always gets one of the big ones (Bullet Brick, Golden Brick, Gold Turbo, Mega Brick, Leader Seeker, triples, or a comeback movie power). Being far behind the leader also improves your odds.
+The further back you are, the better your items. The leader mostly gets defensive items, and the racers at the back get the big comeback items. Whoever is in **last place** always gets a catch-up item that speeds them up: Bullet Brick, Golden Brick, Gold Turbo, Triple Turbo, Mega Brick, a Stud Bag, or a movie power that carries them up the track (Hyperspace Jump, the Golden Snitch, the Invisibility Cloak). Never one that only hits other racers. Being far behind the leader also improves your odds.
 
 | Item | What it does |
 | --- | --- |
@@ -203,8 +201,9 @@ gets pushed. Hitting someone from behind hands them some of your speed; a side
 swipe knocks both karts sideways (the lighter one further) instead of stopping
 anyone, and the knock slides off over a moment (longer on ice). Traffic, cows,
 forklifts and other "bump" hazards shove you aside rather than spinning you.
-Rolling boulders, snowballs, gumballs, asteroids and the factory's wrecking arms
-spin you out and throw you aside instead of wrecking you. Only power-ups turn contact
+Rolling boulders, snowballs, gumballs and asteroids: hit one square in the middle
+and it stops you; clip it towards a side and you're thrown off the other way and
+slowed, but keep driving. The factory's wrecking arms spin you out. Only power-ups turn contact
 into a hit: a Golden, Mega or Bullet Brick bowls you over into a spin-out and
 flings you aside, and only Black Flash wrecks you on contact.
 
@@ -233,6 +232,9 @@ you drop some.
 - **Tricks**: tap drift in mid-air after a ramp to land with a boost.
 - **Rocket start**: hold accelerate just after the second start light comes on.
 - **Gliding**: steer while you fly. You land wherever the road is below you, and once you're past the gap you come down twice as fast. Ground obstacles like hay bales and cupcakes only stop you if you fly low enough to hit them.
+- **Off the road**: the grass, sand or snow beside the track is drivable but slow
+  (you can't wander far from the track). Only water, lava, holes and the void of
+  space drop you into a respawn.
 - **Falling off**: the crane puts you back on a safe stretch of road. If you fall again right away, it puts you further ahead next time.
 - Sound mutes when you switch to another tab or window.
 - **Touch steering**: drag a finger left / right anywhere on the screen (it steers
