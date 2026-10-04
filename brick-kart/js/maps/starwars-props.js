@@ -140,18 +140,6 @@ export const FACES = {
     g.strokeStyle = '#122848'; g.lineWidth = 4; g.beginPath(); g.moveTo(cx - 14, cy + 22); g.lineTo(cx + 14, cy + 22); g.stroke();
     g.strokeStyle = '#8a8a8a'; g.lineWidth = 5; for (const sd of [-1, 1]) { g.beginPath(); g.moveTo(cx + sd * 36, cy + 4); g.lineTo(cx + sd * 18, cy + 20); g.stroke(); }
   }),
-  // C-3PO, the trooper and the Tusken share their prints with the drivers' redesigned
-  // heads (../drivers/starwars.js): drawn in world units on a head of the drivers' size.
-  c3po: () => printFace('c3po', 0.3708, 0.4867, '#dcaa2a', (g) => {
-    const Hc = 0.4867;
-    for (const sd of [-1, 1]) {
-      ell(g, sd * 0.14, Hc * 0.6, 0.095, 0.085, '#9a7012');                     // eye sockets
-      poly(g, '#a87c14', [[sd * 0.085, Hc * 0.45], [sd * 0.105, Hc * 0.45], [sd * 0.12, Hc * 0.08], [sd * 0.1, Hc * 0.08]]);   // cheek lines
-      poly(g, '#a87c14', [[sd * 0.3, Hc * 0.9], [sd * 0.32, Hc * 0.9], [sd * 0.32, Hc * 0.1], [sd * 0.3, Hc * 0.1]]);         // jaw seams
-    }
-    poly(g, '#f6d470', [[-0.016, Hc * 0.62], [0.016, Hc * 0.62], [0.02, Hc * 0.36], [-0.02, Hc * 0.36]]);   // nose
-    poly(g, '#a87c14', [[-1.3, Hc * 0.93], [1.3, Hc * 0.93], [1.3, Hc * 0.95], [-1.3, Hc * 0.95]]);         // brow seam
-  }, { metal: 0.75, rough: 0.3 }),
   vader: () => face('vader', (g, cx, cy, w, h) => {
     g.fillStyle = '#141414'; g.fillRect(0, 0, w, h);
     g.fillStyle = '#2e2e32';
@@ -160,29 +148,6 @@ export const FACES = {
     g.strokeStyle = '#141414'; g.lineWidth = 2; for (let k = -3; k <= 3; k++) { g.beginPath(); g.moveTo(cx + k * 4, cy + 12); g.lineTo(cx + k * 5, cy + 32); g.stroke(); }
     g.fillStyle = '#5a5a60'; for (const sd of [-1, 1]) g.fillRect(cx + sd * 34 - 3, cy + 6, 6, 22);
   }, { rough: 0.2 }),
-  trooper: () => printFace('trooper', 0.403, 0.403, '#f4f4f4', (g) => {
-    const Hc = 0.403;
-    for (const sd of [-1, 1]) {
-      // teardrop lenses, sloping down and out
-      g.fillStyle = '#0b0b0d'; g.beginPath();
-      g.moveTo(sd * 0.025, Hc * 0.93);
-      g.lineTo(sd * 0.19, Hc * 0.9);
-      g.quadraticCurveTo(sd * 0.24, Hc * 0.86, sd * 0.22, Hc * 0.72);
-      g.quadraticCurveTo(sd * 0.19, Hc * 0.55, sd * 0.11, Hc * 0.57);
-      g.quadraticCurveTo(sd * 0.03, Hc * 0.62, sd * 0.025, Hc * 0.93);
-      g.fill();
-      poly(g, '#3c4a5a', [[sd * 0.07, Hc * 0.86], [sd * 0.15, Hc * 0.85], [sd * 0.14, Hc * 0.81], [sd * 0.07, Hc * 0.82]]);
-      // "tear" vents under the lenses and the blue side tubes
-      poly(g, '#3a3c40', [[sd * 0.17, Hc * 0.6], [sd * 0.19, Hc * 0.6], [sd * 0.225, Hc * 0.3], [sd * 0.205, Hc * 0.3]]);
-      poly(g, '#6a8ab0', [[sd * 0.26, Hc * 0.48], [sd * 0.3, Hc * 0.48], [sd * 0.31, Hc * 0.06], [sd * 0.27, Hc * 0.06]]);
-    }
-    // nose ridge and the frown round the grille
-    poly(g, '#d6d8dc', [[-0.012, Hc * 0.8], [0.012, Hc * 0.8], [0.02, Hc * 0.5], [-0.02, Hc * 0.5]]);
-    g.fillStyle = '#26282c'; g.beginPath();
-    g.moveTo(-0.23, Hc * 0.02); g.quadraticCurveTo(-0.17, Hc * 0.5, 0, Hc * 0.5); g.quadraticCurveTo(0.17, Hc * 0.5, 0.23, Hc * 0.02);
-    g.lineTo(0.18, Hc * 0.02); g.quadraticCurveTo(0.13, Hc * 0.4, 0, Hc * 0.41); g.quadraticCurveTo(-0.13, Hc * 0.4, -0.18, Hc * 0.02);
-    g.closePath(); g.fill();
-  }),
   boba: () => face('boba', (g, cx, cy, w, h) => {
     g.fillStyle = '#56683e'; g.fillRect(0, 0, w, h);
     g.fillStyle = '#b0302a'; g.fillRect(0, 0, w, 14);
@@ -197,6 +162,8 @@ export const FACES = {
     for (const sd of [-1, 1]) { eye(g, cx + sd * 15, cy - 10, 5, 4, '#1a2a4a'); }
     eye(g, cx, cy + 4, 9, 6, '#111'); g.fillStyle = '#2a1a10'; g.fillRect(cx - 12, cy + 18, 24, 5);
   }),
+  // The Tusken shares its print with the driver's head (../drivers/starwars.js): drawn in
+  // world units on a head of the driver's size.
   tusken: () => printFace('tusken', 0.403, 0.6084, '#c9b38e', (g) => {
     const Hc = 0.6084, cols = ['#bca47c', '#d6c49f', '#ad936c', '#c9b38e', '#cbb690'];
     for (let k = 0; k < 18; k++) {
@@ -252,93 +219,225 @@ function armBand(b, col, s, sd, ox, oy, oz, pitch, spread, t0, t1, grow = 1.1) {
 }
 // a point on a head of radius r, `a` radians round from the front, y above its base
 const onHead = (a, y, r) => [Math.sin(a) * r, y, Math.cos(a) * r];
-// metallic polish: swap the shared vertex-colour plastic for a shiny copy on these meshes
-let _polished = null;
-function polish(obj) {
-  obj.traverse((o) => {
-    const m = o.material;
-    if (!o.isMesh || !m || Array.isArray(m) || !m.vertexColors || m.metalness) return;
-    _polished ||= Object.assign(m.clone(), { metalness: 0.85, roughness: 0.25 });
-    o.material = _polished;
-  });
-  return obj;
-}
 function armGroup(s, sd, col, hand, pitch = 0.1, extra) {
   return group((b) => { arm(b, s, sd, col, hand, 0, 0, 0, pitch, 0.06); extra?.(b); }, 'arm');
 }
 
-// ---- characters ------------------------------------------------------------------
-// C-3PO: polished gold plating, round glowing eyes in dark rims, slanted ear discs, a stiff
-// jointed body with the wiring showing at the open waist and one silver shin.
-const P3_GOLD = 0xcc9a22, P3_HI = 0xd4a22a, P3_DARK = 0x3a3022, P3_SILVER = 0xb8bcc4;
-function c3poArm(b, s, sd) {
-  const pa = [s, sd, 0, 0, 0, 0.1, 0.06];
-  arm(b, s, sd, P3_GOLD, P3_GOLD, 0, 0, 0, 0.1, 0.06);
-  ball(b, P3_HI, sd * 0.02 * s, 0.04 * s, 0, 0.21 * s, 0.9);           // shoulder joint
-  armBand(b, P3_DARK, ...pa, 0.28, 0.32, 1.04);                       // joint gaps: shoulder, elbow, wrist
-  armBand(b, P3_DARK, ...pa, 0.61, 0.66, 1.04);
-  armBand(b, P3_DARK, ...pa, 0.96, 1.0, 1.03);
-  const p0 = armPt(...pa, 0.7), p1 = armPt(...pa, 0.93);
-  rod(b, P3_SILVER, p0[0] + sd * 0.17 * s, p0[1], p0[2], p1[0] + sd * 0.17 * s, p1[1], p1[2], 0.03 * s, CYL6);   // forearm piston
+// ---- minifig prints for C-3PO and the stormtrooper -----------------------------------
+// Each of these two wears ALL its prints (the wrap round the head, torso front and back, legs)
+// on one canvas, so a trooper stamped into the scenery dozens of times still costs a single
+// textured draw call per chunk. The drivers (../drivers/starwars.js) wear the same prints
+// and build their heads with the same functions.
+const AT = 1024;
+// atlas regions [x0, y0, x1, y1] in canvas px. The torso regions keep the shape of the torso
+// they are printed on: a standing fig() is 1.06 x 1.2, a seated driver 0.92W x 0.82.
+const atlasRegions = (W) => {
+  const dh = 392 + Math.round(240 * 0.82 / (0.92 * W));
+  return {
+    head: [0, 0, 1024, 384],
+    figF: [0, 392, 240, 664], figB: [248, 392, 488, 664],
+    drvF: [496, 392, 736, dh], drvB: [744, 392, 984, dh],
+    leg: [0, 680, 160, 1020], thigh: [176, 680, 336, 960],
+    blank: [1000, 1000, 1016, 1016],
+  };
+};
+const _atlases = {};
+function atlas(key, W, base, draw, opts = {}) {
+  if (_atlases[key]) return _atlases[key];
+  const rg = atlasRegions(W);
+  const map = canvasTexture(AT, AT, (g) => { g.fillStyle = base; g.fillRect(0, 0, AT, AT); draw(g, rg); });
+  map.generateMipmaps = true;
+  const mat = new THREE.MeshStandardMaterial({ map, roughness: opts.rough ?? 0.34, metalness: opts.metal ?? 0 });
+  return (_atlases[key] = { mat, rg });
 }
-function c3poHead(b, s) {
-  const R = 0.4 * s, H = 0.62 * s, Hf = H * 0.78, rAt = (y) => R * (0.84 + 0.16 * y / Hf);
-  const rim = plastic(0x2a2214, { rough: 0.45 }), eyeGlow = glow(0xffd23a, 1.8);
-  b.add(CHIN, FACES.c3po(), 0, 0, 0, Math.PI, R, Hf, R);
-  put(b, HEMI, P3_GOLD, 0, Hf - 0.02 * R, 0, R * 1.02, R * 0.74, R * 1.02);
-  put(b, FRONTARC, P3_HI, 0, H * 0.58, 0, rAt(H * 0.58) * 1.07, H * 0.05, rAt(H * 0.58) * 1.07, -0.08);   // brow ridge
-  const ey = H * 0.47, er = rAt(ey);
-  for (const sd of [-1, 1]) {
-    const a = sd * 0.37;
-    rod(b, rim, ...onHead(a, ey, er * 0.85), ...onHead(a, ey, er * 1.06), R * 0.165);
-    rod(b, eyeGlow, ...onHead(a, ey, er * 1.0), ...onHead(a, ey, er * 1.075), R * 0.11);
-    // slanted ear discs
-    rod(b, P3_GOLD, sd * R * 0.85, ey, -R * 0.02, sd * R * 1.1, ey + R * 0.04, -R * 0.1, R * 0.26, CYL20);
-    rod(b, P3_HI, sd * R * 1.08, ey + R * 0.035, -R * 0.095, sd * R * 1.14, ey + R * 0.045, -R * 0.11, R * 0.17);
-    rod(b, P3_DARK, sd * R * 1.13, ey + R * 0.043, -R * 0.108, sd * R * 1.16, ey + R * 0.048, -R * 0.115, R * 0.06, CYL8);
+// draw into region r with local coordinates x in [x0, x1] (left to right) and y in [y0, y1]
+// (bottom to top)
+function inRegion(g, r, x0, x1, y0, y1, fn) {
+  const sx = (r[2] - r[0]) / (x1 - x0), sy = (r[3] - r[1]) / (y1 - y0);
+  g.save();
+  g.beginPath(); g.rect(r[0], r[1], r[2] - r[0], r[3] - r[1]); g.clip();
+  g.setTransform(sx, 0, 0, -sy, r[0] - x0 * sx, r[3] + y0 * sy);
+  g.lineJoin = 'round'; g.lineCap = 'round';
+  fn();
+  g.restore();
+}
+// a torso print region: x across the bottom edge (-0.5..0.5), y up to the torso's height T
+// (in bottom widths); k = top width / bottom width
+const inTorso = (g, r, k, fn) => { const T = (r[3] - r[1]) / (r[2] - r[0]); inRegion(g, r, -0.5, 0.5, 0, T, () => fn(T, k)); };
+const line = (g, col, w, pts) => { g.strokeStyle = col; g.lineWidth = w; g.beginPath(); pts.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); g.stroke(); };
+const curve = (g, col, w, a, c, b) => { g.strokeStyle = col; g.lineWidth = w; g.beginPath(); g.moveTo(...a); g.quadraticCurveTo(...c, ...b); g.stroke(); };
+const ring = (g, col, w, x, y, r) => { g.strokeStyle = col; g.lineWidth = w; g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.stroke(); };
+const uvTo = (r, u, v) => [(r[0] + u * (r[2] - r[0])) / AT, 1 - (r[3] - v * (r[3] - r[1])) / AT];
+// a copy of a (unit) geometry with its UVs squeezed into atlas region r; flat caps (normal
+// straight up or down) get a blank spot instead
+const _rgGeo = new Map();
+function regionGeo(key, geo, r, blank) {
+  let g = _rgGeo.get(key);
+  if (g) return g;
+  g = geo.clone();
+  const uv = g.attributes.uv, n = g.attributes.normal, b = uvTo(blank, 0.5, 0.5);
+  for (let i = 0; i < uv.count; i++) {
+    const [u, v] = Math.abs(n.getY(i)) > 0.99 ? b : uvTo(r, uv.getX(i), uv.getY(i));
+    uv.setXY(i, u, v);
   }
-  box(b, P3_HI, 0, H * 0.36, rAt(H * 0.36), R * 0.1, H * 0.17, R * 0.12, -0.12);   // nose
-  box(b, rim, 0, H * 0.17, rAt(H * 0.17), R * 0.28, H * 0.045, R * 0.07);          // mouth slot
+  _rgGeo.set(key, g);
+  return g;
+}
+// a flat trapezoid print (bottom width w0, top w1, height h; bottom centre at the origin,
+// facing +Z) whose planar UVs cover atlas region r; flip mirrors it left to right
+function quadGeo(w0, w1, h, r, flip) {
+  const key = [w0, w1, h, ...r, flip].join();
+  let g = _rgGeo.get(key);
+  if (g) return g;
+  const W = Math.max(w0, w1), pts = [[-w0 / 2, 0], [w0 / 2, 0], [w1 / 2, h], [-w1 / 2, h]];
+  g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pts.flatMap(([x, y]) => [x, y, 0]), 3));
+  g.setAttribute('normal', new THREE.Float32BufferAttribute([0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1], 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(pts.flatMap(([x, y]) => uvTo(r, flip ? 0.5 - x / W : 0.5 + x / W, y / h)), 2));
+  g.setIndex([0, 1, 2, 0, 2, 3]);
+  _rgGeo.set(key, g);
+  return g;
+}
+export function printQuad(b, mat, r, w0, w1, h, x, y, z, rx = 0, ry = 0, flip = false) {
+  put(b, quadGeo(w0, w1, h, r, flip), mat, x, y, z, 1, 1, 1, rx, ry, 0);
+}
+// prints on a standing fig(): torso front and back, and (optionally) both legs. The leg print
+// has its inner edge on the right, so the left leg (+X) wears it mirrored.
+function figPrints(b, A, s, legs = true) {
+  const r = A.rg, z = 0.2725 * s;
+  printQuad(b, A.mat, r.figF, 1.06 * s, 0.848 * s, 1.2 * s, 0, 1.25 * s, z);
+  printQuad(b, A.mat, r.figB, 1.06 * s, 0.848 * s, 1.2 * s, 0, 1.25 * s, -z, 0, Math.PI);
+  if (legs) for (const sd of [-1, 1]) printQuad(b, A.mat, r.leg, 0.47 * s, 0.47 * s, 1.0 * s, sd * 0.25 * s, 0, 0.3125 * s, 0, 0, sd > 0);
+}
+// a classic minifig C-hand: a ring whose axis points forward (square to the arm, which is
+// swung forward by `pitch`), the gap facing in towards the body and a little down
+const CHAND = new THREE.TorusGeometry(1, 0.42, 6, 12, Math.PI * 1.55);
+export function cHand(b, col, x, y, z, r, sd, pitch = 0) {
+  put(b, CHAND, col, x, y, z, r, r, r, -pitch, 0, (sd > 0 ? Math.PI + 0.2 : -0.2) + Math.PI * 0.225);
+}
+// a fig() arm (see arm()) ending in a short wrist and a C-hand; returns the hand centre
+function cArm(b, s, sd, col, hand, ox, oy, oz, pitch, spread) {
+  const ex = ox + sd * spread * s, ey = oy - Math.cos(pitch) * s, ez = oz + Math.sin(pitch) * s;
+  const dy = -Math.cos(pitch), dz = Math.sin(pitch);   // down the arm
+  rod(b, col, ox, oy + 0.08 * s, oz, ex, ey, ez, 0.3 * s, BOX, 0.32 * s);
+  rod(b, hand, ex, ey - dy * 0.03 * s, ez - dz * 0.03 * s, ex, ey + dy * 0.14 * s, ez + dz * 0.14 * s, 0.09 * s, CYL8);
+  const h = [ex, ey + dy * 0.22 * s, ez + dz * 0.22 * s];
+  cHand(b, hand, ...h, 0.11 * s, sd, pitch);
+  return h;
+}
+
+// ---- characters ------------------------------------------------------------------
+// C-3PO, as the LEGO minifig: pearl gold all over (a warm, satin metallic gold), a domed head
+// with big round eyes in dark rims, a little "o" mouth and round ear discs; the torso print
+// has the collar, the round power button over the abdomen and the open waist with its wiring.
+export const PEARL_GOLD = 0xb98535;
+const P3 = { gold: '#b98535', line: '#8a5a1e', hi: '#e6b866', dark: '#2e1c0a', orange: '#d9772a' };
+let _pearl = null;
+// swap the shared vertex-colour plastic for a satin metallic copy on these meshes
+export function pearlGold(obj) {
+  obj.traverse((o) => {
+    const m = o.material;
+    if (!o.isMesh || !m || Array.isArray(m) || !m.vertexColors || m.metalness) return;
+    _pearl ||= Object.assign(m.clone(), { metalness: 0.5, roughness: 0.42 });
+    o.material = _pearl;
+  });
+  return obj;
+}
+// head proportions in head radii: the face drum (narrower at the chin) and the dome on it
+const P3H = { face: 1.36, chin: 0.86, dome: 0.85 };
+function c3poTorso(g, T, k) {
+  const Y = (f) => f * T;
+  // collar: a necklace line with two little clips hanging off it, a ring and a dot below
+  curve(g, P3.dark, 0.016, [-0.25, Y(0.95)], [0, Y(0.82)], [0.25, Y(0.95)]);
+  for (const sd of [-1, 1]) {
+    g.save(); g.translate(sd * 0.16, Y(0.85)); g.rotate(sd * 0.35);
+    g.fillStyle = P3.dark; g.fillRect(-0.026, -0.065, 0.052, 0.13);
+    g.fillStyle = P3.hi; g.fillRect(-0.013, -0.052, 0.026, 0.104);
+    g.restore();
+  }
+  ring(g, P3.dark, 0.014, -0.015, Y(0.78), 0.04);
+  ell(g, 0.08, Y(0.69), 0.017, 0.017, P3.dark);
+  // the chest plate's lower edge: a raised panel line
+  line(g, P3.line, 0.02, [[-0.4, Y(0.5)], [-0.34, Y(0.57)], [0.34, Y(0.57)], [0.4, Y(0.5)]]);
+  line(g, P3.hi, 0.012, [[-0.4, Y(0.52)], [-0.34, Y(0.59)], [0.34, Y(0.59)], [0.4, Y(0.52)]]);
+  // abdomen: a dark seam with the round power button on it, a triangle in its top half
+  line(g, P3.dark, 0.016, [[-0.47, Y(0.32)], [-0.43, Y(0.37)], [0.43, Y(0.37)], [0.47, Y(0.32)]]);
+  const by = Y(0.37);
+  ell(g, 0, by, 0.145, 0.145, P3.dark);
+  ell(g, 0, by, 0.128, 0.128, P3.orange);
+  ring(g, '#a8561c', 0.012, 0, by, 0.085);
+  poly(g, P3.dark, [[0, by + 0.075], [-0.05, by - 0.012], [0.05, by - 0.012]]);
+  poly(g, '#f2b25a', [[0, by + 0.05], [-0.03, by], [0.03, by]]);
+  ell(g, 0, by + 0.018, 0.01, 0.01, '#fff4d8');
+  for (const sd of [-1, 1]) line(g, '#d0782c', 0.014, [[sd * 0.18, Y(0.27)], [sd * 0.42, Y(0.27)]]);
+  // the open waist: a dark band (smiling lower edge) with red, blue and white wiring
+  g.save();
+  g.beginPath(); g.moveTo(-0.45, Y(0.23)); g.lineTo(0.45, Y(0.23)); g.lineTo(0.45, Y(0.14));
+  g.quadraticCurveTo(0, Y(-0.02), -0.45, Y(0.14)); g.closePath();
+  g.fillStyle = '#181214'; g.fill(); g.clip();
+  const wires = [[-0.4, '#c8d0d8'], [-0.33, '#c0302a'], [-0.26, '#6a9ad8'], [-0.18, '#e8ecf0'], [-0.1, '#7a2430'], [-0.02, '#c0302a'],
+    [0.06, '#e8ecf0'], [0.13, '#6a9ad8'], [0.2, '#c8d0d8'], [0.28, '#c0302a'], [0.35, '#9ac0e8'], [0.41, '#e8ecf0']];
+  const lean = [0.06, 0.05, -0.03, 0.07, 0.04, -0.05, 0.06, 0.08, -0.02, 0.05, 0.07, -0.04];
+  wires.forEach(([x, col], i) => line(g, col, 0.016, [[x, Y(0.21)], [x + lean[i], Y(0.05)]]));
+  g.restore();
+}
+function c3poBack(g, T, k) {
+  const Y = (f) => f * T;
+  // back plate seams, a socket and the wiring at the waist
+  line(g, P3.line, 0.018, [[-0.3, Y(0.97)], [-0.34, Y(0.5)], [0.34, Y(0.5)], [0.3, Y(0.97)]]);
+  line(g, P3.hi, 0.01, [[-0.32, Y(0.52)], [0.32, Y(0.52)]]);
+  ell(g, 0, Y(0.76), 0.06, 0.06, P3.dark); ell(g, 0, Y(0.76), 0.035, 0.035, P3.line);
+  g.save();
+  g.beginPath(); g.rect(-0.42, Y(0.13), 0.84, Y(0.12)); g.fillStyle = '#181214'; g.fill(); g.clip();
+  [[-0.3, '#c0302a'], [-0.15, '#6a9ad8'], [0.0, '#e8ecf0'], [0.15, '#c0302a'], [0.3, '#6a9ad8']].forEach(([x, col], i) => line(g, col, 0.016, [[x, Y(0.24)], [x + (i % 2 ? 0.05 : -0.05), Y(0.12)]]));
+  g.restore();
+}
+export const c3poPrints = () => atlas('c3po', 0.96, P3.gold, (g, rg) => {
+  // head wrap: u = distance round from the front, v = height (both in head radii)
+  inRegion(g, rg.head, -Math.PI, Math.PI, 0, P3H.face, () => {
+    line(g, P3.line, 0.03, [[0, P3H.face], [0, 1.2]]);                                   // forehead seam
+    for (const sd of [-1, 1]) {
+      line(g, P3.line, 0.03, [[sd * 1.3, P3H.face], [sd * 1.25, 0.5]]);                   // side seams down to the ears
+      ell(g, sd * 0.36, 0.92, 0.27, 0.26, '#a2702e');                                     // eye sockets
+      ell(g, sd * 0.36, 0.92, 0.205, 0.205, P3.dark);                                     // eyes: dark rims, pale yellow
+      ell(g, sd * 0.36, 0.92, 0.158, 0.158, '#f2dc86');
+      ell(g, sd * 0.345, 0.935, 0.09, 0.09, '#fbf0c4');
+      ell(g, sd * 0.36, 0.92, 0.03, 0.03, '#5a3a10');
+    }
+    ell(g, 0, 0.36, 0.12, 0.072, P3.dark);                                               // the little "o" mouth
+    ell(g, 0, 0.36, 0.085, 0.04, '#f0d48a');
+  });
+  inTorso(g, rg.figF, 0.8, (T, k) => c3poTorso(g, T, k));
+  inTorso(g, rg.figB, 0.8, (T, k) => c3poBack(g, T, k));
+  inTorso(g, rg.drvF, 0.76, (T, k) => c3poTorso(g, T, k));
+  inTorso(g, rg.drvB, 0.76, (T, k) => c3poBack(g, T, k));
+}, { metal: 0.5, rough: 0.42 });
+const P3FACE = new THREE.CylinderGeometry(1, P3H.chin, 1, 28).translate(0, 0.5, 0);
+const P3DOME = new THREE.SphereGeometry(1, 28, 8, 0, Math.PI * 2, 0, Math.PI / 2);
+// C-3PO's head (also the driver's): R = head radius, base at y0
+export function c3poHead(b, R, y0 = 0) {
+  const A = c3poPrints(), G = PEARL_GOLD;
+  put(b, regionGeo('p3face', P3FACE, A.rg.head, A.rg.blank), A.mat, 0, y0, 0, R, P3H.face * R, R, 0, Math.PI, 0);
+  put(b, P3DOME, G, 0, y0 + P3H.face * R - 0.01 * R, 0, R, P3H.dome * R, R);
+  // round ear discs low on the sides, a raised rim and a dark centre
+  const ey = y0 + 0.36 * R;
+  for (const sd of [-1, 1]) {
+    rod(b, G, sd * 0.8 * R, ey, -0.04 * R, sd * 1.02 * R, ey, -0.04 * R, 0.19 * R, CYL20);
+    rod(b, 0xd9a24c, sd * 1.0 * R, ey, -0.04 * R, sd * 1.05 * R, ey, -0.04 * R, 0.13 * R, CYL20);
+    rod(b, 0x5a3a14, sd * 1.04 * R, ey, -0.04 * R, sd * 1.06 * R, ey, -0.04 * R, 0.05 * R, CYL8);
+  }
 }
 export function c3po(s = 2.6) {
+  const A = c3poPrints(), G = PEARL_GOLD;
   const root = new THREE.Group();
-  root.add(polish(group((b) => {
-    fig(b, s, { legs: P3_GOLD, hips: P3_GOLD, torso: P3_GOLD, neck: P3_DARK, noArms: true });
-    box(b, P3_SILVER, -0.25 * s, 0.28 * s, 0.03 * s, 0.49 * s, 0.5 * s, 0.58 * s);   // the silver shin
-    for (const sd of [-1, 1]) {
-      box(b, P3_DARK, sd * 0.25 * s, 0.56 * s, 0.03 * s, 0.5 * s, 0.06 * s, 0.59 * s);   // knee and ankle joints
-      box(b, P3_DARK, sd * 0.25 * s, 0.09 * s, 0.03 * s, 0.5 * s, 0.04 * s, 0.59 * s);
-      box(b, P3_HI, sd * 0.25 * s, 0.75 * s, 0.32 * s, 0.32 * s, 0.3 * s, 0.03 * s);    // thigh plates
-    }
-    // chest plate, collar and power socket
-    put(b, TRAP, P3_HI, 0, 1.95 * s, 0, 1.03 * s, 0.5 * s, 0.6 * s);
-    rod(b, P3_GOLD, 0, 2.43 * s, 0, 0, 2.5 * s, 0, 0.3 * s, CYL20);
-    for (const sd of [-1, 1]) box(b, P3_GOLD, sd * 0.2 * s, 2.2 * s, 0.305 * s, 0.32 * s, 0.26 * s, 0.04 * s, -0.04);
-    rod(b, P3_DARK, 0, 2.06 * s, 0.28 * s, 0, 2.06 * s, 0.33 * s, 0.07 * s);
-    rod(b, P3_SILVER, 0, 2.06 * s, 0.32 * s, 0, 2.06 * s, 0.345 * s, 0.035 * s);
-    box(b, P3_DARK, 0, 1.98 * s, 0.305 * s, 0.7 * s, 0.03 * s, 0.02 * s);
-    // the open waist: dark frame with a silver piston (the wires are matte, below)
-    box(b, P3_DARK, 0, 1.66 * s, 0, 0.92 * s, 0.56 * s, 0.57 * s);
-    rod(b, P3_SILVER, 0, 1.4 * s, 0.29 * s, 0, 1.94 * s, 0.29 * s, 0.045 * s, CYL8);
-    // pelvis band and plate
-    box(b, P3_GOLD, 0, 1.32 * s, 0, 1.1 * s, 0.18 * s, 0.58 * s);
-    box(b, P3_HI, 0, 1.24 * s, 0.3 * s, 0.4 * s, 0.26 * s, 0.04 * s);
-    // back plate and socket
-    box(b, P3_GOLD, 0, 2.15 * s, -0.3 * s, 0.66 * s, 0.4 * s, 0.04 * s, 0.04);
-    rod(b, P3_DARK, 0, 2.17 * s, -0.3 * s, 0, 2.17 * s, -0.34 * s, 0.07 * s);
+  root.add(pearlGold(group((b) => {
+    fig(b, s, { legs: G, hips: G, torso: G, neck: G, noArms: true });
+    figPrints(b, A, s, false);
   }, 'c3po')));
-  // coloured wiring across the open waist, front and back (matte)
-  root.add(group((b) => {
-    for (const [x, c, bend] of [[-0.3, 0xc82a20, 0.05], [-0.2, 0x2a5ac8, -0.04], [-0.1, 0x1a1a1a, 0.04], [0.1, 0xc82a20, -0.05], [0.2, 0x2a2a2a, 0.04], [0.3, 0x2a5ac8, -0.04]]) {
-      rod(b, c, x * s, 1.42 * s, 0.29 * s, (x + bend) * s, 1.66 * s, 0.305 * s, 0.03 * s, CYL6);
-      rod(b, c, (x + bend) * s, 1.66 * s, 0.305 * s, x * s, 1.92 * s, 0.29 * s, 0.03 * s, CYL6);
-    }
-    for (const [x, c] of [[-0.14, 0xc82a20], [0, 0x2a5ac8], [0.14, 0x1a1a1a]]) rod(b, c, x * s, 1.42 * s, -0.29 * s, (x + 0.06) * s, 1.92 * s, -0.29 * s, 0.03 * s, CYL6);
-  }, 'c3po-wires'));
-  const head = polish(group((b) => c3poHead(b, s), 'c3po-head'));
+  const head = pearlGold(group((b) => c3poHead(b, 0.4 * s), 'c3po-head'));
   const hp = pivot(head, 0, 2.56 * s, 0);
   root.add(hp);
-  const arms = [-1, 1].map((sd) => { const a = pivot(polish(group((b) => c3poArm(b, s, sd), 'arm')), sd * 0.56 * s, 2.3 * s, 0); root.add(a); return a; });
+  const arms = [-1, 1].map((sd) => { const a = pivot(pearlGold(group((b) => cArm(b, s, sd, G, G, 0, 0, 0, 0.1, 0.06), 'arm')), sd * 0.56 * s, 2.3 * s, 0); root.add(a); return a; });
   root.userData.anim = (t) => {
     hp.rotation.y = Math.sin(t * 0.9) * 0.6;
     arms[0].rotation.x = -0.6 - Math.max(0, Math.sin(t * 2.2)) * 1.2;
@@ -752,77 +851,192 @@ export function vader(s = 3.2) {
   return root;
 }
 
-// Stormtrooper: domed helmet with a brow ridge, black lenses and the frowning grille, white
-// armour plates over a black undersuit, utility belt, an E-11 held at port arms.
-const TW = 0xf4f4f4, TB = 0x18181a, TG = 0x8c9198, TBL = 0x5a7896;
-function trooperHelmet(b, R, H, y0) {
-  const Hc = H * 0.62;
-  b.add(HEAD, FACES.trooper(), 0, y0, 0, Math.PI, R, Hc, R);
-  put(b, HEMI, TW, 0, y0 + Hc - 0.02 * R, -R * 0.02, R * 1.05, R * 1.0, R * 1.07);
-  put(b, FRONTARC, TW, 0, y0 + Hc - H * 0.06, 0, R * 1.1, H * 0.08, R * 1.1);   // brow ridge
-  put(b, FLARE, TW, 0, y0 - H * 0.05, 0, R * 1.02, Hc * 0.82, R * 1.02);        // flared jaw / neck guard
-  // the grille: a raised box with black slots, and two little breather tubes under it
-  box(b, 0x6a6e74, 0, y0 + Hc * 0.26, R * 0.98, R * 0.36, Hc * 0.2, R * 0.1);
-  for (let k = -2; k <= 2; k++) box(b, TB, k * R * 0.065, y0 + Hc * 0.26, R * 1.03, R * 0.03, Hc * 0.16, R * 0.03);
+// Stormtrooper, as the LEGO minifig: the moulded helmet (a dome overhanging the back and sides,
+// a black brow band, big angular lenses with grey tear marks, the faceplate jutting out below
+// the frown with its grille and breathers, ear caps, a skirt flaring out at the bottom), white
+// armour printed on a white torso and legs, black C-hands and a black E-11.
+const TW = 0xf4f4f4, TB = 0x161618, TG = 0x8c9198;
+const TR = { white: '#f4f4f4', black: '#161618', grey: '#8c9198', lgrey: '#b9bdc3', dgrey: '#6a6f76' };
+// helmet layout in head radii, measured from the helmet's base: the printed face drum (wider at
+// the bottom) and the outline of the faceplate under the frown (half width w, rising from
+// `edge` at its sides to `top` under the nose)
+const TRH = { yb: -0.06, yt: 1.2, r0: 1.1, r1: 1.0, w: 0.74, top: 0.56, edge: 0.26 };
+const trFaceR = (y) => TRH.r0 + (TRH.r1 - TRH.r0) * (y - TRH.yb) / (TRH.yt - TRH.yb);
+const snoutTop = (x) => TRH.top - (TRH.top - TRH.edge) * Math.pow(Math.min(1, Math.abs(x) / TRH.w), 0.85);
+const snoutZ = (x, y) => Math.sqrt(Math.max(0, 1.12 * 1.12 - x * x)) + 0.02 + 0.2 * (TRH.top - y) / (TRH.top - TRH.yb);
+const snoutBack = (x) => Math.sqrt(Math.max(0, 0.94 * 0.94 - x * x));
+const SNOUT_TILT = Math.atan(0.2 / (TRH.top - TRH.yb));
+// the faceplate below the frown: a curved shell whose top edge rises to a point under the nose
+// and whose front juts further out towards the chin. Returns [white shell, black top edge].
+function snoutGeos() {
+  const NX = 14, NY = 4, xs = [...Array(NX + 1)].map((_, i) => -TRH.w + 2 * TRH.w * i / NX);
+  const shell = { p: [], i: [] }, rim = { p: [], i: [] };
+  const quad = (o, a, b, c, d) => { const n = o.p.length / 3; o.p.push(...a, ...b, ...c, ...d); o.i.push(n, n + 1, n + 2, n, n + 2, n + 3); };
+  const F = (x, y) => [x, y, snoutZ(x, y)], K = (x, y) => [x, y, snoutBack(x)], Yj = (x, j) => TRH.yb + (snoutTop(x) - TRH.yb) * j / NY;
+  for (const x of xs) for (let j = 0; j <= NY; j++) shell.p.push(...F(x, Yj(x, j)));   // the front: one smooth grid
+  for (let i = 0; i < NX; i++) for (let j = 0; j < NY; j++) { const a = i * (NY + 1) + j, c = a + NY + 1; shell.i.push(a, c, c + 1, a, c + 1, a + 1); }
+  for (let i = 0; i < NX; i++) {
+    const x0 = xs[i], x1 = xs[i + 1], t0 = snoutTop(x0), t1 = snoutTop(x1);
+    quad(rim, F(x0, t0), F(x1, t1), K(x1, t1), K(x0, t0));                               // top edge: the frown line
+    quad(shell, K(x0, TRH.yb), K(x1, TRH.yb), F(x1, TRH.yb), F(x0, TRH.yb));             // underside
+  }
+  for (let j = 0; j < NY; j++) {
+    const l = xs[0], r = xs[NX];
+    quad(shell, F(l, Yj(l, j)), F(l, Yj(l, j + 1)), K(l, Yj(l, j + 1)), K(l, Yj(l, j)));
+    quad(shell, K(r, Yj(r, j)), K(r, Yj(r, j + 1)), F(r, Yj(r, j + 1)), F(r, Yj(r, j)));
+  }
+  return [shell, rim].map(({ p, i }) => {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(p, 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(p.length / 3 * 2), 2));
+    g.setIndex(i); g.computeVertexNormals();
+    return g;
+  });
+}
+const [SNOUT, SNOUT_RIM] = snoutGeos();
+const TRFACE = new THREE.CylinderGeometry(TRH.r1, TRH.r0, 1, 32).translate(0, 0.5, 0);
+const TRSKIRT = new THREE.CylinderGeometry(1.07, 1.2, 1, 28, 1, true, Math.PI * 0.4, Math.PI * 1.2).translate(0, 0.5, 0);
+const TRDOME = new THREE.SphereGeometry(1, 28, 10, 0, Math.PI * 2, 0, Math.PI / 2);
+const TRBAND = new THREE.CylinderGeometry(1.095, 1.095, 1, 6, 1, true, Math.PI * 0.4, Math.PI * 0.1).translate(0, 0.5, 0);
+
+function trooperTorso(g, T, k) {
+  const Y = (f) => f * T, hw = (f) => 0.5 - 0.5 * (1 - k) * f;
+  // black undersuit showing at the armpits, grey collar and chest plate outlines
+  for (const sd of [-1, 1]) line(g, TR.black, 0.024, [[sd * (hw(0.97) - 0.07), Y(0.97)], [sd * (hw(0.62) - 0.08), Y(0.62)]]);
+  curve(g, TR.grey, 0.022, [-0.14, Y(1.0)], [0, Y(0.88)], [0.14, Y(1.0)]);
+  for (const sd of [-1, 1]) line(g, TR.grey, 0.02, [[sd * 0.13, Y(0.93)], [sd * 0.28, Y(0.84)]]);
+  const plate = [[-0.34, 0.84], [-0.27, 0.71], [-0.09, 0.71], [0, 0.77], [0.09, 0.71], [0.27, 0.71], [0.34, 0.84]].map(([x, f]) => [x, Y(f)]);
+  line(g, TR.dgrey, 0.055, plate);
+  line(g, TR.lgrey, 0.032, plate);
+  // the black arch over the abdomen, grey ribs under it and the little control box
+  curve(g, TR.black, 0.024, [-0.47, Y(0.39)], [0, Y(0.53)], [0.47, Y(0.39)]);
+  for (let x = -0.38; x < 0.4; x += 0.076) if (Math.abs(x) > 0.1) line(g, TR.lgrey, 0.026, [[x, Y(0.33)], [x, Y(0.41 + 0.05 * (1 - (x / 0.47) ** 2))]]);
+  g.fillStyle = TR.lgrey; g.fillRect(-0.075, Y(0.325), 0.15, Y(0.12));
+  g.fillStyle = TR.black;
+  for (const x of [-0.04, 0.015]) g.fillRect(x, Y(0.38), 0.025, Y(0.04));
+  // the belt: a black line over a row of eight pouches
+  line(g, TR.black, 0.024, [[-0.5, Y(0.3)], [0.5, Y(0.3)]]);
+  for (let i = 0; i < 8; i++) {
+    const x = -0.46 + i * 0.115 + 0.008, y = Y(0.07), h = Y(0.21);
+    g.fillStyle = TR.dgrey; g.fillRect(x, y, 0.099, h);
+    g.fillStyle = TR.white; g.fillRect(x + 0.012, y + 0.012, 0.075, h - 0.024);
+    g.fillStyle = '#d3d6da'; g.fillRect(x + 0.012, y + 0.012, 0.024, h - 0.024);
+  }
+}
+function trooperBack(g, T, k) {
+  const Y = (f) => f * T, hw = (f) => 0.5 - 0.5 * (1 - k) * f;
+  for (const sd of [-1, 1]) line(g, TR.black, 0.024, [[sd * (hw(0.97) - 0.07), Y(0.97)], [sd * (hw(0.62) - 0.08), Y(0.62)]]);
+  // the back plate's outline, the belt and the bottom edge of the kidney plate
+  g.strokeStyle = TR.grey; g.lineWidth = 0.026; g.beginPath(); g.rect(-0.27, Y(0.42), 0.54, Y(0.48)); g.stroke();
+  line(g, TR.lgrey, 0.02, [[-0.2, Y(0.66)], [0.2, Y(0.66)]]);
+  line(g, TR.black, 0.024, [[-0.5, Y(0.3)], [0.5, Y(0.3)]]);
+  line(g, TR.grey, 0.02, [[-0.46, Y(0.14)], [0.46, Y(0.14)]]);
+}
+// a standing leg's front (x across, inner edge at +0.5; y up from the sole) and a seated
+// driver's thigh top (y from the knee back to the hip)
+function trooperLeg(g, T) {
+  const Y = (f) => f * T;
+  poly(g, TR.black, [[0.06, Y(1.01)], [0.51, Y(1.01)], [0.51, Y(0.84)]]);                 // hip gap
+  g.fillStyle = TR.lgrey; g.fillRect(-0.44, Y(0.74), 0.74, Y(0.09));                      // ribbed thigh band
+  for (let x = -0.4; x < 0.3; x += 0.08) line(g, TR.grey, 0.026, [[x, Y(0.745)], [x, Y(0.825)]]);
+  line(g, TR.grey, 0.03, [[0.37, Y(0.72)], [0.37, Y(0.6)]]);
+  poly(g, TR.black, [[-0.5, Y(0.62)], [-0.26, Y(0.55)], [0.26, Y(0.55)], [0.5, Y(0.62)], [0.5, Y(0.57)], [0.3, Y(0.51)], [-0.3, Y(0.51)], [-0.5, Y(0.57)]]);   // knee
+  line(g, TR.grey, 0.03, [[-0.46, Y(0.67)], [-0.24, Y(0.6)], [0.24, Y(0.6)], [0.46, Y(0.67)]]);
+  line(g, TR.grey, 0.03, [[-0.38, Y(0.46)], [-0.36, Y(0.2)], [0.36, Y(0.2)], [0.38, Y(0.46)]]);   // shin plate
+}
+function trooperThigh(g, T) {
+  poly(g, TR.black, [[0.06, T + 0.01], [0.51, T + 0.01], [0.51, T - 0.32]]);
+  g.fillStyle = TR.lgrey; g.fillRect(-0.44, T - 0.75, 0.74, 0.2);
+  for (let x = -0.4; x < 0.3; x += 0.08) line(g, TR.grey, 0.026, [[x, T - 0.74], [x, T - 0.56]]);
+  poly(g, TR.black, [[-0.5, 0.2], [-0.26, 0.1], [0.26, 0.1], [0.5, 0.2], [0.5, 0.13], [0.3, 0.03], [-0.3, 0.03], [-0.5, 0.13]]);   // knee
+  line(g, TR.grey, 0.03, [[-0.46, 0.3], [-0.24, 0.19], [0.24, 0.19], [0.46, 0.3]]);
+}
+export const trooperPrints = () => atlas('trooper', 1, TR.white, (g, rg) => {
+  // helmet wrap: u = angle round from the front, v = height above the helmet base (head radii)
+  inRegion(g, rg.head, -Math.PI, Math.PI, TRH.yb, TRH.yt, () => {
+    poly(g, TR.black, [[-1.5, 1.03], [1.5, 1.03], [1.5, 1.21], [-1.5, 1.21]]);             // brow band
+    for (const sd of [-1, 1]) {
+      const P = (pts) => pts.map(([x, y]) => [sd * x, y]);
+      // the lenses: big and angular, dropping away at the outer corners
+      const gr = g.createLinearGradient(0, 1.04, 0, 0.68);
+      gr.addColorStop(0, '#08090b'); gr.addColorStop(0.6, '#15171a'); gr.addColorStop(1, '#3c4148');
+      g.fillStyle = gr; g.beginPath();
+      P([[0.1, 1.04], [0.72, 1.04], [0.78, 0.88], [0.68, 0.62], [0.44, 0.69], [0.2, 0.76], [0.1, 0.86]]).forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y)));
+      g.closePath(); g.fill();
+      // grey tear marks under the lenses' outer corners, outlined in black
+      poly(g, TR.black, P([[0.64, 0.6], [0.8, 0.6], [0.77, 0.38], [0.67, 0.36]]));
+      poly(g, TR.grey, P([[0.665, 0.575], [0.775, 0.575], [0.75, 0.4], [0.685, 0.385]]));
+      // little grey vents on the cheeks
+      for (let k = 0; k < 5; k++) { const x = 0.86 + k * 0.07, y = 0.47 - k * 0.025; poly(g, TR.grey, P([[x, y], [x + 0.035, y], [x + 0.065, y - 0.07], [x + 0.03, y - 0.07]])); }
+    }
+    // the frown: a black band right above the faceplate, with grey teeth in it
+    const at = (x, dy) => { const y = snoutTop(x) + dy; return [Math.asin(Math.max(-1, Math.min(1, x / trFaceR(y)))), y]; };
+    const xs = []; for (let x = -0.9; x <= 0.901; x += 0.04) xs.push(x);
+    poly(g, TR.black, [...xs.map((x) => at(x, -0.03)), ...xs.slice().reverse().map((x) => at(x, 0.1))]);
+    for (const x of [-0.56, -0.41, -0.26, 0.26, 0.41, 0.56]) poly(g, TR.dgrey, [at(x - 0.045, 0.02), at(x + 0.045, 0.02), at(x + 0.045, 0.07), at(x - 0.045, 0.07)]);
+  });
+  inTorso(g, rg.figF, 0.8, (T, k) => trooperTorso(g, T, k));
+  inTorso(g, rg.figB, 0.8, (T, k) => trooperBack(g, T, k));
+  inTorso(g, rg.drvF, 0.76, (T, k) => trooperTorso(g, T, k));
+  inTorso(g, rg.drvB, 0.76, (T, k) => trooperBack(g, T, k));
+  inTorso(g, rg.leg, 1, (T) => trooperLeg(g, T));
+  inTorso(g, rg.thigh, 1, (T) => trooperThigh(g, T));
+});
+// the stormtrooper helmet (also the driver's): R = head radius, base at y0
+export function trooperHelmet(b, R, y0 = 0) {
+  const A = trooperPrints(), H = TRH.yt - TRH.yb, yb = y0 + TRH.yb * R, top = y0 + TRH.yt * R;
+  put(b, regionGeo('trface', TRFACE, A.rg.head, A.rg.blank), A.mat, 0, yb, 0, R, H * R, R, 0, Math.PI, 0);
+  put(b, TRSKIRT, TW, 0, yb, 0, R, H * R, R);                                            // flared back and sides
+  put(b, CYL20, TW, 0, yb + 0.01 * R, 0, 1.2 * R, 0.02 * R, 1.2 * R);                     // its bottom edge
+  // the dome overhangs the face as a lip and the skirt at the back
+  put(b, TRDOME, TW, 0, top - 0.01 * R, -0.03 * R, 1.09 * R, 0.9 * R, 1.16 * R);
+  put(b, CYL20, TW, 0, top - 0.03 * R, -0.03 * R, 1.09 * R, 0.07 * R, 1.16 * R);
+  for (const ry of [0, Math.PI * 1.1]) put(b, TRBAND, TB, 0, y0 + 1.03 * R, 0, R, 0.11 * R, R, 0, ry, 0);   // brow band, round to the ears
+  // grey vents on the top of the dome, outlined in black
+  const n = new THREE.Vector3();
   for (const sd of [-1, 1]) {
-    const p = onHead(sd * 0.2, y0 + Hc * 0.1, R * 0.9), q = onHead(sd * 0.24, y0 - Hc * 0.02, R * 1.08);
-    rod(b, TG, ...p, ...q, R * 0.055, CYL8);
-    // ear caps with a grey centre and black vents
-    rod(b, TW, sd * R * 1.0, y0 + Hc * 0.5, -R * 0.06, sd * R * 1.27, y0 + Hc * 0.5, -R * 0.06, R * 0.25);
-    rod(b, TG, sd * R * 1.26, y0 + Hc * 0.5, -R * 0.06, sd * R * 1.3, y0 + Hc * 0.5, -R * 0.06, R * 0.15);
-    for (const dz of [-0.12, 0, 0.12]) box(b, TB, sd * R * 1.31, y0 + Hc * 0.5, (dz - 0.06) * R, R * 0.02, R * 0.2, R * 0.04);
+    const a = sd * 0.95, e = 0.6, c = Math.cos(e);
+    const p = [1.09 * Math.sin(a) * c * R, top + 0.9 * Math.sin(e) * R, (-0.03 + 1.16 * Math.cos(a) * c) * R];
+    n.set(Math.sin(a) * c / 1.09, Math.sin(e) / 0.9, Math.cos(a) * c / 1.16).normalize();
+    const ry = Math.atan2(n.x, n.z), rx = -Math.asin(n.y);
+    put(b, BOX, TB, ...p, 0.26 * R, 0.15 * R, 0.03 * R, rx, ry, 0);
+    put(b, BOX, 0x7c8188, p[0] + n.x * 0.008 * R, p[1] + n.y * 0.008 * R, p[2] + n.z * 0.008 * R, 0.2 * R, 0.1 * R, 0.03 * R, rx, ry, 0);
+  }
+  // the faceplate: white shell, black frown edge, a grey grille with a dark vent, black breathers
+  put(b, SNOUT, TW, 0, y0, 0, R, R, R);
+  put(b, SNOUT_RIM, TB, 0, y0, 0, R, R, R);
+  const gy = 0.15, gz = snoutZ(0, gy);
+  put(b, BOX, TB, 0, y0 + gy * R, (gz + 0.012) * R, 0.19 * R, 0.38 * R, 0.04 * R, -SNOUT_TILT);
+  put(b, BOX, 0x55595f, 0, y0 + (gy + 0.01) * R, (gz + 0.024) * R, 0.13 * R, 0.31 * R, 0.04 * R, -SNOUT_TILT);
+  put(b, BOX, TB, 0, y0 + (gy - 0.03) * R, (gz + 0.034) * R, 0.04 * R, 0.18 * R, 0.03 * R, -SNOUT_TILT);
+  for (const sd of [-1, 1]) {
+    const x = sd * 0.43, y = 0.06, z = snoutZ(x, y), a = Math.atan2(x, Math.sqrt(1.12 * 1.12 - x * x)), c = Math.cos(SNOUT_TILT);
+    n.set(Math.sin(a) * c, Math.sin(SNOUT_TILT), Math.cos(a) * c);
+    rod(b, TB, (x - n.x * 0.04) * R, y0 + (y - n.y * 0.04) * R, (z - n.z * 0.04) * R, (x + n.x * 0.025) * R, y0 + (y + n.y * 0.025) * R, (z + n.z * 0.025) * R, 0.075 * R, CYL20);
+  }
+  // ear caps: white, a grey plate outlined in black with a black slot
+  for (const sd of [-1, 1]) {
+    const ey = y0 + 0.66 * R, ez = -0.06 * R;
+    rod(b, TW, sd * 0.98 * R, ey, ez, sd * 1.27 * R, ey, ez, 0.3 * R, CYL20);
+    put(b, BOX, TB, sd * 1.28 * R, ey, ez, 0.03 * R, 0.31 * R, 0.25 * R);
+    put(b, BOX, TG, sd * 1.29 * R, ey, ez, 0.03 * R, 0.25 * R, 0.19 * R);
+    put(b, BOX, TB, sd * 1.3 * R, ey, ez + 0.03 * R, 0.03 * R, 0.17 * R, 0.05 * R);
   }
 }
 export function trooper(b, s = 1.6) {
   const pitch = 0.7, spread = 0.1;
-  fig(b, s, { legs: TW, hips: TB, torso: TB, neck: TB, arms: TW, hands: TB, armPitch: pitch });
-  trooperHelmet(b, 0.41 * s, 0.66 * s, 2.56 * s);
-  // legs: black knee gaps, shin plates
-  for (const sd of [-1, 1]) {
-    box(b, TB, sd * 0.25 * s, 0.52 * s, 0.03 * s, 0.48 * s, 0.06 * s, 0.57 * s);
-    box(b, 0xe4e6ea, sd * 0.25 * s, 0.27 * s, 0.32 * s, 0.3 * s, 0.32 * s, 0.03 * s);
-  }
-  // chest + back armour shell over the black undersuit
-  put(b, TRAP, TW, 0, 1.86 * s, 0, 1.08 * s, 0.6 * s, 0.6 * s);
-  box(b, 0xe4e6ea, 0, 2.13 * s, 0.31 * s, 0.6 * s, 0.4 * s, 0.03 * s, -0.04);   // raised chest plate
-  box(b, TB, 0, 2.13 * s, 0.327 * s, 0.02 * s, 0.38 * s, 0.01 * s, -0.04);
-  for (const sd of [-1, 1]) {
-    box(b, TB, sd * 0.19 * s, 1.96 * s, 0.32 * s, 0.18 * s, 0.03 * s, 0.01 * s, 0, 0, sd * 0.2);
-    box(b, TB, sd * 0.36 * s, 2.13 * s, 0.31 * s, 0.035 * s, 0.46 * s, 0.02 * s, -0.04, 0, sd * 0.12);   // chest-plate edges
-    box(b, TB, sd * 0.2 * s, 2.4 * s, 0.29 * s, 0.26 * s, 0.03 * s, 0.03 * s, 0, 0, -sd * 0.12);        // collar line
-  }
-  // ab plate with its little control buttons, dark ribs either side
-  box(b, TW, 0, 1.62 * s, 0.285 * s, 0.46 * s, 0.3 * s, 0.04 * s);
-  box(b, TG, 0, 1.64 * s, 0.306 * s, 0.26 * s, 0.15 * s, 0.01 * s);
-  for (let k = 0; k < 4; k++) box(b, k % 2 ? TBL : TB, (-0.1 + k * 0.066) * s, 1.64 * s, 0.313 * s, 0.045 * s, 0.09 * s, 0.01 * s);
-  for (const sd of [-1, 1]) for (let k = 0; k < 3; k++) box(b, 0x3a3c40, sd * 0.37 * s, (1.5 + k * 0.1) * s, 0.28 * s, 0.17 * s, 0.04 * s, 0.02 * s);
-  box(b, TW, 0, 1.6 * s, -0.29 * s, 0.82 * s, 0.32 * s, 0.05 * s);   // kidney plate
-  // utility belt: pouches, buckle, thermal detonator on the back
-  box(b, TW, 0, 1.33 * s, 0, 1.1 * s, 0.17 * s, 0.6 * s);
-  box(b, 0xc4c8cc, 0, 1.42 * s, 0, 1.11 * s, 0.03 * s, 0.61 * s);
-  box(b, TG, 0, 1.34 * s, 0.31 * s, 0.22 * s, 0.15 * s, 0.04 * s);
-  box(b, TB, 0, 1.34 * s, 0.33 * s, 0.13 * s, 0.04 * s, 0.01 * s);
-  for (const x of [-0.45, -0.28, 0.28, 0.45]) {
-    box(b, TW, x * s, 1.31 * s, 0.32 * s, 0.14 * s, 0.17 * s, 0.08 * s);
-    box(b, TG, x * s, 1.39 * s, 0.36 * s, 0.14 * s, 0.02 * s, 0.01 * s);
-  }
-  rod(b, 0xb8bcc2, -0.1 * s, 1.33 * s, -0.34 * s, -0.48 * s, 1.33 * s, -0.34 * s, 0.09 * s);
-  for (const x of [-0.18, -0.4]) rod(b, TB, x * s, 1.33 * s, -0.34 * s, (x - 0.04) * s, 1.33 * s, -0.34 * s, 0.095 * s);
-  // arms: shoulder bells, black undersuit gaps at the bell and elbow
-  for (const sd of [-1, 1]) {
-    const pa = [s, sd, sd * 0.56 * s, 2.3 * s, 0, pitch, spread];
-    ball(b, TW, sd * 0.58 * s, 2.3 * s, 0.02 * s, 0.21 * s, 0.85);
-    armBand(b, TB, ...pa, 0.3, 0.36, 1.06);
-    armBand(b, TB, ...pa, 0.62, 0.68, 1.06);
-  }
-  // E-11 blaster held across the chest, muzzle up to his left
-  const g0 = [-0.8 * s, 1.36 * s, 0.7 * s], g1 = [0.95 * s, 1.86 * s, 0.74 * s];
+  fig(b, s, { legs: TW, hips: TW, torso: TW, neck: TB, noArms: true });
+  figPrints(b, trooperPrints(), s);
+  trooperHelmet(b, 0.41 * s, 2.56 * s);
+  for (const sd of [-1, 1]) cArm(b, s, sd, TW, TB, sd * 0.56 * s, 2.3 * s, 0, pitch, spread);
+  // black E-11 blaster held across the chest, muzzle up to his left
+  const E = 0x1a1a1c, g0 = [-0.8 * s, 1.36 * s, 0.7 * s], g1 = [0.95 * s, 1.86 * s, 0.74 * s];
   const at = (t, dy = 0, dz = 0) => [g0[0] + (g1[0] - g0[0]) * t, g0[1] + (g1[1] - g0[1]) * t + dy, g0[2] + (g1[2] - g0[2]) * t + dz];
-  rod(b, 0x2a2c30, ...at(0.08), ...at(0.62), 0.15 * s, BOX, 0.13 * s);
-  rod(b, 0x2a2c30, ...at(0.6), ...at(1.0), 0.05 * s, CYL8);
-  rod(b, 0x6a6e72, ...at(0.3, 0.11 * s), ...at(0.52, 0.11 * s), 0.06 * s, CYL8);   // scope
-  rod(b, 0x2a2c30, ...at(0.4, -0.08 * s), ...at(0.4, -0.24 * s, 0.04 * s), 0.07 * s, BOX, 0.06 * s);   // magazine
-  rod(b, 0x2a2c30, ...at(0.0), ...at(0.1), 0.06 * s, BOX, 0.1 * s);   // folded stock
+  rod(b, E, ...at(0.08), ...at(0.62), 0.15 * s, BOX, 0.13 * s);
+  rod(b, E, ...at(0.6), ...at(1.0), 0.05 * s, CYL8);
+  rod(b, E, ...at(0.3, 0.11 * s), ...at(0.52, 0.11 * s), 0.06 * s, CYL8);   // scope
+  rod(b, E, ...at(0.4, -0.08 * s), ...at(0.4, -0.24 * s, 0.04 * s), 0.07 * s, BOX, 0.06 * s);   // magazine
+  rod(b, E, ...at(0.0), ...at(0.1), 0.06 * s, BOX, 0.1 * s);   // folded stock
 }
 
 export function boba(s = 2.4) {
