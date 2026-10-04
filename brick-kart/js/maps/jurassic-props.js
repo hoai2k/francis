@@ -71,11 +71,11 @@ const glowO = (c, k = 1.6) => ({ matOpts: { emissive: c, emissiveIntensity: k } 
 const smooth01 = (x) => { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); };
 // a point on a box centred at (y, z), rotated rx = a, offset (ly, lz) in the box's own frame
 const onBox = (y, z, a, ly, lz) => [y + ly * Math.cos(a) - lz * Math.sin(a), z + ly * Math.sin(a) + lz * Math.cos(a)];
-// box tapering from bw (bottom) to tw (top), standing on y = 0
-function taperGeo(bw, tw, h, d) {
-  return geo(`taper${bw},${tw},${h},${d}`, () => {
+// box tapering from bw (bottom) to tw (top) (and depth d to td), standing on y = 0
+function taperGeo(bw, tw, h, d, td = d) {
+  return geo(`taper${bw},${tw},${h},${d}` + (td !== d ? `,${td}` : ''), () => {
     const g = new THREE.BoxGeometry(bw, h, d), p = g.attributes.position;
-    for (let i = 0; i < p.count; i++) if (p.getY(i) > 0) p.setX(i, p.getX(i) * (tw / bw));
+    for (let i = 0; i < p.count; i++) if (p.getY(i) > 0) { p.setX(i, p.getX(i) * (tw / bw)); p.setZ(i, p.getZ(i) * (td / d)); }
     g.computeVertexNormals();
     return g.translate(0, h / 2, 0);
   });
@@ -332,6 +332,379 @@ export function trex(opts = {}) {
       L.box(x, -8.8, 3.55, 0.45, 0.5, 0.6, c.tooth, { rx: 0.3 });
     }
   }, 'trex-leg');
+  r.legL = pivot(r.root, 2.95, 9.1, -1, leg);
+  r.legR = pivot(r.root, -2.95, 9.1, -1, leg.clone());
+  return r;
+}
+
+// a sub-frame of a Local: offset to (x, y, z), pitched rx, uniformly scaled k (for limbs
+// ported from the driver rigs at map scale)
+function subFrame(L, x, y, z, rx, k) {
+  const F = new Local(L.b);
+  F.m.multiplyMatrices(L.m, new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), rx), new THREE.Vector3(k, k, k)));
+  return F;
+}
+// a two-part arm hanging from a shoulder at (x, y, z): upper(U) is drawn pitched a1, then
+// lower(F, o) from the elbow (split units down the upper arm) pitched a2; o shifts the
+// lower part's driver coordinates so they start at the elbow
+function bentArm(L, x, y, z, a1, a2, k, split, upper, lower) {
+  upper(subFrame(L, x, y, z, a1, k));
+  lower(subFrame(L, x, y - k * split * Math.cos(a1), z - k * split * Math.sin(a1), a2, k), split);
+}
+// a thin extruded panel in the Y-Z plane from an outline of [z, y] points (curves: [z, y, cz, cy])
+function sailPanel(key, pts, th) {
+  return geo('sail:' + key, () => {
+    const sh = new THREE.Shape();
+    pts.forEach((p, i) => {
+      if (i === 0) sh.moveTo(-p[0], p[1]);
+      else if (p.length > 2) sh.quadraticCurveTo(-p[2], p[3], -p[0], p[1]);
+      else sh.lineTo(-p[0], p[1]);
+    });
+    const g = new THREE.ExtrudeGeometry(sh, { depth: th, bevelEnabled: false, curveSegments: 5 }).translate(0, 0, -th / 2).rotateY(Math.PI / 2);
+    g.setIndex([...Array(g.attributes.position.count).keys()]);   // indexed like the box parts it merges with
+    return g;
+  });
+}
+
+// Spinosaurus (JP3), after the driver: a long low crocodile snout with a notched rosette tip,
+// interlocking conical teeth, a nasal bump and golden slit eyes; a huge scalloped rust-orange
+// sail (dark-red stripes, lighter bands, dark spines past the rim) rooted along the back and
+// tallest over the shoulders, a low red fin down the tail, a dark grey-brown hide with a pale
+// belly and blotches, and long arms with big hook claws. Same rig and pivots as theropod().
+export const SPINO = {
+  body: 0x564e3e, back: 0x353026, dark: 0x241f19, belly: 0xb9a886, belly2: 0x958468,
+  sail: 0xc9521c, sailHi: 0xe27a34, sailDk: 0x8a2c14, stripe: 0x6e2212, spine: 0x2c1a12,
+  eye: 0xffb020, mouth: 0x5a1210, tooth: 0xf2ead2, claw: 0xe2d6b8,
+};
+const SPINO_HK = 5.0, SPINO_AK = 4.6;   // head / arm detail scale (driver units -> map units)
+export function spinosaurus(opts = {}) {
+  const c = { ...SPINO, ...opts };
+  const r = { root: new THREE.Group() };
+  r.bodyP = pivot(r.root, 0, 0, 0);
+  // the sail's spines, rooted along the back from the hips to the shoulders ([z, y] base line),
+  // leaning back over the hips and upright at the front, tallest over the shoulders
+  const base = [[-4.4, 11.3], [-1.5, 11.45], [1.6, 11.95], [4.6, 12.35], [7.0, 12.75]];
+  const LENS = [3.0, 5.0, 6.6, 7.8, 8.7, 9.3, 9.7, 9.9, 9.6, 8.5, 6.4, 3.2], N = LENS.length, spines = [];
+  for (let i = 0; i < N; i++) {
+    const t = i / (N - 1), u = t * (base.length - 1), j = Math.min(base.length - 2, Math.floor(u)), f = u - j;
+    const bz = base[j][0] + (base[j + 1][0] - base[j][0]) * f, by = base[j][1] + (base[j + 1][1] - base[j][1]) * f;
+    const th = 0.4 - 0.46 * t;
+    spines.push({ bz, by, th, len: LENS[i], dz: -Math.sin(th), dy: Math.cos(th) });
+  }
+  const at = (s, rr) => [s.bz + s.dz * rr, s.by + s.dy * rr];
+  const outline = (rf, scallop) => {
+    const pts = spines.map((s) => [s.bz, s.by - 0.3]);
+    for (let i = N - 1; i >= 0; i--) {
+      const s = spines[i], p = at(s, s.len * rf);
+      if (i === N - 1 || !scallop) { pts.push(p); continue; }
+      const q = spines[i + 1], pq = at(q, q.len * rf);
+      const mz = (p[0] + pq[0]) / 2, my = (p[1] + pq[1]) / 2, mr = (s.len + q.len) / 2 * scallop;
+      pts.push([p[0], p[1], mz - (s.dz + q.dz) / 2 * mr, my - (s.dy + q.dy) / 2 * mr]);
+    }
+    return pts;
+  };
+  r.bodyP.add(part((L) => {
+    // a leaner barrel body, deep chest and S-curved neck up to the head pivot: [y, z, w, h, d, rx]
+    const segs = [[9.3, -1.4, 4.6, 4.8, 6.6, 0], [9.8, 2.9, 4.8, 5.2, 5.2, 0.12], [10.5, 6.1, 4.0, 4.4, 3.4, -0.2], [11.7, 8.3, 3.0, 3.8, 3.6, 0.55], [12.5, 9.4, 2.6, 2.8, 2.4, 0.3]];
+    const SPOTS = [[0.15, -0.32, 0.55], [-0.12, -0.05, 0.42], [0.22, 0.22, 0.36], [-0.3, 0.36, 0.3]];
+    segs.forEach(([y, z, w, h, d, a], i) => {
+      L.box(0, y, z, w, h, d, c.body, { rx: a });
+      // pale belly and throat with scale lines
+      const [by, bz] = onBox(y, z, a, -h / 2, 0);
+      L.box(0, by, bz, w * 0.76, 0.12, d * 0.92, c.belly, { rx: a });
+      if (i < 4) for (const f of [-0.3, 0, 0.3]) { const [sy, sz] = onBox(y, z, a, -h / 2 - 0.07, d * f); L.box(0, sy, sz, w * 0.7, 0.04, 0.14, c.belly2, { rx: a }); }
+      // dark back, flank bands sweeping down from it and dark mottled blotches
+      const [ty, tz] = onBox(y, z, a, h / 2, 0);
+      L.box(0, ty, tz, w * 0.56, 0.1, d * 0.98, c.back, { rx: a });
+      if (i < 3) for (const f of [-0.32, 0.02, 0.34]) {
+        const len = h * 0.5, [sy, sz] = onBox(y, z, a, h / 2 - len / 2, d * f);
+        for (const sd of [-1, 1]) L.box(sd * (w / 2 + 0.03), sy, sz, 0.08, len, 0.5, c.back, { rx: a - 0.45 });
+      }
+      if (i < 4) for (const [ly, lz, s] of SPOTS.slice(0, i < 3 ? 4 : 2)) {
+        const [sy, sz] = onBox(y, z, a, h * ly, d * lz);
+        for (const sd of [-1, 1]) L.box(sd * (w / 2 + 0.04), sy, sz, 0.06, s * h * 0.22, s * h * 0.3, c.dark, { rx: a + sd * 0.4 });
+      }
+    });
+    // long arms with three big hooked claws, the thumb claw biggest
+    for (const sd of [-1, 1]) bentArm(L, sd * 2.0, 9.9, 7.2, -0.3, -0.95, SPINO_AK, 0.42, (U) => {
+      U.box(0, -0.2, 0, 0.22, 0.48, 0.22, c.body);
+      U.box(sd * 0.06, -0.14, 0, 0.1, 0.3, 0.23, c.back);
+    }, (F, o) => {
+      F.box(0, -0.52 + o, 0.02, 0.18, 0.34, 0.18, c.body);
+      F.box(0, -0.52 + o, 0.1, 0.12, 0.28, 0.02, c.belly);
+      F.box(0, -0.72 + o, 0.04, 0.2, 0.12, 0.2, c.body);
+      for (const [x, s] of [[-sd * 0.07, 1.25], [0.0, 1], [sd * 0.07, 1]]) {
+        F.box(x, -0.82 + o, 0.08, 0.05 * s, 0.12 * s, 0.05 * s, c.claw, { rx: -0.3 });
+        F.box(x, -0.9 - 0.03 * s + o, 0.15, 0.04 * s, 0.1 * s, 0.04 * s, c.claw, { rx: -1.0 });
+      }
+    });
+    // the sail: dark rust base, orange skin with a scalloped rim, dark-red stripes along each
+    // spine, lighter bands of skin between them and the dark spines running past the rim
+    const T = 0.34;
+    L.put(sailPanel('spino-map-sail', outline(0.93, 0.2), T), c.sail, 0, 0, 0, 0, 0, 0, 1, 1, 1);
+    L.put(sailPanel('spino-map-sail-in', outline(0.4, 0), T + 0.1), c.sailDk, 0, 0, 0, 0, 0, 0, 1, 1, 1);
+    spines.forEach((s, i) => {
+      const ray = (r0, r1, w, th, col) => { const [zz, yy] = at(s, (r0 + r1) / 2); L.box(0, yy, zz, th, r1 - r0, w, col, { rx: -s.th }); };
+      ray(s.len * 0.32, s.len * 0.9, 0.62, T + 0.06, c.stripe);
+      ray(0, s.len + 0.45, 0.26, T + 0.12, c.spine);
+      if (i < N - 1) {
+        const q = spines[i + 1], mz = (s.bz + q.bz) / 2, my = (s.by + q.by) / 2, mt = (s.th + q.th) / 2, ml = (s.len + q.len) / 2 * 0.62;
+        L.box(0, my + Math.cos(mt) * ml, mz - Math.sin(mt) * ml, T + 0.04, ml * 0.42, 0.32, c.sailHi, { rx: -mt });
+      }
+      // a ridge of dark scutes where the sail meets the back
+      L.box(0, s.by, s.bz + 0.1, 0.7, 0.5, 0.7, c.back, { rx: -s.th });
+    });
+  }, 'spino-body'));
+
+  // head + jaw: the driver's croc skull, scaled up
+  r.head = pivot(r.bodyP, 0, 12.9, 9.9);
+  r.head.add(partK((L) => {
+    L.box(0, 0.16, -0.04, 0.56, 0.5, 0.46, c.body);
+    L.box(0, 0.12, 0.34, 0.44, 0.38, 0.42, c.body);
+    L.put(taperGeo(0.4, 0.26, 0.72, 0.3, 0.2), c.body, 0, 0.08, 0.5, Math.PI / 2, 0, 0, 1, 1, 1);
+    L.box(0, 0.08, 1.28, 0.32, 0.24, 0.24, c.body);
+    L.box(0, 0.205, 1.28, 0.24, 0.02, 0.18, c.back);
+    // the notch behind the rosette
+    for (const sd of [-1, 1]) L.box(sd * 0.135, -0.03, 1.13, 0.04, 0.08, 0.08, c.mouth);
+    // top of the skull and snout: dark stripe, nasal bump in front of the eyes, nostrils far back
+    L.box(0, 0.42, -0.04, 0.3, 0.03, 0.42, c.back);
+    L.box(0, 0.33, 0.42, 0.18, 0.08, 0.4, c.back);
+    L.box(0, 0.33, 0.7, 0.13, 0.14, 0.18, c.body, { rx: 0.5 });
+    L.box(0, 0.36, 0.64, 0.1, 0.1, 0.14, c.back, { rx: 0.5 });
+    L.box(0, 0.24, 0.9, 0.08, 0.03, 0.42, c.back);
+    for (const sd of [-1, 1]) L.box(sd * 0.07, 0.235, 0.84, 0.05, 0.02, 0.08, c.dark);
+    L.box(0, -0.06, 0.62, 0.3, 0.02, 1.3, c.mouth);
+    for (const sd of [-1, 1]) {
+      // brow ridge over a high golden eye with a slit pupil
+      L.box(sd * 0.25, 0.43, 0.08, 0.14, 0.1, 0.3, c.back, { rz: -sd * 0.3 });
+      L.box(sd * 0.282, 0.3, 0.06, 0.02, 0.16, 0.22, c.dark);
+      L.box(sd * 0.29, 0.31, 0.07, 0.02, 0.1, 0.13, c.eye, glowO(c.eye, 0.6));
+      L.box(sd * 0.298, 0.31, 0.08, 0.015, 0.09, 0.03, C.black);
+      L.box(sd * 0.299, 0.335, 0.045, 0.012, 0.025, 0.02, C.white);
+      // dark lip line and face stripes
+      L.box(sd * 0.25, 0.0, 0.2, 0.06, 0.04, 0.5, c.dark);
+      for (const [y, z] of [[0.18, -0.18], [0.26, -0.24]]) L.box(sd * 0.282, y, z, 0.02, 0.14, 0.05, c.back, { rx: -0.3 });
+      // interlocking conical teeth hanging outside the lower jaw, big fangs in the rosette
+      for (let z = 0.2, n = 0; z <= 1.02; z += 0.085, n++) {
+        const x = 0.2 - (z - 0.2) * 0.075, h = 0.09 + 0.03 * (n % 2);
+        L.cone(sd * x, -0.07, z, 0.024, h, c.tooth, { c: true, rx: Math.PI, seg: 5 });
+      }
+      for (const [z, h] of [[1.2, 0.15], [1.3, 0.12], [1.38, 0.09]]) L.cone(sd * 0.14, -0.06, z, 0.03, h, c.tooth, { c: true, rx: Math.PI, seg: 5 });
+    }
+  }, 'spino-head', SPINO_HK));
+  r.jaw = pivot(r.head, 0, -0.06 * SPINO_HK, -0.08 * SPINO_HK, partK((L) => {
+    L.box(0, -0.08, 0.26, 0.46, 0.2, 0.5, c.body);
+    L.box(0, -0.07, 0.78, 0.28, 0.15, 0.6, c.body);
+    L.box(0, -0.065, 1.32, 0.3, 0.15, 0.24, c.body);
+    L.box(0, -0.16, 0.6, 0.26, 0.04, 1.3, c.belly);
+    L.box(0, 0.005, 0.7, 0.2, 0.02, 1.1, 0xb84a48);
+    for (const sd of [-1, 1]) {
+      for (let z = 0.36, n = 0; z <= 1.1; z += 0.085, n++) L.cone(sd * 0.11, 0.0, z, 0.022, 0.08 + 0.02 * (n % 2), c.tooth, { seg: 5 });
+      for (const z of [1.26, 1.36]) L.cone(sd * 0.12, 0.0, z, 0.026, 0.12, c.tooth, { seg: 5 });
+    }
+  }, 'spino-jaw', SPINO_HK));
+
+  // tail: dark back and flank bands, pale underside, blotches and a low red fin with dark-red
+  // stripes and a dark spiny rim running on from the sail: [y, z, w, h, d, fin height front, back]
+  const tailSeg = (L, segs) => segs.forEach(([y, z, w, h, d, f0, f1]) => {
+    L.box(0, y, z, w, h, d, c.body);
+    L.box(0, y - h / 2, z, w * 0.62, 0.1, d * 0.92, c.belly);
+    L.box(0, y + h / 2, z, w * 0.5, 0.08, d * 0.97, c.back);
+    for (const f of [-0.3, 0.1]) L.box(0, y + h * 0.16, z + f * d, w * 1.04, h * 0.66, d * 0.12, c.back);
+    for (const sd of [-1, 1]) L.box(sd * (w / 2 + 0.03), y - h * 0.1, z + d * 0.3 * sd, 0.06, h * 0.18, h * 0.26, c.dark, { rx: 0.4 });
+    if (!f0) return;
+    for (const [k, fh] of [[-1, f0], [1, f1]]) {
+      const cz = z + k * d / 4;
+      L.box(0, y + h / 2 + fh / 2 - 0.1, cz, 0.28, fh + 0.2, d / 2 + 0.02, c.sail);
+      L.box(0, y + h / 2 + fh, cz, 0.36, 0.2, d / 2 + 0.02, c.spine);
+      L.box(0, y + h / 2 + fh / 2, cz, 0.34, fh * 0.8, 0.36, c.stripe);
+    }
+  });
+  r.tail1 = pivot(r.bodyP, 0, 9.6, -3.8, part((L) => tailSeg(L, [[0, -3.1, 3.9, 3.9, 6.4, 1.9, 2.4]]), 'spino-tail1'));
+  r.tail2 = pivot(r.tail1, 0, 0.3, -6, part((L) => tailSeg(L, [[0, -3.2, 2.7, 2.6, 6.5, 1.1, 1.6], [0.15, -8.4, 1.7, 1.5, 4.5, 0.5, 0.8], [0.25, -11.6, 0.85, 0.8, 2.4]]), 'spino-tail2'));
+
+  // legs: strong striped thighs, pale-fronted shins, three clawed toes
+  const leg = part((L) => {
+    L.box(0, 0.3, -0.2, 2.3, 3.0, 4.2, c.body);
+    L.box(0, -1.9, 0.5, 2.5, 5.2, 4.4, c.body, { rx: 0.1 });
+    for (const sd of [-1, 1]) {
+      for (const [y, z] of [[-0.2, -1.3], [-0.5, 0.2], [-0.9, 1.6]]) L.box(sd * 1.28, y, z, 0.08, 3.0, 0.5, c.back, { rx: -0.3 });
+      L.box(sd * 1.29, -2.9, -0.7, 0.06, 0.7, 0.9, c.dark, { rx: 0.4 });
+    }
+    L.box(0, -5.6, -0.4, 1.5, 3.8, 1.8, c.body, { rx: 0.35 });
+    L.box(0, -5.4, 0.42, 1.1, 2.8, 0.1, c.belly2, { rx: 0.35 });
+    L.box(0, -7.9, 0.2, 1.3, 2.2, 1.3, c.body, { rx: -0.25 });
+    L.box(0, -8.75, 1.3, 2.3, 0.7, 3.2, c.body);
+    for (const x of [-0.75, 0, 0.75]) {
+      L.box(x, -8.7, 3.0, 0.6, 0.55, 0.6, c.body);
+      L.box(x, -8.8, 3.45, 0.42, 0.45, 0.6, c.claw, { rx: 0.3 });
+    }
+  }, 'spino-leg');
+  r.legL = pivot(r.root, 2.9, 9.1, -1, leg);
+  r.legR = pivot(r.root, -2.9, 9.1, -1, leg.clone());
+  return r;
+}
+
+// Indominus rex, after the driver: pale white-grey hide with big grey camouflage blotches, a
+// long narrow head with heavy bony ridges, small dark horns over glowing red eyes in a dark-grey
+// mask, bumps down the snout, a deep jaw with ragged teeth, double rows of dark spikes down the
+// neck, back and tail, and long powerful arms with three long clawed fingers and a thumb.
+// Same rig and pivots as theropod().
+export const INDOM = {
+  body: 0xcfcdc3, mott: 0x9a988e, mott2: 0x75736a, belly: 0xeeece2, ridge: 0x86847a, spike: 0x4e4c46,
+  dark: 0x2a2925, eye: 0xd01206, mouth: 0x5a1210, tooth: 0xf6f0de, claw: 0x34322d,
+};
+const INDOM_HK = 4.6, INDOM_AK = 4.9;   // head / arm detail scale (driver units -> map units)
+export function indominus(opts = {}) {
+  const c = { ...INDOM, ...opts };
+  const r = { root: new THREE.Group() };
+  // a big irregular camo blotch (two overlapping skewed patches) on a side face at x
+  const blotch = (L, x, y, z, s, dk, a = 0) => {
+    const col = dk ? c.mott2 : c.mott;
+    L.box(x, y, z, 0.06, s * 0.75, s * 1.15, col, { rx: a + (dk ? 0.5 : -0.3) });
+    L.box(x * 1.002, y + s * 0.22, z + s * 0.3, 0.06, s * 0.5, s * 0.6, col, { rx: a + (dk ? -0.4 : 0.6) });
+  };
+  // twin rows of dark osteoderm spikes, each with a darker tip
+  const spikePair = (L, y, z, a, sx, s) => {
+    for (const sd of [-1, 1]) {
+      L.box(sd * sx, y, z, 0.48 * s, 0.48 * s, 0.86 * s, c.spike, { rx: a - 0.7 });
+      L.box(sd * sx, y + 0.26 * s, z - 0.38 * s, 0.26 * s, 0.26 * s, 0.5 * s, c.dark, { rx: a - 0.9 });
+    }
+  };
+  r.bodyP = pivot(r.root, 0, 0, 0);
+  r.bodyP.add(part((L) => {
+    // barrel body, deep chest and a thick neck up to the head pivot: [y, z, w, h, d, rx]
+    const segs = [[9.2, -1.3, 5.4, 5.2, 6.6, 0], [9.75, 3.0, 5.6, 5.7, 5.2, 0.12], [10.5, 6.2, 4.6, 4.8, 3.4, -0.2], [11.7, 8.4, 3.6, 4.2, 3.6, 0.55], [12.5, 9.4, 3.1, 3.0, 2.4, 0.3]];
+    // camo blotches per segment: [ly, lz, size, dark] as fractions of h / d
+    const CAMO = [
+      [[0.22, -0.36, 1.7, 1], [-0.05, -0.08, 1.2, 0], [0.26, 0.18, 1.0, 0], [-0.22, 0.34, 1.3, 1], [0.0, 0.44, 0.7, 0]],
+      [[0.2, -0.3, 1.4, 0], [-0.1, 0.02, 1.6, 1], [0.24, 0.32, 0.9, 1], [-0.28, -0.36, 0.8, 0]],
+      [[0.16, -0.2, 1.1, 1], [-0.16, 0.22, 0.9, 0]],
+      [[0.12, 0.0, 0.9, 1]],
+      [[0.1, -0.1, 0.6, 0]],
+    ];
+    segs.forEach(([y, z, w, h, d, a], i) => {
+      L.box(0, y, z, w, h, d, c.body, { rx: a });
+      // pale belly and throat with grey scale lines
+      const [by, bz] = onBox(y, z, a, -h / 2, 0);
+      L.box(0, by, bz, w * 0.74, 0.12, d * 0.92, c.belly, { rx: a });
+      if (i < 4) for (const f of [-0.3, 0, 0.3]) { const [sy, sz] = onBox(y, z, a, -h / 2 - 0.07, d * f); L.box(0, sy, sz, w * 0.68, 0.04, 0.14, c.mott, { rx: a }); }
+      // a mottled grey saddle over the back
+      const [ty, tz] = onBox(y, z, a, h / 2, 0);
+      L.box(0, ty, tz, w * 0.4, 0.1, d * 0.96, c.mott, { rx: a });
+      for (const f of [-0.3, 0.12]) { const [sy, sz] = onBox(y, z, a, h / 2 + 0.03, d * f); L.box(w * 0.08, sy, sz, w * 0.3, 0.08, d * 0.16, c.mott2, { rx: a }); }
+      for (const sd of [-1, 1]) for (const [ly, lz, s, dk] of CAMO[i]) {
+        const [sy, sz] = onBox(y, z, a, h * ly, d * lz);
+        blotch(L, sd * (w / 2 + 0.03), sy, sz, s, dk, a);
+      }
+      // double rows of dark spikes down the neck and back
+      for (const f of (i < 2 ? [-0.36, -0.05, 0.26] : i < 4 ? [-0.25, 0.2] : [0])) {
+        const [sy, sz] = onBox(y, z, a, h / 2 + 0.2, d * f);
+        spikePair(L, sy, sz, a, 0.55, i < 3 ? 1 : 0.8);
+      }
+    });
+    // long powerful arms: three long clawed fingers and an inward-turned thumb
+    for (const sd of [-1, 1]) bentArm(L, sd * 2.3, 9.8, 7.4, -0.25, -0.8, INDOM_AK, 0.42, (U) => {
+      U.box(0, -0.2, 0, 0.22, 0.48, 0.22, c.body);
+      U.box(sd * 0.06, -0.16, 0, 0.1, 0.24, 0.23, c.mott);
+    }, (F, o) => {
+      F.box(0, -0.52 + o, 0.02, 0.18, 0.34, 0.18, c.body);
+      F.box(sd * 0.091, -0.5 + o, 0.02, 0.02, 0.12, 0.1, c.mott2);
+      F.box(0, -0.72 + o, 0.04, 0.2, 0.12, 0.18, c.body);
+      for (const x of [-0.065, 0, 0.065]) {
+        F.box(x, -0.84 + o, 0.06, 0.05, 0.16, 0.05, c.body, { rx: -0.25 });
+        F.box(x, -0.95 + o, 0.11, 0.04, 0.1, 0.04, c.claw, { rx: -0.8 });
+      }
+      F.box(-sd * 0.11, -0.76 + o, 0.1, 0.05, 0.12, 0.05, c.body, { rz: sd * 0.6, rx: -0.4 });
+      F.box(-sd * 0.15, -0.83 + o, 0.14, 0.04, 0.08, 0.04, c.claw, { rz: sd * 0.6, rx: -0.9 });
+    });
+  }, 'indom-body'));
+
+  // head + jaw: the driver's long narrow skull, scaled up
+  r.head = pivot(r.bodyP, 0, 12.9, 9.9);
+  const hw = (z) => 0.33 - 0.1 * Math.max(0, Math.min(1, (z - 0.05) / 1.1));
+  r.head.add(partK((L) => {
+    L.box(0, 0.16, -0.06, 0.7, 0.58, 0.44, c.body);
+    L.box(0, 0.18, 0.3, 0.62, 0.52, 0.5, c.body);
+    L.box(0, 0.12, 0.74, 0.5, 0.4, 0.5, c.body);
+    L.box(0, 0.08, 1.08, 0.44, 0.32, 0.3, c.body);
+    L.box(0, -0.075, 0.6, 0.5, 0.02, 1.08, c.mouth);
+    // grey snout top and bony bumps running up the face
+    L.box(0, 0.33, 0.8, 0.3, 0.04, 0.6, c.mott);
+    L.box(0, 0.36, 0.2, 0.36, 0.03, 0.5, c.mott);
+    L.box(0, 0.16, 1.231, 0.3, 0.12, 0.02, c.mott);
+    for (const z of [0.55, 0.72, 0.9, 1.06]) for (const sd of [-1, 1]) L.box(sd * 0.11, 0.35, z, 0.07, 0.05, 0.08, c.ridge);
+    for (const sd of [-1, 1]) {
+      // heavy bony ridge over each eye, ending in a little horn, plus knobbly bumps behind
+      L.box(sd * 0.27, 0.48, 0.3, 0.18, 0.12, 0.52, c.ridge, { rz: -sd * 0.25 });
+      L.box(sd * 0.3, 0.6, 0.12, 0.08, 0.16, 0.08, c.spike, { rx: -0.5, rz: -sd * 0.3 });
+      L.box(sd * 0.32, 0.69, 0.07, 0.05, 0.08, 0.05, c.dark, { rx: -0.7, rz: -sd * 0.3 });
+      for (const [y, z] of [[0.46, -0.04], [0.4, -0.18], [0.3, -0.24]]) L.box(sd * 0.33, y, z, 0.1, 0.08, 0.08, c.ridge);
+      // dark grey mask around the eye, sweeping back along the skull
+      L.box(sd * 0.336, 0.32, 0.22, 0.02, 0.24, 0.46, c.mott2);
+      L.box(sd * 0.336, 0.27, -0.08, 0.02, 0.16, 0.26, c.mott2, { rx: 0.3 });
+      L.box(sd * 0.342, 0.33, 0.3, 0.02, 0.12, 0.17, c.eye, glowO(0xa00400, 1.4));
+      L.box(sd * 0.35, 0.33, 0.31, 0.015, 0.11, 0.035, C.black);
+      L.box(sd * 0.344, 0.4, 0.3, 0.02, 0.03, 0.2, c.dark);
+      // grey camo streaks along the face, nostrils, a dark lip line
+      for (const [y, z, l] of [[0.1, 0.02, 0.3], [0.12, 0.56, 0.4], [0.2, 0.9, 0.3]]) L.box(sd * hw(z) * 0.98 + sd * 0.012, y, z, 0.02, 0.1, l, c.mott, { rx: -0.2 });
+      L.box(sd * 0.12, 0.245, 1.17, 0.06, 0.02, 0.06, c.dark);
+      L.box(sd * hw(0.6) * 0.98, -0.04, 0.6, 0.02, 0.04, 1.0, c.mott2);
+      // long upper teeth, a ragged row overhanging the jaw
+      for (let z = 0.1, i = 0; z <= 1.16; z += 0.075, i++) {
+        const h = 0.1 + 0.06 * Math.sin(Math.min(1, z / 1.16) * Math.PI) + (i % 3 === 0 ? 0.03 : 0);
+        L.box(sd * (hw(z) - 0.03), -0.08 - h / 2, z, 0.05, h, 0.05, c.tooth, { rx: (i % 2 ? 0.12 : -0.12) });
+      }
+    }
+    for (const x of [-0.11, -0.037, 0.037, 0.11]) L.box(x, -0.13, 1.2, 0.045, 0.1, 0.045, c.tooth);
+  }, 'indom-head', INDOM_HK));
+  r.jaw = pivot(r.head, 0, -0.08 * INDOM_HK, -0.1 * INDOM_HK, partK((L) => {
+    L.box(0, -0.17, 0.12, 0.62, 0.34, 0.5, c.body);
+    L.box(0, -0.14, 0.62, 0.48, 0.28, 0.56, c.body);
+    L.box(0, -0.12, 1.06, 0.38, 0.24, 0.36, c.body);
+    L.box(0, -0.29, 0.6, 0.42, 0.05, 1.2, c.belly);
+    L.box(0, 0.004, 0.62, 0.3, 0.02, 1.0, c.mouth);
+    L.box(0, 0.012, 0.56, 0.2, 0.02, 0.78, 0xb84a48);
+    for (const sd of [-1, 1]) {
+      for (let z = 0.28, i = 0; z <= 1.2; z += 0.08, i++) {
+        const x = (z < 0.9 ? 0.24 - (z - 0.28) * 0.1 : 0.17) - 0.03, h = 0.08 + 0.04 * Math.sin(z * 2.8);
+        L.box(sd * x, h / 2, z, 0.045, h, 0.045, c.tooth, { rx: (i % 2 ? 0.12 : -0.1) });
+      }
+      L.box(sd * 0.311, -0.12, 0.2, 0.02, 0.06, 0.4, c.mott);
+      L.box(sd * 0.241, -0.1, 0.7, 0.02, 0.05, 0.3, c.mott2);
+    }
+  }, 'indom-jaw', INDOM_HK));
+
+  // tail: grey saddle, camo blotches, pale underside and twin rows of spikes: [y, z, w, h, d]
+  const tailSeg = (L, segs) => segs.forEach(([y, z, w, h, d], i) => {
+    L.box(0, y, z, w, h, d, c.body);
+    L.box(0, y - h / 2, z, w * 0.62, 0.1, d * 0.92, c.belly);
+    L.box(0, y + h / 2, z, w * 0.4, 0.08, d * 0.95, c.mott);
+    L.box(w * 0.08, y + h / 2 + 0.03, z - d * 0.2, w * 0.3, 0.06, d * 0.2, c.mott2);
+    for (const sd of [-1, 1]) for (const [ly, lz, s, dk] of [[0.12, -0.25, 1, 1], [-0.15, 0.2, 0.8, 0]]) blotch(L, sd * (w / 2 + 0.03), y + h * ly, z + d * lz * sd, s * h * 0.42, dk);
+    if (w > 1.2) for (const f of [-0.3, 0.05, 0.36]) spikePair(L, y + h / 2 + 0.15, z + f * d, 0, w * 0.13, Math.min(1, w / 3.6));
+  });
+  r.tail1 = pivot(r.bodyP, 0, 9.6, -3.8, part((L) => tailSeg(L, [[0, -3.1, 4.4, 4.3, 6.4]]), 'indom-tail1'));
+  r.tail2 = pivot(r.tail1, 0, 0.3, -6, part((L) => tailSeg(L, [[0, -3.2, 3.0, 2.9, 6.5], [0.15, -8.4, 1.9, 1.7, 4.5], [0.25, -11.6, 0.9, 0.85, 2.4]]), 'indom-tail2'));
+
+  // legs: thick mottled thighs, heavy shins and dark-clawed feet
+  const leg = part((L) => {
+    L.box(0, 0.4, -0.2, 2.6, 3.2, 4.5, c.body);
+    L.box(0, -1.9, 0.5, 2.8, 5.4, 4.8, c.body, { rx: 0.1 });
+    for (const sd of [-1, 1]) {
+      blotch(L, sd * 1.43, -0.4, -1.0, 1.5, 1, 0.1);
+      blotch(L, sd * 1.43, -2.6, 1.0, 1.1, 0, 0.1);
+    }
+    L.box(0, -5.6, -0.4, 1.7, 3.8, 1.9, c.body, { rx: 0.35 });
+    L.box(0, -5.4, 0.46, 1.3, 2.8, 0.1, c.mott, { rx: 0.35 });
+    L.box(0, -7.9, 0.2, 1.4, 2.2, 1.4, c.body, { rx: -0.25 });
+    L.box(0, -8.75, 1.4, 2.5, 0.7, 3.4, c.body);
+    L.box(0, -8.38, 1.6, 1.8, 0.06, 2.6, c.mott);
+    for (const x of [-0.8, 0, 0.8]) {
+      L.box(x, -8.7, 3.1, 0.68, 0.6, 0.6, c.body);
+      L.box(x, -8.8, 3.55, 0.45, 0.5, 0.65, c.claw, { rx: 0.3 });
+    }
+  }, 'indom-leg');
   r.legL = pivot(r.root, 2.95, 9.1, -1, leg);
   r.legR = pivot(r.root, -2.95, 9.1, -1, leg.clone());
   return r;

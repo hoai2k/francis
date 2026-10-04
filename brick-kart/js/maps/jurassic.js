@@ -623,7 +623,7 @@ export default {
         E.boxB(-S * 0.5, 0, S + 1.6, 10, 16, 0.4, C.dkgray);
         for (let k = 0; k < 6; k++) jungleTree(b, x + Math.sin(yaw) * (-S * 0.6) + Math.cos(yaw) * (rand() - 0.5) * S * 1.6, z + Math.cos(yaw) * (-S * 0.6) - Math.sin(yaw) * (rand() - 0.5) * S * 1.6, 1.1 + rand() * 0.4, rand);
         ctx.claim(x, z, S * 1.45);
-        const rig = P.theropod({ body: 0xe4e6e2, dark: 0x9aa0a0, belly: 0xc8ccc8, eye: 0xff3010, spikes: 0x8a9090, arm: 1.6 });
+        const rig = P.indominus();
         const h = holder(ctx, rig, 1.3, 'indominus');
         const fw = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)), rt = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
         anims.push((dt, t) => {
@@ -642,7 +642,7 @@ export default {
       const i = K(11.1);
       const up = tr.at(i, 20, 0);
       const sd = Math.hypot(up.x - LAKE[0], up.z - LAKE[1]) < Math.hypot(ford.x - LAKE[0], ford.z - LAKE[1]) ? 1 : -1;
-      const rig = P.theropod({ body: 0x4e544a, dark: 0x2a2e28, belly: 0x9a9a82, eye: 0xffd020, croc: true, sail: C.dkred, sail2: 0xc0401a, arm: 1.5 });
+      const rig = P.spinosaurus();
       ctx.hazard(spinoLunge(ctx, rig, i, sd, 1.05));
       // river rocks and a waterfall feeding the lake
       for (let k = 0; k < 8; k++) rock(b, LAKE[0] + (rand() - 0.5) * 30, 0, LAKE[1] - LAKE[2] - 4 - rand() * 8, 2.2, rand, [C.dkstone, C.dkgray]);
