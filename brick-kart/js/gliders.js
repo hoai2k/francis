@@ -11,7 +11,8 @@
 // so keep the design centred on x = 0.
 //   mesh   static parts (usually one BrickBuilder.build())
 //   parts  extra Object3Ds animated by fx
-//   fx(s, dt)  per-frame hook while it's out; s = { t, steer, speed01 } (flap wings, spin rotors…)
+//   fx(s, dt)  per-frame hook while it's out; s = { t, open, steer, speed01 } (flap wings, spin rotors…):
+//              t = seconds since it opened (restarts every glide), open = how far it has unfolded (0..1)
 // kit = { THREE, BrickBuilder, C, plastic, limb, k, a, mast(b, top?, color?) } where k / a are the
 //   kart's main and accent colours, for designs that match the kart (most use their own colours).
 import * as THREE from 'three';

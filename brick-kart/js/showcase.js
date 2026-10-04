@@ -258,13 +258,14 @@ export class Showcase {
     const it = this.items[i], g = it?.m.glider;
     if (!g || it.m.standing) return;
     buildGlider(def, g, it.ch.kart, it.ch.accent);
-    it.glider = def;
+    it.glider = def; it.gfxS = null;
     this.measure(it);
   }
   // show the kart flying under its open glider (the camera pulls back to fit the wing in)
   setGlide(i, on, it = this.items[i]) {
     if (!it || it.m.standing || !it.m.glider) return;
     it.glide = on;
+    it.gfxS = null;   // fx clock starts again
     it.m.glider.visible = on;
     it.m.glider.scale.set(1, 1, 1); it.m.glider.rotation.z = 0;
     if (!on) it.m.root.position.y = it.y || 0;
@@ -336,7 +337,7 @@ export class Showcase {
         it.m.root.position.y = (it.y || 0) + 0.7 + Math.sin(this.t * 1.7) * 0.15;
         it.m.glider.rotation.z = Math.sin(this.t * 1.3) * 0.06;
         const gfx = it.m.glider.userData.fx;
-        if (gfx) { const s = it.gfxS ||= { t: 0, steer: 0, speed01: 0.6 }; s.t += dt; s.steer = it.anim.steer; gfx(s, dt); }
+        if (gfx) { const s = it.gfxS ||= { t: 0, open: 1, steer: 0, speed01: 0.6 }; s.t += dt; s.steer = it.anim.steer; gfx(s, dt); }
       }
       if (it.m.standing) standPose(it, n, this.t, dt, face);
     });

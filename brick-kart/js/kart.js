@@ -574,6 +574,7 @@ export class Kart {
     this.glideGap = false;
     if (this.model.glider) this.model.glider.visible = on;
     this.gliderT = 0;
+    if (this._gfx) this._gfx.t = 0;   // the glider's fx clock restarts with every glide
   }
 
   land(gY, ctl) {
@@ -670,7 +671,7 @@ export class Kart {
       m.glider.scale.set(this.gliderT, 1, 1);
       m.glider.rotation.z = Math.sin(performance.now() * 0.004) * 0.05;
       const gfx = m.glider.userData.fx;
-      if (gfx) { const s = this._gfx ||= { t: 0, steer: 0, speed01: 0 }; s.t += dt; s.steer = this.ctl?.steer || 0; s.speed01 = Math.min(1, Math.abs(this.speed) / (this.topSpeed || 1)); gfx(s, dt); }
+      if (gfx) { const s = this._gfx ||= { t: 0, open: 0, steer: 0, speed01: 0 }; s.t += dt; s.open = this.gliderT; s.steer = this.ctl?.steer || 0; s.speed01 = Math.min(1, Math.abs(this.speed) / (this.topSpeed || 1)); gfx(s, dt); }
     }
     this.bubble.visible = this.shieldTime > 0;
     if (this.bubble.visible) this.bubble.scale.setScalar(1 + Math.sin(performance.now() * 0.006) * 0.03);

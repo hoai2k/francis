@@ -80,7 +80,7 @@ export class Gallery {
       if (s.gliding) {
         it.m.glider.scale.set(1, 1, 1);
         const gfx = it.m.glider.userData.fx;
-        if (gfx) { const g = it.gs ||= { t: 0, steer: 0, speed01: 0.6 }; g.t += dt; gfx(g, dt); }
+        if (gfx) { const g = it.gs ||= { t: 0, open: 1, steer: 0, speed01: 0.6 }; g.t += dt; gfx(g, dt); }
       }
       it.anim.update(dt, s);
       it.m.steerControl?.(it.anim.steer);
