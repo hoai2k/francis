@@ -722,7 +722,6 @@ export default {
       { const p = spot(19.6, -16, 5); for (let m = 0; m < 6; m++) P.tntBlock(b, p.x + (m % 3 - 1) * 2.7, m >= 3 ? 2.6 : 0, p.z + (m >= 3 ? 0.3 : 0), 2.6, 0); ctx.claim(p.x, p.z, 5); }
     }
 
-    // ---- start straight: a sign of the cup ------------------------------------------------------------
     void C;
   },
 };

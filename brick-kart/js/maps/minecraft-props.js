@@ -43,7 +43,6 @@ const PAL = {
   blaze: { y: '#f0c020', o: '#e07010', k: '#3a2000' },
   chicken: { w: '#f8f8f8', k: '#101010', y: '#f0b020', r: '#d02020' },
   piglin: { p: '#e8a0a0', s: '#d07878', n: '#5a2a2a', w: '#ffffff', k: '#101010', t: '#f0f0e0' },
-  golemN: {},
 };
 const FACE_ART = {
   creeper: ['glgdlgdl', 'gdlgglgd', 'gkkgdkkg', 'lkkglkkl', 'gdlkkgdg', 'glkkkkgl', 'dgkkkkdg', 'glkdgkgl'],
