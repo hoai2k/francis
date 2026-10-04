@@ -578,6 +578,18 @@ const jogoFace = () => faceMat('jjk-jogo2', (g) => atlasStyle(g, (ell, line, g) 
   g.fillStyle = '#3e3d3a'; for (let k = -4; k <= 4; k++) { g.fillRect(k * 10 - 4, 28, 8, 9); g.fillRect(k * 9 - 3.5, 40, 7, 8); }
   for (const sd of [-1, 1]) line([[sd * 54, 18], [sd * 60, 36]], '#9a978e', 3);   // cheek creases
 }), '#c9c6bd');
+// Jogo's open white hood (shared shape with his track figure in maps/jjk-props.js)
+function jogoHood(b, s, W, D, R, neckY, col, M, sph) {
+  const m = plastic(col), rx = R + 0.08, rz = R + 0.06;
+  const roll = cached('jjkJogoHoodRoll', () => new THREE.TorusGeometry(1, 0.26, 8, 26, PI * 2 - 1.3).rotateZ(PI / 2 + 0.65).rotateX(PI / 2));
+  b.addMatrix(roll, m, M(0, neckY - 0.05 * s, 0, 0, 0, 0, rx, 0.42 * s, rz));
+  // lapels from the roll's open ends down to a V over the black clothes
+  const ex = Math.sin(0.65) * rx;
+  for (const sd of [-1, 1]) b.boxM(M(sd * (ex + 0.1 * s) / 2, neckY - 0.3 * s, 0.25 * s * D, 0.1, 0, -sd * 0.42, 0.13 * s, 0.5 * s, 0.06 * s), col);
+  // the hood itself, folded down on his back below the head
+  b.addMatrix(sph, m, M(0, neckY - 0.16 * s, -rz - 0.04 * s, 0.25, 0, 0, 0.3 * s * W, 0.24 * s, 0.13 * s));
+  b.addMatrix(sph, m, M(0, neckY - 0.02 * s, -rz + 0.02 * s, -0.2, 0, 0, 0.26 * s * W, 0.1 * s, 0.11 * s));
+}
 function jogo() {
   const JY = 0xe0a81c, JSK = 0xc9c6bd, BLK = 0x1b1b1b, ROCK = 0x8a4a26, ROCK2 = 0x6a3418, FLUFF = 0xf6f4ee;
   const lava = neon(0xff5a10, 2.4);
@@ -612,9 +624,9 @@ function jogo() {
       const s = d.s, W = d.W, D = d.D;
       // black clothes under the open yellow shawl
       b.box(0, 0.18 * s, 0.19 * s * D, 0.3 * s, 0.7 * s, 0.1 * s, BLK);
-      // fluffy white collar
-      for (let k = 0; k < 12; k++) { const a = (k / 12) * PI * 2; b.sphere(S(a) * 0.31 * s * W, 0.92 * s, Math.cos(a) * 0.22 * s * D, 0.11 * s, FLUFF); }
-      for (let k = 0; k < 8; k++) { const a = (k / 8) * PI * 2 + 0.3; b.sphere(S(a) * 0.2 * s * W, 1.0 * s, Math.cos(a) * 0.14 * s * D, 0.09 * s, FLUFF); }
+      // the white hood of his coat, worn down: a thick roll round the neck that opens at the
+      // front into two lapels, and the folded hood lying on his back
+      jogoHood(b, s, W, D, d.headR, d.neckY, FLUFF, mat4, lsph());
       // black splotches all over the shawl
       for (const [u, y, rx, ry] of [[-0.62, 0.62, 0.07, 0.06], [0.7, 0.42, 0.06, 0.07], [-0.75, 0.3, 0.06, 0.05], [0.58, 0.72, 0.05, 0.05], [-0.5, 0.42, 0.04, 0.04], [0.82, 0.62, 0.04, 0.05]]) torsoSpot(b, d, 'f', u, y * s, rx * s, ry * s, BLK);
       for (const [u, y, rx, ry] of [[-0.5, 0.7, 0.08, 0.07], [0.3, 0.5, 0.07, 0.06], [-0.1, 0.3, 0.06, 0.06], [0.6, 0.8, 0.06, 0.05], [-0.6, 0.35, 0.05, 0.06], [0.1, 0.78, 0.05, 0.05], [0.7, 0.3, 0.05, 0.05]]) torsoSpot(b, d, 'b', u, y * s, rx * s, ry * s, BLK);

@@ -453,8 +453,19 @@ export function sukuna(s) {
 }
 
 // Jogo: one huge eye, volcano head (lava cracks, crater pool, smoke), corked ears, yellow shawl with
-// black splotches and a fluffy white collar (as his driver). The crater stays at top + 0.9 * s
+// black splotches and the white hood of his coat worn down round his neck (as his driver). The crater stays at top + 0.9 * s
 // (the map's eruption flame and meteors start there).
+// Jogo's open white hood: a roll round the neck opening into two lapels at the front, and the
+// hood folded down on his back (same shape as drivers/jjk.js, in the driver torso's units)
+function jogoHood(b, s, W, D, R, neckY, col) {
+  const m = plastic(col), rx = R + 0.08, rz = R + 0.06;
+  const roll = G('jogoHoodRoll', () => new THREE.TorusGeometry(1, 0.26, 8, 26, PI * 2 - 1.3).rotateZ(PI / 2 + 0.65).rotateX(PI / 2));
+  b.addMatrix(roll, m, m4(0, neckY - 0.05 * s, 0, 0, 0, 0, rx, 0.42 * s, rz));
+  const ex = Math.sin(0.65) * rx;
+  for (const sd of [-1, 1]) b.boxM(m4(sd * (ex + 0.1 * s) / 2, neckY - 0.3 * s, 0.25 * s * D, 0.1, 0, -sd * 0.42, 0.13 * s, 0.5 * s, 0.06 * s), col);
+  b.addMatrix(sph12(), m, m4(0, neckY - 0.16 * s, -rz - 0.04 * s, 0.25, 0, 0, 0.3 * s * W, 0.24 * s, 0.13 * s));
+  b.addMatrix(sph12(), m, m4(0, neckY - 0.02 * s, -rz + 0.02 * s, -0.2, 0, 0, 0.26 * s * W, 0.1 * s, 0.11 * s));
+}
 export function jogo(s) {
   const JY = 0xe0a81c, JSK = 0xc9c6bd, BLK = 0x1b1b1b, ROCK = 0x8a4a26, ROCK2 = 0x6a3418, FLUFF = 0xf6f4ee, w = 1.3, HR = 0.56, HH = 0.62;
   const Fr = frames(s, w, 1.05, 1.3, 1.15), dr = 0.4725, dh = 0.525;
@@ -487,8 +498,7 @@ export function jogo(s) {
     extra: (b0) => {
       const b = xf(b0, Fr.torso), { s, W, D } = Fr.d;
       b.box(0, 0.18 * s, 0.19 * s * D, 0.3 * s, 0.7 * s, 0.1 * s, BLK);   // black clothes under the open shawl
-      for (let k = 0; k < 12; k++) { const a = (k / 12) * PI * 2; b.sphere(SIN(a) * 0.31 * s * W, 0.92 * s, Math.cos(a) * 0.22 * s * D, 0.11 * s, FLUFF); }
-      for (let k = 0; k < 8; k++) { const a = (k / 8) * PI * 2 + 0.3; b.sphere(SIN(a) * 0.2 * s * W, 1.0 * s, Math.cos(a) * 0.14 * s * D, 0.09 * s, FLUFF); }
+      jogoHood(b, s, W, D, dr, 1.0 * s, FLUFF);   // the white hood of his coat, worn down
       for (const [u, y, rx, ry] of [[-0.62, 0.62, 0.07, 0.06], [0.7, 0.42, 0.06, 0.07], [-0.75, 0.3, 0.06, 0.05], [0.58, 0.72, 0.05, 0.05], [-0.5, 0.42, 0.04, 0.04], [0.82, 0.62, 0.04, 0.05]]) torsoSpot(b, Fr, 'f', u, y * s, rx * s, ry * s, BLK);
       for (const [u, y, rx, ry] of [[-0.5, 0.7, 0.08, 0.07], [0.3, 0.5, 0.07, 0.06], [-0.1, 0.3, 0.06, 0.06], [0.6, 0.8, 0.06, 0.05], [-0.6, 0.35, 0.05, 0.06], [0.1, 0.78, 0.05, 0.05], [0.7, 0.3, 0.05, 0.05]]) torsoSpot(b, Fr, 'b', u, y * s, rx * s, ry * s, BLK);
       for (const sd of [-1, 1]) for (const [u, y] of [[0.3, 0.6], [-0.5, 0.35]]) torsoSpot(b, Fr, sd, u, y * s, 0.06 * s, 0.055 * s, BLK);
