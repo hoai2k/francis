@@ -10,7 +10,6 @@ import { AIDriver } from './ai.js';
 import { CHARACTERS } from './characters.js';
 import { DRIVERS } from './driver.js';
 import { KARTS } from './vehicles.js';
-import { simpleDriver, simpleKart, simpleGlider } from './simplified.js';
 import { GLIDERS } from './gliders.js';
 import { ABILITY, ABILITIES } from './abilities.js';
 import { MAP_FROM } from './tracks.js';
@@ -115,8 +114,8 @@ export class Race {
     // roster & grid
     const humans = opts.players || [];
     const used = new Set(humans.map((p) => p.charIndex));
-    // Simplified mode: CPU racers come from the simplified roster only (repeating if it's small)
-    const simple = this.simple = !!opts.simple;
+    // Simplified mode only trims the select screen: CPU racers still use the whole roster
+    this.simple = !!opts.simple;
     const others = CHARACTERS.map((_, i) => i).filter((i) => !used.has(i));
     for (let i = others.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [others[i], others[j]] = [others[j], others[i]]; }
     const total = this.mode === 'tt' ? humans.length : Math.min(MAX_RACERS, Math.max(humans.length, opts.racers ?? MAX_RACERS));
@@ -132,16 +131,15 @@ export class Race {
       const ai = Array.from({ length: total - humans.length }, (_, n) => ({ charIndex: others[n % others.length], player: null }));
       if (this.useChars) {
         const usedD = new Set(humans.map((p) => p.driverIndex));
-        let freeD = shuffle(DRIVERS.map((_, i) => i).filter((i) => !usedD.has(i) && (!simple || simpleDriver(DRIVERS[i].id))));
-        if (!freeD.length) freeD = shuffle(DRIVERS.map((_, i) => i).filter((i) => !usedD.has(i)));
+        let freeD = shuffle(DRIVERS.map((_, i) => i).filter((i) => !usedD.has(i)));
+        if (!freeD.length) freeD = shuffle(DRIVERS.map((_, i) => i));
         ai.forEach((g, i) => { g.driverIndex = freeD[i % freeD.length]; });
         // CPU karts: a movie driver picks a ride from their own movie with a chance that scales
         // with how many that movie has (6 rides = 60%, 3 = 30%), any kart 10% of the time, and
         // otherwise an original kart (the originals and the Wild Rides). Original drivers pick
         // those 90% of the time and a movie kart 10%.
         const usedK = new Set(humans.map((p) => p.kartIndex));
-        let all = KARTS.map((_, i) => i).filter((i) => !simple || simpleKart(KARTS[i].id));
-        if (!all.length) all = KARTS.map((_, i) => i);
+        const all = KARTS.map((_, i) => i);
         const isOriginal = (i) => KARTS[i].domain === 'classic' || KARTS[i].domain === 'wild';
         const originalsK = all.filter(isOriginal);
         ai.forEach((g) => {
@@ -160,8 +158,7 @@ export class Race {
           g.kartIndex = pick; usedK.add(pick);
         });
         // CPU gliders: half the time one from the driver's own movie / game, otherwise any
-        let allG = GLIDERS.map((_, i) => i).filter((i) => !simple || simpleGlider(GLIDERS[i].id));
-        if (!allG.length) allG = GLIDERS.map((_, i) => i);
+        const allG = GLIDERS.map((_, i) => i);
         ai.forEach((g) => {
           const from = DRIVERS[g.driverIndex]?.from, own = allG.filter((i) => GLIDERS[i].group === (from === 'classic' ? 'originals' : from));
           const pool = own.length && Math.random() < 0.5 ? own : allG;

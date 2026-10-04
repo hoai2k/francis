@@ -26,10 +26,10 @@ Play: <https://hoai2k.github.io/francis/brick-kart/>
 ### Simplified mode
 
 **Simplified mode** (Options, off by default, remembered once you turn it on)
-offers a smaller set (82 drivers and 41 karts) on the select screen, as one
-big grid without movie headings, and CPU racers use only that set too. The set lives in `js/simplified.js` (`null` means all).
-Gliders can be narrowed the same way (`gliders` in `js/simplified.js`; all of them
-for now). Choose the set in the **workbench** at
+offers a smaller set (81 drivers, 41 karts and 25 gliders) on the select screen, as one
+big grid without movie headings. CPU racers still pick from the whole roster, so you
+race against characters and karts that aren't in the set too. The set lives in
+`js/simplified.js` (`null` means all). Choose the set in the **workbench** at
 <https://hoai2k.github.io/francis/brick-kart/workbench/> (Characters, Karts and
 Gliders tabs): every character, kart and glider is a card you tap to include or leave out (it starts from the current
 set), then **Export** downloads `brick-kart-simplified.json` with the chosen

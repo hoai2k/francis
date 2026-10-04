@@ -1,21 +1,20 @@
 // The roster for "Simplified mode" (Options → Simplified mode): the drivers and karts the select
-// screen offers, as one grid without movie headings, and the ones CPU racers use when it's on.
+// screen offers, as one grid without movie headings. CPU racers still use the whole roster.
 // Lists of ids (DRIVERS[].id / KARTS[].id / GLIDERS[].id); null means "all of them". Pick the set in
 // brick-kart/workbench/ (it starts from this one) and export it, then paste the ids here.
 export const SIMPLIFIED = {
-  // 82 drivers
+  // 81 drivers
   drivers: [
-    'classic-ava', 'classic-redbeard', 'classic-kara', 'classic-rex', 'classic-nix',
-    'classic-wendel', 'classic-pepper', 'classic-bjorn', 'classic-regina', 'classic-zorp',
-    'classic-max', 'spiderman', 'ironman', 'captain', 'thor', 'hulk', 'panther', 'strange',
-    'starlord', 'rocket', 'groot', 'loki', 'thanos', 'luke', 'leia', 'han', 'chewie', 'r2d2',
-    'yoda', 'mando', 'grogu', 'vader', 'maul', 'boba', 'cadbane', 'jawas', 'harry', 'hermione',
-    'ron', 'hagrid', 'snape', 'dobby', 'bellatrix', 'gojo', 'yuji', 'megumi', 'panda', 'sukuna',
-    'mahito', 'jogo', 'transfigured', 'owen', 'claire', 'grant', 'malcolm', 'hammond', 'blue',
-    'indominus', 'delta', 'spinosaurus', 'brachiosaurus', 'steve', 'alex', 'creeper-mob', 'zombie',
-    'skeleton', 'enderman', 'villager', 'irongolem', 'pig', 'pikachu', 'charmander', 'squirtle',
-    'bulbasaur', 'eevee', 'jigglypuff', 'lucario', 'mewtwo', 'charizard', 'sonic-hog', 'tails',
-    'knuckles',
+    'classic-redbeard', 'classic-kara', 'classic-rex', 'classic-nix', 'classic-pepper',
+    'classic-bjorn', 'classic-regina', 'classic-zorp', 'classic-max', 'spiderman', 'ironman',
+    'captain', 'thor', 'hulk', 'panther', 'strange', 'starlord', 'gamora', 'drax', 'rocket',
+    'groot', 'loki', 'thanos', 'luke', 'leia', 'han', 'chewie', 'r2d2', 'c3po', 'yoda', 'mando',
+    'vader', 'maul', 'boba', 'cadbane', 'trooper', 'jawas', 'harry', 'hermione', 'ron',
+    'dumbledore', 'hagrid', 'snape', 'draco', 'gojo', 'yuji', 'megumi', 'panda', 'nanami', 'sukuna',
+    'mahito', 'jogo', 'transfigured', 'owen', 'grant', 'malcolm', 'hammond', 'trex', 'delta',
+    'dilophosaurus', 'spinosaurus', 'brachiosaurus', 'steve', 'alex', 'creeper-mob', 'zombie',
+    'skeleton', 'enderman', 'villager', 'pig', 'pikachu', 'charmander', 'squirtle', 'bulbasaur',
+    'eevee', 'jigglypuff', 'mewtwo', 'charizard', 'sonic-hog', 'tails', 'knuckles',
   ],
   // 41 karts
   karts: [
@@ -25,8 +24,13 @@ export const SIMPLIFIED = {
     'carpet', 'dragon', 'minecart', 'saddlepig', 'tntcart', 'pokeballkart', 'rapidash', 'arcanine',
     'koraidon', 'speedstar', 'tornado', 'eggmobile', 'bjorn', 'regina', 'sam', 'zorp', 'dina',
   ],
-  // gliders (null = all of them)
-  gliders: null,
+  // 25 gliders
+  gliders: [
+    'kartwing', 'parasol', 'paperplane', 'butterfly', 'balloon', 'dragonwing', 'gyrocopter', 'kite',
+    'brickplate', 'repulsorwing', 'webglider', 'sfoilwing', 'tiepanels', 'fawkes', 'maraudersmap',
+    'nueglider', 'malevolentshrine', 'pteraride', 'parkparasail', 'mc-elytra', 'mc-ghast',
+    'pk-charizard', 'pk-pokeball', 'sn-tornado', 'sn-tails',
+  ],
 };
 
 // is this driver / kart / glider id in the simplified set?
