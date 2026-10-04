@@ -7,7 +7,7 @@ import { FACES, trooperHelmet, trooperPrints, c3poHead, c3poPrints, PEARL_GOLD, 
 import {
   THREE, BrickBuilder, C, plastic, mat4, rbox, rod, glowMat, S, A, PI,
   metalMat, CONE, HEMI, BOWL, HOOD, FLARE, HEADCYL, HALFCYL, FACE, hair, handAt, saber, blaster, gaffi, flames,
-  strength, showSaber, shoot, faceMat,
+  strength, showSaber, shoot, faceMat, cached,
 } from './starwars-parts.js';
 
 const GOLD = 0xd9a520, BESKAR = 0xc6cad2;
@@ -27,41 +27,202 @@ function printFace(key, R, Hc, skin, draw) {
 const ellipse = (g, x, y, rx, ry, col) => { g.fillStyle = col; g.beginPath(); g.ellipse(x, y, rx, ry, 0, 0, PI * 2); g.fill(); };
 const poly = (g, col, pts) => { g.fillStyle = col; g.beginPath(); pts.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); g.closePath(); g.fill(); };
 
+// ---- hero prints (driver-only; the track figures keep their own) -----------------------
+// Luke, Leia and Han wear the light-nougat skin of the current LEGO Star Wars minifigs, with
+// printed faces and torsos; Chewbacca, Grogu and Yoda are built up from moulded pieces.
+const SKIN = 0xe6ae80, SKIN_S = '#e6ae80';
+const _prints = new Map();
+function canvasMat(key, w, h, base, draw, rough = 0.4) {
+  let m = _prints.get(key);
+  if (m) return m;
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const g = c.getContext('2d');
+  g.fillStyle = base; g.fillRect(0, 0, w, h);
+  g.lineCap = 'round'; g.lineJoin = 'round';
+  draw(g, w, h);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+  m = new THREE.MeshStandardMaterial({ map: t, roughness: rough });
+  _prints.set(key, m);
+  return m;
+}
+// a head print in world units (like printFace above, at twice the resolution)
+const headPrint = (key, R, Hc, skin, draw) => canvasMat(key, 512, 256, skin, (g, w, h) => {
+  g.setTransform(w / (2 * PI * R), 0, 0, -h / Hc, w / 2, h); draw(g); g.setTransform(1, 0, 0, 1, 0, 0);
+});
+// a torso print for seatedFig's tapered torso, drawn in bottom widths: x -0.5..0.5 across the
+// bottom edge, y 0..T up (the top edge spans x = ±0.38)
+function torsoMat(key, W, base, draw) {
+  const T = 0.82 / (0.92 * W), w = 256, h = Math.round(256 * T);
+  return canvasMat(key, w, h, base, (g) => { g.setTransform(w, 0, 0, -w, w / 2, h); draw(g, T); g.setTransform(1, 0, 0, 1, 0, 0); });
+}
+function panelGeo(w0, w1, h) {
+  return cached(`swdPanel${w0},${w1},${h}`, () => {
+    const pts = [[-w0 / 2, 0], [w0 / 2, 0], [w1 / 2, h], [-w1 / 2, h]], g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pts.flatMap(([x, y]) => [x, y, 0]), 3));
+    g.setAttribute('normal', new THREE.Float32BufferAttribute([0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1], 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(pts.flatMap(([x, y]) => [0.5 + x / w0, y / h]), 2));
+    g.setIndex([0, 1, 2, 0, 2, 3]);
+    return g;
+  });
+}
+const TILT = Math.atan(0.02 / 0.82);
+// lay a torso print on the front (or back) of the torso
+function torsoPanel(b, mat, d, back = false) {
+  const s = d.s;
+  b.addMatrix(panelGeo(0.92 * d.W * s, 0.7 * d.W * s, 0.82 * s), mat, mat4(0, d.chestY, (back ? -1 : 1) * 0.234 * s * d.D, back ? TILT : -TILT, back ? PI : 0, 0));
+}
+const SPH = () => cached('swdSph', () => new THREE.SphereGeometry(1, 18, 12));
+const TORUS = () => cached('swdTorus', () => new THREE.TorusGeometry(1, 0.17, 6, 22));
+const ROLL = () => cached('swdRoll', () => new THREE.TorusGeometry(1, 0.4, 8, 22));
+// a transform whose yaw is applied last, so `pitch` tilts in the yawed frame (pieces set round a head)
+const _ye = new THREE.Euler(), _yq = new THREE.Quaternion(), _yp = new THREE.Vector3(), _ys = new THREE.Vector3();
+const ymat = (x, y, z, yaw, pitch, sx, sy, sz, roll = 0) => new THREE.Matrix4().compose(_yp.set(x, y, z), _yq.setFromEuler(_ye.set(pitch, yaw, roll, 'YXZ')), _ys.set(sx, sy, sz));
+const strokeP = (g, col, w, pts) => { g.strokeStyle = col; g.lineWidth = w; g.beginPath(); pts.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); g.stroke(); };
+const curveP = (g, col, w, a, c, b) => { g.strokeStyle = col; g.lineWidth = w; g.beginPath(); g.moveTo(...a); g.quadraticCurveTo(...c, ...b); g.stroke(); };
+// a minifig eye: a dark oval with a white glint up and to the left
+const figEye = (g, x, y, rx, ry, col = '#16100c') => { ellipse(g, x, y, rx, ry, col); ellipse(g, x - rx * 0.3, y + ry * 0.34, rx * 0.36, ry * 0.3, '#fff'); };
+// moulded minifig hair: a crown, a shell round the sides and back (open at the face) and a band over the brow
+const SHELL = (o) => cached('swdShell' + o, () => new THREE.CylinderGeometry(1, 1, 1, 24, 1, false, o, PI * 2 - 2 * o).translate(0, 0.5, 0));
+const BAND = (o) => cached('swdBand' + o, () => new THREE.CylinderGeometry(1, 1, 1, 12, 1, false, -o - 0.02, 2 * o + 0.04).translate(0, 0.5, 0));
+function moldHair(hb, d, col, { low = 0.2, band = 0.76, tall = 0.5, open = 0.8 } = {}) {
+  const R = d.headR, H = d.headH, m = plastic(col);
+  hb.sphere(0, H * 0.97, 0, R * 1.1, col, { sy: tall });
+  hb.add(SHELL(open), m, 0, H * low, 0, 0, R * 1.1, H * (0.98 - low), R * 1.1);
+  hb.add(BAND(open), m, 0, H * band, 0, 0, R * 1.1, H * (0.98 - band), R * 1.1);
+}
+// deterministic scatter for fur
+const rng = (seed) => () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+
 // ---- heroes ---------------------------------------------------------------------------
+// Luke, Tatooine farm boy: sandy swept hair, a white wrap tunic with a belt, tan trousers,
+// his father's lightsaber on the belt until he ignites it.
+const LUKE_HAIR = 0xd2a04a, LUKE_HAIR2 = 0xb07e32;
+const lukeFace = (R, H) => headPrint('swd-luke', R, H, SKIN_S, (g) => {
+  for (const sd of [-1, 1]) {
+    figEye(g, sd * 0.1, 0.335, 0.034, 0.047);
+    curveP(g, '#8a5a24', 0.026, [sd * 0.048, 0.41], [sd * 0.1, 0.455], [sd * 0.158, 0.428]);
+    curveP(g, '#d29a72', 0.011, [sd * 0.128, 0.225], [sd * 0.148, 0.2], [sd * 0.136, 0.172]);   // smile lines
+  }
+  // a big open grin
+  g.fillStyle = '#fff'; g.strokeStyle = '#3a1c10'; g.lineWidth = 0.016;
+  g.beginPath(); g.moveTo(-0.11, 0.222); g.quadraticCurveTo(0, 0.205, 0.11, 0.222); g.quadraticCurveTo(0.07, 0.1, 0, 0.1); g.quadraticCurveTo(-0.07, 0.1, -0.11, 0.222);
+  g.closePath(); g.fill(); g.stroke();
+  ellipse(g, 0, 0.128, 0.045, 0.018, '#d0505a');   // tongue
+  curveP(g, '#c98a66', 0.011, [-0.025, 0.06], [0, 0.048], [0.025, 0.06]);   // chin
+});
+function lukeHair(hb, d) {
+  const R = d.headR, H = d.headH, c = LUKE_HAIR, c2 = LUKE_HAIR2, m = plastic(c);
+  moldHair(hb, d, c, { low: 0.3, band: 0.76, tall: 0.5, open: 0.82 });
+  // the swept fringe: parted on his left, brushed across and up off the brow
+  hb.addMatrix(SPH(), m, mat4(0, H * 1.06, R * 0.18, -0.1, 0, 0, R * 1.02, H * 0.2, R * 0.92));
+  hb.addMatrix(SPH(), m, mat4(-R * 0.12, H * 0.93, R * 0.74, -0.25, 0, 0.16, R * 0.82, H * 0.14, R * 0.4));
+  hb.addMatrix(SPH(), m, mat4(R * 0.55, H * 0.99, R * 0.6, -0.2, 0.3, -0.3, R * 0.48, H * 0.13, R * 0.36));
+  hb.addMatrix(SPH(), plastic(c2), mat4(R * 0.4, H * 1.13, R * 0.1, 0, 0, 0.3, R * 0.05, R * 0.05, R * 0.75));   // the parting
+}
+const lukeTorso = (back) => torsoMat(back ? 'swd-luke-b' : 'swd-luke-f', 1, '#f2efe6', (g, T) => {
+  const ln = '#a39b88', sh = '#ddd7c8';
+  if (back) {
+    for (const x of [-0.2, 0.02, 0.22]) curveP(g, sh, 0.014, [x, 0.14], [x + 0.03, T * 0.5], [x * 0.7, T - 0.06]);
+    return;
+  }
+  poly(g, SKIN_S, [[-0.1, T], [0.1, T], [0.0, T - 0.14]]);   // the open neck
+  // the wrap: the front panel crosses from his right shoulder to his left hip
+  poly(g, sh, [[0.0, T - 0.14], [0.07, T - 0.06], [0.42, 0.12], [0.3, 0.12]]);
+  strokeP(g, ln, 0.022, [[-0.1, T], [0.3, 0.12]]);
+  strokeP(g, ln, 0.016, [[0.1, T], [0.03, T - 0.1]]);
+  for (const [x, y] of [[-0.22, 0.5], [-0.12, 0.3], [0.2, T - 0.12]]) curveP(g, sh, 0.014, [x, y], [x + 0.06, y - 0.05], [x + 0.08, y - 0.14]);
+});
 function luke() {
   const r = seatedFig({
-    name: 'luke', torso: 0xf2efe6, arms: 0xf2efe6, legs: 0xcbb98f, hips: 0x6b4a2e, face: FACE.luke(),
+    name: 'luke', torso: 0xf2efe6, arms: 0xf2efe6, legs: 0xd8c497, hips: 0xd8c497, hands: SKIN, skin: SKIN, noStud: true, extraHeight: 0.14,
+    face: lukeFace(0.3 * 1.3, 0.5 * 1.3),
     torsoExtra: (b, d) => {
       const s = d.s;
-      b.box(0, d.chestY, 0, 0.95 * s, 0.11 * s, 0.5 * s, 0x6b4a2e);
-      b.box(0.18 * s, d.chestY + 0.01 * s, 0.24 * s, 0.12 * s, 0.09 * s, 0.03 * s, 0xb4b8bc);
-      for (const sd of [-1, 1]) rbox(b, sd * 0.1 * s, 0.78 * s, 0.215 * s, 0.035 * s, 0.38 * s, 0.03 * s, -0.08, 0, sd * 0.5, 0xd2cdbd);
+      torsoPanel(b, lukeTorso(false), d); torsoPanel(b, lukeTorso(true), d, true);
+      b.box(0, d.chestY - 0.01 * s, 0, 0.95 * s, 0.13 * s, 0.5 * s, 0x5e3c22);   // belt
+      rbox(b, 0.12 * s, d.chestY + 0.055 * s, 0.252 * s, 0.13 * s, 0.1 * s, 0.03 * s, 0, 0, 0, 0xb8bcc2);   // buckle
+      rbox(b, 0.12 * s, d.chestY + 0.055 * s, 0.264 * s, 0.07 * s, 0.05 * s, 0.01 * s, 0, 0, 0, 0x7a7e84);
+      for (const sd of [-1, 1]) rbox(b, sd * 0.36 * s, d.chestY + 0.0 * s, 0.17 * s, 0.13 * s, 0.15 * s, 0.1 * s, 0, 0, 0, 0x4a2e18);   // pouches
     },
-    headExtra: (hb, d) => hair(hb, d, 0xd9a85a, { fringe: 1 }),
+    headExtra: lukeHair,
   });
+  // his lightsaber hangs on the belt until it's drawn
+  const s = r.dims.s, hb = new BrickBuilder(1);
+  hb.cyl(0, -0.15 * s, 0, 0.045 * s, 0.3 * s, 0xb4b8bc, { seg: 8 });
+  hb.cyl(0, -0.1 * s, 0, 0.05 * s, 0.1 * s, 0x1a1a1a, { seg: 8 });
+  hb.cyl(0, 0.13 * s, 0, 0.055 * s, 0.04 * s, 0x5a5e62, { seg: 8 });
+  const hilt = hb.build({ name: 'luke-hilt' });
+  hilt.position.set(-0.47 * s, r.dims.chestY - 0.02 * s, 0.1 * s); hilt.rotation.set(0.15, 0, 0.2);
+  r.torso.add(hilt);
   const sab = handAt(r, -1, saber(0x3d8bff, 1.1));
   sab.rotation.x = PI / 2;
-  r.fx = (name, f) => showSaber(sab, strength(name, f, ['cheer', 'win', 'trick']));
+  r.fx = (name, f) => { showSaber(sab, strength(name, f, ['cheer', 'win', 'trick'])); hilt.visible = !sab.visible; };
   return r;
 }
 
+// Leia: the cinnamon-roll buns on a centre-parted brown hairpiece, the white gown with its
+// silver belt, red lips, and her blaster.
+const LEIA_HAIR = 0x4e2a14, LEIA_HAIR2 = 0x351a0a, LEIA_HAIR3 = 0x6a3a1e;
+const leiaFace = (R, H) => headPrint('swd-leia', R, H, SKIN_S, (g) => {
+  for (const sd of [-1, 1]) {
+    figEye(g, sd * 0.1, 0.33, 0.033, 0.045, '#2a1608');
+    strokeP(g, '#1a0e06', 0.013, [[sd * 0.128, 0.36], [sd * 0.16, 0.38]]);   // lashes
+    curveP(g, '#3a1e0e', 0.017, [sd * 0.052, 0.41], [sd * 0.1, 0.45], [sd * 0.158, 0.418]);
+    ellipse(g, sd * 0.165, 0.235, 0.036, 0.022, 'rgba(232,120,120,0.35)');   // blush
+  }
+  // red lips, smiling
+  g.fillStyle = '#c4243a';
+  g.beginPath(); g.moveTo(-0.075, 0.205); g.quadraticCurveTo(0, 0.188, 0.075, 0.205); g.quadraticCurveTo(0.04, 0.13, 0, 0.13); g.quadraticCurveTo(-0.04, 0.13, -0.075, 0.205); g.fill();
+  curveP(g, '#7a1020', 0.01, [-0.07, 0.2], [0, 0.17], [0.07, 0.2]);
+});
+function leiaHair(hb, d) {
+  const R = d.headR, H = d.headH, c = LEIA_HAIR, c2 = LEIA_HAIR2, c3 = LEIA_HAIR3, m = plastic(c);
+  moldHair(hb, d, c, { low: 0.34, band: 0.78, tall: 0.44, open: 0.75 });
+  // the centre parting: two smooth lobes with a groove between, drawn down over the temples
+  for (const sd of [-1, 1]) {
+    hb.sphere(sd * R * 0.42, H * 1.0, R * 0.04, R * 0.78, c, { sy: 0.62 });
+    hb.addMatrix(SPH(), m, mat4(sd * R * 0.5, H * 0.88, R * 0.74, -0.2, 0, -sd * 0.42, R * 0.6, H * 0.13, R * 0.34));
+  }
+  // the cinnamon-roll buns, coiled
+  for (const sd of [-1, 1]) {
+    const x = sd * R * 1.16, y = H * 0.5, z = -R * 0.04, rb = R * 0.64;
+    hb.addMatrix(SPH(), m, mat4(x, y, z, 0, 0, 0, rb * 0.5, rb, rb));
+    for (const [rr, col] of [[0.8, c2], [0.56, c3], [0.32, c2]]) {
+      const off = rb * 0.5 * Math.sqrt(1 - rr * rr);
+      hb.addMatrix(TORUS(), plastic(col), mat4(x + sd * off, y, z, 0, PI / 2, 0, rb * rr, rb * rr, rb * 0.5));
+    }
+    hb.addMatrix(SPH(), plastic(c3), mat4(x + sd * rb * 0.47, y, z, 0, 0, 0, rb * 0.07, rb * 0.16, rb * 0.16));
+  }
+}
+const leiaTorso = (back) => torsoMat(back ? 'swd-leia-b' : 'swd-leia-f', 1, '#f4f4f4', (g, T) => {
+  const fold = '#d6d9de';
+  if (back) {
+    // the gown's hood lies folded down the back
+    curveP(g, '#c9ccd2', 0.02, [-0.3, T - 0.02], [0, T - 0.42], [0.3, T - 0.02]);
+    curveP(g, fold, 0.014, [-0.2, T - 0.05], [0, T - 0.28], [0.2, T - 0.05]);
+    return;
+  }
+  curveP(g, '#c4c8ce', 0.022, [-0.14, T], [0, T - 0.1], [0.14, T]);   // the high neckline
+  for (const x of [-0.24, -0.1, 0.1, 0.24]) curveP(g, fold, 0.013, [x * 1.1, 0.14], [x + 0.02, T * 0.5], [x * 0.75, T - 0.1]);
+});
 function leia() {
+  const W = 0xf4f4f4;
   const r = seatedFig({
-    name: 'leia', torso: 0xf4f4f4, arms: 0xf4f4f4, legs: 0xf4f4f4, hips: 0xf4f4f4, face: FACE.leia(),
+    name: 'leia', torso: W, arms: W, legs: W, hips: W, hands: SKIN, skin: SKIN, noStud: true, extraHeight: 0.1,
+    face: leiaFace(0.3 * 1.3, 0.5 * 1.3),
     torsoExtra: (b, d) => {
-      const s = d.s;
-      b.box(0, d.chestY + 0.02 * s, 0, 0.95 * s, 0.1 * s, 0.5 * s, 0xb4b8bc);
-      for (let k = 0; k < 5; k++) b.box((-0.32 + k * 0.16) * s, d.chestY + 0.035 * s, 0.25 * s, 0.07 * s, 0.07 * s, 0.02 * s, 0x8a8e92);
-      b.box(0, 0.86 * s, -0.02 * s, 0.6 * s, 0.14 * s, 0.4 * s, 0xf4f4f4);   // hood collar
-    },
-    headExtra: (hb, d) => {
-      const R = d.headR, H = d.headH, col = 0x4a2a16;
-      hair(hb, d, col, { low: 0.3 });
-      for (const sd of [-1, 1]) {
-        rod(hb, [sd * R * 0.9, H * 0.48, -R * 0.05], [sd * R * 1.38, H * 0.48, -R * 0.05], R * 0.62, col, 16);
-        rod(hb, [sd * R * 1.38, H * 0.48, -R * 0.05], [sd * R * 1.44, H * 0.48, -R * 0.05], R * 0.38, 0x3a1e0e, 12);
+      const s = d.s, silver = metalMat(0xc4c9d0, 0.3);
+      torsoPanel(b, leiaTorso(false), d); torsoPanel(b, leiaTorso(true), d, true);
+      b.box(0, d.chestY - 0.01 * s, 0, 0.95 * s, 0.13 * s, 0.5 * s, 0, { mat: silver });   // the silver belt
+      for (let k = 0; k < 5; k++) {
+        rbox(b, (-0.32 + k * 0.16) * s, d.chestY + 0.055 * s, 0.252 * s, 0.12 * s, 0.11 * s, 0.025 * s, 0, 0, 0, 0, { mat: metalMat(0x9aa0a8, 0.35) });
+        rbox(b, (-0.32 + k * 0.16) * s, d.chestY + 0.055 * s, 0.262 * s, 0.06 * s, 0.05 * s, 0.015 * s, 0, 0, 0, 0, { mat: silver });
       }
+      b.box(0, 0.86 * s, -0.05 * s, 0.62 * s, 0.14 * s, 0.38 * s, 0xeeeeee);   // the hood round the neck
+      b.addMatrix(SPH(), plastic(0xececec), mat4(0, 0.8 * s, -0.22 * s, -0.15, 0, 0, 0.3 * s, 0.2 * s, 0.07 * s));   // its folds down the back
+      b.box(0, -0.11 * s, 0.31 * s, 0.9 * s, 0.31 * s, 0.74 * s, W);   // the gown over her lap
     },
+    headExtra: leiaHair,
   });
   const gun = handAt(r, -1, blaster('pistol', 1));
   r.fx = (name, f, t) => {
@@ -72,22 +233,74 @@ function leia() {
   return r;
 }
 
+// Han: swept brown hair, the crooked half-smile, white shirt and black vest, blue-grey
+// trousers with the Corellian bloodstripe, and the DL-44 in its holster until he draws.
+const HAN_HAIR = 0x5c3a1e, HAN_HAIR2 = 0x45291a;
+const hanFace = (R, H) => headPrint('swd-han', R, H, SKIN_S, (g) => {
+  for (const sd of [-1, 1]) figEye(g, sd * 0.1, 0.33, 0.033, 0.045, '#1e120a');
+  curveP(g, '#4a2a14', 0.026, [-0.05, 0.405], [-0.1, 0.425], [-0.158, 0.41]);   // one brow level...
+  curveP(g, '#4a2a14', 0.026, [0.05, 0.418], [0.1, 0.468], [0.158, 0.44]);      // ...one cocked
+  // the lopsided smirk, pulled up on his left
+  g.fillStyle = '#fff'; g.strokeStyle = '#3a1c10'; g.lineWidth = 0.016;
+  g.beginPath(); g.moveTo(-0.09, 0.195); g.quadraticCurveTo(0.02, 0.17, 0.115, 0.235); g.quadraticCurveTo(0.08, 0.17, 0.02, 0.165); g.quadraticCurveTo(-0.04, 0.165, -0.09, 0.195); g.fill(); g.stroke();
+  curveP(g, '#c98a66', 0.011, [0.13, 0.25], [0.15, 0.225], [0.135, 0.2]);   // dimple
+  strokeP(g, '#b8785a', 0.01, [[-0.035, 0.085], [-0.015, 0.055]]);   // chin scar
+  curveP(g, '#d8a27c', 0.01, [-0.06, 0.3], [-0.03, 0.26], [-0.01, 0.25]);   // nose line
+});
+function hanHair(hb, d) {
+  const R = d.headR, H = d.headH, c = HAN_HAIR, c2 = HAN_HAIR2, m = plastic(c);
+  moldHair(hb, d, c, { low: 0.24, band: 0.78, tall: 0.52, open: 0.8 });
+  // thick, swept up off the brow and back from a side parting; a loose lock falls forward
+  hb.addMatrix(SPH(), m, mat4(R * 0.08, H * 1.06, R * 0.3, -0.25, 0, -0.08, R * 1.05, H * 0.24, R * 0.85));
+  hb.addMatrix(SPH(), m, mat4(-R * 0.2, H * 0.96, R * 0.72, -0.5, 0, 0.12, R * 0.82, H * 0.16, R * 0.4));
+  hb.addMatrix(SPH(), plastic(c2), mat4(-R * 0.42, H * 0.84, R * 0.92, 0, 0, 0.75, R * 0.26, H * 0.06, R * 0.1));
+  hb.addMatrix(SPH(), plastic(c2), mat4(R * 0.45, H * 1.14, R * 0.0, 0, 0, -0.35, R * 0.05, R * 0.05, R * 0.75));   // the parting
+  for (const sd of [-1, 1]) hb.addMatrix(SPH(), m, mat4(sd * R * 0.75, H * 0.92, -R * 0.35, 0, 0, 0, R * 0.42, H * 0.18, R * 0.62));   // fullness over the ears
+}
+const hanShirt = () => torsoMat('swd-han-f', 1, '#efe9dc', (g, T) => {
+  poly(g, SKIN_S, [[-0.08, T], [0.08, T], [0, T - 0.2]]);   // the open neck
+  strokeP(g, '#b8ae98', 0.018, [[-0.11, T], [0, T - 0.22], [0.11, T]]);
+  for (const sd of [-1, 1]) poly(g, '#e2dac8', [[sd * 0.1, T], [sd * 0.2, T - 0.02], [sd * 0.05, T - 0.16]]);   // collar
+  strokeP(g, '#c8bea8', 0.012, [[0, T - 0.22], [0, 0.14]]);   // placket
+  for (let k = 0; k < 3; k++) ellipse(g, 0.025, T - 0.3 - k * 0.15, 0.012, 0.012, '#b8ae98');
+});
 function han() {
+  const LEGS = 0x2c3a56;
   const r = seatedFig({
-    name: 'han', torso: 0xf0ece0, arms: 0xf0ece0, legs: 0x23304a, hips: 0x3a2a1a, face: FACE.han(),
+    name: 'han', torso: 0xefe9dc, arms: 0xefe9dc, legs: LEGS, hips: LEGS, hands: SKIN, skin: SKIN, noStud: true, extraHeight: 0.14,
+    face: hanFace(0.3 * 1.3, 0.5 * 1.3),
     torsoExtra: (b, d) => {
-      const s = d.s;
-      for (const sd of [-1, 1]) b.add(taperGeo(0.3, 0.2, 0.8, 0.48, 0.44), plastic(0x16181c), sd * 0.31 * s, d.chestY + 0.01 * s, 0, 0, s, s, s);
-      b.box(0, d.chestY - 0.01 * s, 0, 0.95 * s, 0.11 * s, 0.5 * s, 0x3a2a1a);
-      b.box(-0.36 * s, -0.2 * s, 0.1 * s, 0.14 * s, 0.32 * s, 0.22 * s, 0x3a2a1a);  // holster
-      for (const sd of [-1, 1]) b.box(sd * 0.3 * s, -0.2 * s, 0.32 * s, 0.05 * s, 0.27 * s, 0.72 * s, C.red);
+      const s = d.s, vest = 0x17191d;
+      torsoPanel(b, hanShirt(), d);
+      for (const sd of [-1, 1]) {
+        b.add(taperGeo(0.3, 0.2, 0.8, 0.48, 0.44), plastic(vest), sd * 0.31 * s, d.chestY + 0.01 * s, 0, 0, s, s, s);
+        rbox(b, sd * 0.3 * s, 0.5 * s, 0.24 * s, 0.15 * s, 0.035 * s, 0.03 * s, -0.03, 0, 0, 0x34363c);   // vest pockets
+        rbox(b, sd * 0.32 * s, 0.32 * s, 0.245 * s, 0.17 * s, 0.035 * s, 0.03 * s, -0.03, 0, 0, 0x34363c);
+        b.box(sd * 0.425 * s, 0.0, 0.32 * s, 0.02 * s, 0.075 * s, 0.7 * s, 0xc81e1e);   // bloodstripes
+        b.box(sd * 0.455 * s, 0.0, -0.01 * s, 0.012 * s, 0.075 * s, 0.44 * s, 0xc81e1e);
+      }
+      b.add(taperGeo(0.93, 0.71, 0.8, 0.04, 0.04), plastic(vest), 0, d.chestY + 0.01 * s, -0.222 * s, 0, s, s, s);   // vest back
+      b.box(0, d.chestY - 0.01 * s, 0, 0.95 * s, 0.12 * s, 0.5 * s, 0x3a2414);   // belt
+      rbox(b, 0, d.chestY + 0.05 * s, 0.252 * s, 0.11 * s, 0.09 * s, 0.03 * s, 0, 0, 0, 0xb4b8bc);
+      rbox(b, -0.05 * s, d.chestY - 0.05 * s, 0.02 * s, 0.98 * s, 0.1 * s, 0.52 * s, 0, 0, 0.12, 0x5a3a20);   // gun belt, slung low
+      rbox(b, -0.47 * s, -0.12 * s, 0.1 * s, 0.13 * s, 0.38 * s, 0.24 * s, 0.1, 0, -0.1, 0x3a2414);   // holster
+      rbox(b, -0.47 * s, -0.05 * s, 0.1 * s, 0.15 * s, 0.05 * s, 0.26 * s, 0.1, 0, -0.1, 0x5a3a20);
     },
-    headExtra: (hb, d) => hair(hb, d, 0x5a3820, { fringe: -1, sides: true }),
+    headExtra: hanHair,
   });
+  // the DL-44 rides in the holster until he draws it
+  const s = r.dims.s, hb = new BrickBuilder(1);
+  rbox(hb, 0, 0.1 * s, -0.05 * s, 0.09 * s, 0.2 * s, 0.12 * s, -0.35, 0, 0, 0x2a2c30);   // grip
+  rbox(hb, 0, 0.02 * s, 0.04 * s, 0.1 * s, 0.1 * s, 0.2 * s, 0, 0, 0, 0x3a3c40);
+  rod(hb, [0, 0.06 * s, 0.1 * s], [0, 0.06 * s, 0.24 * s], 0.035 * s, 0x6a6e72, 6);   // scope
+  const holstered = hb.build({ name: 'han-dl44' });
+  holstered.position.set(-0.5 * s, 0.05 * s, 0.1 * s); holstered.rotation.z = -0.1;
+  r.torso.add(holstered);
   const gun = handAt(r, -1, blaster('dl44', 1));
   r.fx = (name, f, t) => {
     const k = strength(name, f, ['cheer']);
     gun.visible = k > 0;
+    holstered.visible = !gun.visible;
     const spin = name === 'cheer' && f < 0.55;
     gun.rotation.x = spin ? f / 0.55 * PI * 4 : 0;
     shoot(gun, name === 'cheer' && f > 0.6, t, 4);
@@ -95,36 +308,107 @@ function han() {
   return r;
 }
 
+// Chewbacca: layered shaggy fur (darker and lighter), blue eyes deep under the brow, a big
+// black nose and a roaring jaw full of teeth, the bandolier of silver boxes and his bowcaster.
+const FUR = 0x6a4a2c, FUR_D = 0x46301a, FUR_L = 0x8a6440, FUR_X = 0x58391f;
+// a flat, pointed tuft of fur hanging down (and flaring out by `flare`) at yaw `a`
+const tuft = (b, x, y, z, a, w, h, col, flare = 0.35, roll = 0) => b.addMatrix(CONE(), plastic(col), ymat(x, y, z, a, PI - flare, w, h, w * 0.32, roll));
+const FUR_COLS = ['#46301a', '#8a6440', '#5a3e24', '#a07a4e', '#3a2614', '#7a5634'];
+function furStrokes(g, r, x0, x1, y0, y1, step = 0.05, len = 0.09, w = 0.016) {
+  for (let y = y1 + 0.03, row = 0; y > y0 - 0.02; y -= step * 0.8, row++) {
+    for (let x = x0 + (row % 2) * step * 0.5; x < x1; x += step) {
+      const xx = x + (r() - 0.5) * step * 0.6, yy = y + (r() - 0.5) * step * 0.4, L = len * (0.7 + r() * 0.6);
+      curveP(g, FUR_COLS[Math.floor(r() * FUR_COLS.length)], w, [xx - w * 0.6, yy], [xx + w * 0.8, yy - L * 0.5], [xx - w * 0.2, yy - L]);
+    }
+  }
+}
+const chewieFur = (back) => torsoMat(back ? 'swd-chewie-b' : 'swd-chewie-f', 1.05, '#6a4a2c', (g, T) => furStrokes(g, rng(back ? 11 : 5), -0.56, 0.56, 0, T, 0.045, 0.085, 0.015));
+const chewieFace = (R, H) => headPrint('swd-chewie', R, H, '#6a4a2c', (g) => {
+  furStrokes(g, rng(23), -1.7, 1.7, 0, H, 0.05, 0.09, 0.016);
+  // the lighter muzzle and cheeks
+  ellipse(g, 0, 0.3, 0.24, 0.2, '#9c7a52');
+  furStrokes(g, rng(29), -0.2, 0.2, 0.16, 0.42, 0.04, 0.06, 0.013);
+  ellipse(g, 0, 0.29, 0.17, 0.13, '#a8865c');
+  for (const sd of [-1, 1]) {
+    // deep-set blue eyes under a heavy furry brow
+    ellipse(g, sd * 0.14, 0.555, 0.09, 0.062, '#2a1a0c');
+    ellipse(g, sd * 0.14, 0.552, 0.052, 0.042, '#3f86d8');
+    ellipse(g, sd * 0.14, 0.55, 0.024, 0.024, '#0a0a14');
+    ellipse(g, sd * 0.14 - 0.018, 0.566, 0.013, 0.012, '#fff');
+    poly(g, '#3a2614', [[sd * 0.03, 0.6], [sd * 0.24, 0.62], [sd * 0.25, 0.68], [sd * 0.04, 0.655]]);
+  }
+});
+function chewieHead(hb, d) {
+  const R = d.headR, H = d.headH;
+  hb.sphere(0, H * 0.93, -R * 0.04, R * 1.1, FUR, { sy: 0.52 });
+  // layered tufts of fur round the head, skipping the face; the lowest rows hang over the shoulders
+  const cols = [FUR_D, FUR, FUR_L, FUR_X];
+  const rows = [[H * 1.06, 0.0, 14, 0.82, 0.95], [H * 0.82, 0.62, 14, 1.02, 0.3], [H * 0.58, 0.8, 14, 1.06, 0.3], [H * 0.34, 0.86, 14, 1.1, 0.32], [H * 0.1, 0.84, 14, 1.14, 0.38]];
+  for (let k = 0; k < 8; k++) { const a = k / 8 * PI * 2 + 0.2; tuft(hb, Math.sin(a) * R * 0.42, H * 1.2, Math.cos(a) * R * 0.42, a, R * 0.26, H * 0.3, [FUR, FUR_X, FUR_L][k % 3], 1.25); }   // crown
+  rows.forEach(([y, skip, n, rr, flare], row) => {
+    for (let k = 0; k < n; k++) {
+      const a = (k + (row % 2) * 0.5) / n * PI * 2, aa = Math.atan2(Math.sin(a), Math.cos(a));
+      if (Math.abs(aa) < skip) continue;
+      tuft(hb, Math.sin(a) * R * rr, y, Math.cos(a) * R * rr, a, R * 0.3, H * (row ? 0.42 : 0.36), cols[(k * 3 + row) % 4], flare, ((k * 7) % 5 - 2) * 0.08);
+    }
+  });
+  // a heavy brow over the eyes and fur framing the cheeks
+  for (const sd of [-1, 1]) {
+    tuft(hb, sd * R * 0.22, H * 0.73, R * 0.95, sd * 0.2, R * 0.24, H * 0.2, FUR_D, 0.9, sd * 0.35);
+    tuft(hb, sd * R * 0.62, H * 0.36, R * 0.84, sd * 0.7, R * 0.2, H * 0.36, FUR_L, 0.25, -sd * 0.12);
+    tuft(hb, sd * R * 0.44, H * 0.14, R * 0.94, sd * 0.45, R * 0.18, H * 0.26, FUR, 0.2, -sd * 0.2);
+  }
+  // muzzle, big black nose, upper fangs and the dark mouth that shows when the jaw drops
+  hb.addMatrix(SPH(), plastic(0xa8865c), mat4(0, H * 0.36, R * 0.84, 0, 0, 0, R * 0.42, H * 0.11, R * 0.26));
+  hb.addMatrix(SPH(), plastic(0x161010, { rough: 0.2 }), mat4(0, H * 0.43, R * 1.04, 0, 0, 0, R * 0.2, H * 0.06, R * 0.12));
+  rbox(hb, 0, H * 0.25, R * 0.8, R * 0.72, H * 0.14, R * 0.32, 0, 0, 0, 0x3a0c0a);
+  rbox(hb, 0, H * 0.3, R * 0.9, R * 0.5, H * 0.03, R * 0.14, 0, 0, 0, 0xf0ead8);
+  for (const sd of [-1, 1]) hb.addMatrix(CONE(), plastic(0xf4eedc), mat4(sd * R * 0.22, H * 0.26, R * 0.95, PI, 0, 0, R * 0.05, H * 0.09, R * 0.05));   // fangs
+}
 function chewie() {
-  const fur = 0x6a4a2c, fur2 = 0x4e341c, fur3 = 0x8a6440;
   const r = seatedFig({
-    name: 'chewie', s: 1.6, wide: 1.05, torso: fur, arms: fur, legs: fur, hips: fur2, hands: fur2, skin: fur, neck: fur,
-    face: FACES.chewie(), headR: 0.33, headH: 0.56, noStud: true, extraHeight: 0.12,
+    name: 'chewie', s: 1.6, wide: 1.05, torso: FUR, arms: FUR, legs: FUR, hips: FUR_D, hands: 0x3a2818, skin: FUR, neck: FUR,
+    face: chewieFace(0.33 * 1.6, 0.56 * 1.6), headR: 0.33, headH: 0.56, noStud: true, extraHeight: 0.12,
     torsoExtra: (b, d) => {
       const s = d.s;
-      for (let k = 0; k < 12; k++) b.box(((k * 0.37) % 1 - 0.5) * 0.7 * s, (0.25 + ((k * 0.23) % 1) * 0.6) * s, 0.215 * s, 0.08 * s, 0.24 * s, 0.03 * s, k % 2 ? fur2 : fur3);
-      rbox(b, 0, 0.6 * s, 0.24 * s, 0.13 * s, 1.15 * s, 0.03 * s, 0, 0, 0.72, 0x3a2614);
-      rbox(b, 0, 0.6 * s, -0.24 * s, 0.13 * s, 1.15 * s, 0.03 * s, 0, 0, -0.72, 0x3a2614);
-      for (let k = 0; k < 5; k++) rbox(b, (-0.26 + k * 0.13) * s, (0.38 + k * 0.105) * s, 0.26 * s, 0.07 * s, 0.09 * s, 0.04 * s, 0, 0, 0.72, 0xb0b4b8);
-      b.box(0, 0.86 * s, 0, 0.78 * s, 0.14 * s, 0.44 * s, fur);   // shaggy shoulders
-    },
-    headExtra: (hb, d) => {
-      const R = d.headR, H = d.headH;
-      hb.sphere(0, H * 0.94, -R * 0.04, R * 1.14, fur, { sy: 0.5 });
-      hb.add(HALFCYL(), plastic(fur), 0, H * 0.02, -R * 0.08, 0, R * 1.14, H * 0.94, R * 1.1);
-      for (const sd of [-1, 1]) {
-        rbox(hb, sd * R * 0.86, H * 0.42, R * 0.38, R * 0.3, H * 0.8, R * 0.5, 0, sd * 0.35, -sd * 0.1, fur2);
-        rbox(hb, sd * R * 0.42, H * 0.86, R * 0.8, R * 0.62, H * 0.13, R * 0.3, 0.4, 0, sd * 0.12, fur3);
+      torsoPanel(b, chewieFur(false), d); torsoPanel(b, chewieFur(true), d, true);
+      // shaggy fur over the shoulders
+      for (let k = 0; k < 9; k++) {
+        const x = (-0.42 + k * 0.105) * s;
+        for (const z of [1, -1]) tuft(b, x, 0.86 * s, z * 0.19 * s, z > 0 ? 0 : PI, 0.08 * s, 0.3 * s, [FUR_D, FUR_L, FUR_X][k % 3], 0.3, ((k * 5) % 3 - 1) * 0.15);
       }
-      rbox(hb, 0, H * 0.27, R * 0.84, R * 0.8, H * 0.14, R * 0.3, 0, 0, 0, 0x2a0e0a);    // mouth (shows when the jaw drops)
+      // the bandolier: over his left shoulder to his right hip, front and back, with silver boxes
+      for (const z of [1, -1]) {
+        rbox(b, 0.02 * s, 0.58 * s, z * 0.248 * s, 0.14 * s, 1.22 * s, 0.035 * s, 0, 0, -0.68, 0x3a2614);
+        for (let k = 0; k < 7; k++) {
+          const t = (-0.42 + k * 0.14) * s, x = 0.02 * s + Math.sin(0.68) * t, y = 0.58 * s + Math.cos(0.68) * t;
+          rbox(b, x, y, z * 0.272 * s, 0.11 * s, 0.13 * s, 0.07 * s, 0, 0, -0.68, 0xc4c8ce);
+          rbox(b, x + Math.sin(0.68) * 0.045 * s, y + Math.cos(0.68) * 0.045 * s, z * 0.31 * s, 0.112 * s, 0.03 * s, 0.01 * s, 0, 0, -0.68, 0x7c8086);
+        }
+      }
+      // the bowcaster, slung across his back
+      const bz = -0.36 * s;
+      rbox(b, -0.05 * s, 0.52 * s, bz, 0.09 * s, 0.95 * s, 0.1 * s, 0, 0, 0.55, 0x5a3a20);   // stock
+      rbox(b, -0.05 * s, 0.52 * s, bz - 0.05 * s, 0.07 * s, 0.6 * s, 0.05 * s, 0, 0, 0.55, 0x8a8e94);   // barrel
+      const tx = -0.05 * s - Math.sin(0.55) * 0.42 * s, ty = 0.52 * s + Math.cos(0.55) * 0.42 * s;
+      for (const sd of [-1, 1]) rbox(b, tx + sd * Math.cos(0.55) * 0.2 * s, ty + sd * Math.sin(0.55) * 0.2 * s - 0.03 * s, bz - 0.02 * s, 0.42 * s, 0.05 * s, 0.06 * s, 0, 0, 0.55 - sd * 0.35, 0xa0a4aa);   // bow arms
+      b.cyl(tx, ty - 0.04 * s, bz, 0.06 * s, 0.1 * s, 0x2a2a2e, { seg: 8 });
     },
+    arm: (ab, sd, d) => {
+      const s = d.s;
+      for (const [y, a, col] of [[-0.1, 0, FUR_D], [-0.12, PI / 2 * sd, FUR_L], [-0.1, PI, FUR_X], [-0.38, sd * 1.2, FUR_X], [-0.36, sd * 2.4, FUR_D]]) {
+        tuft(ab, Math.sin(a) * 0.13 * s, y * s, Math.cos(a) * 0.13 * s, a, 0.09 * s, 0.3 * s, col, 0.25);
+      }
+    },
+    headExtra: chewieHead,
   });
   // lower jaw (roars)
   const d = r.dims, R = d.headR, H = d.headH;
   const jaw = new THREE.Group(); jaw.position.set(0, H * 0.3, R * 0.25);
   const jb = new BrickBuilder(1);
-  rbox(jb, 0, -H * 0.1, R * 0.52, R * 0.95, H * 0.2, R * 0.6, 0, 0, 0, 0x8a6a4a);
-  rbox(jb, 0, -H * 0.03, R * 0.78, R * 0.7, H * 0.05, R * 0.12, 0, 0, 0, 0xf0ead8);   // teeth
+  jb.addMatrix(SPH(), plastic(0x9c7a52), mat4(0, -H * 0.08, R * 0.55, 0, 0, 0, R * 0.48, H * 0.11, R * 0.34));
+  rbox(jb, 0, -H * 0.02, R * 0.74, R * 0.66, H * 0.05, R * 0.14, 0, 0, 0, 0xf0ead8);   // teeth
+  for (const sd of [-1, 1]) jb.addMatrix(CONE(), plastic(0xf4eedc), mat4(sd * R * 0.24, H * 0.02, R * 0.78, 0, 0, 0, R * 0.05, H * 0.08, R * 0.05));
   jaw.add(jb.build({ name: 'chewie-jaw' }));
   r.head.add(jaw);
   r.jaw = jaw; r.jawOpen = 0.55;
@@ -277,9 +561,10 @@ function mando() {
 }
 
 // Grogu in his hover-pram: the pram bobs, the knob from the Razor Crest floats up when he
-// uses the Force.
+// uses the Force. A big moulded head, huge ears straight out to the sides, big glossy black
+// eyes, and a tiny body in a tan robe with a big rolled collar.
 function grogu() {
-  const skin = 0x8ab070, robe = 0xc8b08a;
+  const skin = 0x86ad68, robe = 0xb39566, collar = 0xc4a678;
   const root = new THREE.Group(); root.name = 'grogu';
   const pram = new THREE.Group(); root.add(pram);
   const pb = new BrickBuilder(1);
@@ -293,16 +578,30 @@ function grogu() {
   // torso pivot at the hips (origin) so rig.shoulder = armL.position is in the seat frame
   const torso = new THREE.Group(); root.add(torso);
   const b = new BrickBuilder(1);
-  b.cyl(0, 0.42, 0.06, 0.26, 0.42, robe, { seg: 14 });
-  b.cyl(0, 0.78, 0.06, 0.27, 0.1, 0xa08a66, { seg: 14 });
+  b.cyl(0, 0.42, 0.06, 0.25, 0.4, robe, { seg: 14 });
+  b.addMatrix(ROLL(), plastic(collar), mat4(0, 0.8, 0.06, PI / 2, 0, 0, 0.27, 0.27, 0.3));   // the big collar
+  for (const sd of [-1, 1]) rbox(b, sd * 0.07, 0.6, 0.3, 0.03, 0.3, 0.02, 0, 0, sd * 0.3, 0x9a7e54);   // robe crossover
   torso.add(b.build({ name: 'grogu-body' }));
-  const head = new THREE.Group(); head.position.set(0, 0.89, 0.06); torso.add(head);
-  const hb = new BrickBuilder(1);
-  hb.add(HEADCYL(), FACES.grogu(), 0, 0, 0, PI, 0.27, 0.36, 0.27);
-  hb.addMatrix(HEMI(), plastic(skin), mat4(0, 0.36, 0, 0, 0, 0, 0.27, 0.15, 0.27));
+  const head = new THREE.Group(); head.position.set(0, 0.86, 0.06); torso.add(head);
+  const hb = new BrickBuilder(1), sk = plastic(skin);
+  hb.addMatrix(SPH(), sk, mat4(0, 0.29, 0, 0, 0, 0, 0.31, 0.27, 0.28));   // a broad brow
+  hb.addMatrix(SPH(), sk, mat4(0, 0.17, 0.04, 0, 0, 0, 0.23, 0.17, 0.22));   // cheeks and chin
+  for (const sd of [-1, 1]) hb.addMatrix(SPH(), sk, mat4(sd * 0.11, 0.35, 0.19, 0, 0, sd * 0.05, 0.12, 0.05, 0.09));   // brow ridge
+  // big glossy black eyes with highlights
+  const eyeM = plastic(0x0b0806, { rough: 0.06 }), glint = glowMat(0xffffff, 0.7);
   for (const sd of [-1, 1]) {
-    rbox(hb, sd * 0.5, 0.26, -0.03, 0.56, 0.2, 0.05, 0, 0, sd * 0.22, skin);
-    rbox(hb, sd * 0.5, 0.26, 0.0, 0.46, 0.11, 0.03, 0, 0, sd * 0.22, 0xd89a9a);
+    hb.addMatrix(SPH(), eyeM, mat4(sd * 0.115, 0.255, 0.212, 0, sd * 0.42, 0, 0.088, 0.078, 0.065));
+    hb.addMatrix(SPH(), glint, mat4(sd * 0.115 - 0.028, 0.285, 0.262 + sd * 0.012, 0, 0, 0, 0.02, 0.02, 0.012));
+    hb.addMatrix(SPH(), glint, mat4(sd * 0.115 + 0.022, 0.228, 0.27 - sd * 0.01, 0, 0, 0, 0.009, 0.009, 0.008));
+  }
+  hb.addMatrix(SPH(), sk, mat4(0, 0.19, 0.255, 0, 0, 0, 0.04, 0.028, 0.03));   // little nose
+  for (const sd of [-1, 1]) hb.sphere(sd * 0.014, 0.182, 0.282, 0.008, 0x2e4a24);
+  rbox(hb, 0, 0.115, 0.245, 0.07, 0.012, 0.012, 0, 0, 0, 0x4e6e3e);   // mouth
+  // the huge ears, straight out to the sides, pink inside
+  for (const sd of [-1, 1]) {
+    const rz = -sd * (PI / 2 - 0.14), ry = sd * 0.28;
+    hb.addMatrix(CONE(), plastic(0x96bc7a), mat4(sd * 0.6, 0.32, -0.05, 0, ry, rz, 0.18, 0.72, 0.055));
+    hb.addMatrix(CONE(), plastic(0xe6a8a2), mat4(sd * 0.57, 0.32, -0.02, 0, ry, rz, 0.115, 0.56, 0.035));
   }
   head.add(hb.build({ name: 'grogu-head' }));
   const arms = [1, -1].map((sd) => {
@@ -323,7 +622,7 @@ function grogu() {
   knob.add(kb.build({ name: 'knob' }));
   knob.visible = false;
   root.add(knob);
-  const rig = { root, torso, head, armL: arms[0], armR: arms[1], armLen: 0.31, height: 1.35, width: 1.36 };
+  const rig = { root, torso, head, armL: arms[0], armR: arms[1], armLen: 0.31, height: 1.4, width: 1.36 };
   rig.idle = (t) => {
     const bob = S(t * 2.2) * 0.04;
     pram.position.y = bob;

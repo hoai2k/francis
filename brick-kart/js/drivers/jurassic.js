@@ -2,8 +2,8 @@
 // herd of brick dinosaurs (builders in ./jurassic-dinos.js), each with signature
 // Mario Kart-style gestures: Owen's raptor "hold", Claire's flare, Grant's hat wave,
 // Malcolm's laugh, Hammond's amber cane, roars, frills and sneezes.
-import { THREE, BrickBuilder, C, plastic, seatedFig, faceMat, rbox, cached } from './kit.js';
-import { breathe, bigTheropod, smallTheropod, dilophosaurusDriver, trexDriver, triceratopsDriver, pteranodonDriver, brachiosaurusDriver, RAPTORS } from './jurassic-dinos.js';
+import { THREE, BrickBuilder, C, plastic, seatedFig, faceMat, rbox, cached, mat4 } from './kit.js';
+import { breathe, smallTheropod, dilophosaurusDriver, trexDriver, spinosaurusDriver, indominusDriver, triceratopsDriver, pteranodonDriver, brachiosaurusDriver, RAPTORS } from './jurassic-dinos.js';
 
 const S = Math.sin, A = Math.abs, PI = Math.PI;
 const UP = -2.75;
@@ -91,20 +91,115 @@ function owen() {
     headExtra: (hb, d) => hairCap(hb, d, 0x5a3c22, { capSy: 0.45, capY: 0.88, backH: 0.45, backY: 0.45 }),
   });
 }
+// Claire: a sharp, determined face — winged liner, arched auburn brows, red lipstick
+function claireFace() {
+  return faceMat('jw-claire2', (g) => {
+    const y = 58;
+    // a few freckles
+    g.lineCap = 'round';
+    g.fillStyle = 'rgba(190,110,70,0.45)';
+    for (const [x, yy] of [[-10, 12], [-6, 16], [-14, 17], [10, 12], [6, 16], [14, 17]]) { g.beginPath(); g.arc(128 + x, y + yy, 1.3, 0, PI * 2); g.fill(); }
+    for (const s of [-1, 1]) {
+      const ex = 128 + s * 16;
+      // almond eye: white, green-hazel iris, pupil, highlight
+      g.fillStyle = '#fff'; g.beginPath(); g.moveTo(ex - 8, y); g.quadraticCurveTo(ex, y - 9, ex + 8, y); g.quadraticCurveTo(ex, y + 6, ex - 8, y); g.fill();
+      g.fillStyle = '#4e6a3a'; g.beginPath(); g.arc(ex + s * 0.5, y - 1, 4.6, 0, PI * 2); g.fill();
+      g.fillStyle = '#141414'; g.beginPath(); g.arc(ex + s * 0.5, y - 1, 2.6, 0, PI * 2); g.fill();
+      g.fillStyle = '#fff'; g.beginPath(); g.arc(ex + s * 0.5 + 1.6, y - 2.6, 1.3, 0, PI * 2); g.fill();
+      // upper lid liner with a winged flick at the outer corner
+      g.strokeStyle = '#1a1210'; g.lineWidth = 2.6;
+      g.beginPath(); g.moveTo(ex - s * 8.5, y + 0.5); g.quadraticCurveTo(ex, y - 10, ex + s * 9, y - 1); g.lineTo(ex + s * 13, y - 5); g.stroke();
+      // arched brow, lower and straighter toward the nose: focused, determined
+      g.strokeStyle = '#8a3216'; g.lineWidth = 3.2;
+      g.beginPath(); g.moveTo(ex - s * 9, y - 12); g.quadraticCurveTo(ex + s * 3, y - 19, ex + s * 12, y - 14); g.stroke();
+    }
+    // a hint of a nose
+    g.strokeStyle = 'rgba(170,110,90,0.7)'; g.lineWidth = 2;
+    g.beginPath(); g.moveTo(126, y + 12); g.quadraticCurveTo(129, y + 15, 132, y + 13); g.stroke();
+    // red lipstick: a cupid's-bow upper lip and fuller lower lip in a confident half-smile
+    const my = y + 26;
+    g.fillStyle = '#c3141f';
+    g.beginPath();
+    g.moveTo(114, my - 1);
+    g.quadraticCurveTo(120, my - 6, 126, my - 4); g.quadraticCurveTo(128, my - 2.5, 130, my - 4); g.quadraticCurveTo(137, my - 6, 143, my - 3);
+    g.quadraticCurveTo(138, my + 7, 128, my + 7); g.quadraticCurveTo(118, my + 7, 114, my - 1);
+    g.fill();
+    g.strokeStyle = '#7a0a10'; g.lineWidth = 1.6;
+    g.beginPath(); g.moveTo(115, my - 0.5); g.quadraticCurveTo(128, my + 1.5, 142, my - 3); g.stroke();
+    g.fillStyle = 'rgba(255,255,255,0.45)'; g.beginPath(); g.ellipse(131, my + 3.5, 4, 1.4, 0, 0, PI * 2); g.fill();
+  }, hex(SKIN2));
+}
+// a transparent print stuck on the front of the seatedFig torso (drawn on a 256 x 256 canvas
+// whose top edge spans the narrower shoulders)
+const prints = new Map();
+function torsoPrintMat(key, draw) {
+  if (prints.has(key)) return prints.get(key);
+  const c = document.createElement('canvas'); c.width = 256; c.height = 256;
+  draw(c.getContext('2d'));
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+  const m = new THREE.MeshStandardMaterial({ map: t, roughness: 0.4, transparent: true, alphaTest: 0.1 });
+  prints.set(key, m);
+  return m;
+}
+const unitPlane = () => cached('jwplane', () => new THREE.PlaneGeometry(1, 1));
+function claireBlouse() {
+  return torsoPrintMat('jw-claire-blouse', (g) => {
+    const W = 256, cx = 128, L = '#c4c4cc';
+    g.lineCap = 'round'; g.lineJoin = 'round';
+    // soft folds of the fitted blouse gathering into the waistband
+    g.strokeStyle = 'rgba(150,150,165,0.45)'; g.lineWidth = 3;
+    for (const s of [-1, 1]) {
+      g.beginPath(); g.moveTo(cx + s * 70, 150); g.quadraticCurveTo(cx + s * 52, 200, cx + s * 36, 232); g.stroke();
+      g.beginPath(); g.moveTo(cx + s * 92, 196); g.quadraticCurveTo(cx + s * 80, 218, cx + s * 72, 234); g.stroke();
+      g.beginPath(); g.moveTo(cx + s * 30, 120); g.quadraticCurveTo(cx + s * 44, 128, cx + s * 58, 124); g.stroke();
+    }
+    // open V neck (skin) with a fine gold chain and pendant
+    g.fillStyle = hex(SKIN2);
+    g.beginPath(); g.moveTo(cx - 34, 0); g.lineTo(cx, 92); g.lineTo(cx + 34, 0); g.closePath(); g.fill();
+    g.strokeStyle = '#d4a030'; g.lineWidth = 2.2;
+    g.beginPath(); g.moveTo(cx - 26, 0); g.quadraticCurveTo(cx, 58, cx + 26, 0); g.stroke();
+    g.fillStyle = '#e8b840'; g.beginPath(); g.arc(cx, 46, 4, 0, PI * 2); g.fill();
+    // pointed collar flaps folded open either side of the V
+    for (const s of [-1, 1]) {
+      g.fillStyle = '#ffffff'; g.strokeStyle = L; g.lineWidth = 3;
+      g.beginPath(); g.moveTo(cx + s * 34, 0); g.lineTo(cx + s * 4, 86); g.lineTo(cx + s * 26, 72); g.lineTo(cx + s * 62, 6); g.lineTo(cx + s * 62, 0); g.closePath(); g.fill(); g.stroke();
+      g.strokeStyle = 'rgba(160,160,175,0.6)'; g.lineWidth = 2;
+      g.beginPath(); g.moveTo(cx + s * 40, 10); g.lineTo(cx + s * 14, 70); g.stroke();
+    }
+    // button placket and pearl buttons
+    g.strokeStyle = L; g.lineWidth = 2.5;
+    g.beginPath(); g.moveTo(cx - 7, 92); g.lineTo(cx - 7, 240); g.moveTo(cx + 7, 92); g.lineTo(cx + 7, 240); g.stroke();
+    for (const y of [116, 152, 188, 222]) {
+      g.fillStyle = '#f4f0e6'; g.beginPath(); g.arc(cx, y, 5, 0, PI * 2); g.fill();
+      g.strokeStyle = '#a8a4a0'; g.lineWidth = 1.5; g.stroke();
+    }
+    // breast-pocket seam lines
+    g.strokeStyle = 'rgba(150,150,165,0.55)'; g.lineWidth = 2.2;
+    for (const s of [-1, 1]) { g.beginPath(); g.moveTo(cx + s * 40, 104); g.lineTo(cx + s * 74, 104); g.stroke(); }
+    void W;
+  });
+}
 function claire() {
+  const HAIR = 0x8e2a12, SKIRT = 0xcbb48a;
   const rig = seatedFig({
-    name: 'claire', torso: C.white, arms: C.white, legs: 0xe8e2d6, skin: SKIN2, noStud: true,
-    face: jwFace('claire', { lips: true, lashes: true, blush: true, brow: '#9a3a18', browW: 3 }, SKIN2),
+    name: 'claire', torso: C.white, arms: C.white, legs: SKIRT, skin: SKIN2, noStud: true,
+    face: claireFace(),
     torsoExtra: (b, d) => {
       const s = d.s;
-      rbox(b, 0, d.chestY + 0.06 * s, 0.234 * s, 0.9 * s, 0.07 * s, 0.03, -0.025, 0, 0, 0x8a6a4a);
-      rbox(b, 0, d.chestY + 0.72 * s, 0.208 * s, 0.14 * s, 0.16 * s, 0.03, -0.025, 0, PI / 4, SKIN2);
+      // the blouse print, a slim tan belt with a gold buckle where it tucks into the skirt
+      b.addMatrix(unitPlane(), claireBlouse(), mat4(0, d.chestY + 0.41 * s, 0.22 * s + 0.012, -0.024, 0, 0, 0.92 * s, 0.82 * s, 1));
+      rbox(b, 0, d.chestY + 0.045 * s, 0.233 * s, 0.91 * s, 0.08 * s, 0.03, -0.025, 0, 0, 0x8a5a32);
+      rbox(b, 0, d.chestY + 0.045 * s, 0.25 * s, 0.1 * s, 0.07 * s, 0.02, -0.025, 0, 0, C.gold, { matOpts: { metal: 0.7, rough: 0.3 } });
+      rbox(b, 0, d.chestY + 0.045 * s, -0.233 * s, 0.91 * s, 0.08 * s, 0.03, 0.025, 0, 0, 0x8a5a32);
+      // a stand-up collar around the back of the neck
+      for (const sd of [-1, 1]) rbox(b, sd * 0.12 * s, d.neckY - 0.08 * s, -0.04 * s, 0.05 * s, 0.1 * s, 0.22 * s, 0.1, sd * 0.6, 0, C.white);
+      rbox(b, 0, d.neckY - 0.08 * s, -0.15 * s, 0.24 * s, 0.1 * s, 0.05 * s, 0.15, 0, 0, C.white);
     },
-    headExtra: (hb, d) => {
-      const HAIR = 0xb5441e;
-      hairCap(hb, d, HAIR, { capR: 1.12, capSy: 0.5, arc: PI * 1.42, backY: 0.12, backH: 0.8, backR: 1.13 });
-      rbox(hb, 0.1 * d.s, d.headH * 0.9, d.headR * 0.62, d.headR * 1.3, 0.1 * d.s, 0.16 * d.s, 0.25, 0, -0.35, HAIR);
+    arm: (ab, sd, d) => {
+      const s = d.s;
+      ab.cyl(0, -0.6 * s, 0, 0.142 * s, 0.05 * s, 0xe4e4ea, { seg: 12 });
     },
+    headExtra: (hb, d) => claireBob(hb, d, HAIR),
   });
   // the red flare she lights to lead the T. rex away
   const flare = propGroup(rig.armR, (b) => {
@@ -121,6 +216,53 @@ function claire() {
     if (flare.visible) flame.scale.setScalar(1 + S(t * 37) * 0.15 + S(t * 23) * 0.1);
   };
   return rig;
+}
+// Claire's sleek jaw-length bob: a rounded shell that curls under at the ends and dips a little
+// longer toward the face, a smooth crown with a side part, and a fringe swept across the forehead
+// a partial cylinder shell around the head (th = 0 faces forward) reshaped by f(th, v) -> [radius, y]
+const shellGeo = (key, t0, arc, f) => cached(key, () => {
+  const g = new THREE.CylinderGeometry(1, 1, 1, 28, 6, false, t0, arc);
+  const p = g.attributes.position;
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i), y = p.getY(i), z = p.getZ(i), r = Math.hypot(x, z), v = y + 0.5;
+    const [m, yy] = f(Math.atan2(x, z), v);
+    if (r < 1e-4) { p.setY(i, yy); continue; }
+    p.setXYZ(i, x * m, yy, z * m);
+  }
+  g.computeVertexNormals();
+  return g;
+});
+// the crown: a dome whose lower edge follows the hairline — high at the side part on her right,
+// sweeping down across the forehead past her left brow, and tucked into the bob at the sides
+const domeGeo = (key, bot) => cached(key, () => {
+  const g = new THREE.SphereGeometry(1, 36, 12, 0, PI * 2, 0, PI / 2);
+  const p = g.attributes.position;
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i), y = Math.max(0, p.getY(i)), z = p.getZ(i), h = Math.hypot(x, z), a = Math.atan2(x, z);
+    // a squarish dome (superellipse profile) so it stays clear of the head's top edge
+    const [b, r] = bot(a), w = h > 1e-6 ? r * Math.pow(1 - Math.pow(y, 4), 0.25) / h : 0;
+    p.setXYZ(i, x * w, b + (1.13 - b) * y, z * w);
+  }
+  g.computeVertexNormals();
+  return g;
+});
+function claireHairline(a) {
+  // a: azimuth, 0 = forward, < 0 toward her right. Returns [edge height / headH, edge radius / headR]
+  const k = [[-PI, 0.6], [-1.3, 0.62], [-0.85, 0.8], [-0.55, 0.86], [0.1, 0.75], [0.55, 0.62], [0.95, 0.52], [1.4, 0.6], [PI, 0.6]];
+  let j = 0; while (j < k.length - 2 && a > k[j + 1][0]) j++;
+  const f = Math.max(0, Math.min(1, (a - k[j][0]) / (k[j + 1][0] - k[j][0]))), e = f * f * (3 - 2 * f);
+  return [k[j][1] + (k[j + 1][1] - k[j][1]) * e, 1.11 - 0.02 * Math.max(0, Math.cos(a))];
+}
+function claireBob(hb, d, HAIR) {
+  const R = d.headR, H = d.headH, m = plastic(HAIR);
+  hb.addMatrix(domeGeo('jwdome', claireHairline), m, mat4(0, 0, -0.01, 0, 0, 0, R, H, R));
+  // the bob around the back and sides: fullest a third of the way up, tucked under at the
+  // ends, which dip a little longer toward the face
+  const BA = PI * 1.46;
+  hb.addMatrix(shellGeo('jwbob', PI - BA / 2, BA, (th, v) => [
+    1 + 0.09 * S(PI * Math.min(1, v * 1.15)) - (v < 0.06 ? 0.06 : 0),
+    v - (v < 0.02 ? 0.12 * Math.max(0, Math.cos(th) + 0.3) : 0),
+  ]), m, mat4(0, H * 0.04, -0.01, 0, 0, 0, R * 1.08, H * 0.7, R * 1.08));
 }
 function grant() {
   const HAT = 0xc8a46a, BAND = 0x5a3a22, BEARD = 0x9a7448;
@@ -294,7 +436,7 @@ export default [
     id: 'indominus', name: 'Indominus rex', blurb: 'Genetic hybrid horror', weight: 'heavy', color: 0xdedcd0,
     voice: { kind: 'beast', pitch: 0.68 }, style: { cheer: 'roar', trick: 'arms' },
     gestures: { cheer: G.swipe, taunt: G.snap, win: G.roarWin },
-    build: () => breathe(bigTheropod({ body: 0xd6d4c8, dark: 0x8a8a7c, belly: 0xb8b6a8, eye: 0xff2a10, eyeGlow: true, mouth: C.dkred, spikes: 0x6a6a5e, claw: 0x3a3a34, arm: 'long', k: 1.04 }), 1.4, 0.06),
+    build: () => breathe(indominusDriver(), 1.4, 0.06),
   },
   {
     id: 'delta', name: 'Delta', blurb: 'Fast, sneaky, hungry', weight: 'light', color: 0x4f7a78,
@@ -312,7 +454,7 @@ export default [
     id: 'spinosaurus', name: 'Spinosaurus', blurb: 'Sail-backed river king', weight: 'heavy', color: 0xc0501a,
     voice: { kind: 'beast', pitch: 0.7 }, style: { cheer: 'roar', trick: 'arms' },
     gestures: { cheer: G.spinoRoar, taunt: G.snap, win: G.spinoRoar },
-    build: () => breathe(bigTheropod({ body: 0x5a4a3e, dark: 0x2e2620, belly: 0x9a8a72, eye: 0xffb020, mouth: C.dkred, croc: true, arm: 'long', sail: 0xc0501a, sail2: 0x8a3a1a }), 1.2, 0.05),
+    build: () => breathe(spinosaurusDriver(), 1.2, 0.05),
   },
   {
     id: 'triceratops', name: 'Triceratops', blurb: 'Three horns, no brakes', weight: 'heavy', color: 0xb0784a,
