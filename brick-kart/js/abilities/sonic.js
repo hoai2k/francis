@@ -255,6 +255,8 @@ function homingAttack(k, ctx) {
             k.place(tr.wrap(target.loc.i), target.loc.lat ?? 0);
           }
           k.vy = 10; k.grounded = false;
+          const chase = ctx.race.cams?.find((c) => c.kart === k)?.chase;
+          if (chase) chase.init = false;   // snap the camera back behind the kart
           k.speed = k.topSpeed * 1.2;
           k.boost(1.1);
           k.ghostTime = Math.max(k.ghostTime, 0.5);

@@ -81,7 +81,7 @@ const FUSE = 1.1, WAKE = 11, BLAST = 7.5;
 class Creeper {
   constructor(k, ctx, ahead) {
     this.k = k; this.ctx = ctx;
-    this.mesh = creeperModel(); this.mesh.scale.setScalar(0.85);
+    this.mesh = creeperModel();
     ctx.scene.add(this.mesh);
     const f = k.forward(V1);
     this.pos = k.pos.clone().addScaledVector(f, ahead ? 3.5 : -4.2);
@@ -299,7 +299,7 @@ function lightning(ctx, pos, follow) {
   ctx.ring(at, 9, 0xa0d8ff);
   sparks(ctx, V1.copy(at).setY(at.y + 0.5), 26, [0xffffff, 0xa0d8ff, 0x60e8ff], 12, 6, 0.5);
   thunder(ctx, at);
-  if (ctx.race.karts.some((o) => o.human && o.pos.distanceTo(at) < 40)) ctx.race.flash?.(0xe0f0ff);
+  if (follow?.human) ctx.race.flash?.(0xe0f0ff);
   let t = 0, j = 0;
   ctx.spawn({
     update(dt) {
@@ -378,7 +378,7 @@ class Pearl {
     const tr = ctx.track, n = ctx.race.karts.length;
     const rankFrac = n > 1 ? (k.rank - 1) / (n - 1) : 1;
     this.i0 = k.loc.i ?? 0; this.lat0 = k.loc.lat ?? 0;
-    const want = this.i0 + 165 + Math.round(25 * rankFrac);
+    const want = this.i0 + 150 + Math.round(20 * rankFrac);
     let land = null;
     for (let o = 0; o < 240 && !land; o += 2) {
       const i = tr.wrap(want + o), hw = tr.HW[i];
