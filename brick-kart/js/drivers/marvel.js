@@ -44,6 +44,33 @@ function torsoPrint(b, d, mat, back = false) {
 }
 
 // ---------------------------------------------------------------------------- Spider-Man
+// a black web: spokes from (cx, cy) and sagging rings between them
+function smWeb(g, cx, cy, rings, spokes = 16, col = '#14080a', wd = 2, a0 = 0) {
+  g.strokeStyle = col; g.lineWidth = wd; g.lineCap = 'round';
+  const R = rings[rings.length - 1] * 1.4, at = (a, r) => [cx + Math.cos(a) * r, cy + Math.sin(a) * r];
+  for (let i = 0; i < spokes; i++) { const a = a0 + i / spokes * PI * 2; g.beginPath(); g.moveTo(...at(a, i % 2 ? rings[1] : rings[0] * 0.5)); g.lineTo(...at(a, R)); g.stroke(); }
+  for (const r of rings) {
+    g.beginPath();
+    for (let i = 0; i < spokes; i++) {
+      const a = a0 + i / spokes * PI * 2, b = a + PI * 2 / spokes;
+      const p = at(a, r), q = at(b, r), c = at((a + b) / 2, r * 0.82);
+      if (!i) g.moveTo(...p);
+      g.quadraticCurveTo(c[0], c[1], q[0], q[1]);
+    }
+    g.stroke();
+  }
+}
+// a spider emblem centred at (x, y), k = size; outline draws a fat dark edge first
+function smSpider(g, x, y, k, col, outline = null) {
+  const legs = [[[3, -4], [11, -12], [12, -22]], [[4, -1], [15, -6], [19, -14]], [[4, 3], [15, 7], [19, 16]], [[3, 6], [11, 14], [12, 24]]];
+  const draw = (c, wd, grow) => {
+    g.strokeStyle = c; g.fillStyle = c; g.lineWidth = wd * k; g.lineCap = 'round'; g.lineJoin = 'round';
+    for (const sd of [-1, 1]) for (const L of legs) { g.beginPath(); g.moveTo(x + sd * L[0][0] * k, y + L[0][1] * k); for (const [px, py] of L.slice(1)) g.lineTo(x + sd * px * k, y + py * k); g.stroke(); }
+    for (const [ey, rx, ry] of [[-6.5, 2.4, 2.4], [-1, 3.6, 4.6], [8, 4.4, 7]]) { g.beginPath(); g.ellipse(x, y + ey * k, rx * k + grow, ry * k + grow, 0, 0, 7); g.fill(); }
+  };
+  if (outline) draw(outline, 3.6, 1.6 * k);
+  draw(col, 1.5, 0);
+}
 const spiderman = {
   id: 'spiderman', name: 'Spider-Man', blurb: 'Your friendly neighborhood', weight: 'light', color: 0xc4141c,
   voice: { kind: 'human', pitch: 1.3 }, style: { cheer: 'fist', win: 'wave', trick: 'twist' },
@@ -63,8 +90,60 @@ const spiderman = {
     use: (f) => ({ rx: -1.9, rz: 0.1, hx: -0.15 }),
   },
   build() {
-    const { face, decal } = mapMats('spidey');
-    const rig = hero({ name: 'spiderman', face, decal, top: M.red, torso: M.red, arms: M.red, hands: M.red, legs: M.blue, hips: M.red, skin: M.red });
+    const red = 0xc4141c, blue = 0x1d47a8, redS = '#c4141c', blueS = '#1d47a8', ink = '#14080a';
+    // the mask: web all round from between the eyes, big white teardrop lenses with fat black rims
+    const lens = (g, sd) => {
+      g.beginPath(); g.moveTo(sd * 16, 80);
+      g.bezierCurveTo(sd * 16, 54, sd * 38, 38, sd * 66, 40);
+      g.bezierCurveTo(sd * 86, 43, sd * 83, 70, sd * 63, 80);
+      g.bezierCurveTo(sd * 47, 88, sd * 28, 88, sd * 16, 80);
+      g.closePath();
+    };
+    const face = printFace('smK', { skin: redS }, (g, X, h) => {
+      smWeb(g, 0, 70, [14, 28, 44, 62, 82, 106, 134, 166, 202, 242], 18, ink, 2.4, -PI / 2);
+      for (const sd of [-1, 1]) { g.fillStyle = ink; g.strokeStyle = ink; g.lineWidth = 13; lens(g, sd); g.stroke(); g.fill(); }
+      for (const sd of [-1, 1]) {
+        g.fillStyle = '#f6f8fa'; lens(g, sd); g.fill();
+        g.save(); lens(g, sd); g.clip();                                             // a soft grey lower edge
+        g.fillStyle = 'rgba(150,170,190,0.45)'; g.beginPath(); g.ellipse(sd * 44, 98, 50, 20, 0, 0, 7); g.fill();
+        g.restore();
+      }
+    });
+    const torsoArt = (g, w, h, back) => {
+      g.fillStyle = redS; g.fillRect(0, 0, w, h);
+      smWeb(g, 64, back ? 36 : 44, [9, 19, 31, 45, 61, 80, 102], 14, ink, 1.6, -PI / 2);
+      g.fillStyle = blueS;                                                           // blue flanks, red waist band
+      for (const sd of [-1, 1]) {
+        g.beginPath(); g.moveTo(64 + sd * 70, 18); g.quadraticCurveTo(64 + sd * 30, 34, 64 + sd * 22, 76); g.lineTo(64 + sd * 18, 110); g.lineTo(64 + sd * 70, 110); g.closePath(); g.fill();
+      }
+      g.strokeStyle = ink; g.lineWidth = 2.5;
+      for (const sd of [-1, 1]) { g.beginPath(); g.moveTo(64 + sd * 70, 18); g.quadraticCurveTo(64 + sd * 30, 34, 64 + sd * 22, 76); g.lineTo(64 + sd * 18, 110); g.stroke(); }
+      g.fillStyle = redS; g.fillRect(0, 108, w, 10);
+      g.fillStyle = ink; g.fillRect(0, 107, w, 2); g.fillRect(0, 117, w, 2);
+      g.fillStyle = blueS; g.fillRect(0, 119, w, 9);
+      if (back) smSpider(g, 64, 60, 2.25, redS, ink);                                // the big red spider on the back
+      else smSpider(g, 64, 46, 1.25, ink);
+    };
+    const decal = decalMat('smK', (g, w, h) => torsoArt(g, w, h, false));
+    const backMat = decalMat('smBackK', (g, w, h) => torsoArt(g, w, h, true));
+    const rig = hero({
+      name: 'spiderman', wide: 0.94, face, decal, top: red, torso: red, arms: blue, hands: red, legs: blue, hips: blue, skin: red, neck: red,
+      extra: (b, d) => {
+        const s = d.s, W = d.W;
+        torsoPrint(b, d, backMat, true);
+        for (const sd of [-1, 1]) {                                                   // red boots at the shins
+          b.box(sd * 0.22 * s * W, -0.085 * s, 0.6 * s, 0.41 * s * W, 0.27 * s, 0.16 * s, red);
+          b.box(sd * 0.22 * s * W, 0.12 * s, 0.6 * s, 0.415 * s * W, 0.025 * s, 0.165 * s, 0x14080a);
+        }
+      },
+      arm: (ab, sd, d) => {
+        const s = d.s, k = Math.sqrt(d.W);
+        ab.sphere(0, 0.0, 0, 0.138 * s * k, red, { sy: 0.85 });                       // red over the shoulder
+        ab.box(0, -0.1 * s, 0, 0.264 * s * k, 0.05 * s, 0.274 * s * k, red);
+        ab.box(0, -0.56 * s, 0, 0.235 * s * k, 0.17 * s, 0.27 * s * k, red);          // red gloves to mid forearm
+        ab.box(0, -0.4 * s, 0, 0.24 * s * k, 0.02 * s, 0.275 * s * k, 0x14080a);
+      },
+    });
     const s = rig.dims.s;
     const webR = beam(rig.armR, TIP * s, 0xffffff, { r0: 0.025, r1: 0.025, web: true });
     const webL = beam(rig.armL, TIP * s, 0xffffff, { r0: 0.025, r1: 0.025, web: true });
@@ -80,6 +159,11 @@ const spiderman = {
 };
 
 // ---------------------------------------------------------------------------- Iron Man
+// a curved plate round a cylinder head: arc TH (rad) centred on the front, unit radius and height
+const imArc = (TH, open = true) => cached(`imArc${TH}${open}`, () => new THREE.CylinderGeometry(1, 1, 1, 28, 1, open, -TH / 2, TH).translate(0, 0.5, 0));
+const imDisc = () => cached('mvDiscC', () => new THREE.CylinderGeometry(1, 1, 1, 24));
+const imDome = () => cached('imDome', () => new THREE.SphereGeometry(1, 28, 10, 0, PI * 2, 0, PI / 2));
+const imCircle = (g, x, y, r, col) => { g.fillStyle = col; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill(); };
 const ironman = {
   id: 'ironman', name: 'Iron Man', blurb: 'Genius in a flying suit', weight: 'medium', color: 0xe3b23c,
   voice: { kind: 'robot', pitch: 1.05 }, style: { cheer: 'point', win: 'flex', trick: 'superman' },
@@ -96,10 +180,122 @@ const ironman = {
     trick: (f) => ({ tx: 0.38, hx: -0.5, lx: 0.3, rx: 0.3, lz: 0.85, rz: -0.85, by: bump(f) * 0.12 }),
   },
   build() {
-    const { face, decal } = mapMats('iron');
+    const red = 0xb8141c, dkRed = 0x700a10, gold = 0xd69a1e, steel = 0x3a3e46;
+    const redS = '#b8141c', dkRedS = '#700a10', goldS = '#d69a1e', seamS = '#7a4c08';
+    const core = glow(0xd8fbff, 2.6);
+    // the helmet shell under the faceplate: red all round, panel seams at the back
+    const face = printFace('imHeadK', { skin: redS }, (g, X, h) => {
+      for (const sd of [-1, 1]) {
+        strokePath(g, dkRedS, 3, [sd * 96, 34, sd * 160, 26, sd * X, 30]);
+        strokePath(g, dkRedS, 3, [sd * 150, 28, sd * 156, 80, sd * 140, 128]);
+      }
+    });
+    // the gold faceplate, printed in plate coordinates (angle round the head, height in H)
+    const TH = 2.2, Y0 = -0.03, Y1 = 0.84;
+    const px = (th) => 128 + th / TH * 256, py = (f) => (Y1 - f) / (Y1 - Y0) * 128;
+    const eyeShape = (g, sd, grow = 0) => {
+      const P = [[0.1, 0.545], [0.16, 0.6], [0.66, 0.665], [0.66, 0.585], [0.36, 0.53]];
+      g.beginPath();
+      P.forEach(([t, y], i) => { const X = px(sd * t) + sd * (t > 0.4 ? grow : -grow * 0.6), Y = py(y) + (y > 0.58 ? -grow : grow); i ? g.lineTo(X, Y) : g.moveTo(X, Y); });
+      g.closePath();
+    };
+    const plate = faceMat('imPlateK', (g, w, h) => {
+      g.fillStyle = goldS; g.fillRect(0, 0, w, h);
+      const gr = g.createLinearGradient(0, 0, w, 0);                                     // darker towards the sides
+      gr.addColorStop(0, 'rgba(110,60,0,0.45)'); gr.addColorStop(0.3, 'rgba(110,60,0,0)'); gr.addColorStop(0.7, 'rgba(110,60,0,0)'); gr.addColorStop(1, 'rgba(110,60,0,0.45)');
+      g.fillStyle = gr; g.fillRect(0, 0, w, h);
+      g.fillStyle = redS;                                                                // red helmet round the plate: jaw and temples
+      for (const sd of [-1, 1]) {
+        g.beginPath(); g.moveTo(px(sd * TH / 2), py(0.5)); g.lineTo(px(sd * 0.86), py(0.36)); g.lineTo(px(sd * 0.5), py(Y0)); g.lineTo(px(sd * TH / 2), py(Y0)); g.closePath(); g.fill();
+        g.beginPath(); g.moveTo(px(sd * TH / 2), py(Y1)); g.lineTo(px(sd * 0.86), py(Y1)); g.lineTo(px(sd * 0.98), py(0.62)); g.lineTo(px(sd * TH / 2), py(0.6)); g.closePath(); g.fill();
+      }
+      g.lineCap = 'round'; g.lineJoin = 'round';
+      g.strokeStyle = seamS; g.lineWidth = 2.5;
+      for (const sd of [-1, 1]) {
+        g.beginPath(); g.moveTo(px(sd * 0.1), py(0.5)); g.lineTo(px(sd * 0.3), py(0.26)); g.stroke();          // nose / cheek lines
+        g.beginPath(); g.moveTo(px(sd * 0.66), py(0.56)); g.lineTo(px(sd * 0.56), py(0.3)); g.lineTo(px(sd * 0.36), py(0.08)); g.stroke();
+        g.beginPath(); g.moveTo(px(sd * 0.04), py(0.82)); g.lineTo(px(sd * 0.16), py(0.68)); g.stroke();          // brow ridge
+        g.beginPath(); g.moveTo(px(sd * 0.86), py(Y1)); g.lineTo(px(sd * 0.98), py(0.62)); g.lineTo(px(sd * 0.86), py(0.36)); g.lineTo(px(sd * 0.5), py(Y0)); g.stroke();
+      }
+      g.strokeStyle = '#2a1e0c'; g.lineWidth = 4.5;                                      // mouth slit + chin seam: the T
+      g.beginPath(); g.moveTo(px(-0.3), py(0.22)); g.lineTo(px(0.3), py(0.22)); g.stroke();
+      g.lineWidth = 3; g.beginPath(); g.moveTo(px(0), py(0.22)); g.lineTo(px(0), py(0.0)); g.stroke();
+      for (const sd of [-1, 1]) { g.fillStyle = '#2a1e0c'; eyeShape(g, sd, 3); g.fill(); g.fillStyle = '#f4feff'; eyeShape(g, sd); g.fill(); }
+    }, (g) => {
+      g.shadowColor = '#7fe8ff'; g.shadowBlur = 10;
+      for (const sd of [-1, 1]) { g.fillStyle = '#d8fbff'; eyeShape(g, sd); g.fill(); g.fill(); }
+    });
+    // chest: gold abs, armour seams, the arc reactor ring (the glowing core is a raised disc)
+    const decal = decalMat('imK', (g, w, h) => {
+      g.fillStyle = redS; g.fillRect(0, 0, w, h);
+      g.lineCap = 'round'; g.lineJoin = 'round';
+      g.fillStyle = goldS;
+      g.beginPath(); g.moveTo(34, 66); g.quadraticCurveTo(64, 58, 94, 66); g.lineTo(88, 114); g.lineTo(40, 114); g.closePath(); g.fill();
+      g.strokeStyle = seamS; g.lineWidth = 2.5;
+      for (const y of [78, 90, 102]) { g.beginPath(); g.moveTo(38, y); g.lineTo(90, y); g.stroke(); }
+      g.beginPath(); g.moveTo(64, 62); g.lineTo(64, 114); g.stroke();
+      g.strokeStyle = dkRedS; g.lineWidth = 3;
+      for (const sd of [-1, 1]) {
+        g.beginPath(); g.moveTo(64 + sd * 18, 52); g.quadraticCurveTo(64 + sd * 34, 62, 64 + sd * 48, 50); g.lineTo(64 + sd * 44, 8); g.stroke();   // pecs
+        g.beginPath(); g.moveTo(64 + sd * 50, 54); g.lineTo(64 + sd * 46, 116); g.stroke();                                                        // flank seams
+        g.beginPath(); g.moveTo(64 + sd * 22, 2); g.lineTo(64 + sd * 14, 22); g.stroke();                                                          // collar
+      }
+      g.fillStyle = dkRedS; g.fillRect(0, 116, w, 4);
+      imCircle(g, 64, 40, 17, '#26292e'); imCircle(g, 64, 40, 14, '#7fe8ff'); imCircle(g, 64, 40, 11, '#c8f6ff');
+    }, (g) => { const r = g.createRadialGradient(64, 40, 8, 64, 40, 20); r.addColorStop(0, '#9ff'); r.addColorStop(1, '#000'); g.fillStyle = r; g.fillRect(40, 16, 48, 48); });
+    const back = decalMat('imBackK', (g, w, h) => {
+      g.fillStyle = redS; g.fillRect(0, 0, w, h);
+      g.strokeStyle = dkRedS; g.lineWidth = 3; g.lineCap = 'round';
+      g.beginPath(); g.moveTo(64, 0); g.lineTo(64, 116); g.stroke();
+      for (const sd of [-1, 1]) { g.beginPath(); g.moveTo(64 + sd * 10, 30); g.quadraticCurveTo(64 + sd * 40, 26, 64 + sd * 50, 8); g.stroke(); g.beginPath(); g.moveTo(64 + sd * 12, 90); g.lineTo(64 + sd * 46, 96); g.stroke(); }
+      g.fillStyle = goldS; g.fillRect(56, 98, 16, 16);
+      g.fillStyle = dkRedS; g.fillRect(0, 116, w, 4);
+    });
     const rig = hero({
-      name: 'ironman', face, decal, top: M.red, torso: M.red, arms: M.red, hands: M.red, legs: M.gold, hips: M.red, skin: M.red,
-      arm: (ab, sd, d) => { ab.box(0, -0.44 * d.s, 0, 0.25 * d.s, 0.1 * d.s, 0.28 * d.s, M.gold); ab.sphere(0, -0.06 * d.s, 0, 0.15 * d.s, M.gold); },
+      name: 'ironman', wide: 1.04, face, decal, top: red, torso: red, arms: red, hands: red, legs: red, hips: dkRed, skin: red, neck: dkRed,
+      hair: (hb, d) => {
+        const r = d.headR, H = d.headH;
+        hb.add(imArc(2 * PI, false), plastic(red), 0, Y1 * H, 0, 0, 1.08 * r, (1.03 - Y1) * H, 1.08 * r);
+        hb.add(imDome(), plastic(red), 0, 1.03 * H, 0, 0, 1.08 * r, 0.24 * H, 1.08 * r);            // rounded helmet crown
+        hb.add(imArc(TH), plate, 0, Y0 * H, 0, 0, 1.08 * r, (Y1 - Y0) * H, 1.08 * r);              // the gold faceplate
+        for (const sd of [-1, 1]) {
+          onHead(hb, sd * (TH / 2 + 0.03), 0.4 * H, 1.06 * r, 0.12 * r, 0.86 * H, 0.1 * r, red);  // plate edges
+          headDisc(hb, sd * PI / 2, 0.5 * H, 1.04 * r, 0.33 * r, 0.12 * r, red);                    // round ear pieces
+          headDisc(hb, sd * PI / 2, 0.5 * H, 1.1 * r, 0.2 * r, 0.06 * r, gold);
+          headDisc(hb, sd * PI / 2, 0.5 * H, 1.13 * r, 0.09 * r, 0.04 * r, steel);
+        }
+        hb.cyl(0, -0.08 * H, 0, 1.0 * r, 0.1 * H, dkRed, { seg: 20 });                            // gorget
+      },
+      extra: (b, d) => {
+        const s = d.s, W = d.W, D = d.D, ry = 0.744 * s, rz = 0.218 * s * D;
+        // the arc reactor: a dark ring with the glowing core standing proud of the chest
+        b.addMatrix(imDisc(), plastic(steel), mat4(0, ry, rz, PI / 2 - 0.024, 0, 0, 0.115 * s, 0.03 * s, 0.115 * s));
+        b.addMatrix(imDisc(), plastic(0x9aa2ac), mat4(0, ry, rz + 0.012 * s, PI / 2 - 0.024, 0, 0, 0.095 * s, 0.03 * s, 0.095 * s));
+        b.addMatrix(imDisc(), core, mat4(0, ry, rz + 0.022 * s, PI / 2 - 0.024, 0, 0, 0.075 * s, 0.03 * s, 0.075 * s));
+        torsoPrint(b, d, back, true);
+        // flight thrusters on the back
+        for (const sd of [-1, 1]) {
+          b.box(sd * 0.2 * s * W, 0.42 * s, -0.235 * s * D, 0.16 * s, 0.34 * s, 0.08 * s, steel);
+          b.box(sd * 0.2 * s * W, 0.4 * s, -0.25 * s * D, 0.11 * s, 0.05 * s, 0.08 * s, glow(0x9fefff, 1.2));
+          b.box(sd * 0.2 * s * W, 0.74 * s, -0.24 * s * D, 0.18 * s, 0.05 * s, 0.07 * s, gold);
+        }
+        // gold thigh plates and knee caps, a dark belt line
+        for (const sd of [-1, 1]) {
+          b.box(sd * 0.22 * s * W, 0.18 * s, 0.36 * s, 0.3 * s * W, 0.03 * s, 0.46 * s, gold);
+          b.box(sd * 0.22 * s * W, -0.06 * s, 0.675 * s, 0.3 * s * W, 0.2 * s, 0.03 * s, gold);
+        }
+        b.box(0, d.chestY - 0.03 * s, 0, 0.94 * s * W, 0.06 * s, 0.48 * s * D, dkRed);
+      },
+      arm: (ab, sd, d) => {
+        const s = d.s;
+        ab.sphere(0, 0.03 * s, 0, 0.168 * s, red, { sy: 0.78 });                                   // shoulder pauldron
+        ab.box(0, -0.07 * s, 0, 0.3 * s, 0.03 * s, 0.32 * s, dkRed);
+        ab.box(0, -0.3 * s, 0, 0.258 * s, 0.11 * s, 0.288 * s, gold);                              // gold upper arm
+        ab.box(0, -0.58 * s, 0, 0.28 * s, 0.15 * s, 0.31 * s, red);                                // forearm gauntlet
+        ab.box(0, -0.5 * s, 0, 0.285 * s, 0.03 * s, 0.315 * s, gold);
+        ab.addMatrix(imDisc(), plastic(steel), mat4(0, -0.682 * s, 0, 0, 0, 0, 0.085 * s, 0.012 * s, 0.085 * s));
+        ab.addMatrix(imDisc(), core, mat4(0, -0.688 * s, 0, 0, 0, 0, 0.06 * s, 0.012 * s, 0.06 * s));   // repulsor palm
+      },
     });
     const s = rig.dims.s;
     const bR = beam(rig.armR, TIP * s, 0xbff4ff, { r0: 0.06, r1: 0.16, flash: 0.2 });
@@ -118,6 +314,13 @@ const ironman = {
 };
 
 // ---------------------------------------------------------------------------- Captain America
+// the cowl's back shell: a cylinder open across the face (gap ±half radians either side of the front)
+const caShell = (half) => cached(`caShell${half}`, () => new THREE.CylinderGeometry(1, 1, 1, 28, 1, true, half, PI * 2 - half * 2).translate(0, 0.5, 0));
+function caStar(g, x, y, R, r = R * 0.4) {
+  g.beginPath();
+  for (let i = 0; i < 10; i++) { const a = -PI / 2 + i * PI / 5, k = i % 2 ? r : R; i ? g.lineTo(x + Math.cos(a) * k, y + Math.sin(a) * k) : g.moveTo(x + Math.cos(a) * k, y + Math.sin(a) * k); }
+  g.closePath();
+}
 const captain = {
   id: 'captain', name: 'Captain America', blurb: 'First Avenger, shield up', weight: 'medium', color: 0x1f3a93,
   voice: { kind: 'human', pitch: 0.95 }, style: { cheer: 'salute', win: 'salute', trick: 'arms' },
@@ -132,8 +335,79 @@ const captain = {
     use: (f) => ({ lx: -2.6, lz: 0.45, hx: -0.2 }),
   },
   build() {
-    const { face, decal } = mapMats('cap');
-    const rig = hero({ name: 'captain', face, decal, top: M.blue, skin: M.skin, torso: M.blue, arms: M.blue, hands: M.bronze, legs: M.blue, hips: M.navy, neck: M.blue });
+    const blue = 0x1f3a93, dkBlue = 0x172c70, red = 0xc4141c, white = 0xf4f4f6, brown = 0x6b4426, dkBrown = 0x4a2e18;
+    const skinS = '#f2c9a0', blueS = '#1f3a93', redS = '#c4141c';
+    // the face in the cowl's opening: low determined brows, steady eyes, set mouth and a cleft chin
+    const face = printFace('caK', { skin: skinS }, (g, X, h) => {
+      g.fillStyle = blueS;                                                           // cowl round the opening
+      g.beginPath(); g.moveTo(-X, 0); g.lineTo(X, 0); g.lineTo(X, h); g.lineTo(76, h); g.lineTo(78, 96); g.lineTo(74, 40);
+      g.lineTo(-74, 40); g.lineTo(-78, 96); g.lineTo(-76, h); g.lineTo(-X, h); g.closePath(); g.fill();
+      for (const sd of [-1, 1]) {
+        strokePath(g, '#5a3a1e', 7, [sd * 44, 48, sd * 28, 47, sd * 10, 55]);       // brows knit down at the middle
+        eye(g, sd * 24, 63, 6, 7.5);
+        strokePath(g, '#c08a64', 2.5, [sd * 34, 74, sd * 24, 77, sd * 14, 74]);     // cheekbones
+        strokePath(g, '#c08a64', 3, [sd * 56, 92, sd * 46, 112, sd * 22, 120]);     // strong jaw
+      }
+      strokePath(g, '#b07a56', 3, [-3, 64, 4, 80, -4, 85]);                          // nose
+      strokePath(g, '#3a2418', 5, [-17, 100, 0, 97, 17, 100]);                       // set mouth
+      strokePath(g, '#c08a64', 2.5, [-9, 107, 0, 109, 9, 107]);
+      strokePath(g, '#a8704c', 3, [0, 113, 1, 117, 0, 121]);                          // cleft chin
+    });
+    const torsoArt = (g, w, h, back) => {
+      g.fillStyle = blueS; g.fillRect(0, 0, w, h);
+      g.strokeStyle = 'rgba(10,20,70,0.45)'; g.lineWidth = 1.5;                      // scale-mail rows
+      for (let y = 10; y < 70; y += 9) for (let x = (y / 9) % 2 ? 0 : 6; x < w; x += 12) { g.beginPath(); g.arc(x, y, 6, 0.2, PI - 0.2); g.stroke(); }
+      if (back) { g.strokeStyle = '#4a2e18'; g.lineWidth = 7; for (const sd of [-1, 1]) { g.beginPath(); g.moveTo(64 + sd * 40, 0); g.lineTo(64 - sd * 30, 108); g.stroke(); } return; }
+      g.fillStyle = '#e8e8ee'; g.strokeStyle = '#0e1a48'; g.lineWidth = 3;          // the white star
+      caStar(g, 64, 40, 25); g.stroke(); g.fill();
+      g.fillStyle = '#ffffff'; g.fillRect(30, 70, 68, 38);                           // red-and-white stripes
+      g.fillStyle = redS; for (let j = 0; j < 7; j += 2) g.fillRect(30 + j * 68 / 7, 70, 68 / 7, 38);
+      g.strokeStyle = '#0e1a48'; g.lineWidth = 2.5; g.strokeRect(30, 70, 68, 38);
+      g.fillStyle = 'rgba(255,255,255,0.35)'; g.fillRect(30, 66, 68, 3);
+    };
+    const decal = decalMat('caK', (g, w, h) => torsoArt(g, w, h, false));
+    const backMat = decalMat('caBackK', (g, w, h) => torsoArt(g, w, h, true));
+    const rig = hero({
+      name: 'captain', face, decal, top: blue, skin: M.skin, torso: blue, arms: blue, hands: red, legs: blue, hips: blue, neck: blue,
+      hair: (hb, d) => {
+        const r = d.headR, H = d.headH;
+        hb.add(caShell(0.95), plastic(blue), 0, 0.1 * H, 0, 0, 1.06 * r, 0.92 * H, 1.06 * r);    // the cowl round back and sides
+        hb.add(imArc(2.0, false), plastic(blue), 0, 0.66 * H, 0, 0, 1.06 * r, 0.36 * H, 1.06 * r);    // brow band
+        hb.add(imDome(), plastic(blue), 0, 1.02 * H, 0, 0, 1.06 * r, 0.26 * H, 1.06 * r);          // rounded crown
+        // the white A
+        for (const sd of [-1, 1]) onHead(hb, sd * 0.075, 0.83 * H, 1.075 * r, 0.075 * r, 0.3 * H, 0.04 * r, white, 0, sd * 0.33);
+        onHead(hb, 0, 0.79 * H, 1.075 * r, 0.16 * r, 0.05 * H, 0.04 * r, white);
+        for (const sd of [-1, 1]) {
+          onHead(hb, sd * 0.97, 0.38 * H, 1.06 * r, 0.1 * r, 0.6 * H, 0.06 * r, dkBlue);          // cowl edges down the cheeks
+          // little white wings at the temples, feathers swept back
+          for (const [a, L] of [[1.0, 0.56], [0.62, 0.5], [0.26, 0.42]]) {
+            onHead(hb, sd * (1.22 + Math.cos(a) * L * 0.47), 0.58 * H + Math.sin(a) * L * 0.5 * r, 1.08 * r, L * r, 0.085 * H, 0.05 * r, white, 0, sd * a);
+          }
+          headDisc(hb, sd * 1.2, 0.58 * H, 1.07 * r, 0.09 * r, 0.07 * r, white);
+        }
+      },
+      extra: (b, d) => {
+        const s = d.s, W = d.W, D = d.D, zf = 0.23 * s * D;
+        torsoPrint(b, d, backMat, true);
+        // brown belt with a silver buckle and pouches
+        b.box(0, d.chestY - 0.03 * s, 0, 0.95 * s * W, 0.11 * s, 0.49 * s * D, brown);
+        b.box(0, d.chestY - 0.02 * s, zf + 0.01 * s, 0.13 * s, 0.09 * s, 0.03 * s, M.silver);
+        for (const sd of [-1, 1]) b.box(sd * 0.33 * s * W, d.chestY - 0.06 * s, zf, 0.13 * s, 0.13 * s, 0.07 * s, dkBrown);
+        // leather straps over the shoulders
+        for (const sd of [-1, 1]) {
+          b.boxM(mat4(sd * 0.2 * s, 0.98 * s, 0, 0, 0, sd * -0.12, 0.1 * s, 0.04 * s, 0.44 * s * D), brown);
+          b.boxM(mat4(sd * 0.3 * s * W, 0.66 * s, zf - 0.005 * s, -0.024, 0, sd * -0.08, 0.07 * s, 0.62 * s, 0.03 * s), brown);
+        }
+        // brown boots at the shins
+        for (const sd of [-1, 1]) b.box(sd * 0.22 * s * W, -0.085 * s, 0.6 * s, 0.41 * s * W, 0.27 * s, 0.16 * s, brown);
+      },
+      arm: (ab, sd, d) => {
+        const s = d.s;
+        ab.box(0, -0.53 * s, 0, 0.27 * s, 0.11 * s, 0.3 * s, red);                                // flared red glove cuffs
+        ab.box(0, -0.43 * s, 0, 0.275 * s, 0.022 * s, 0.305 * s, 0x8a0e14);
+        ab.box(0, -0.2 * s, 0, 0.262 * s, 0.03 * s, 0.29 * s, dkBlue);
+      },
+    });
     const s = rig.dims.s, D = rig.dims.D;
     const sh = new THREE.Group(), disc = shieldMesh(0.95);
     disc.traverse((o) => { if (o.isMesh) o.material = [o.material[0], o.material[1], o.material[1]]; });   // star on both faces
@@ -151,6 +425,40 @@ const captain = {
   },
 };
 
+// ---- capes, lit prints and chest discs (Thor, Black Panther, Doctor Strange) ------------------
+// A moulded cape shell: a thick sheet curved round the back (-Z) of a unit circle, drawn in to
+// `top` at the neckline (y = 0) and flaring out to the hem (y = -1), with soft folds that deepen
+// toward the hem. Scale it with mat4 (half-width, length, depth); rz = PI stands it up (a collar).
+function thCapeGeo(key, { arc = 2.3, top = 0.7, folds = 3, fold = 0.06, thick = 0.1 } = {}) {
+  return cached(key, () => {
+    const g = new THREE.BoxGeometry(1, 1, 1, 32, 8, 1), p = g.attributes.position;
+    for (let i = 0; i < p.count; i++) {
+      const u = p.getX(i), k = 0.5 - p.getY(i), th = -u * arc;
+      const R = (top + (1 - top) * k) * (1 + fold * k * Math.cos(u * folds * 2 * PI)) + p.getZ(i) * thick;
+      p.setXYZ(i, Math.sin(th) * R, -k, -Math.cos(th) * R);
+    }
+    g.computeVertexNormals();
+    return g;
+  });
+}
+// printFace with a second, emissive print (glowing eyes, kinetic lines) that starts switched off;
+// the driver's fx turns it up with material.emissiveIntensity
+function thLitFace(key, { skin, headR = 0.3, headH = 0.5 }, draw, lit) {
+  const k = headH / (PI * headR);
+  const wrap = (fn, bg) => (g, w, h) => {
+    if (bg) { g.fillStyle = bg; g.fillRect(0, 0, w, h); }
+    g.save(); g.translate(w / 2, 0); g.scale(k, 1); g.lineCap = 'round'; g.lineJoin = 'round';
+    fn(g, w / 2 / k, h);
+    g.restore();
+  };
+  const m = faceMat(key, wrap(draw, skin), wrap(lit));
+  m.emissiveIntensity = 0;
+  return m;
+}
+// a round disc facing forward (+Z): chest discs, clasps, amulets
+const thDisc = (b, x, y, z, r, t, col, rx = 0) => b.addMatrix(cached('mvDiscC', () => new THREE.CylinderGeometry(1, 1, 1, 24)),
+  typeof col === 'number' ? plastic(col) : col, mat4(x, y, z, PI / 2 + rx, 0, 0, r, t, r));
+
 // ---------------------------------------------------------------------------- Thor
 const thor = {
   id: 'thor', name: 'Thor', blurb: 'God of Thunder', weight: 'heavy', color: 0x6fd0ff,
@@ -163,27 +471,119 @@ const thor = {
     trick: (f) => ({ tx: 0.35, rx: -2.9, rz: 0.05, lx: -0.3, lz: 0.25, hx: -0.45 }),
   },
   build() {
-    const { face, decal } = mapMats('thor');
+    const armour = 0x2a2e35, armourLt = 0x454b55, silver = 0xccd2da, silverDk = 0x7a828c, red = 0xb3121b, redDk = 0x82101a;
+    const gold = 0xdca23e, goldDk = 0xb07a28, leather = 0x4a2e1a, leatherDk = 0x2e1c10;
+    const skinS = '#f2c9a0';
+    // strong and cheerful: heavy brows over bright blue eyes, a short golden beard and a big grin
+    const face = thLitFace('thorK', { skin: skinS }, (g, X, h) => {
+      g.fillStyle = '#e0aa48';                                                     // long hair round the sides and back
+      g.beginPath(); g.moveTo(-X, 0); g.lineTo(X, 0); g.lineTo(X, h); g.lineTo(66, h); g.lineTo(62, 28);
+      g.quadraticCurveTo(0, 16, -62, 28); g.lineTo(-66, h); g.lineTo(-X, h); g.closePath(); g.fill();
+      g.fillStyle = '#b98232';                                                     // short beard: jaw, chin and moustache
+      g.beginPath(); g.moveTo(-64, 58); g.lineTo(-54, 58); g.quadraticCurveTo(-50, 84, -32, 92); g.quadraticCurveTo(-14, 84, 0, 87);
+      g.quadraticCurveTo(14, 84, 32, 92); g.quadraticCurveTo(50, 84, 54, 58); g.lineTo(64, 58); g.lineTo(64, 104);
+      g.quadraticCurveTo(44, 128, 0, 128); g.quadraticCurveTo(-44, 128, -64, 104); g.closePath(); g.fill();
+      g.strokeStyle = '#94641e'; g.lineWidth = 2;
+      for (let x = -48; x <= 48; x += 8) { const y = 106 + (1 - abs(x) / 56) * 10; g.beginPath(); g.moveTo(x, y); g.lineTo(x * 1.04, y + 7); g.stroke(); }
+      for (const sd of [-1, 1]) {
+        strokePath(g, '#7a4e16', 7, [sd * 8, 50, sd * 24, 44, sd * 42, 48]);        // heavy, determined brows
+        g.fillStyle = '#fff'; g.beginPath(); g.ellipse(sd * 23, 61, 8.5, 7.5, 0, 0, 7); g.fill();
+        g.fillStyle = '#2f6fd8'; g.beginPath(); g.ellipse(sd * 22, 61.5, 6, 7, 0, 0, 7); g.fill();
+        g.fillStyle = '#0c1a3a'; g.beginPath(); g.arc(sd * 22, 62, 3, 0, 7); g.fill();
+        g.fillStyle = '#fff'; g.beginPath(); g.arc(sd * 22 + 2.2, 59, 2, 0, 7); g.fill();
+        strokePath(g, '#3a2a1a', 2.5, [sd * 32, 55, sd * 23, 52, sd * 13, 55]);
+      }
+      strokePath(g, '#c8906a', 3, [-2, 66, 3, 77, -4, 81]);                         // nose
+      g.fillStyle = '#fff'; g.strokeStyle = '#4a2410'; g.lineWidth = 3.5;           // the big grin
+      g.beginPath(); g.moveTo(-17, 95); g.quadraticCurveTo(0, 99, 17, 95); g.quadraticCurveTo(10, 110, 0, 110); g.quadraticCurveTo(-10, 110, -17, 95); g.closePath(); g.fill(); g.stroke();
+    }, (g) => {
+      // lightning in his eyes when Mjolnir is called
+      g.fillStyle = '#9fe8ff'; for (const sd of [-1, 1]) { g.beginPath(); g.ellipse(sd * 23, 61, 9, 8, 0, 0, 7); g.fill(); }
+    });
+    const decal = decalMat('thorK', (g, w, h) => {
+      g.fillStyle = '#2a2e35'; g.fillRect(0, 0, w, h);
+      g.strokeStyle = '#4a505a'; g.lineWidth = 3;                                  // segmented armour plates
+      g.beginPath(); g.moveTo(10, 46); g.quadraticCurveTo(40, 54, 64, 44); g.quadraticCurveTo(88, 54, 118, 46); g.stroke();
+      g.strokeStyle = '#121418'; g.lineWidth = 3;
+      g.beginPath(); g.moveTo(64, 0); g.lineTo(64, 106); g.stroke();
+      for (const y of [48, 76]) { g.beginPath(); g.moveTo(12, y); g.quadraticCurveTo(40, y + 8, 64, y - 2); g.quadraticCurveTo(88, y + 8, 116, y); g.stroke(); }
+      g.fillStyle = '#121418';                                                     // recesses round the six discs
+      for (const sd of [-1, 1]) for (const y of [34, 62, 91]) { g.beginPath(); g.arc(64 + sd * 26, y, 15, 0, 7); g.fill(); }
+      g.fillStyle = '#9aa2ac';                                                     // silver piping down the flanks
+      for (const sd of [-1, 1]) g.fillRect(64 + sd * 52 - 2, 20, 4, 86);
+      g.fillStyle = '#16181c'; g.fillRect(0, 106, w, 22);                           // belt
+      g.fillStyle = '#9aa2ac'; g.fillRect(4, 108, w - 8, 3); g.fillRect(52, 108, 24, 18);
+    });
     const rig = hero({
-      name: 'thor', face, decal, top: M.blond, skin: M.skin, torso: 0x2b2f36, arms: M.skin, hands: M.skin, legs: 0x2b2f36,
-      hair: (hb, d, k, v) => { hb.sphere(0, 0.62 * v, 0, 0.44 * k, M.blond, { sy: 0.45 }); hb.box(0, -0.32 * v, -0.22 * k, 0.92 * k, 1.0 * v, 0.42 * k, M.blond); },
-      extra: (b, d) => {
-        const s = d.s;
-        b.boxM(mat4(0, 0.62 * s, -0.24 * s * d.D - 0.03, 0.08, 0, 0, 0.98 * s, 0.98 * s, 0.06), M.red);
-        for (const sd of [-1, 1]) b.sphere(sd * 0.27 * s, 0.9 * s, 0.17 * s, 0.075 * s, M.silver);
+      name: 'thor', s: 1.38, wide: 1.12, deep: 1.06, face, decal, top: gold, skin: M.skin, torso: armour, arms: armour, hands: M.skin, legs: 0x23262c, hips: 0x1c1e22,
+      hair: (hb, d) => {
+        const r = d.headR, H = d.headH;
+        blob(hb, 0, 0.94 * H, -0.06 * r, 1.1 * r, 0.3 * H, 1.1 * r, gold);                      // crown
+        blob(hb, 0, 0.42 * H, -0.48 * r, 1.04 * r, 0.72 * H, 0.66 * r, gold);                    // the long mane down the back
+        blob(hb, 0, -0.16 * H, -0.62 * r, 0.96 * r, 0.42 * H, 0.42 * r, gold, 0.3);
+        for (let j = -1; j <= 1; j += 2) blob(hb, j * 0.3 * r, 0.3 * H, -1.02 * r, 0.12 * r, 0.5 * H, 0.1 * r, goldDk, 0.12, 0, j * 0.06);
+        for (const sd of [-1, 1]) {
+          // fringe swept to each side of a centre parting
+          blob(hb, sd * 0.4 * r, 1.0 * H, 0.46 * r, 0.64 * r, 0.17 * H, 0.52 * r, gold, -0.3, 0, sd * -0.28);
+          blob(hb, sd * 0.12 * r, 1.08 * H, 0.5 * r, 0.06 * r, 0.1 * H, 0.4 * r, goldDk, -0.3);
+          // long locks falling past the ears to the shoulders
+          blob(hb, sd * 0.9 * r, 0.52 * H, -0.12 * r, 0.27 * r, 0.62 * H, 0.64 * r, gold, 0, 0, sd * 0.05);
+          blob(hb, sd * 0.88 * r, 0.0 * H, -0.24 * r, 0.25 * r, 0.42 * H, 0.52 * r, gold, 0.2, 0, sd * 0.16);
+          blob(hb, sd * 1.06 * r, 0.36 * H, -0.1 * r, 0.08 * r, 0.5 * H, 0.42 * r, goldDk, 0, 0, sd * 0.08);
+        }
       },
-      arm: (ab, sd, d) => { ab.box(0, -0.5 * d.s, 0, 0.26 * d.s, 0.18 * d.s, 0.29 * d.s, M.silver); ab.sphere(0, -0.02 * d.s, 0, 0.16 * d.s, 0x2b2f36); },
+      extra: (b, d) => {
+        const s = d.s, W = d.W, D = d.D, zf = 0.225 * s * D;
+        // the six round silver discs, raised in two columns
+        for (const sd of [-1, 1]) for (const y of [0.78, 0.6, 0.42]) {
+          const z = zf + (0.9 - y) * 0.02 * s, x = sd * 0.19 * s * W;
+          thDisc(b, x, y * s, z + 0.012 * s, 0.085 * s, 0.03 * s, silver);
+          thDisc(b, x, y * s, z + 0.026 * s, 0.055 * s, 0.01 * s, silverDk);
+          thDisc(b, x, y * s, z + 0.03 * s, 0.035 * s, 0.012 * s, silver);
+        }
+        // cape over the shoulders to round silver clasps at the collarbones
+        for (const sd of [-1, 1]) {
+          b.boxM(mat4(sd * 0.27 * s * W, 0.99 * s, -0.04 * s, 0, 0, sd * -0.22, 0.2 * s, 0.05 * s, 0.42 * s * D), red);
+          thDisc(b, sd * 0.27 * s * W, 0.9 * s, zf + 0.02 * s, 0.075 * s, 0.05 * s, silver, -0.1);
+          thDisc(b, sd * 0.27 * s * W, 0.9 * s, zf + 0.045 * s, 0.045 * s, 0.01 * s, silverDk, -0.1);
+        }
+        b.box(0, d.chestY - 0.03 * s, 0, 0.96 * s * W, 0.12 * s, 0.5 * s * D, 0x16181c);       // belt
+        b.box(0, d.chestY - 0.02 * s, 0.25 * s * D, 0.2 * s, 0.11 * s, 0.03 * s, silver);
+      },
+      arm: (ab, sd, d) => {
+        const s = d.s, k = Math.sqrt(d.W);
+        blob(ab, sd * 0.03 * s, 0.03 * s, 0, 0.17 * s * k, 0.09 * s, 0.18 * s * k, armourLt, 0, 0, sd * -0.3);   // low rounded pauldrons
+        blob(ab, sd * 0.05 * s, -0.03 * s, 0, 0.165 * s * k, 0.05 * s, 0.175 * s * k, silverDk, 0, 0, sd * -0.3);
+        ab.box(0, -0.54 * s, 0, 0.26 * s * k, 0.24 * s, 0.3 * s * k, silver);                     // silver vambraces
+        for (const y of [-0.46, -0.38]) ab.box(0, y * s, 0, 0.265 * s * k, 0.02 * s, 0.305 * s * k, silverDk);
+      },
     });
     const s = rig.dims.s;
-    // Mjolnir: handle continues the arm, head beyond the fist
+    // the red cape, flaring behind on its own pivot so it can billow with speed
+    const cape = prop(rig.torso, 0, 0.98 * s, -0.02 * s, (b) => {
+      b.addMatrix(thCapeGeo('thCape', { arc: 2.3, top: 0.72, folds: 3, fold: 0.07 }), plastic(red), mat4(0, 0, 0, 0, 0, 0, 0.6 * s * 1.12, 1.5 * s, 0.36 * s * 1.06));
+      b.addMatrix(thCapeGeo('thCape', { arc: 2.3, top: 0.72, folds: 3, fold: 0.07 }), plastic(redDk), mat4(0, -0.01 * s, 0, 0, 0, 0, 0.585 * s * 1.12, 1.48 * s, 0.345 * s * 1.06));
+    }, 'cape');
+    rig.idle = (t, dt, an, st) => {
+      const v = st?.speed01 || 0;
+      cape.rotation.x = 0.04 + v * 0.3 + S(t * (3 + v * 9)) * (0.015 + v * 0.03);
+    };
+    // Mjolnir: leather-wrapped handle continuing the arm, the silver head beyond the fist
     const hammer = prop(rig.armR, 0, HAND * s, 0, (b) => {
-      b.box(0, -0.4, 0, 0.08, 0.48, 0.08, M.bronze);
-      b.boxM(mat4(0, -0.62, 0, 0, 0, 0, 0.4, 0.36, 0.64), 0x8a9098);
-      for (const z of [-0.2, 0.2]) b.boxM(mat4(0, -0.62, z, 0, 0, 0, 0.42, 0.38, 0.05), 0x6a7078);
-      b.box(0, 0.02, 0, 0.1, 0.06, 0.1, M.silver);
-    });
+      rod(b, [0, 0.12, 0], [0, -0.52, 0], 0.045, leather, 10);
+      for (let j = 0; j < 7; j++) b.cyl(0, 0.06 - j * 0.085, 0, 0.05, 0.03, leatherDk, { seg: 10 });
+      b.cyl(0, 0.1, 0, 0.065, 0.07, silver, { seg: 12 });                                   // pommel
+      b.addMatrix(cached('thStrap', () => new THREE.TorusGeometry(1, 0.22, 6, 14)), plastic(leatherDk), mat4(0, 0.25, 0, 0, PI / 2, 0, 0.09, 0.11, 0.09));
+      b.cyl(0, -0.52, 0, 0.07, 0.05, silver, { seg: 12 });
+      b.boxM(mat4(0, -0.69, 0, 0, 0, 0, 0.4, 0.32, 0.66), 0x9aa3ad);                         // the head
+      b.boxM(mat4(0, -0.69, 0, 0, 0, 0, 0.44, 0.36, 0.5), 0xb8c0ca);
+      for (const z of [-1, 1]) {
+        b.boxM(mat4(0, -0.69, z * 0.335, 0, 0, 0, 0.34, 0.26, 0.03), 0x6e7680);                // end faces with knotwork
+        b.addMatrix(cached('thKnot', () => new THREE.TorusGeometry(1, 0.18, 6, 16)), plastic(0xd0d6de), mat4(0, -0.69, z * 0.35, 0, 0, 0, 0.08, 0.08, 0.08));
+      }
+    }, 'mjolnir');
     hammer.visible = false;
-    const bolts = prop(hammer, 0, -0.62, 0, (b) => {
+    const bolts = prop(hammer, 0, -0.69, 0, (b) => {
       const m = fxMat(0x9fe8ff, 1);
       for (let k = 0; k < 5; k++) {
         const a = k * 1.26 + 0.3, dx = Math.cos(a), dz = Math.sin(a);
@@ -198,6 +598,7 @@ const thor = {
       const zap = (name === 'cheer' || name === 'win' || name === 'use') && ((t * 17) | 0) % 3 !== 0;
       vis(bolts, zap);
       if (zap) { bolts.rotation.y = ((t * 7) | 0) * 1.9; bolts.scale.setScalar(0.8 + ((t * 23) % 1) * 0.5); }
+      face.emissiveIntensity = zap ? 1.4 : 0;                                       // eyes crackle with lightning
     };
     return rig;
   },
@@ -374,20 +775,119 @@ const panther = {
     taunt: (f, t, rig, a) => ({ [a.tauntSide > 0 ? 'lx' : 'rx']: -1.8, [a.tauntSide > 0 ? 'lz' : 'rz']: a.tauntSide * 0.9, hy: a.tauntSide * 1.1, ty: a.tauntSide * 0.4, hz: S(t * 9) * 0.08 }),
   },
   build() {
-    const { face, decal } = mapMats('panther');
-    const blk = 0x15161a;
+    const blk = 0x141519, blkLt = 0x24262d, silver = 0xc4cad4, silverDk = 0x8a909a;
+    const sv = '#b8bec8', purple = '#b47cff';
+    const pl = (g, col, wd, pts) => { g.strokeStyle = col; g.lineWidth = wd; g.beginPath(); g.moveTo(pts[0], pts[1]); for (let i = 2; i < pts.length; i += 2) g.lineTo(pts[i], pts[i + 1]); g.stroke(); };
+    // the panther mask: white angular lenses and fine silver lines that frame the eyes, run up
+    // over the brow in triangles and down the cheeks to the muzzle (the same lines glow purple)
+    const maskLines = (g, col, wd) => {
+      pl(g, col, wd, [0, 0, 0, 56]);
+      for (const sd of [-1, 1]) {
+        pl(g, col, wd, [sd * 3, 56, sd * 20, 45, sd * 44, 37, sd * 58, 44]);              // brow line
+        pl(g, col, wd, [sd * 6, 53, sd * 16, 0]); pl(g, col, wd, [sd * 30, 41, sd * 46, 0]);   // up over the forehead
+        pl(g, col, wd, [sd * 47, 50, sd * 46, 84, sd * 22, 118]);                          // cheeks down to the muzzle
+        pl(g, col, wd, [sd * 16, 68, sd * 20, 88, 0, 102]);
+        pl(g, col, wd, [sd * 58, 44, sd * 92, 30, sd * 140, 26]);                          // swept back over the ears
+        pl(g, col, wd, [sd * 46, 84, sd * 90, 96, sd * 140, 98]);
+      }
+    };
+    const face = thLitFace('pantherK', { skin: '#141519' }, (g) => {
+      g.fillStyle = '#1e2026';                                                       // the muzzle, a shade lighter
+      g.beginPath(); g.moveTo(-16, 68); g.lineTo(-22, 90); g.lineTo(0, 106); g.lineTo(22, 90); g.lineTo(16, 68); g.closePath(); g.fill();
+      maskLines(g, sv, 2.5);
+      for (const sd of [-1, 1]) {                                                    // white angular lenses
+        g.fillStyle = '#f6f8fc'; g.strokeStyle = sv; g.lineWidth = 3;
+        g.beginPath(); g.moveTo(sd * 6, 63); g.lineTo(sd * 18, 55); g.lineTo(sd * 40, 47); g.lineTo(sd * 48, 49);
+        g.lineTo(sd * 38, 62); g.lineTo(sd * 16, 68); g.closePath(); g.fill(); g.stroke();
+      }
+      g.fillStyle = '#6a707a'; g.beginPath(); g.moveTo(-6, 76); g.lineTo(6, 76); g.lineTo(0, 84); g.closePath(); g.fill();   // nose
+      pl(g, '#5a606a', 2.5, [-12, 96, 0, 99, 12, 96]);                               // mouth seam
+    }, (g) => {
+      maskLines(g, purple, 4);
+      g.fillStyle = 'rgba(180,124,255,0.35)';
+      for (const sd of [-1, 1]) { g.beginPath(); g.moveTo(sd * 6, 63); g.lineTo(sd * 40, 47); g.lineTo(sd * 48, 49); g.lineTo(sd * 38, 62); g.lineTo(sd * 16, 68); g.closePath(); g.fill(); }
+    });
+    // the suit: a fine triangle weave, bold silver lines in a V under the fang necklace, down the abs and flanks
+    const suitLines = (g, col, wd) => {
+      pl(g, col, wd, [14, 0, 64, 46, 114, 0]);
+      pl(g, col, wd, [4, 16, 64, 66, 124, 16]);
+      for (const sd of [-1, 1]) {
+        pl(g, col, wd, [64 + sd * 12, 58, 64 + sd * 14, 108]);
+        pl(g, col, wd, [64 + sd * 50, 30, 64 + sd * 40, 112]);
+        pl(g, col, wd, [64 + sd * 14, 84, 64 + sd * 40, 74]);
+      }
+      pl(g, col, wd, [8, 112, 120, 112]);
+    };
+    const decal = decalMat('pantherK', (g, w, h) => {
+      g.fillStyle = '#141519'; g.fillRect(0, 0, w, h);
+      g.strokeStyle = '#2e313a'; g.lineWidth = 1.5;
+      for (let x = -128; x < 256; x += 16) {
+        g.beginPath(); g.moveTo(x, 0); g.lineTo(x + 64, h); g.stroke();
+        g.beginPath(); g.moveTo(x, 0); g.lineTo(x - 64, h); g.stroke();
+      }
+      suitLines(g, sv, 3);
+      g.fillStyle = '#b8bec8';                                                      // small silver triangles on the chest
+      for (const sd of [-1, 1]) { g.beginPath(); g.moveTo(64 + sd * 22, 52); g.lineTo(64 + sd * 40, 40); g.lineTo(64 + sd * 34, 58); g.closePath(); g.fill(); }
+    }, (g) => suitLines(g, purple, 5));
+    decal.emissiveIntensity = 0;
+    const backLines = (g, col, wd) => {
+      pl(g, col, wd, [10, 0, 64, 40, 118, 0]);
+      pl(g, col, wd, [64, 40, 64, 112]);
+      for (const sd of [-1, 1]) { pl(g, col, wd, [64 + sd * 50, 28, 64 + sd * 18, 76, 64, 112]); pl(g, col, wd, [64 + sd * 50, 28, 64 + sd * 40, 112]); }
+      pl(g, col, wd, [8, 112, 120, 112]);
+    };
+    const back = decalMat('pantherBackK', (g, w, h) => {
+      g.fillStyle = '#141519'; g.fillRect(0, 0, w, h);
+      g.strokeStyle = '#2e313a'; g.lineWidth = 1.5;
+      for (let x = -128; x < 256; x += 16) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x + 64, h); g.stroke(); g.beginPath(); g.moveTo(x, 0); g.lineTo(x - 64, h); g.stroke(); }
+      backLines(g, sv, 3);
+    }, (g) => backLines(g, purple, 5));
+    back.emissiveIntensity = 0;
+    const kin = plastic(silver, { emissive: 0x9a5cff, emissiveIntensity: 0.001 });  // the fang necklace: lights up purple
     const rig = hero({
-      name: 'panther', face, decal, top: blk, skin: blk, torso: blk, arms: blk, hands: 0x2a2c33, legs: blk,
-      hair: (hb, d, k, v) => { for (const sd of [-1, 1]) hb.cone(sd * 0.24 * k, 0.66 * v, -0.04 * k, 0.12 * k, 0.24 * k, blk, { seg: 4 }); },
-      extra: (b, d) => { for (let j = 0; j < 7; j++) { const a = (j - 3) * 0.22; b.sphere(Math.sin(a) * 0.3 * d.s, 1.0 * d.s - Math.cos(a) * 0.1 * d.s + 0.06 * d.s, Math.cos(a) * 0.17 * d.s, 0.05 * d.s, M.silver); } },
-      arm: (ab, sd, d) => ab.box(0, -0.42 * d.s, 0.13 * d.s, 0.05 * d.s, 0.34 * d.s, 0.02 * d.s, M.silver),
+      name: 'panther', wide: 1.04, deep: 0.98, face, decal, top: blk, skin: blk, torso: blk, arms: blk, hands: blkLt, legs: blk, hips: blk,
+      hair: (hb, d) => {
+        const r = d.headR, H = d.headH;
+        blob(hb, 0, 0.9 * H, -0.02 * r, 1.0 * r, 0.3 * H, 1.0 * r, blk);                       // smooth domed mask
+        // pointed cat ears: three-sided, a flat face to the front with a silver inner edge
+        const ear = cached('bpEar', () => new THREE.ConeGeometry(0.5, 1, 3).rotateY(PI).translate(0, 0.5, 0));
+        for (const sd of [-1, 1]) {
+          hb.addMatrix(ear, plastic(blk), mat4(sd * 0.56 * r, 0.98 * H, -0.12 * r, -0.15, 0, sd * -0.3, 0.6 * r, 0.42 * H, 0.32 * r));
+          hb.addMatrix(ear, plastic(silver), mat4(sd * 0.57 * r, 1.0 * H, -0.06 * r, -0.15, 0, sd * -0.3, 0.38 * r, 0.3 * H, 0.08 * r));
+          hb.addMatrix(ear, plastic(blkLt), mat4(sd * 0.575 * r, 1.0 * H, -0.045 * r, -0.15, 0, sd * -0.3, 0.26 * r, 0.22 * H, 0.06 * r));
+        }
+      },
+      extra: (b, d) => {
+        const s = d.s, D = d.D;
+        torsoPrint(b, d, back, true);
+        // the silver fang necklace: a beaded band with claws hanging down, the middle ones longest
+        const fang = cached('bpFang', () => new THREE.ConeGeometry(1, 1, 6).rotateX(PI).translate(0, -0.5, 0));
+        const at = (a) => [Math.sin(a) * 0.29 * s, 1.0 * s - Math.cos(a) * 0.11 * s, Math.cos(a) * (0.215 * s * D) + 0.012 * s];
+        for (let j = 0; j <= 10; j++) {
+          const a = (j - 5) * 0.2, p = at(a);
+          if (j < 10) rod(b, p, at(a + 0.2), 0.018 * s, kin, 6);
+          b.addMatrix(unitSphere(), kin, mat4(p[0], p[1], p[2], 0, 0, 0, 0.03 * s, 0.03 * s, 0.03 * s));
+          const L = (0.15 - abs(j - 5) * 0.016) * s;
+          b.addMatrix(fang, kin, mat4(p[0], p[1] - 0.01 * s, p[2] + 0.008 * s, 0.12, a * 0.6, -a * 0.5, 0.032 * s, L, 0.022 * s));
+        }
+      },
+      arm: (ab, sd, d) => {
+        const s = d.s, k = Math.sqrt(d.W);
+        ab.boxM(mat4(0, -0.24 * s, 0.13 * s * k + 0.004, 0, 0, 0, 0.04 * s, 0.36 * s, 0.02 * s), silver);   // silver line down the arm
+        ab.boxM(mat4(sd * 0.06 * s, 0.04 * s, 0.11 * s, -0.5, 0, sd * 0.4, 0.12 * s, 0.03 * s, 0.06 * s), silver); // shoulder triangle
+        ab.box(0, -0.5 * s, 0, 0.255 * s * k, 0.025 * s, 0.29 * s * k, silver);                      // cuffs
+        for (let j = -1; j <= 1; j++) ab.addMatrix(cached('bpClaw', () => new THREE.ConeGeometry(1, 1, 5).rotateX(PI).translate(0, -0.5, 0)), plastic(silver), mat4(j * 0.055 * s, -0.66 * s, 0.09 * s, -0.4, 0, 0, 0.018 * s, 0.09 * s, 0.018 * s));
+      },
     });
     const s = rig.dims.s;
     const mk = (arm) => { const g = prop(arm, 0, TIP * s, 0.04, (b) => { for (let k = -1; k <= 1; k++) b.boxM(mat4(k * 0.07, -0.1, 0.03, -0.25, 0, k * 0.15, 0.035, 0.24, 0.035), 0, { mat: glow(0xb07aff, 3) }); }, 'claws'); g.visible = false; return g; };
     const cL = mk(rig.armL), cR = mk(rig.armR);
-    rig.fx = (name) => {
+    rig.fx = (name, f, t) => {
       const on = name === 'cheer' || name === 'win' || name === 'taunt' || name === 'use';
       vis(cL, on); vis(cR, on);
+      // kinetic energy: the suit lines, mask and necklace pulse purple
+      const k = on ? 0.9 + S(t * 9) * 0.5 : 0;
+      decal.emissiveIntensity = back.emissiveIntensity = k * 1.6; face.emissiveIntensity = k * 1.4; kin.emissiveIntensity = 0.001 + k * 1.2;
     };
     return rig;
   },
@@ -405,19 +905,95 @@ const strange = {
     win: (f, t) => ({ lx: -0.25, rx: -0.25, lz: 1.35, rz: -1.35, hx: -0.15, by: 0.14 + S(t * 2.5) * 0.06, ty: S(t * 1.2) * 0.2 }),
   },
   build() {
-    const { face, decal } = mapMats('strange');
-    const red = 0xa8141a;
+    const red = 0xb3121b, redDk = 0x6e0d10, blue = 0x1c2a5a, navy = 0x141c40, hairC = 0x2a201c;
+    const brown = 0x4a3020, tan = 0x8a6238, gold = 0xd2a03c, goldDk = 0x9a6e22;
+    const skinS = '#f2c9a0', hairS = '#2a201c';
+    // sharp and aloof: arched brows, grey-green eyes, high cheekbones and the grey-flecked goatee
+    const face = printFace('strangeK', { skin: skinS }, (g, X, h) => {
+      g.fillStyle = hairS;                                                          // hair round the sides and back
+      g.beginPath(); g.moveTo(-X, 0); g.lineTo(X, 0); g.lineTo(X, 104); g.lineTo(74, 96); g.lineTo(68, 26);
+      g.quadraticCurveTo(0, 12, -68, 26); g.lineTo(-74, 96); g.lineTo(-X, 104); g.closePath(); g.fill();
+      g.fillStyle = '#a4a4aa';                                                      // grey temples and sideburns
+      for (const sd of [-1, 1]) { g.beginPath(); g.moveTo(sd * 56, 28); g.lineTo(sd * 70, 26); g.lineTo(sd * 74, 84); g.lineTo(sd * 60, 80); g.closePath(); g.fill(); }
+      for (const sd of [-1, 1]) {
+        strokePath(g, hairS, 5.5, [sd * 8, 50, sd * 22, 39, sd * 42, 46]);           // sharp arched brows
+        g.fillStyle = '#fff'; g.beginPath(); g.ellipse(sd * 23, 60, 9, 7, 0, 0, 7); g.fill();
+        g.fillStyle = '#5a9a86'; g.beginPath(); g.ellipse(sd * 22, 60.5, 6, 7, 0, 0, 7); g.fill();
+        eye(g, sd * 22, 61, 3.4, 4, '#121414');
+        strokePath(g, '#2a1a14', 2.5, [sd * 32, 54, sd * 23, 51, sd * 14, 54]);
+        strokePath(g, '#cf9c7c', 2.5, [sd * 40, 72, sd * 35, 86, sd * 30, 96]);       // cheekbones
+      }
+      strokePath(g, '#c08a64', 2.5, [-3, 42, -3, 47, -2, 51]);                       // frown line
+      strokePath(g, '#c08a64', 3, [-2, 64, 3, 78, -4, 82]);                         // nose
+      g.fillStyle = hairS;                                                          // moustache down into the goatee
+      g.beginPath(); g.moveTo(-21, 96); g.quadraticCurveTo(0, 87, 21, 96); g.lineTo(22, 102); g.quadraticCurveTo(0, 95, -22, 102); g.closePath(); g.fill();
+      for (const sd of [-1, 1]) strokePath(g, hairS, 4.5, [sd * 20, 98, sd * 22, 106, sd * 14, 112]);
+      g.beginPath(); g.moveTo(-15, 108); g.quadraticCurveTo(0, 113, 15, 108); g.lineTo(11, 124); g.quadraticCurveTo(0, 131, -11, 124); g.closePath(); g.fill();
+      g.fillStyle = '#6a6466'; g.beginPath(); g.ellipse(0, 121, 4, 5, 0, 0, 7); g.fill();   // a fleck of grey at the chin
+      strokePath(g, '#5a2a22', 2.5, [-11, 104.5, 0, 106, 12, 103]);                  // a thin, knowing mouth
+    });
+    const decal = decalMat('strangeK', (g, w, h) => {
+      g.fillStyle = '#1c2a5a'; g.fillRect(0, 0, w, h);
+      g.fillStyle = '#141c40'; g.beginPath(); g.moveTo(46, 0); g.lineTo(82, 0); g.lineTo(64, 34); g.closePath(); g.fill();   // dark undershirt
+      g.fillStyle = '#2a4290';                                                      // the layered wrap, crossing left over right
+      g.beginPath(); g.moveTo(0, 0); g.lineTo(52, 0); g.lineTo(96, h); g.lineTo(0, h); g.closePath(); g.fill();
+      g.strokeStyle = '#4e6ac0'; g.lineWidth = 4; g.beginPath(); g.moveTo(52, 0); g.lineTo(96, h); g.stroke();
+      g.strokeStyle = '#13204a'; g.lineWidth = 3;
+      g.beginPath(); g.moveTo(82, 0); g.lineTo(64, 34); g.stroke();
+      g.beginPath(); g.moveTo(20, 10); g.lineTo(24, h); g.stroke();
+      g.beginPath(); g.moveTo(108, 10); g.lineTo(104, h); g.stroke();
+      g.strokeStyle = '#3a2618'; g.lineWidth = 2.5;                                 // the amulet's cord
+      g.beginPath(); g.moveTo(44, 0); g.lineTo(64, 30); g.lineTo(84, 0); g.stroke();
+    });
+    const gem = new THREE.MeshStandardMaterial({ color: 0x40ff80, emissive: 0x20e060, emissiveIntensity: 0.7, roughness: 0.2 });
     const rig = hero({
-      name: 'strange', face, decal, top: 0x2a2020, skin: M.skin, torso: 0x1c2a5a, arms: 0x1c2a5a, hands: M.skin, legs: 0x1c2a5a,
-      hair: (hb, d, k, v) => hb.sphere(0, 0.62 * v, -0.02 * k, 0.43 * k, 0x2a2020, { sy: 0.42 }),
-      extra: (b, d) => {
-        const s = d.s;
-        b.boxM(mat4(0, 0.62 * s, -0.24 * s * d.D - 0.03, 0.08, 0, 0, 1.0 * s, 1.0 * s, 0.06), red);
-        for (const sd of [-1, 1]) b.boxM(mat4(sd * 0.3 * s, 1.24 * s, -0.08 * s, -0.25, sd * 0.55, sd * -0.2, 0.06 * s, 0.5 * s, 0.34 * s), red);
+      name: 'strange', face, decal, top: hairC, skin: M.skin, torso: blue, arms: blue, hands: M.skin, legs: navy, hips: brown,
+      hair: (hb, d) => {
+        const r = d.headR, H = d.headH;
+        // swept-back dark hair with a lifted quiff, greying at the temples
+        blob(hb, 0, 0.86 * H, -0.1 * r, 1.08 * r, 0.32 * H, 1.08 * r, hairC);
+        blob(hb, 0, 0.55 * H, -0.5 * r, 1.03 * r, 0.5 * H, 0.6 * r, hairC);
+        blob(hb, 0.06 * r, 1.12 * H, 0.32 * r, 0.82 * r, 0.22 * H, 0.56 * r, hairC, -0.45, 0, -0.08);
+        blob(hb, -0.2 * r, 1.2 * H, 0.08 * r, 0.5 * r, 0.16 * H, 0.5 * r, hairC, -0.2, 0, 0.2);
+        for (const sd of [-1, 1]) {
+          blob(hb, sd * 0.88 * r, 0.74 * H, -0.2 * r, 0.16 * r, 0.26 * H, 0.56 * r, hairC);        }
       },
-      arm: (ab, sd, d) => ab.box(0, -0.52 * d.s, 0, 0.26 * d.s, 0.18 * d.s, 0.29 * d.s, 0x6a4a2a),
+      extra: (b, d) => {
+        const s = d.s, W = d.W, D = d.D, zf = 0.22 * s * D;
+        // the tall, flared collar of the Cloak of Levitation, framing the head
+        const collar = thCapeGeo('dsCollar', { arc: 3.7, top: 0.5, folds: 2, fold: 0.05, thick: 0.12 });
+        b.addMatrix(collar, plastic(red), mat4(0, 0.9 * s, -0.03 * s, 0, 0, PI, 0.58 * s, 0.58 * s, 0.48 * s));
+        b.addMatrix(collar, plastic(redDk), mat4(0, 0.905 * s, -0.03 * s, 0, 0, PI, 0.565 * s, 0.565 * s, 0.465 * s));
+        for (const sd of [-1, 1]) blob(b, sd * 0.29 * s * W, 0.96 * s, -0.04 * s, 0.2 * s, 0.075 * s, 0.26 * s, red, 0, 0, sd * -0.25);   // over the shoulders
+        // the wide belt-sash with tan straps
+        b.box(0, d.chestY - 0.04 * s, 0, 0.95 * s * W, 0.2 * s, 0.49 * s * D, brown);
+        for (const y of [0.0, 0.11]) b.box(0, d.chestY + y * s, 0, 0.96 * s * W, 0.03 * s, 0.5 * s * D, tan);
+        b.box(0.1 * s, d.chestY - 0.03 * s, zf + 0.02 * s, 0.1 * s, 0.17 * s, 0.03 * s, tan);
+        // the Eye of Agamotto on its cord: a gold disc, a closed-eye frame and the green Time Stone
+        const ay = 0.74 * s, az = zf + 0.02 * s;
+        thDisc(b, 0, ay, az, 0.115 * s, 0.035 * s, gold);
+        thDisc(b, 0, ay, az + 0.018 * s, 0.085 * s, 0.01 * s, goldDk);
+        blob(b, 0, ay, az + 0.03 * s, 0.09 * s, 0.05 * s, 0.02 * s, gold);
+        for (const sd of [-1, 1]) b.boxM(mat4(sd * 0.12 * s, ay, az, 0, 0, sd * 0.6, 0.05 * s, 0.03 * s, 0.03 * s), gold);
+        b.sphere(0, ay, az + 0.04 * s, 0.032 * s, 0, { mat: gem });
+      },
+      arm: (ab, sd, d) => {
+        const s = d.s, k = Math.sqrt(d.W);
+        ab.box(0, -0.54 * s, 0, 0.255 * s * k, 0.24 * s, 0.295 * s * k, 0x6a4a2a);            // leather wrist wraps
+        for (const y of [-0.47, -0.39]) ab.boxM(mat4(0, y * s, 0, 0, 0, 0.25, 0.262 * s * k, 0.022 * s, 0.3 * s * k), 0x3e2a16);
+      },
     });
     const s = rig.dims.s;
+    // the cloak itself hangs on its own pivot: it floats and ripples, and streams back with speed
+    const cloak = prop(rig.torso, 0, 0.98 * s, -0.03 * s, (b) => {
+      b.addMatrix(thCapeGeo('dsCloak', { arc: 2.4, top: 0.64, folds: 4, fold: 0.09 }), plastic(red), mat4(0, 0, 0, 0, 0, 0, 0.66 * s, 1.55 * s, 0.4 * s));
+      b.addMatrix(thCapeGeo('dsCloak', { arc: 2.4, top: 0.64, folds: 4, fold: 0.09 }), plastic(redDk), mat4(0, -0.01 * s, 0, 0, 0, 0, 0.645 * s, 1.53 * s, 0.385 * s));
+    }, 'cloak');
+    rig.idle = (t, dt, an, st) => {
+      const v = st?.speed01 || 0;
+      cloak.rotation.x = 0.1 + S(t * 1.7) * 0.05 + v * 0.25;
+      cloak.rotation.z = S(t * 1.1) * 0.04;
+    };
     const mL = spellDisc(rig.armL, -0.85 * s, 0.95, mandalaMat());
     const mR = spellDisc(rig.armR, -0.85 * s, 0.95, mandalaMat());
     rig.fx = (name, f, t) => {
@@ -429,6 +1005,7 @@ const strange = {
       const face = name === 'win' ? 0 : PI / 2;   // arms spread: discs face forward; arms forward: discs face out of the palms
       if (l > 0.02) { mL.g.scale.setScalar(l); mL.m.rotation.set(face, 0, t * 2.2); }
       if (r > 0.02) { mR.g.scale.setScalar(r); mR.m.rotation.set(face, 0, -t * 2.2); }
+      gem.emissiveIntensity = 0.7 + Math.max(l, r) * (1.6 + S(t * 8) * 0.4);          // the Time Stone flares with the spell
     };
     return rig;
   },
