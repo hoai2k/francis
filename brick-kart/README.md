@@ -94,8 +94,8 @@ button steps back one stage (ready → kart → driver → menu), coming back fr
 cup or map screen keeps everyone locked in, and each player slot remembers the
 driver, kart and glider it last looked at. The 14 original Brick Kart drivers are listed after the
 movie casts, and the classic karts come after the newer vehicles. The drivers are brick-built movie characters from
-the Movie Cup: 16 from Marvel, 16 from Star Wars, 14 from Harry Potter, 13 from
-Jujutsu Kaisen and 14 from Jurassic World (73 in all). The Harry Potter cast
+the Movie Cup: 16 from Marvel, 15 from Star Wars, 14 from Harry Potter, 13 from
+Jujutsu Kaisen and 14 from Jurassic World (72 in all). The Harry Potter cast
 (Harry, Hermione, Ron, Dumbledore, Hagrid, Snape, Voldemort, Draco,
 Neville, Ginny, Sirius, Dobby, Bellatrix and Fred) is listed just above
 the Jujutsu Kaisen one, and each of them casts a signature spell when they

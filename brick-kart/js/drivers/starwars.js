@@ -6,7 +6,7 @@ import { seatedFig, taperGeo } from './kit.js';
 import { FACES, trooperHelmet, trooperPrints, c3poHead, c3poPrints, PEARL_GOLD, pearlGold, printQuad, cHand } from '../maps/starwars-props.js';
 import {
   THREE, BrickBuilder, C, plastic, mat4, rbox, rod, glowMat, S, A, PI,
-  metalMat, CONE, HEMI, BOWL, HOOD, FLARE, HEADCYL, HALFCYL, FACE, hair, handAt, saber, blaster, gaffi, flames,
+  metalMat, CONE, HEMI, BOWL, HOOD, FLARE, HEADCYL, HALFCYL, hair, handAt, saber, blaster, gaffi, flames,
   strength, showSaber, shoot, faceMat, cached,
 } from './starwars-parts.js';
 
@@ -29,7 +29,7 @@ const poly = (g, col, pts) => { g.fillStyle = col; g.beginPath(); pts.forEach(([
 
 // ---- hero prints (driver-only; the track figures keep their own) -----------------------
 // Luke, Leia and Han wear the light-nougat skin of the current LEGO Star Wars minifigs, with
-// printed faces and torsos; Chewbacca, Grogu and Yoda are built up from moulded pieces.
+// printed faces and torsos; Chewbacca and Grogu are built up from moulded pieces.
 const SKIN = 0xe6ae80, SKIN_S = '#e6ae80';
 const _prints = new Map();
 function canvasMat(key, w, h, base, draw, rough = 0.4) {
@@ -492,36 +492,6 @@ function c3po() {
     arm: (ab, sd, d) => cHand(ab, G, 0, -0.76 * d.s, 0, 0.1 * d.s, sd),
   });
   pearlGold(r.root);
-  return r;
-}
-
-function yoda() {
-  const robe = 0xb39a72, robe2 = 0x7a5a3a, skin = 0x8fa65a;
-  const r = seatedFig({
-    name: 'yoda', s: 0.85, torso: robe, arms: robe, legs: 0x8a7556, hips: robe2, hands: skin, skin, neck: robe2,
-    face: FACE.yoda(), headR: 0.44, headH: 0.5, noStud: true, extraHeight: 0.1,
-    torsoExtra: (b, d) => {
-      const s = d.s;
-      b.box(0, d.chestY, 0, 0.95 * s, 0.1 * s, 0.5 * s, robe2);
-      b.box(0, 0.84 * s, -0.02 * s, 0.82 * s, 0.18 * s, 0.48 * s, robe2);   // cloak collar
-      for (const sd of [-1, 1]) rbox(b, sd * 0.14 * s, 0.62 * s, 0.215 * s, 0.04 * s, 0.7 * s, 0.03 * s, 0, 0, sd * 0.35, robe2);
-    },
-    headExtra: (hb, d) => {
-      const R = d.headR, H = d.headH;
-      hb.sphere(0, H * 0.98, 0, R, skin, { sy: 0.36 });
-      for (const sd of [-1, 1]) {
-        hb.addMatrix(CONE(), plastic(skin), mat4(sd * R * 1.55, H * 0.66, -R * 0.1, 0, 0, -sd * (PI / 2 - 0.3), R * 0.3, R * 1.5, R * 0.09));
-        hb.addMatrix(CONE(), plastic(0xc89a8a), mat4(sd * R * 1.5, H * 0.64, -R * 0.05, 0, 0, -sd * (PI / 2 - 0.3), R * 0.18, R * 1.1, R * 0.06));
-      }
-      for (let k = 0; k < 5; k++) { const a = PI * 0.65 + k * 0.17; rbox(hb, Math.sin(a) * R, H * 0.5, Math.cos(a) * R, R * 0.12, H * 0.5, R * 0.05, 0.2, a, 0, 0xe8e8e8); }
-    },
-  });
-  const sab = handAt(r, -1, saber(0x3aff4a, 0.8, { len: 0.95 }));
-  sab.rotation.x = PI / 2;
-  r.fx = (name, f, t) => {
-    showSaber(sab, strength(name, f, ['cheer', 'win', 'trick']));
-    sab.rotation.y = name === 'win' ? t * 9 : 0;
-  };
   return r;
 }
 
@@ -1004,16 +974,6 @@ export default [
       win: (f, t) => ({ lx: -1.6 + S(t * 18) * 0.7, rx: -1.6 + S(t * 18 + 3) * 0.7, lz: 0.4, rz: -0.4, hy: S(t * 9) * 0.3, by: A(S(t * 9)) * 0.05 }),
     },
     build: c3po,
-  },
-  {
-    id: 'yoda', name: 'Yoda', blurb: 'Judge me by size, do you?', weight: 'light', color: 0x3aff4a,
-    voice: { kind: 'squeak', pitch: 1.05 }, style: { cheer: 'spin', trick: 'twist' },
-    gestures: {
-      cheer: (f, t) => ({ ty: f * PI * 2, by: S(f * PI) * 0.35, rx: -1.25, rz: -0.6, lx: -0.5, lz: 1.1, hx: -0.2 }),
-      win: (f, t) => ({ rx: -1.5, rz: -0.25, lx: -1.7, lz: 0.45, by: A(S(t * 6)) * 0.12, hx: -0.2, hz: S(t * 3) * 0.12 }),
-      taunt: (f, t, rig, a) => ({ ...tauntArm(a, -2.0, 0.25 + S(t * 16) * 0.3), hy: a.tauntSide * 0.6, hz: S(t * 8) * 0.15 }),
-    },
-    build: yoda,
   },
   {
     id: 'mando', name: 'The Mandalorian', blurb: 'This is the way', weight: 'medium', color: BESKAR,

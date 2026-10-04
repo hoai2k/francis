@@ -3,12 +3,12 @@
 // Lists of ids (DRIVERS[].id / KARTS[].id / GLIDERS[].id); null means "all of them". Pick the set in
 // brick-kart/workbench/ (it starts from this one) and export it, then paste the ids here.
 export const SIMPLIFIED = {
-  // 81 drivers
+  // 80 drivers
   drivers: [
     'classic-redbeard', 'classic-kara', 'classic-rex', 'classic-nix', 'classic-pepper',
     'classic-bjorn', 'classic-regina', 'classic-zorp', 'classic-max', 'spiderman', 'ironman',
     'captain', 'thor', 'hulk', 'panther', 'strange', 'starlord', 'gamora', 'drax', 'rocket',
-    'groot', 'loki', 'thanos', 'luke', 'leia', 'han', 'chewie', 'r2d2', 'c3po', 'yoda', 'mando',
+    'groot', 'loki', 'thanos', 'luke', 'leia', 'han', 'chewie', 'r2d2', 'c3po', 'mando',
     'vader', 'maul', 'boba', 'cadbane', 'trooper', 'jawas', 'harry', 'hermione', 'ron',
     'dumbledore', 'hagrid', 'snape', 'draco', 'gojo', 'yuji', 'megumi', 'panda', 'nanami', 'sukuna',
     'mahito', 'jogo', 'transfigured', 'owen', 'grant', 'malcolm', 'hammond', 'trex', 'delta',
