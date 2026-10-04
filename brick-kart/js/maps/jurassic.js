@@ -137,7 +137,7 @@ function diloSpit(ctx, i, side, offset, rand) {
     update(dt, t) {
       const tt = t + offset, ph = tt % PER, cy = Math.floor(tt / PER);
       const warn = smooth(1.6, 2.2, ph) * (1 - smooth(3.2, 3.6, ph));
-      rig.frillL.rotation.y = warn * 1.35; rig.frillR.rotation.y = -warn * 1.35;
+      P.diloFrill(rig, warn, t + offset);
       rig.head.rotation.x = -warn * 0.35 + Math.sin(t * 2 + offset) * 0.05;
       rig.head.rotation.y = Math.sin(t * 0.7 + offset) * 0.3 * (1 - warn);
       rig.bodyP.rotation.x = -warn * 0.08;
@@ -600,7 +600,7 @@ export default {
         const eb = new BrickBuilder(1); P.explorer(new P.Local(eb), 0, 0, 0); const g = eb.build({ name: 'explorer' }); g.applyMatrix4(Q); ctx.group.add(g);
       }
       // the rex
-      const rig = P.theropod({ body: 0x7a5a3c, dark: 0x4a3222, belly: 0xb09a74, eye: 0xffa020 });
+      const rig = P.trex();
       ctx.hazard(rexCrossing(ctx, rig, iRex, sd, 1.15));
       arch(ctx, 8.0, { cols: [C.dkgray, C.yellow], text: 'T. REX KINGDOM', bg: '#1b1b1b', fg: '#f2cd37' });
     }

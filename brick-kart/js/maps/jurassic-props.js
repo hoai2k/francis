@@ -61,6 +61,28 @@ function pivot(parent, x, y, z, child) {
   return g;
 }
 const tiltTeeth = (L, xs, y, z0, z1, step, s = 0.25, h = 0.55) => { for (let z = z0; z <= z1; z += step) for (const x of xs) L.box(x, y, z, s, h, s, C.white); };
+// a merged part drawn through a uniformly scaled frame (detail ported from the driver rigs)
+function partK(fn, name, k, shadows = true) {
+  const b = new BrickBuilder(1);
+  fn(new Local(b, 0, 0, 0, 0, k));
+  return b.build({ name, shadows });
+}
+const glowO = (c, k = 1.6) => ({ matOpts: { emissive: c, emissiveIntensity: k } });
+const smooth01 = (x) => { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); };
+// a point on a box centred at (y, z), rotated rx = a, offset (ly, lz) in the box's own frame
+const onBox = (y, z, a, ly, lz) => [y + ly * Math.cos(a) - lz * Math.sin(a), z + ly * Math.sin(a) + lz * Math.cos(a)];
+// box tapering from bw (bottom) to tw (top), standing on y = 0
+function taperGeo(bw, tw, h, d) {
+  return geo(`taper${bw},${tw},${h},${d}`, () => {
+    const g = new THREE.BoxGeometry(bw, h, d), p = g.attributes.position;
+    for (let i = 0; i < p.count; i++) if (p.getY(i) > 0) p.setX(i, p.getX(i) * (tw / bw));
+    g.computeVertexNormals();
+    return g.translate(0, h / 2, 0);
+  });
+}
+function teethRow(L, xs, y, z0, z1, step, w, h, col = C.white) {
+  for (let z = z0; z <= z1 + 1e-6; z += step) for (const x of xs) L.box(x, y, z, w, h, w, col);
+}
 
 // ---------------------------------------------------------------------------------
 // Theropods: T. rex, Indominus rex, Spinosaurus (sail + croc snout)
@@ -175,6 +197,146 @@ export function theroIdle(r, t, roar = 0) {
   r.tail1.rotation.x = roar * 0.12;
 }
 
+// T. rex (Rexy): a big wide skull with heavy overhanging brows and horn bosses, deep-set
+// glowing golden eyes and a deep ragged-toothed jaw; darker brown/khaki hide with tiger
+// stripes and old raptor scars, huge drumstick thighs, tiny two-fingered arms and a thick
+// banded tail. Same rig and pivots as theropod() (works with theroWalk / theroIdle).
+const REXY = {
+  body: 0x6e543a, back: 0x3c2c1e, dark: 0x2a1e14, belly: 0xb49a72, belly2: 0x8e7656, scar: 0xd8bca4,
+  brow: 0x54402c, eye: 0xffb020, mouth: 0x5a1210, tooth: 0xf2e8cc,
+};
+const REX_HK = 4.2;   // head detail scale (driver units -> map units)
+export function trex(opts = {}) {
+  const c = { ...REXY, ...opts };
+  const r = { root: new THREE.Group() };
+  r.bodyP = pivot(r.root, 0, 0, 0);
+  r.bodyP.add(part((L) => {
+    // barrel body, deep chest and a thick S-necked shoulder line: [y, z, w, h, d, rx]
+    const segs = [[9.2, -1.3, 5.6, 5.4, 6.6, 0], [9.75, 3.0, 5.9, 5.9, 5.2, 0.12], [10.5, 6.2, 4.9, 5.0, 3.4, -0.2], [11.7, 8.4, 3.9, 4.4, 3.6, 0.55], [12.5, 9.4, 3.4, 3.2, 2.4, 0.3]];
+    segs.forEach(([y, z, w, h, d, a], i) => {
+      L.box(0, y, z, w, h, d, c.body, { rx: a });
+      // khaki belly / throat with scale lines underneath
+      const [by, bz] = onBox(y, z, a, -h / 2, 0);
+      L.box(0, by, bz, w * 0.74, 0.12, d * 0.92, c.belly, { rx: a });
+      if (i < 3) for (const f of [-0.3, 0, 0.3]) { const [sy, sz] = onBox(y, z, a, -h / 2 - 0.07, d * f); L.box(0, sy, sz, w * 0.68, 0.04, 0.14, c.belly2, { rx: a }); }
+      // the dark back: a saddle down the spine with twin scute rows
+      const [ty, tz] = onBox(y, z, a, h / 2, 0);
+      L.box(0, ty, tz, w * 0.42, 0.1, d * 0.96, c.back, { rx: a });
+      for (let f = -0.35; f <= 0.36; f += 0.35) for (const sd of [-1, 1]) { const [sy, sz] = onBox(y, z, a, h / 2 + 0.12, d * f); L.box(sd * 0.42, sy, sz, 0.42, 0.3, 0.42, c.dark, { rx: a }); }
+      // tiger stripes wrapping down the flanks from the saddle
+      if (i < 4) for (const f of (i === 0 ? [-0.36, -0.08, 0.2] : i === 1 ? [-0.3, 0.05, 0.36] : [-0.15, 0.25])) {
+        const len = h * (i < 2 ? 0.62 : 0.5);
+        const [sy, sz] = onBox(y, z, a, h / 2 - len / 2, d * f);
+        for (const sd of [-1, 1]) L.box(sd * (w / 2 + 0.03), sy, sz, 0.08, len, 0.42, c.back, { rx: a - 0.42 });
+        const [cy, cz] = onBox(y, z, a, h / 2 + 0.03, d * f);
+        L.box(0, cy, cz, w * 0.98, 0.08, 0.42, c.back, { rx: a });
+      }
+    });
+    // old raptor claw scars down the left of the neck and across the right flank
+    for (let i = 0; i < 3; i++) L.box(1.99, 11.0 + i * 0.36, 7.9 + i * 0.12, 0.06, 0.12, 1.5, c.scar, { rx: 0.7 });
+    for (let i = 0; i < 2; i++) L.box(-2.84, 8.5 + i * 0.42, 0.4, 0.06, 0.12, 1.8, c.scar, { rx: -0.3 });
+    // tiny two-fingered arms tucked at the chest
+    for (const sd of [-1, 1]) {
+      L.box(sd * 1.95, 8.55, 7.4, 0.72, 1.4, 0.72, c.body, { rx: -0.55 });
+      L.box(sd * 2.13, 8.7, 7.3, 0.36, 0.9, 0.78, c.back, { rx: -0.55 });
+      L.box(sd * 1.95, 7.7, 8.0, 0.58, 0.9, 0.6, c.body, { rx: -1.15 });
+      for (const x of [-0.16, 0.16]) {
+        L.box(sd * 1.95 + x, 7.45, 8.5, 0.2, 0.55, 0.2, c.body, { rx: -1.5 });
+        L.box(sd * 1.95 + x, 7.2, 8.8, 0.16, 0.3, 0.16, c.dark, { rx: -2.0 });
+      }
+    }
+  }, 'trex-body'));
+
+  // head + jaw: the driver's skull, scaled up
+  r.head = pivot(r.bodyP, 0, 12.9, 9.9);
+  const hw = (z) => 0.4 - 0.13 * Math.max(0, Math.min(1, (z - 0.05) / 1.05));
+  r.head.add(partK((L) => {
+    L.box(0, 0.16, -0.08, 0.86, 0.62, 0.42, c.body);
+    L.box(0, 0.2, 0.3, 0.76, 0.58, 0.5, c.body);
+    L.box(0, 0.13, 0.74, 0.62, 0.44, 0.5, c.body);
+    L.box(0, 0.09, 1.06, 0.52, 0.34, 0.22, c.body);
+    L.box(0, 0.06, 1.18, 0.42, 0.26, 0.06, c.body);
+    L.box(0, -0.075, 0.6, 0.6, 0.02, 1.08, c.mouth);
+    // rugose top of the skull and snout, dark crown stripes
+    L.box(0, 0.37, 0.8, 0.4, 0.05, 0.42, c.brow);
+    for (const z of [0.6, 0.78, 0.96]) L.box(0, 0.4, z, 0.14, 0.04, 0.08, c.brow);
+    for (const z of [-0.18, 0.0, 0.18]) L.box(0, 0.495, z, 0.5, 0.02, 0.08, c.back);
+    L.box(0, 0.48, -0.08, 0.3, 0.02, 0.4, c.back);
+    for (const sd of [-1, 1]) {
+      // heavy brow ridge with a horn boss behind it, over a deep-set glowing golden eye
+      L.box(sd * 0.31, 0.5, 0.26, 0.26, 0.14, 0.46, c.brow, { rz: -sd * 0.3 });
+      L.box(sd * 0.35, 0.44, 0.47, 0.12, 0.1, 0.1, c.brow, { rz: -sd * 0.3 });
+      L.box(sd * 0.34, 0.5, 0.03, 0.14, 0.12, 0.16, c.brow);
+      L.box(sd * 0.382, 0.31, 0.24, 0.02, 0.2, 0.3, c.dark);
+      L.box(sd * 0.39, 0.32, 0.25, 0.02, 0.12, 0.15, c.eye, glowO(c.eye, 0.9));
+      L.box(sd * 0.398, 0.32, 0.26, 0.015, 0.11, 0.035, C.black);
+      L.box(sd * 0.399, 0.35, 0.22, 0.012, 0.03, 0.025, C.white);
+      // cheek bulge, nostril, lip line and the dark side stripes of the face
+      L.box(sd * 0.4, 0.1, -0.06, 0.06, 0.34, 0.3, c.body);
+      L.box(sd * 0.13, 0.262, 1.1, 0.07, 0.01, 0.06, c.dark);
+      L.box(sd * 0.22, 0.27, 1.06, 0.06, 0.03, 0.08, c.brow);
+      for (const [z0, z1] of [[0.06, 0.55], [0.5, 0.99], [0.95, 1.17]]) L.box(sd * hw((z0 + z1) / 2) * 0.98, -0.04, (z0 + z1) / 2, 0.02, 0.04, z1 - z0, c.dark);
+      for (const [y, z] of [[0.4, -0.2], [0.3, -0.25], [0.28, 0.5]]) L.box(sd * (y > 0.3 ? 0.432 : 0.382), y - 0.1, z, 0.02, 0.18, 0.06, c.back, { rx: -0.3 });
+      // upper teeth: a ragged row hanging outside the lower jaw, longest mid-row
+      for (let z = 0.12, i = 0; z <= 1.06; z += 0.085, i++) {
+        const h = 0.1 + 0.06 * Math.sin(Math.min(1, z / 1.06) * Math.PI);
+        L.box(sd * (hw(z) - 0.035), -0.08 - h / 2, z, 0.055, h, 0.055, c.tooth, { rx: (i % 2 ? 0.1 : -0.12) });
+      }
+    }
+    for (const x of [-0.13, -0.045, 0.045, 0.13]) L.box(x, -0.13, 1.12, 0.05, 0.1, 0.05, c.tooth);
+    // a scar across the right cheek
+    L.box(-0.404, 0.12, 0.42, 0.015, 0.03, 0.34, c.scar, { rx: 0.45 });
+    L.box(-0.344, 0.2, 0.78, 0.015, 0.03, 0.2, c.scar, { rx: -0.3 });
+  }, 'trex-head', REX_HK));
+  // the deep lower jaw (narrower than the upper teeth row, so those overlap it)
+  r.jaw = pivot(r.head, 0, -0.08 * REX_HK, -0.12 * REX_HK, partK((L) => {
+    L.box(0, -0.17, 0.12, 0.74, 0.34, 0.5, c.body);
+    L.box(0, -0.15, 0.6, 0.58, 0.3, 0.52, c.body);
+    L.box(0, -0.13, 1.02, 0.44, 0.26, 0.36, c.body);
+    L.box(0, -0.3, 0.6, 0.5, 0.05, 1.2, c.belly);
+    L.box(0, -0.29, 0.12, 0.6, 0.06, 0.48, c.belly);
+    L.box(0, 0.004, 0.62, 0.36, 0.02, 1.0, c.mouth);
+    L.box(0, 0.012, 0.56, 0.24, 0.02, 0.78, 0xb84a48);
+    for (const sd of [-1, 1]) {
+      for (let z = 0.3, i = 0; z <= 1.12; z += 0.09, i++) {
+        const x = (z < 0.85 ? 0.29 - (z - 0.3) * 0.12 : 0.2) - 0.03, h = 0.08 + 0.04 * Math.sin(z * 2.8);
+        L.box(sd * x, h / 2, z, 0.05, h, 0.05, c.tooth, { rx: (i % 2 ? 0.12 : -0.1) });
+      }
+      L.box(sd * 0.371, -0.12, 0.12, 0.02, 0.04, 0.46, c.dark);
+    }
+  }, 'trex-jaw', REX_HK));
+
+  // thick banded tail: [y, z, w, h, d] per segment, dark bands over the top and flanks,
+  // scute pairs along the top and a khaki underside
+  const tailSeg = (L, segs) => segs.forEach(([y, z, w, h, d]) => {
+    L.box(0, y, z, w, h, d, c.body);
+    L.box(0, y - h / 2, z, w * 0.62, 0.1, d * 0.92, c.belly);
+    for (const f of [-0.3, 0.1]) L.box(0, y + h * 0.16, z + f * d, w * 1.04, h * 0.72, d * 0.14, c.back);
+    L.box(0, y + h / 2, z, w * 0.36, 0.08, d * 0.95, c.back);
+    if (w > 1.5) for (const f of [-0.2, 0.25]) for (const sd of [-1, 1]) L.box(sd * w * 0.12, y + h / 2 + 0.12, z + f * d, w * 0.12, 0.26, w * 0.12, c.dark);
+  });
+  r.tail1 = pivot(r.bodyP, 0, 9.6, -3.8, part((L) => tailSeg(L, [[0, -3.1, 4.7, 4.5, 6.4]]), 'trex-tail1'));
+  r.tail2 = pivot(r.tail1, 0, 0.3, -6, part((L) => tailSeg(L, [[0, -3.2, 3.2, 3.0, 6.5], [0.15, -8.4, 2.0, 1.8, 4.5], [0.25, -11.6, 0.95, 0.9, 2.4]]), 'trex-tail2'));
+
+  // legs: huge drumstick thighs with stripes, scaly shins, three big clawed toes
+  const leg = part((L) => {
+    L.box(0, 0.4, -0.2, 2.7, 3.2, 4.6, c.body);
+    L.box(0, -1.9, 0.5, 2.9, 5.4, 4.9, c.body, { rx: 0.1 });
+    for (const sd of [-1, 1]) for (const [y, z] of [[-0.2, -1.4], [-0.5, 0.2], [-0.9, 1.8]]) L.box(sd * 1.48, y, z, 0.08, 3.2, 0.55, c.back, { rx: -0.3 });
+    L.box(0, -5.6, -0.4, 1.7, 3.8, 1.9, c.body, { rx: 0.35 });
+    L.box(0, -5.4, 0.45, 1.3, 2.8, 0.1, c.belly2, { rx: 0.35 });
+    L.box(0, -7.9, 0.2, 1.4, 2.2, 1.4, c.body, { rx: -0.25 });
+    L.box(0, -8.75, 1.4, 2.5, 0.7, 3.4, c.body);
+    for (const x of [-0.8, 0, 0.8]) {
+      L.box(x, -8.7, 3.1, 0.7, 0.6, 0.6, c.body);
+      L.box(x, -8.8, 3.55, 0.45, 0.5, 0.6, c.tooth, { rx: 0.3 });
+    }
+  }, 'trex-leg');
+  r.legL = pivot(r.root, 2.95, 9.1, -1, leg);
+  r.legR = pivot(r.root, -2.95, 9.1, -1, leg.clone());
+  return r;
+}
+
 // ---------------------------------------------------------------------------------
 // Velociraptor (Blue, Charlie, Delta, Echo) and Dilophosaurus
 // ---------------------------------------------------------------------------------
@@ -239,44 +401,149 @@ export function raptorRun(r, ph, amp = 0.8) {
   r.jaw.rotation.x = 0.1 + Math.max(0, Math.sin(ph * 0.25)) * 0.35;
 }
 
+// Dilophosaurus: slim olive spitter with leopard spots, a ringed tail, thin splayed red twin
+// crests and the striped neck frill, folded back along the neck until diloFrill() fans it open.
+// Rig: root, bodyP, head (+ jaw), tail, frillL / frillR (the two fan halves).
+const DILO = {
+  body: 0x7a9230, dark: 0x4a5a1a, spot: 0x323e16, stripe: 0xe0c440, belly: 0xe6d890,
+  crest: 0xd42a16, crestDk: 0x2a1610, eye: 0xf4b018,
+  frillA: 0xf8c81c, frillA2: 0xfbd84a, frillB: 0xf28418, frillC: 0xc91a09, rib: 0x5a160c, frillSpot: 0x1e1a14,
+};
+const DILO_HK = 1.9, DILO_FK = 1.75;   // head detail and frill scale (driver units -> map units)
 export function dilophosaurus() {
-  const c = { body: 0x9aa844, spot: 0x3e4a1c, belly: 0xd8d08a, crest: C.red, frill: C.yellow, rim: C.red };
+  const c = DILO;
   const r = { root: new THREE.Group() };
   r.bodyP = pivot(r.root, 0, 0, 0);
   r.bodyP.add(part((L) => {
-    L.box(0, 2.0, 0, 1.0, 1.1, 2.4, c.body, { rx: -0.1 });
-    L.box(0, 1.5, 0.2, 0.8, 0.3, 2.0, c.belly);
-    L.box(0, 2.85, 1.4, 0.6, 1.7, 0.6, c.body, { rx: 0.4 });
-    L.box(0, 2.0, -2.3, 0.7, 0.7, 2.6, c.body, { rx: -0.1 });
-    L.box(0, 2.3, -4.2, 0.4, 0.4, 1.8, c.body, { rx: -0.2 });
-    for (const [x, y, z] of [[0.51, 2.2, 0.5], [-0.51, 2.3, -0.4], [0.51, 1.9, -0.8], [-0.51, 1.8, 0.7], [0, 2.56, -0.2], [0.36, 2.1, -2.2]]) L.box(x, y, z, 0.06, 0.25, 0.3, c.spot);
+    // torso, chest and an S-curved neck up to the head pivot (0, 3.6, 1.7)
+    const segs = [[2.05, -0.25, 1.04, 1.12, 2.3, -0.06], [2.28, 0.95, 0.9, 1.0, 0.95, 0.3], [2.78, 1.28, 0.64, 0.72, 0.56, 0.5], [3.2, 1.52, 0.54, 0.6, 0.48, 0.25], [3.48, 1.66, 0.48, 0.42, 0.42, -0.05]];
+    segs.forEach(([y, z, w, h, d, a], i) => {
+      L.box(0, y, z, w, h, d, c.body, { rx: a });
+      // cream belly / throat underneath (front face up the neck), dark saddle on top
+      if (i < 2) { const [by, bz] = onBox(y, z, a, -h / 2, 0); L.box(0, by, bz, w * 0.72, 0.06, d * 0.88, c.belly, { rx: a }); }
+      else { const [fy, fz] = onBox(y, z, a, 0, d / 2); L.box(0, fy, fz, w * 0.62, h * 0.95, 0.05, c.belly, { rx: a }); }
+      const [ty, tz] = onBox(y, z, a, h / 2, 0);
+      L.box(0, ty, tz, w * 0.36, 0.05, d * 0.9, c.dark, { rx: a });
+      if (i >= 2) for (const sd of [-1, 1]) L.box(sd * (w / 2 + 0.01), y + 0.06 * sd, z - 0.06, 0.03, 0.1, 0.12, c.spot, { rx: a });
+    });
+    // dark saddle bands over the back and pale flank stripes
+    for (const z of [-1.1, -0.5, 0.1, 0.75]) { const [ty, tz] = onBox(2.05, -0.25, -0.06, 0.56, z + 0.25); L.box(0, ty, tz, 0.86, 0.05, 0.18, c.dark, { rx: -0.06 }); }
     for (const sd of [-1, 1]) {
-      L.box(sd * 0.45, 1.8, 1.2, 0.18, 0.8, 0.2, c.body, { rx: -0.9 });
-      L.box(sd * 0.35, 1.25, -0.2, 0.4, 0.9, 0.7, c.body);
-      L.box(sd * 0.35, 0.5, -0.35, 0.25, 0.9, 0.25, c.body, { rx: -0.2 });
-      L.box(sd * 0.35, 0.08, -0.1, 0.35, 0.16, 0.7, c.body);
+      L.box(sd * 0.525, 1.82, -0.25, 0.03, 0.08, 2.0, c.stripe, { rx: -0.06 });
+      L.box(sd * 0.455, 2.15, 1.0, 0.03, 0.07, 0.8, c.stripe, { rx: 0.3 });
+      // leopard spots: dark blotches, some with an olive centre (rosettes)
+      for (let i = 0; i < 14; i++) {
+        const z = -1.2 + (i % 7) * 0.32 + 0.08 * ((i * 5) % 3), y = 2.05 + (i < 7 ? 0.28 : -0.1) + 0.06 * ((i * 7) % 3 - 1);
+        const s = 0.13 + ((i * 3) % 3) * 0.04;
+        L.box(sd * 0.525, y, z, 0.03, s, s * 1.2, c.spot, { rx: -0.06 });
+        if (s > 0.18) L.box(sd * 0.535, y, z, 0.03, s * 0.45, s * 0.5, c.body, { rx: -0.06 });
+      }
+      for (const [y, z] of [[2.45, 0.8], [2.15, 1.15], [2.0, 0.75]]) L.box(sd * 0.455, y, z, 0.03, 0.12, 0.14, c.spot, { rx: 0.3 });
+      // slender clawed arms
+      L.box(sd * 0.44, 2.05, 1.3, 0.16, 0.6, 0.18, c.body, { rx: -0.7 });
+      L.box(sd * 0.44, 1.72, 1.62, 0.13, 0.4, 0.14, c.body, { rx: -1.3 });
+      for (const x of [-0.05, 0, 0.05]) L.box(sd * 0.44 + x, 1.62, 1.86, 0.04, 0.16, 0.04, C.black, { rx: -0.6 });
+      // legs: muscular spotted thighs, slim shins, three-toed feet
+      L.box(sd * 0.44, 1.62, -0.3, 0.4, 1.05, 0.85, c.body, { rx: 0.12 });
+      for (const [y, z, s] of [[1.85, -0.5, 0.16], [1.5, -0.15, 0.13], [1.35, -0.55, 0.1], [1.9, 0.0, 0.1]]) L.box(sd * 0.645, y, z, 0.02, s, s * 1.2, c.spot, { rx: 0.12 });
+      L.box(sd * 0.44, 0.92, -0.5, 0.26, 0.85, 0.32, c.body, { rx: -0.35 });
+      L.box(sd * 0.44, 0.38, -0.36, 0.2, 0.62, 0.2, c.body, { rx: 0.35 });
+      L.box(sd * 0.44, 0.07, -0.05, 0.36, 0.14, 0.64, c.body);
+      for (const x of [-0.12, 0, 0.12]) L.box(sd * 0.44 + x, 0.07, 0.32, 0.07, 0.08, 0.14, C.black);
     }
   }, 'dilo-body'));
+  // head: small and narrow, kinked snout, yellow eyes and the twin crests
   r.head = pivot(r.bodyP, 0, 3.6, 1.7);
-  r.head.add(part((L) => {
-    L.box(0, 0, 0.6, 0.6, 0.6, 1.4, c.body);
-    L.box(0, -0.1, 1.5, 0.45, 0.4, 0.7, c.body);
+  r.head.add(partK((L) => {
+    L.box(0, 0.1, 0.04, 0.38, 0.34, 0.42, c.body);
+    L.box(0, 0.05, 0.4, 0.28, 0.24, 0.36, c.body);
+    L.box(0, 0.03, 0.64, 0.24, 0.22, 0.16, c.body);
+    L.box(0, -0.1, -0.02, 0.28, 0.12, 0.3, c.belly);
+    L.box(0, -0.075, 0.38, 0.22, 0.02, 0.56, 0x7a1a14);
+    for (const sd of [-1, 1]) L.box(sd * 0.115, -0.065, 0.56, 0.03, 0.05, 0.05, c.dark);
+    teethRow(L, [-0.1, 0.1], -0.1, 0.24, 0.5, 0.065, 0.028, 0.05);
+    teethRow(L, [-0.09, 0.09], -0.1, 0.62, 0.68, 0.06, 0.026, 0.05);
     for (const sd of [-1, 1]) {
-      L.box(sd * 0.18, 0.55, 0.6, 0.07, 0.55, 1.3, c.crest, { rx: 0.15 });
-      L.box(sd * 0.31, 0.12, 0.5, 0.04, 0.16, 0.2, C.black);
+      L.box(sd * 0.191, 0.15, 0.12, 0.02, 0.12, 0.13, c.eye);
+      L.box(sd * 0.199, 0.15, 0.13, 0.015, 0.1, 0.035, C.black);
+      L.box(sd * 0.2, 0.17, 0.1, 0.012, 0.03, 0.025, C.white);
+      L.box(sd * 0.17, 0.235, 0.1, 0.07, 0.04, 0.2, c.dark);
+      L.box(sd * 0.192, 0.11, -0.08, 0.015, 0.05, 0.18, c.crestDk);
+      L.box(sd * 0.142, 0.0, 0.34, 0.015, 0.035, 0.22, c.dark);
+      for (const [y, z] of [[0.04, 0.0], [0.2, -0.1], [0.06, 0.18]]) L.box(sd * 0.192, y, z, 0.015, 0.045, 0.05, c.spot);
+      L.box(sd * 0.06, 0.142, 0.67, 0.035, 0.01, 0.04, c.spot);
+      // twin crests: thin red plates arcing over snout and skull, splayed outward, edged dark
+      for (let i = 0; i < 9; i++) {
+        const z = 0.62 - i * 0.09, top = 0.2 + 0.21 * Math.sin(Math.PI * (0.68 - z) / 0.9);
+        const base = (z > 0.24 ? 0.17 : 0.27) - 0.02, h = top - base, tl = 0.3;
+        L.box(sd * (0.09 + h * Math.sin(tl) / 2), base + h / 2, z, 0.03, h, 0.11, c.crest, { rz: -sd * tl });
+        L.box(sd * (0.09 + h * Math.sin(tl)), base + h * Math.cos(tl), z, 0.034, 0.025, 0.11, c.crestDk, { rz: -sd * tl });
+        if (i % 2) L.box(sd * (0.106 + h * Math.sin(tl) * 0.45), base + h * 0.45, z, 0.008, h * 0.6, 0.022, c.crestDk, { rz: -sd * tl, rx: 0.4 });
+      }
     }
-    L.box(0, -0.28, 1.1, 0.46, 0.08, 1.2, C.dkred);
-  }, 'dilo-head'));
-  const frill = (sd) => part((L) => {
-    for (let k = 0; k < 5; k++) {
-      const a = -1.2 + k * 0.6;
-      L.box(0, Math.sin(a) * 0.55, -0.6 * Math.cos(a) - 0.1, 0.05, 0.75, 0.9, k % 2 ? c.frill : 0xe07a20, { rx: a });
-      L.box(0, Math.sin(a) * 1.05, -1.1 * Math.cos(a) - 0.1, 0.07, 0.2, 0.5, c.rim, { rx: a });
-    }
-  }, 'dilo-frill' + sd);
-  r.frillL = pivot(r.head, 0.32, -0.05, 0.3, frill(1));
-  r.frillR = pivot(r.head, -0.32, -0.05, 0.3, frill(-1));
+    L.box(0, 0.275, 0.0, 0.1, 0.02, 0.3, c.dark);
+  }, 'dilo-head', DILO_HK));
+  r.jaw = pivot(r.head, 0, -0.075 * DILO_HK, 0.06 * DILO_HK, partK((L) => {
+    L.box(0, -0.05, 0.3, 0.24, 0.1, 0.56, c.belly);
+    L.box(0, -0.035, 0.3, 0.25, 0.04, 0.52, c.body);
+    L.box(0, 0.005, 0.3, 0.17, 0.02, 0.46, 0xd04a4a);
+    teethRow(L, [-0.095, 0.095], 0.025, 0.14, 0.52, 0.07, 0.026, 0.045);
+  }, 'dilo-jaw', DILO_HK));
+  // ringed tail on its own pivot so it can sway
+  r.tail = pivot(r.bodyP, 0, 2.12, -1.35, part((L) => {
+    const segs = [[0, -0.75, 0.84, 0.8, 1.6, -0.04], [0.08, -2.2, 0.64, 0.6, 1.4, -0.08], [0.18, -3.45, 0.46, 0.43, 1.2, -0.1], [0.26, -4.5, 0.3, 0.28, 1.0, -0.1]];
+    segs.forEach(([y, z, w, h, d, a], i) => {
+      L.box(0, y, z, w, h, d, c.body, { rx: a });
+      L.box(0, y - h / 2, z, w * 0.6, 0.05, d * 0.9, c.belly, { rx: a });
+      L.box(0, y + h / 2, z, w * 0.3, 0.05, d * 0.9, c.dark, { rx: a });
+      // dark rings round the tail, two per segment
+      for (const f of [-0.25, 0.25]) L.box(0, y, z + f * d, w * 1.06, h * 1.06, d * 0.13, i % 2 ? c.spot : c.dark, { rx: a });
+      if (i < 2) for (const sd of [-1, 1]) L.box(sd * w * 0.52, y + 0.04, z + d * 0.02, 0.03, h * 0.28, d * 0.12, c.spot, { rx: a });
+    });
+  }, 'dilo-tail'));
+  // the frill: two fan halves (driver design), each a ring of tapered panels -- orange inner
+  // band, yellow middle with dark eye-spots, red rim -- with dark ribs poking past the rim
+  const fk = DILO_FK, halves = [];
+  for (const sd of [1, -1]) {
+    halves.push(pivot(r.head, 0, 0, -0.08 * fk, partK((L) => {
+      const n = 7, a0 = 0.02, a1 = 2.62, da = (a1 - a0) / n, r0 = 0.08;
+      const rad = (a) => 0.72 + 0.14 * Math.sin(Math.min(Math.PI, a * 1.25));
+      const wedge = (a, q0, q1, col) => {
+        const t = Math.tan(da / 2) * 2;
+        L.put(taperGeo(+(q0 * t * 1.1 + 0.01).toFixed(3), +(q1 * t * 1.06).toFixed(3), +(q1 - q0).toFixed(3), 0.03), col, sd * Math.sin(a) * q0, Math.cos(a) * q0, 0, 0, 0, -sd * a, 1, 1, 1);
+      };
+      const ray = (a, q0, q1, z, w, th, col) => { const q = (q0 + q1) / 2; L.box(sd * Math.sin(a) * q, Math.cos(a) * q, z, w, q1 - q0, th, col, { rz: -sd * a }); };
+      for (let i = 0; i < n; i++) {
+        const a = a0 + (i + 0.5) * da, R = rad(a);
+        wedge(a, r0, R * 0.4, c.frillB);
+        wedge(a, R * 0.4, R * 0.9, i % 2 ? c.frillA : c.frillA2);
+        wedge(a, R * 0.9, R, c.frillC);
+        for (const zz of [0.02, -0.02]) ray(a, R * 0.3, R * 0.62, zz, 0.03, 0.012, c.frillB);
+        for (const zz of [0.022, -0.022]) {
+          const sa = a + da * 0.28, sr = R * 0.7, sb = a - da * 0.25, sr2 = R * 0.56;
+          L.box(sd * Math.sin(sa) * sr, Math.cos(sa) * sr, zz, 0.06, 0.06, 0.012, c.frillSpot, { rz: -sd * sa });
+          L.box(sd * Math.sin(sb) * sr2, Math.cos(sb) * sr2, zz, 0.04, 0.04, 0.012, c.frillC, { rz: -sd * sb });
+        }
+      }
+      for (let i = 0; i <= n; i++) { const a = a0 + i * da; ray(a, r0, rad(a) + 0.08, 0, 0.03, 0.05, c.rib); }
+    }, 'dilo-frill', fk, false)));
+  }
+  [r.frillL, r.frillR] = halves;
+  diloFrill(r, 0, 0);
   return r;
+}
+// open = 0: frill folded small and flat back along the neck; 1: fanned out around the head,
+// rattling. Also opens the jaw to spit and sways the tail.
+export function diloFrill(r, open, t = 0) {
+  const e = smooth01(open), s = 0.24 + 0.76 * e + 0.14 * Math.sin(e * Math.PI), shake = e * Math.sin(t * 34), fk = DILO_FK;
+  for (const [h, sd] of [[r.frillL, 1], [r.frillR, -1]]) {
+    h.rotation.set(-0.08 * e, sd * (Math.PI / 2 - 0.12) * (1 - e) - sd * 0.38 * e, shake * 0.06 * sd);
+    h.position.x = sd * (0.15 - 0.11 * e) * fk; h.position.y = (-0.1 + 0.14 * e) * fk;
+    h.scale.set(s * (1 + shake * 0.03), s * (1 + shake * 0.03), 1);
+  }
+  r.jaw.rotation.x = 0.06 + e * (0.5 + Math.sin(t * 30) * 0.06);
+  r.tail.rotation.y = Math.sin(t * 0.9) * 0.16 * (1 - e * 0.6);
+  r.tail.rotation.x = -e * 0.08;
 }
 
 // ---------------------------------------------------------------------------------
