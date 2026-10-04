@@ -23,7 +23,8 @@ export function plate(b, base, A, B, th, color, o = {}) {
 export function deployClock(part, dur = 0.7) {
   let k = 0;
   return (dt) => {
-    const root = part.parent;
+    let root = part.parent;
+    while (root && root.name !== 'glider') root = root.parent;
     if (root && root.scale.x < 0.35) k = 0;
     else k = Math.min(1, k + dt / dur);
     return k;

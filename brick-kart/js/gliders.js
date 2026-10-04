@@ -2,7 +2,7 @@
 // select screen (press up / down while choosing a kart); CPU racers get one that suits them.
 // Packs live in js/gliders/<pack>.js and export an array of glider definitions:
 //
-//   { id, name, blurb, colors: [main, accent], build(kit) -> { mesh, parts?, fx? } }
+//   { id, name, blurb, colors: [main, accent], scale?, build(kit) -> { mesh, parts?, fx? } }
 //
 // Glider frame: the origin is where the driver's hands grip the bar (the game puts it just above
 // the driver's head), +Z forward, +Y up. The canopy sits about 1.4–2.2 above the origin and may
@@ -11,6 +11,8 @@
 // so keep the design centred on x = 0.
 //   mesh   static parts (usually one BrickBuilder.build())
 //   parts  extra Object3Ds animated by fx
+//   scale  shrinks (or grows) the whole design about the hand grip, e.g. for bulky ones that would
+//          hide the road from the chase camera
 //   fx(s, dt)  per-frame hook while it's out; s = { t, open, steer, speed01 } (flap wings, spin rotors…):
 //              t = seconds since it opened (restarts every glide), open = how far it has unfolded (0..1)
 // kit = { THREE, BrickBuilder, C, plastic, limb, k, a, mast(b, top?, color?) } where k / a are the
@@ -80,8 +82,12 @@ export function buildGlider(def, group, k = C.red, a = C.black) {
   for (const o of [...group.children]) group.remove(o);
   let out;
   try { out = (def || KART_WING).build({ ...GKIT, k, a }) || {}; } catch (e) { console.error('glider failed', def?.id, e); out = KART_WING.build({ ...GKIT, k, a }); }
-  group.add(out.mesh);
-  for (const o of out.parts || []) group.add(o);
+  // everything hangs off an inner group, so `scale` works without touching the parts fx animates
+  const inner = new THREE.Group();
+  inner.scale.setScalar(def?.scale || 1);
+  inner.add(out.mesh);
+  for (const o of out.parts || []) inner.add(o);
+  group.add(inner);
   group.userData.fx = out.fx || null;
   group.userData.gliderId = (def || KART_WING).id;
   return out.fx || null;

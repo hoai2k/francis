@@ -29,7 +29,7 @@ const fawkes = {
   build(kit) {
     const { THREE, BrickBuilder } = kit; const T = tools(kit);
     const RED = 0xc91a09, DRED = 0x8e1408, ORA = 0xe8501a, GOLD = 0xf2b52a;
-    const FIRE = LIT(0xff5a10, 1.6), CORE = LIT(0xffc830, 1.8);
+    const FIRE = LIT(0xff4a08, 1.5), CORE = LIT(0xffb020, 1.7);
     const b = new BrickBuilder(0.4);
     // body, orange breast, neck and head
     T.ell(b, 0, 1.88, 0.0, 0.42, 0.34, 0.85, 0.08, 0, 0, RED);
@@ -63,8 +63,8 @@ const fawkes = {
       for (let i = 0; i < n; i++) {
         const off = (i - (n - 1) / 2) * 0.22, h = len * (0.75 + 0.35 * ((i * 7) % 3) / 2);
         // cones pointing back (-z), flattened into tongues
-        T.cone(fb, off, 0, -h / 2, 0.11, h, 0.05, -Math.PI / 2, 0, 0, 0xff7a20, FIRE);
-        T.cone(fb, off, 0.01, -h * 0.32, 0.06, h * 0.62, 0.03, -Math.PI / 2, 0, 0, 0xffd860, CORE);
+        T.cone(fb, off, 0, -h / 2, 0.14, h, 0.06, -Math.PI / 2, 0, 0, 0xd83a08, FIRE);
+        T.cone(fb, off, 0.02, -h * 0.32, 0.08, h * 0.62, 0.04, -Math.PI / 2, 0, 0, 0xffb830, CORE);
       }
       g.add(fb.build({ name: 'fawkesFire', shadows: false })); g.rotation.y = dir;
       return g;
@@ -89,8 +89,8 @@ const fawkes = {
       for (let i = 0; i < 5; i++)                                                  // secondaries
         T.R(wb, sd * (0.2 + i * 0.36), -0.01, -0.68, 0.34, 0.07, 0.5, 0, sd * 0.06 * i, 0, i % 2 ? GOLD : ORA);
       w.add(wb.build({ name: 'fawkesWing' }));
-      const f1 = flameGroup(sd * 1.0, 0, -0.9, 0, 5, 0.6);
-      const f2 = flameGroup(sd * 2.85, 0, -0.55, sd * 0.55, 2, 0.5);
+      const f1 = flameGroup(sd * 1.0, 0, -0.9, 0, 5, 0.75);
+      const f2 = flameGroup(sd * 2.85, 0, -0.55, sd * 0.55, 2, 0.65);
       w.add(f1, f2); flames.push(f1, f2);
       wings.push({ w, sd }); parts.push(w);
     }
