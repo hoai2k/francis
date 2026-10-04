@@ -14,6 +14,7 @@ import { simpleDriver, simpleKart } from './simplified.js';
 import { ABILITY } from './abilities.js';
 import { Showcase, driverPortrait } from './showcase.js';
 import { ICONS, ITEMS } from './items.js';
+import { setDetail } from './decor.js';
 import { fmt } from './hud.js';
 
 // arrows: chevrons drawn as SVG (◀ ▶ text gets turned into emoji boxes on iOS; text arrows carry U+FE0E)
@@ -829,6 +830,7 @@ class Game {
       this.attract?.dispose(); this.attract = null;
       this.race?.dispose();
       const s = this.settings;
+      setDetail(s.quality);   // Fast graphics: lighter scenery (e.g. unframed windows)
       this.race = new Race(this, { ...opts, players: this.players, simple: !!s.simple, cc: CC[s.cc] || 0.92, difficulty: s.difficulty, racers: s.racers, laps: opts.mode === 'tt' ? 3 : s.laps, bestTime: opts.mode === 'tt' ? this.best[opts.def.id] : 0 });
       this.race.world.sun.shadow.mapSize.set(this.shadowSize, this.shadowSize);
       this.race.onDone = (res) => this.onRaceDone(res);

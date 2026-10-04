@@ -193,8 +193,9 @@ export class World {
     };
     const ctx = {
       track: tr, group, scene: this.scene, rand, bounds, world: this,
-      b: new BrickBuilder(1, 160),
-      bNoShadow: new BrickBuilder(1, 400),
+      // scenery builders: plain boxes get LEGO brick courses and studded tops
+      b: new BrickBuilder(1, 160, { lego: true }),
+      bNoShadow: new BrickBuilder(1, 400, { lego: true }),
       anim: (fn) => this.anims.push(fn),
       hazard: (h) => { this.hazards.push(h); return h; },
       obstacle: (x, z, r, h, y0) => tr.addObstacle(x, z, r, h, y0),

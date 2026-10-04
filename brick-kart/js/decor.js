@@ -30,19 +30,31 @@ export function tree(b, x, y, z, s = 1, leaf = C.green) {
   b.brick(x, yy, z, 2, 2, 3, leaf === C.green ? C.lime : leaf, { pitch: p });
 }
 
+// A brick-built leafy tree: a trunk of stacked round bricks and a stepped canopy of studded
+// bricks (wide in the middle, narrower above and below, alternate layers turned 45 degrees).
 export function roundTree(b, x, y, z, s = 1, leaf = C.green) {
-  b.cyl(x, y, z, 0.4 * s, 3 * s, C.rbrown, { seg: 8 });
-  b.sphere(x, y + 4.2 * s, z, 2.2 * s, leaf);
-  b.sphere(x + 0.9 * s, y + 5.2 * s, z + 0.4 * s, 1.4 * s, leaf === C.green ? C.lime : leaf);
+  let yy = y;
+  for (let k = 0; k < 3; k++) yy = b.cyl(x, yy, z, 0.42 * s, 1.0 * s, C.rbrown, { seg: 10 });
+  // layers are boxes: in the scenery builder they get studded tops and brick courses as textures
+  const p = 0.72 * s, light = leaf === C.green ? C.lime : leaf;
+  yy -= 0.4 * s;
+  for (const [n, h, rot, col] of [[4, 2, 0, leaf], [6, 3, Math.PI / 4, leaf], [6, 3, 0, leaf], [5, 2, Math.PI / 4, light], [3, 2, 0, light]]) {
+    yy = b.box(x, yy, z, n * p, h * 0.4 * p, n * p, col, { rot });
+  }
+  b.brick(x, yy, z, 1, 1, 2, light, { pitch: p });
 }
 
+// A brick-built pine: square studded plates stepping in to a point, alternate ones turned 45
+// degrees; snowy ones have white plates on their steps.
 export function pine(b, x, y, z, s = 1, snow = false, col = C.dkgreen) {
-  b.cyl(x, y, z, 0.4 * s, 2 * s, C.brown, { seg: 8 });
-  const tiers = [[3.0, 3.6, 1.2], [2.3, 3.0, 3.4], [1.5, 2.6, 5.4]];
-  for (const [r, h, yo] of tiers) {
-    b.cone(x, y + yo * s, z, r * s, h * s, col, { seg: 8 });
-    if (snow) b.cone(x, y + (yo + h * 0.45) * s, z, r * 0.62 * s, h * 0.58 * s, C.white, { seg: 8 });
+  let yy = b.cyl(x, y, z, 0.4 * s, 1.6 * s, C.brown, { seg: 8 });
+  const p = 0.62 * s;
+  for (let n = 8, k = 0; n >= 2; n--, k++) {
+    const rot = k % 2 ? Math.PI / 4 : 0;
+    yy = b.box(x, yy, z, n * p, 0.8 * p, n * p, col, { rot });
+    if (snow && k % 2 === 1) b.box(x, yy - 0.2 * p, z, (n - 1) * p, 0.6 * p, (n - 1) * p, C.white, { rot });
   }
+  b.brick(x, yy, z, 1, 1, 3, snow ? C.white : col, { pitch: p });
 }
 
 export function palm(b, x, y, z, s, r) {
@@ -78,6 +90,10 @@ export function lamp(b, x, y, z, glow = 0xffe28a) {
   b.sphere(x, y + 6.8, z, 0.55, C.yellow, { matOpts: { emissive: glow, emissiveIntensity: 1.6 } });
 }
 
+// scenery detail: 'high' or 'low' (the Fast graphics setting) - set before a map is built
+let DETAIL = 'high';
+export function setDetail(d) { DETAIL = d === 'low' ? 'low' : 'high'; }
+
 export function building(b, x, z, w, d, floors, col, r, opts = {}) {
   const glass = opts.glass ?? 0x2d4d6d;
   const glassMat = plastic(glass, { rough: 0.08, metal: 0.4, emissive: opts.night ? 0xffd070 : 0, emissiveIntensity: opts.night ? 0.25 : 1 });
@@ -85,15 +101,27 @@ export function building(b, x, z, w, d, floors, col, r, opts = {}) {
   let y = opts.y ?? 0;
   b.box(x, y, z, w + 0.6, 0.5, d + 0.6, C.dkgray);
   y += 0.5;
+  // walls are brick courses (the lego builder); each floor gets framed windows on every side
+  const frameM = plastic(trim);
   for (let f = 0; f < floors; f++) {
-    b.box(x, y, z, w - 0.6, 3, d - 0.6, col);
-    b.box(x, y + 0.8, z, w - 0.35, 1.5, d - 0.35, 0, { mat: glassMat });
-    b.box(x, y + 3, z, w, 0.3, d, f % 3 === 2 ? trim : col);
+    b.box(x, y, z, w - 0.6, 3.3, d - 0.6, col);
+    for (const [len, nx, nz] of [[w - 0.6, 0, 1], [w - 0.6, 0, -1], [d - 0.6, 1, 0], [d - 0.6, -1, 0]]) {
+      const n = Math.max(1, Math.floor(len / (DETAIL === 'low' ? 4.4 : 3.6))), off = nz ? (d - 0.6) / 2 : (w - 0.6) / 2;
+      for (let k = 0; k < n; k++) {
+        const t = (k + 0.5) / n * len - len / 2, px = x + (nz ? t : nx * off), pz = z + (nz ? nz * off : t);
+        const rot = nz ? 0 : Math.PI / 2;
+        if (DETAIL !== 'low') b.box(px + nx * 0.06, y + 0.7, pz + nz * 0.06, 1.9, 2.0, 0.3, 0, { mat: frameM, rot, smooth: true });   // frame
+        b.box(px + nx * 0.14, y + 0.85, pz + nz * 0.14, 1.5, 1.7, 0.3, 0, { mat: glassMat, rot });            // pane
+      }
+    }
     y += 3.3;
   }
-  const sw = Math.max(1, Math.round(w / 4)), sd = Math.max(1, Math.round(d / 4));
-  b.brick(x, y, z, sw, sd, 1, col, { pitch: w / sw });
-  y += 0.4 * (w / sw);
+  // flat roof: studded (lego builder) with a ledge round the edge
+  b.box(x, y, z, w - 0.2, 0.6, d - 0.2, col);
+  y += 0.6;
+  for (const [sx, sz, ox, oz] of [[w - 0.2, 0.6, 0, (d - 0.8) / 2], [w - 0.2, 0.6, 0, -(d - 0.8) / 2], [0.6, d - 1.4, (w - 0.8) / 2, 0], [0.6, d - 1.4, -(w - 0.8) / 2, 0]]) {
+    b.box(x + ox, y, z + oz, sx, 0.8, sz, trim === C.white ? col : trim);
+  }
   const t = r();
   if (t < 0.25) { b.cyl(x, y, z, 0.2, 8, C.ltgray, { seg: 6 }); b.sphere(x, y + 8.2, z, 0.5, C.red, { matOpts: { emissive: 0xff2000, emissiveIntensity: 2 } }); }
   else if (t < 0.45) { b.cyl(x + w * 0.2, y, z + d * 0.2, 1.8, 3.4, C.rbrown, { seg: 12 }); b.cone(x + w * 0.2, y + 3.4, z + d * 0.2, 2, 1.4, C.dkgray, { seg: 12 }); }
