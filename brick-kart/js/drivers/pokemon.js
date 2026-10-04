@@ -596,38 +596,89 @@ function lucario() {
 }
 
 // ============================================================================================
-// Mewtwo: lean psychic powerhouse; it floats in a purple aura with a Shadow Ball overhead
+// Mewtwo: a smallish feline skull (wide at the back, short flat muzzle, two blunt horns set wide)
+// with narrow, slanted violet eyes on the sides of the head, a long neck and the tube from the
+// back of the skull to the upper back; narrow shoulders with bony collar knobs, a slim chest and
+// waist over wide hips and thick thighs (bottom-heavy), the purple belly, slender arms with
+// three bulb-tipped fingers and a long, thick purple tail. It floats in a purple aura with a
+// Shadow Ball overhead
 // ============================================================================================
 function mewtwo() {
-  const LV = 0xd8cce4, PU = 0x8a5ab0;
+  const LV = 0xb9a6d6, LV2 = 0x9e88c0, PU = 0x8a42c4, EYE = 0x7a1ed0, INK = 0x22102e;
   const root = new THREE.Group(); root.name = 'mewtwo';
   const torso = pv(root, 0, 0, 0, part((L) => {
-    for (const sd of [-1, 1]) { L.ell(sd * 0.22, 0.08, 0.3, 0.15, 0.14, 0.34, LV); L.ell(sd * 0.23, -0.04, 0.66, 0.1, 0.12, 0.1, LV); }
-    L.ell(0, 0.12, 0, 0.34, 0.2, 0.26, LV);
-    L.ell(0, 0.42, 0.02, 0.24, 0.32, 0.2, PU);
-    L.ell(0, 0.72, 0, 0.32, 0.28, 0.24, LV);
-    L.ell(0, 0.9, 0, 0.44, 0.13, 0.24, LV);
-    // the tube from the back of the skull down to the spine
-    L.rod([0, 0.9, -0.2], [0, 1.22, -0.2], 0.06, LV);
+    // wide hips and very thick thighs along the seat, slimmer shins down into the tub, toed feet
+    L.ell(0, 0.13, -0.05, 0.31, 0.19, 0.24, LV);
+    for (const sd of [-1, 1]) {
+      L.ell(sd * 0.2, 0.1, 0.2, 0.185, 0.18, 0.36, LV, { ry: sd * 0.06 });
+      L.ell(sd * 0.22, 0.07, 0.54, 0.12, 0.12, 0.12, LV);
+      L.ell(sd * 0.22, -0.17, 0.6, 0.075, 0.24, 0.08, LV);
+      L.ell(sd * 0.22, -0.42, 0.68, 0.075, 0.055, 0.13, LV);
+      for (const x of [-0.035, 0.035]) L.ell(sd * 0.22 + x, -0.43, 0.8, 0.038, 0.04, 0.05, LV);
+    }
+    // slim waist, the purple abdomen down between the legs
+    L.ell(0, 0.42, -0.06, 0.155, 0.24, 0.135, LV);
+    L.ell(0, 0.37, 0.0, 0.142, 0.27, 0.13, PU, { rx: -0.28 });
+    L.ell(0, 0.15, 0.09, 0.12, 0.11, 0.13, PU);
+    // slim chest and narrow shoulders with the bony collar / shoulder knobs
+    L.ell(0, 0.68, -0.05, 0.205, 0.2, 0.16, LV);
+    L.ell(0, 0.56, -0.04, 0.17, 0.13, 0.14, LV);
+    for (const sd of [-1, 1]) {
+      L.ell(sd * 0.09, 0.82, 0.05, 0.075, 0.035, 0.04, LV2, { rz: -sd * 0.25 });
+      L.ell(sd * 0.22, 0.83, -0.03, 0.065, 0.055, 0.075, LV2);
+    }
+    // a long neck leaning forward, and the tube from the upper back to the back of the skull
+    L.rod([0, 0.76, -0.04], [0, 1.0, 0.05], 0.08, LV);
+    taperTube(L, 'mew2-tube', [[0, 0.72, -0.15], [0, 0.86, -0.26], [0, 1.02, -0.27], [0, 1.13, -0.16]], (u) => 0.056 - 0.006 * u, LV, 14, 8);
   }, 'mewtwo-body'));
-  const HC = [0, 0.18, 0.02], HR = [0.24, 0.22, 0.25];
-  const head = pv(torso, 0, 1.04, 0.04, part((L) => {
-    L.ell(...HC, ...HR, LV);
-    L.ell(0, 0.09, 0.15, 0.15, 0.1, 0.13, LV);
-    eyes(L, HC, HR, 0.4, 0.12, 0.05, { iris: 0x7a3aa8, tall: 0.75, roll: -0.3, oneShine: true });
-    for (const sd of [-1, 1]) L.cone(sd * 0.15, 0.42, -0.04, 0.075, 0.2, LV, { rz: -sd * 0.4 });
+  // the skull: wide rounded cranium at the back, narrower face, short flat muzzle
+  const FC = [0, 0.1, 0.03], FR = [0.13, 0.11, 0.13];
+  const head = pv(torso, 0, 1.0, 0.05, part((L) => {
+    L.ell(0, 0.15, -0.07, 0.165, 0.125, 0.15, LV);
+    L.ell(0, 0.17, -0.13, 0.15, 0.11, 0.1, LV);
+    L.ell(...FC, ...FR, LV);
+    L.ell(0, 0.05, 0.11, 0.072, 0.045, 0.052, LV);
+    L.box(0, 0.027, 0.152, 0.046, 0.007, 0.01, 0x4a3458);
+    // narrow, slanted violet eyes on the sides of the head under heavy brows
+    for (const sd of [-1, 1]) {
+      const yw = sd * 0.98, e = onEll(FC, FR, yw, 0.18), nx = S(yw), nz = CO(yw), tx = CO(yw), tz = -S(yw);
+      const at = (n, t, u) => [e[0] + nx * n + tx * t, e[1] + u, e[2] + nz * n + tz * t];
+      const o = { ry: yw, rz: sd * 0.32 };
+      let p = at(-0.004, 0, 0); L.ell(p[0], p[1], p[2], 0.05, 0.024, 0.016, INK, o);
+      p = at(0.004, -sd * 0.004, -0.001); L.ell(p[0], p[1], p[2], 0.038, 0.018, 0.012, EYE, o);
+      p = at(0.01, -sd * 0.012, -0.002); L.ell(p[0], p[1], p[2], 0.009, 0.014, 0.006, INK, o);
+      p = at(0.012, -sd * 0.024, 0.006); L.ell(p[0], p[1], p[2], 0.006, 0.006, 0.004, WH, o);
+      p = at(-0.004, sd * 0.004, 0.026); L.ell(p[0], p[1], p[2], 0.055, 0.015, 0.024, LV2, { ry: yw, rz: sd * 0.42 });
+    }
+    // two short blunt horn-ears set wide on top
+    for (const sd of [-1, 1]) {
+      L.ell(sd * 0.115, 0.255, -0.08, 0.046, 0.07, 0.046, LV, { rz: -sd * 0.3, rx: -0.15 });
+      L.ell(sd * 0.135, 0.3, -0.085, 0.04, 0.04, 0.04, LV);
+    }
   }, 'mewtwo-head'));
-  const arms = [1, -1].map((sd) => pv(torso, sd * 0.42, 0.88, 0, part((L) => {
-    L.ell(0, -0.16, 0, 0.08, 0.2, 0.08, LV);
-    L.ell(0, -0.44, 0.02, 0.07, 0.18, 0.07, LV);
-    for (const x of [-0.04, 0, 0.04]) L.ell(x, -0.64, 0.03, 0.03, 0.04, 0.03, LV);
-  }, 'mewtwo-arm')));
-  const tail = pv(torso, 0, 0.15, -0.25, part((L) => chain(L, 0, [[0, -0.1, 0.17], [0.05, -0.45, 0.16], [0.18, -0.8, 0.13], [0.45, -0.98, 0.1], [0.72, -0.95, 0.08]], PU)));
-  tail.rotation.y = 0.65;
+  head.children[0].scale.setScalar(1.12);
+  // slender arms, three fingers ending in round bulbs
+  const arms = [1, -1].map((sd) => pv(torso, sd * 0.25, 0.83, -0.02, part((L) => {
+    L.ell(0, -0.02, 0, 0.065, 0.065, 0.065, LV);
+    L.ell(0, -0.17, 0, 0.06, 0.16, 0.06, LV);
+    L.ell(0, -0.43, 0.01, 0.064, 0.15, 0.064, LV);
+    L.ell(0, -0.6, 0.015, 0.05, 0.045, 0.055, LV);
+    for (const [x, z, l] of [[-0.035, 0.035, 0.1], [0.005, 0.04, 0.12], [0.04, -0.01, 0.09]]) {
+      const tip = [x * 1.3, -0.61 - l, z * 1.2];
+      L.rod([x * 0.6, -0.61, z], tip, 0.016, LV);
+      L.ell(tip[0], tip[1], tip[2], 0.026, 0.026, 0.026, LV);
+    }
+  }, 'mewtwo2-arm')));
+  // the long, thick tail from the base of the spine, tapering to a rounded bulb, curving up
+  const tail = pv(torso, 0, 0.14, -0.24, part((L) => {
+    taperTube(L, 'mew2-tail', [[0, 0, 0], [0, -0.06, -0.3], [0, -0.02, -0.62], [0, 0.14, -0.88], [0, 0.4, -1.0], [0, 0.68, -0.94]],
+      (u) => 0.16 - 0.11 * Math.pow(u, 0.75) + 0.035 * sm((u - 0.82) / 0.18), PU, 36, 12);
+  }, 'mewtwo-tail'));
+  tail.rotation.y = 0.55;
   const aura = fxg(root);
   for (const [x, y, z, s] of [[0, 0.8, 0, 2.6], [0, 1.4, 0, 1.6], [0.5, 0.6, 0.2, 1.0], [-0.5, 0.6, 0.2, 1.0]]) addGlow(aura, 0xb070ff, s, x, y, z, 0.4);
   const ball = orb(torso, 0.4, 2.1, 0.2, 0x6a2aba, 0.3, 0x2a0a4a);
-  const rig = { root, torso, head, tail, armL: arms[0], armR: arms[1], armLen: 0.66, height: 1.75, width: 1.0 };
+  const rig = { root, torso, head, tail, armL: arms[0], armR: arms[1], armLen: 0.66, height: 1.45, width: 0.95 };
   rig.fx = (n, f, t) => {
     const psy = n === 'cheer' || n === 'win' || n === 'use' || n === 'taunt';
     vis(aura, psy);
