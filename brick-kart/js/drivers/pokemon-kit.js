@@ -140,11 +140,11 @@ export function flame(parent, x, y, z, size = 0.3, hidden = false) {
   L.cone(0, size * 0.75, 0, size * 0.28, size * 1.0, 0xffd040, { mat: neon(0xffc030, 3) });
   L.ell(0, size * 0.1, 0, size * 0.45, size * 0.4, size * 0.45, 0xff8a20, { mat: neon(0xff7a10, 2.4) });
   const inner = pv(g, 0, 0, 0, b.build({ name: 'flame', shadows: false }));
-  const glow = addGlow(g, 0xff9a30, size * 3.2, 0, size * 0.5, 0, 0.7);
+  const glow = addGlow(g, 0xff9a30, size * 2.4, 0, size * 0.5, 0, 0.45);
   g.update = (t, k = 1) => {
     inner.scale.set(k * (1 + S(t * 31) * 0.1), k * (1 + S(t * 23) * 0.18 + S(t * 37) * 0.08), k * (1 + S(t * 29) * 0.1));
     inner.rotation.z = S(t * 17) * 0.12;
-    glow.scale.setScalar(size * 3.2 * k * (0.9 + S(t * 41) * 0.12));
+    glow.scale.setScalar(size * 2.4 * k * (0.9 + S(t * 41) * 0.12));
   };
   return g;
 }
