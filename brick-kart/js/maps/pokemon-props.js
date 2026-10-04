@@ -11,7 +11,7 @@ const G = (k, f) => { let g = geoC.get(k); if (!g) { g = f(); geoC.set(k, g); } 
 const boxGeo = () => G('box', () => new THREE.BoxGeometry(1, 1, 1));
 const cylGeo = (s = 12) => G('cyl' + s, () => new THREE.CylinderGeometry(1, 1, 1, s));
 const coneGeo = (s = 10) => G('cone' + s, () => new THREE.ConeGeometry(1, 1, s));
-const sphGeo = () => G('sph', () => new THREE.SphereGeometry(1, 14, 10));
+const sphGeo = () => G('sph', () => new THREE.SphereGeometry(1, 12, 8));
 const hemiGeo = () => G('hemi', () => new THREE.SphereGeometry(1, 18, 7, 0, Math.PI * 2, 0, Math.PI / 2));
 function compose(x, y, z, rx, ry, rz, sx, sy, sz) { E.set(rx, ry, rz, 'YXZ'); Q.setFromEuler(E); return M1.compose(P3.set(x, y, z), Q, S3.set(sx, sy, sz)); }
 
@@ -463,12 +463,13 @@ export function oakLab(b, x, z, rot) {
 }
 function frontPt(x, z, rot, lx, y, lz) { const c = Math.cos(rot), s = Math.sin(rot); return [x + lx * c + lz * s, y, z - lx * s + lz * c]; }
 
-// round Kanto tree
+// round Kanto tree (low-poly canopy: there are hundreds of these)
+const lowSph = () => G('lowsph', () => new THREE.SphereGeometry(1, 9, 6));
 export function kTree(b, x, z, s = 1, y = 0, leaf = 0x2f8a3a, leaf2 = 0x3fa84a) {
-  b.cyl(x, y, z, 0.45 * s, 2.6 * s, 0x7a4a24, { seg: 8 });
-  b.sphere(x, y + 4.2 * s, z, 2.4 * s, leaf, { sy: 1.1 });
-  b.sphere(x + 0.7 * s, y + 5.3 * s, z + 0.5 * s, 1.5 * s, leaf2);
-  b.sphere(x - 0.9 * s, y + 3.6 * s, z - 0.4 * s, 1.4 * s, leaf2);
+  b.cyl(x, y, z, 0.45 * s, 2.6 * s, 0x7a4a24, { seg: 6 });
+  b.add(lowSph(), plastic(leaf), x, y + 4.2 * s, z, 0, 2.4 * s, 2.64 * s, 2.4 * s);
+  b.add(lowSph(), plastic(leaf2), x + 0.7 * s, y + 5.3 * s, z + 0.5 * s, 0.5, 1.5 * s, 1.5 * s, 1.5 * s);
+  b.add(lowSph(), plastic(leaf2), x - 0.9 * s, y + 3.6 * s, z - 0.4 * s, 1.1, 1.4 * s, 1.4 * s, 1.4 * s);
 }
 // tall grass tuft (wild Pokémon live here!)
 export function grassTuft(b, x, z, s = 1, cols = [0x2f9a3a, 0x48b84a]) {
