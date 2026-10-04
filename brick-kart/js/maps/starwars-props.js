@@ -155,13 +155,6 @@ export const FACES = {
     g.fillStyle = '#101010'; g.fillRect(cx - 34, cy - 20, 68, 13); g.fillRect(cx - 7, cy - 10, 14, 40);
     g.fillStyle = '#3a4a2a'; g.fillRect(cx + 16, cy + 8, 8, 12);
   }),
-  chewie: () => face('chewie', (g, cx, cy, w, h) => {
-    g.fillStyle = '#6a4a2c'; g.fillRect(0, 0, w, h);
-    for (let k = 0; k < 160; k++) { g.fillStyle = k % 2 ? '#4e341c' : '#8a6440'; g.fillRect((k * 37) % w, (k * 53) % h, 2, 10); }
-    g.fillStyle = '#9a7a5a'; g.beginPath(); g.ellipse(cx, cy + 6, 30, 26, 0, 0, Math.PI * 2); g.fill();
-    for (const sd of [-1, 1]) { eye(g, cx + sd * 15, cy - 10, 5, 4, '#1a2a4a'); }
-    eye(g, cx, cy + 4, 9, 6, '#111'); g.fillStyle = '#2a1a10'; g.fillRect(cx - 12, cy + 18, 24, 5);
-  }),
   // The Tusken shares its print with the driver's head (../drivers/starwars.js): drawn in
   // world units on a head of the driver's size.
   tusken: () => printFace('tusken', 0.403, 0.6084, '#c9b38e', (g) => {
@@ -174,11 +167,6 @@ export const FACES = {
     // soot round the goggles and the mouth
     for (const sd of [-1, 1]) ell(g, sd * 0.17, Hc * 0.62, 0.11, 0.085, 'rgba(70,52,34,0.55)');
     ell(g, 0, Hc * 0.27, 0.12, 0.09, 'rgba(70,52,34,0.5)');
-  }),
-  grogu: () => face('grogu', (g, cx, cy, w, h) => {
-    g.fillStyle = '#8ab070'; g.fillRect(0, 0, w, h);
-    for (const sd of [-1, 1]) { eye(g, cx + sd * 22, cy - 2, 14, 13, '#140c08'); eye(g, cx + sd * 18, cy - 7, 4, 4, '#fff'); }
-    g.strokeStyle = '#4a6a3a'; g.lineWidth = 3; g.beginPath(); g.arc(cx, cy + 16, 8, 0.2 * Math.PI, 0.8 * Math.PI); g.stroke();
   }),
   luke: () => { faces.luke ||= new THREE.MeshStandardMaterial({ map: faceTexture('smile'), roughness: 0.4 }); return faces.luke; },
   pilot: () => { faces.pilot ||= new THREE.MeshStandardMaterial({ map: faceTexture('grin'), roughness: 0.4 }); return faces.pilot; },
@@ -803,22 +791,179 @@ export function mando(s = 2.6) {
   return root;
 }
 
+// ---- Chewbacca and Grogu: heads and prints shared with the drivers ----------------------
+// The drivers (../drivers/starwars.js) build their heads with these functions, in their own
+// units; the track figures below build the very same heads and scale them up.
+// m4 composes like the drivers' mat4 (XYZ order); ym4 applies the yaw last, so `pitch` tilts
+// in the yawed frame (pieces set round a head).
+const _ke = new THREE.Euler(), _kq = new THREE.Quaternion(), _kp = new THREE.Vector3(), _ks = new THREE.Vector3();
+const m4 = (x, y, z, rx = 0, ry = 0, rz = 0, sx = 1, sy = 1, sz = 1) => new THREE.Matrix4().compose(_kp.set(x, y, z), _kq.setFromEuler(_ke.set(rx, ry, rz, 'XYZ')), _ks.set(sx, sy, sz));
+const ym4 = (x, y, z, yaw, pitch, sx, sy, sz, roll = 0) => new THREE.Matrix4().compose(_kp.set(x, y, z), _kq.setFromEuler(_ke.set(pitch, yaw, roll, 'YXZ')), _ks.set(sx, sy, sz));
+const rbox = (b, x, y, z, sx, sy, sz, rx, ry, rz, col, opts) => b.boxM(m4(x, y, z, rx, ry, rz, sx, sy, sz), col, opts);
+const SPH18 = new THREE.SphereGeometry(1, 18, 12);
+const HEAD20 = new THREE.CylinderGeometry(1, 1, 1, 20).translate(0, 0.5, 0);
+// merge what fn builds into b under the transform M (stamp() with a full matrix)
+function stampM(b, fn, M) {
+  const tmp = new BrickBuilder(1);
+  fn(tmp);
+  for (const c of tmp.chunks.values()) for (const [mat, geos] of c) for (const g of geos) { g.applyMatrix4(M); b.bucket(mat, M.elements[12], M.elements[14]).push(g); }
+  tmp.chunks.clear();
+}
+// high-resolution canvas prints (as the drivers' prints)
+const _hi = new Map();
+function hiPrint(key, w, h, base, draw) {
+  let m = _hi.get(key);
+  if (m) return m;
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const g = c.getContext('2d');
+  g.fillStyle = base; g.fillRect(0, 0, w, h);
+  g.lineCap = 'round'; g.lineJoin = 'round';
+  draw(g, w, h);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+  m = new THREE.MeshStandardMaterial({ map: t, roughness: 0.4 });
+  _hi.set(key, m);
+  return m;
+}
+// a head print in world units on a head cylinder of radius R and height Hc (front centre at
+// x = 0, y = height above the bottom)
+const hiHead = (key, R, Hc, base, draw) => hiPrint(key, 512, 256, base, (g, w, h) => {
+  g.setTransform(w / (2 * Math.PI * R), 0, 0, -h / Hc, w / 2, h); draw(g); g.setTransform(1, 0, 0, 1, 0, 0);
+});
+
+// Chewbacca: layered shaggy fur in dark, mid and light browns, deep-set blue eyes under a heavy
+// brow, a big black nose on a lighter muzzle, fangs, and a jaw that drops when he roars.
+export const CHEWIE = { fur: 0x6a4a2c, dark: 0x46301a, light: 0x8a6440, mid: 0x58391f };
+// the driver's head (seatedFig dims); the figure scales this same head up
+export const CHEWIE_HEAD = { headR: 0.33 * 1.6, headH: 0.56 * 1.6 };
+// a flat, pointed tuft of fur hanging down (and flaring out by `flare`) at yaw `a`
+export const tuft = (b, x, y, z, a, w, h, col, flare = 0.35, roll = 0) => b.addMatrix(CONE, plastic(col), ym4(x, y, z, a, Math.PI - flare, w, h, w * 0.32, roll));
+// deterministic scatter for fur
+export const furRng = (seed) => () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+const FUR_COLS = ['#46301a', '#8a6440', '#5a3e24', '#a07a4e', '#3a2614', '#7a5634'];
+// rows of little downward fur strokes over x0..x1, y0..y1 (print units), r = furRng(seed)
+export function furStrokes(g, r, x0, x1, y0, y1, step = 0.05, len = 0.09, w = 0.016) {
+  for (let y = y1 + 0.03, row = 0; y > y0 - 0.02; y -= step * 0.8, row++) {
+    for (let x = x0 + (row % 2) * step * 0.5; x < x1; x += step) {
+      const xx = x + (r() - 0.5) * step * 0.6, yy = y + (r() - 0.5) * step * 0.4, L = len * (0.7 + r() * 0.6);
+      curve(g, FUR_COLS[Math.floor(r() * FUR_COLS.length)], w, [xx - w * 0.6, yy], [xx + w * 0.8, yy - L * 0.5], [xx - w * 0.2, yy - L]);
+    }
+  }
+}
+// the face print for the head cylinder of CHEWIE_HEAD
+export const chewieFace = () => hiHead('chewie-hi', CHEWIE_HEAD.headR, CHEWIE_HEAD.headH, '#6a4a2c', (g) => {
+  furStrokes(g, furRng(23), -1.7, 1.7, 0, CHEWIE_HEAD.headH, 0.05, 0.09, 0.016);
+  // the lighter muzzle and cheeks
+  ell(g, 0, 0.3, 0.24, 0.2, '#9c7a52');
+  furStrokes(g, furRng(29), -0.2, 0.2, 0.16, 0.42, 0.04, 0.06, 0.013);
+  ell(g, 0, 0.29, 0.17, 0.13, '#a8865c');
+  for (const sd of [-1, 1]) {
+    // deep-set blue eyes under a heavy furry brow
+    ell(g, sd * 0.14, 0.555, 0.09, 0.062, '#2a1a0c');
+    ell(g, sd * 0.14, 0.552, 0.052, 0.042, '#3f86d8');
+    ell(g, sd * 0.14, 0.55, 0.024, 0.024, '#0a0a14');
+    ell(g, sd * 0.14 - 0.018, 0.566, 0.013, 0.012, '#fff');
+    poly(g, '#3a2614', [[sd * 0.03, 0.6], [sd * 0.24, 0.62], [sd * 0.25, 0.68], [sd * 0.04, 0.655]]);
+  }
+});
+// the fur on the head (over the printed cylinder), muzzle, nose, upper fangs and the dark mouth
+// that shows when the jaw drops; d = { headR, headH }, base of the head at y = 0
+export function chewieHead(hb, d) {
+  const R = d.headR, H = d.headH, { fur: FUR, dark: FUR_D, light: FUR_L, mid: FUR_X } = CHEWIE;
+  hb.sphere(0, H * 0.93, -R * 0.04, R * 1.1, FUR, { sy: 0.52 });
+  // layered tufts of fur round the head, skipping the face; the lowest rows hang over the shoulders
+  const cols = [FUR_D, FUR, FUR_L, FUR_X];
+  const rows = [[H * 1.06, 0.0, 14, 0.82, 0.95], [H * 0.82, 0.62, 14, 1.02, 0.3], [H * 0.58, 0.8, 14, 1.06, 0.3], [H * 0.34, 0.86, 14, 1.1, 0.32], [H * 0.1, 0.84, 14, 1.14, 0.38]];
+  for (let k = 0; k < 8; k++) { const a = k / 8 * Math.PI * 2 + 0.2; tuft(hb, Math.sin(a) * R * 0.42, H * 1.2, Math.cos(a) * R * 0.42, a, R * 0.26, H * 0.3, [FUR, FUR_X, FUR_L][k % 3], 1.25); }   // crown
+  rows.forEach(([y, skip, n, rr, flare], row) => {
+    for (let k = 0; k < n; k++) {
+      const a = (k + (row % 2) * 0.5) / n * Math.PI * 2, aa = Math.atan2(Math.sin(a), Math.cos(a));
+      if (Math.abs(aa) < skip) continue;
+      tuft(hb, Math.sin(a) * R * rr, y, Math.cos(a) * R * rr, a, R * 0.3, H * (row ? 0.42 : 0.36), cols[(k * 3 + row) % 4], flare, ((k * 7) % 5 - 2) * 0.08);
+    }
+  });
+  // a heavy brow over the eyes and fur framing the cheeks
+  for (const sd of [-1, 1]) {
+    tuft(hb, sd * R * 0.22, H * 0.73, R * 0.95, sd * 0.2, R * 0.24, H * 0.2, FUR_D, 0.9, sd * 0.35);
+    tuft(hb, sd * R * 0.62, H * 0.36, R * 0.84, sd * 0.7, R * 0.2, H * 0.36, FUR_L, 0.25, -sd * 0.12);
+    tuft(hb, sd * R * 0.44, H * 0.14, R * 0.94, sd * 0.45, R * 0.18, H * 0.26, FUR, 0.2, -sd * 0.2);
+  }
+  hb.addMatrix(SPH18, plastic(0xa8865c), m4(0, H * 0.36, R * 0.84, 0, 0, 0, R * 0.42, H * 0.11, R * 0.26));
+  hb.addMatrix(SPH18, plastic(0x161010, { rough: 0.2 }), m4(0, H * 0.43, R * 1.04, 0, 0, 0, R * 0.2, H * 0.06, R * 0.12));
+  rbox(hb, 0, H * 0.25, R * 0.8, R * 0.72, H * 0.14, R * 0.32, 0, 0, 0, 0x3a0c0a);
+  rbox(hb, 0, H * 0.3, R * 0.9, R * 0.5, H * 0.03, R * 0.14, 0, 0, 0, 0xf0ead8);
+  for (const sd of [-1, 1]) hb.addMatrix(CONE, plastic(0xf4eedc), m4(sd * R * 0.22, H * 0.26, R * 0.95, Math.PI, 0, 0, R * 0.05, H * 0.09, R * 0.05));   // fangs
+}
+// the lower jaw, built round its hinge, which sits at chewieJawAt(d) on the head
+export const chewieJawAt = (d) => [0, d.headH * 0.3, d.headR * 0.25];
+export function chewieJaw(jb, d) {
+  const R = d.headR, H = d.headH;
+  jb.addMatrix(SPH18, plastic(0x9c7a52), m4(0, -H * 0.08, R * 0.55, 0, 0, 0, R * 0.48, H * 0.11, R * 0.34));
+  rbox(jb, 0, -H * 0.02, R * 0.74, R * 0.66, H * 0.05, R * 0.14, 0, 0, 0, 0xf0ead8);   // teeth
+  for (const sd of [-1, 1]) jb.addMatrix(CONE, plastic(0xf4eedc), m4(sd * R * 0.24, H * 0.02, R * 0.78, 0, 0, 0, R * 0.05, H * 0.08, R * 0.05));
+}
+
+// Grogu: a big moulded head (a broad brow over a narrower chin), big glossy black eyes with
+// highlights, huge pink-lined ears straight out to the sides, a little nose and mouth.
+export const GROGU = { skin: 0x86ad68, robe: 0xb39566, collar: 0xc4a678, crossover: 0x9a7e54 };
+// the head in the driver's units (about 0.6 across the brow), its base (the neck) at y = 0
+export function groguHead(hb) {
+  const sk = plastic(GROGU.skin);
+  hb.addMatrix(SPH18, sk, m4(0, 0.29, 0, 0, 0, 0, 0.31, 0.27, 0.28));   // a broad brow
+  hb.addMatrix(SPH18, sk, m4(0, 0.17, 0.04, 0, 0, 0, 0.23, 0.17, 0.22));   // cheeks and chin
+  for (const sd of [-1, 1]) hb.addMatrix(SPH18, sk, m4(sd * 0.11, 0.35, 0.19, 0, 0, sd * 0.05, 0.12, 0.05, 0.09));   // brow ridge
+  // big glossy black eyes with highlights
+  const eyeM = plastic(0x0b0806, { rough: 0.06 }), glint = glow(0xffffff, 0.7);
+  for (const sd of [-1, 1]) {
+    hb.addMatrix(SPH18, eyeM, m4(sd * 0.115, 0.255, 0.212, 0, sd * 0.42, 0, 0.088, 0.078, 0.065));
+    hb.addMatrix(SPH18, glint, m4(sd * 0.115 - 0.028, 0.285, 0.262 + sd * 0.012, 0, 0, 0, 0.02, 0.02, 0.012));
+    hb.addMatrix(SPH18, glint, m4(sd * 0.115 + 0.022, 0.228, 0.27 - sd * 0.01, 0, 0, 0, 0.009, 0.009, 0.008));
+  }
+  hb.addMatrix(SPH18, sk, m4(0, 0.19, 0.255, 0, 0, 0, 0.04, 0.028, 0.03));   // little nose
+  for (const sd of [-1, 1]) hb.sphere(sd * 0.014, 0.182, 0.282, 0.008, 0x2e4a24);
+  rbox(hb, 0, 0.115, 0.245, 0.07, 0.012, 0.012, 0, 0, 0, 0x4e6e3e);   // mouth
+  // the huge ears, straight out to the sides, pink inside
+  for (const sd of [-1, 1]) {
+    const rz = -sd * (Math.PI / 2 - 0.14), ry = sd * 0.28;
+    hb.addMatrix(CONE, plastic(0x96bc7a), m4(sd * 0.6, 0.32, -0.05, 0, ry, rz, 0.18, 0.72, 0.055));
+    hb.addMatrix(CONE, plastic(0xe6a8a2), m4(sd * 0.57, 0.32, -0.02, 0, ry, rz, 0.115, 0.56, 0.035));
+  }
+}
+// the big rolled collar, and a sleeve that widens towards the shoulder (base at y = 0)
+const ROLL = new THREE.TorusGeometry(1, 0.4, 8, 22);
+const SLEEVE = (() => {
+  const g = new THREE.BoxGeometry(0.12, 0.26, 0.14), p = g.attributes.position;
+  for (let i = 0; i < p.count; i++) if (p.getY(i) > 0) p.setX(i, p.getX(i) * 1.25);
+  g.computeVertexNormals(); g.translate(0, 0.13, 0);
+  return g;
+})();
+
+// Grogu floating in his hover-pram: his robe and big rolled collar sit in the pram, his little
+// hands on its rim; the head (the driver's, scaled up) tilts and turns on its own pivot.
 export function grogu(s = 2.6) {
   const root = new THREE.Group();
+  const { skin, robe, collar, crossover } = GROGU, u = 1.15 * s, ny = 0.47 * u;   // u: driver units; ny: the neck, above the rim
   const pram = group((b) => {
     put(b, HEMI, metal(0xd8dadc, 0.25), 0, 0, 0, 0.8 * s, 0.55 * s, 0.8 * s, Math.PI, 0, 0);
     rod(b, 0xa0a4a8, 0, -0.02 * s, 0, 0, 0.04 * s, 0, 0.82 * s, CYL20);
     ball(b, glow(0x9ad8ff, 1.5), 0, -0.55 * s, 0, 0.2 * s);
-    ball(b, 0xc8b08a, 0, 0.02 * s, 0, 0.42 * s, 0.7);
+    ball(b, 0xc8b08a, 0, -0.04 * s, 0, 0.5 * s, 0.24);   // the blanket
+    // the robe, its crossover and the collar rolled round the neck (the driver's, in units of u)
+    rod(b, robe, 0, ny - 0.62 * u, 0, 0, ny - 0.22 * u, 0, 0.25 * u, CYL);
+    for (const sd of [-1, 1]) box(b, crossover, sd * 0.07 * u, ny - 0.26 * u, 0.245 * u, 0.03 * u, 0.3 * u, 0.02 * u, 0, 0, sd * 0.3);
+    b.addMatrix(ROLL, plastic(collar), m4(0, ny - 0.06 * u, 0, Math.PI / 2, 0, 0, 0.27 * u, 0.27 * u, 0.3 * u));
+    // little arms in big sleeves, reaching forward over the blanket
+    for (const sd of [-1, 1]) {
+      const M = m4(sd * 0.22 * u, ny - 0.09 * u, 0.05 * u, -1.05, 0, -sd * 0.12);
+      stampM(b, (ab) => {
+        ab.sphere(0, 0, 0, 0.08 * u, robe);
+        ab.add(SLEEVE, plastic(robe), 0, -0.28 * u, 0, 0, u, u, u);
+        ab.sphere(0, -0.31 * u, 0, 0.065 * u, skin);
+      }, M);
+    }
   }, 'pram');
   root.add(pram);
-  const head = group((b) => {
-    b.add(HEAD, FACES.grogu(), 0, 0, 0, Math.PI, 0.3 * s, 0.42 * s, 0.3 * s);
-    put(b, HEMI, 0x8ab070, 0, 0.42 * s, 0, 0.3 * s, 0.18 * s, 0.3 * s);
-    for (const sd of [-1, 1]) rod(b, 0x8ab070, sd * 0.25 * s, 0.26 * s, 0, sd * 0.95 * s, 0.4 * s, -0.05 * s, 0.2 * s, BOX, 0.05 * s);
-    for (const sd of [-1, 1]) rod(b, 0xd89a9a, sd * 0.3 * s, 0.26 * s, 0.02 * s, sd * 0.85 * s, 0.38 * s, -0.02 * s, 0.1 * s, BOX, 0.06 * s);
-  }, 'grogu');
-  const hp = pivot(head, 0, 0.12 * s, 0);
+  const head = group((b) => stampM(b, groguHead, m4(0, 0, 0, 0, 0, 0, u, u, u)), 'grogu');
+  const hp = pivot(head, 0, ny, 0);
   root.add(hp);
   root.userData.anim = (t) => { root.position.y = (root.userData.baseY ?? 0) + Math.sin(t * 1.6) * 0.3; hp.rotation.z = Math.sin(t * 0.7) * 0.25; hp.rotation.y = Math.sin(t * 0.4) * 0.5; };
   return root;
@@ -1059,19 +1204,73 @@ export function boba(s = 2.4) {
   return root;
 }
 
+// Chewbacca roaring at the cantina door, one arm up, the bowcaster in his other hand: the
+// driver's head (scaled up), shaggy fur over a fur-printed body, and the bandolier of raised
+// silver boxes from his left shoulder to his right hip.
+const furTorso = () => hiPrint('chewie-fig', 256, Math.round(256 * 1.2 / 1.06), '#6a4a2c', (g, w, h) => {
+  g.setTransform(w, 0, 0, -w, w / 2, h); furStrokes(g, furRng(5), -0.56, 0.56, 0, h / w, 0.045, 0.085, 0.015); g.setTransform(1, 0, 0, 1, 0, 0);
+});
+// a fig() arm with fur tufts round the shoulder and the upper arm
+function chewieArm(b, s, sd, ox, oy, oz, pitch, spread) {
+  const { fur, dark, light, mid } = CHEWIE;
+  arm(b, s, sd, fur, 0x3a2818, ox, oy, oz, pitch, spread);
+  for (const [t, a, col] of [[0.04, 0, dark], [0.04, sd * Math.PI / 2, light], [0.04, Math.PI, mid], [0.04, -sd * Math.PI / 2, fur], [0.42, sd * 1.2, mid], [0.42, sd * 2.4, dark], [0.42, -sd * 0.2, light]]) {
+    const [x, y, z] = armPt(s, sd, ox, oy, oz, pitch, spread, t);
+    tuft(b, x + Math.sin(a) * 0.16 * s, y, z + Math.cos(a) * 0.16 * s, a, 0.11 * s, 0.38 * s, col, 0.25);
+  }
+}
 export function chewie(s = 3.0) {
   const root = new THREE.Group();
-  const fur = 0x6a4a2c, fur2 = 0x4e341c;
+  const { fur, dark, light, mid } = CHEWIE, D = CHEWIE_HEAD, k = 0.46 * s / D.headR;
   root.add(group((b) => {
-    fig(b, s, { legs: fur, hips: fur2, torso: fur, face: FACES.chewie(), neck: fur, noArms: true, noStud: true, headR: 0.42 });
-    put(b, HEMI, fur, 0, 2.56 * s + 0.66 * s, 0, 0.42 * s, 0.25 * s, 0.42 * s);
-    for (let k = 0; k < 14; k++) box(b, k % 2 ? fur2 : 0x8a6440, ((k * 0.37) % 1 - 0.5) * 0.9 * s, (0.2 + (k * 0.23) % 1 * 2.0) * s, 0.29 * s, 0.1 * s, 0.35 * s, 0.03 * s);
-    box(b, 0x3a2a1a, 0, 1.9 * s, 0.02 * s, 0.14 * s, 1.5 * s, 0.6 * s, 0, 0, 0.7);
-    for (let k = 0; k < 5; k++) box(b, metal(0xb0b4b8, 0.3), (-0.3 + k * 0.14) * s, (1.55 + k * 0.17) * s, 0.3 * s, 0.1 * s, 0.1 * s, 0.05 * s);
-    arm(b, s, -1, fur, fur2, -0.56 * s, 2.3 * s, 0, 0.35);
-    box(b, 0x5a3a24, -0.65 * s, 1.15 * s, 0.35 * s, 0.25 * s, 0.35 * s, 1.6 * s);
+    fig(b, s, { legs: fur, hips: dark, torso: fur, neck: fur, noArms: true });
+    // fur prints on the torso and the legs
+    const fm = furTorso(), all = [0, 0, AT, AT];
+    printQuad(b, fm, all, 1.06 * s, 0.848 * s, 1.2 * s, 0, 1.25 * s, 0.2725 * s);
+    printQuad(b, fm, all, 1.06 * s, 0.848 * s, 1.2 * s, 0, 1.25 * s, -0.2725 * s, 0, Math.PI, true);
+    for (const sd of [-1, 1]) for (const z of [1, -1]) {
+      printQuad(b, fm, sd > 0 ? [0, 0, 454, 853] : [512, 120, 966, 973], 0.47 * s, 0.47 * s, 1.0 * s, sd * 0.25 * s, 0, z * 0.3125 * s, 0, z > 0 ? 0 : Math.PI);
+    }
+    // shaggy fur over the shoulders, round the waist and over the feet
+    for (let n = 0; n < 8; n++) {
+      const x = (-0.37 + n * 0.106) * s;
+      for (const z of [1, -1]) tuft(b, x, 2.46 * s, z * 0.25 * s, z > 0 ? 0 : Math.PI, 0.09 * s, 0.36 * s, [dark, light, mid][n % 3], 0.3, ((n * 5) % 3 - 1) * 0.15);
+    }
+    for (let n = 0; n < 16; n++) {
+      const a = (n + 0.5) / 16 * Math.PI * 2;
+      tuft(b, Math.sin(a) * 0.55 * s, 1.36 * s, Math.cos(a) * 0.3 * s, a, 0.12 * s, 0.4 * s, [mid, fur, dark, light][n % 4], 0.22, ((n * 7) % 5 - 2) * 0.08);
+    }
+    for (const sd of [-1, 1]) for (let n = 0; n < 6; n++) {
+      const a = (n + 0.5) / 6 * Math.PI * 2;
+      tuft(b, sd * 0.25 * s + Math.sin(a) * 0.25 * s, 0.32 * s, 0.03 * s + Math.cos(a) * 0.29 * s, a, 0.1 * s, 0.32 * s, [dark, fur, mid][n % 3], 0.25);
+    }
+    // the bandolier: over his left shoulder to his right hip, front and back, with silver boxes
+    const ba = -0.61, ux = -Math.sin(ba), uy = Math.cos(ba), cx = -0.045 * s, cy = 1.875 * s;
+    for (const z of [1, -1]) {
+      box(b, 0x3a2614, cx, cy, z * 0.29 * s, 0.17 * s, 1.45 * s, 0.035 * s, 0, 0, ba);
+      for (let n = 0; n < 7; n++) {
+        const t = (-0.48 + n * 0.15) * s, x = cx + ux * t, y = cy + uy * t;
+        box(b, 0xc4c8ce, x, y, z * 0.315 * s, 0.14 * s, 0.15 * s, 0.07 * s, 0, 0, ba);
+        box(b, 0x7c8086, x + ux * 0.05 * s, y + uy * 0.05 * s, z * 0.352 * s, 0.142 * s, 0.035 * s, 0.01 * s, 0, 0, ba);
+      }
+    }
+    box(b, 0x3a2614, 0.37 * s, 2.47 * s, 0, 0.17 * s, 0.04 * s, 0.6 * s, 0, 0, ba * 0.25);   // over the shoulder
+    // the head: the driver's, scaled up, the jaw dropped a little in a roar
+    stampM(b, (hb) => {
+      hb.add(HEAD20, chewieFace(), 0, 0, 0, Math.PI, D.headR, D.headH, D.headR);
+      chewieHead(hb, D);
+      stampM(hb, (jb) => chewieJaw(jb, D), m4(...chewieJawAt(D), 0.22, 0, 0));
+    }, m4(0, 2.56 * s, 0, 0, 0, 0, k, k, k));
+    // his right arm holds the bowcaster out front: stock, barrel, scope and the bow across the muzzle
+    chewieArm(b, s, -1, -0.56 * s, 2.3 * s, 0, 0.35, 0.1);
+    const [hx, hy0, hz] = armPt(s, -1, -0.56 * s, 2.3 * s, 0, 0.35, 0.1, 1), hy = hy0 - 0.12 * s;
+    box(b, 0x5a3a20, hx, hy - 0.02 * s, hz + 0.3 * s, 0.13 * s, 0.2 * s, 1.3 * s);
+    box(b, 0x5a3a20, hx, hy - 0.16 * s, hz - 0.12 * s, 0.11 * s, 0.26 * s, 0.22 * s, -0.3);
+    rod(b, 0x8a8e94, hx, hy + 0.13 * s, hz + 0.05 * s, hx, hy + 0.13 * s, hz + 1.2 * s, 0.055 * s, CYL8);
+    rod(b, 0x2a2a2e, hx, hy + 0.25 * s, hz + 0.25 * s, hx, hy + 0.25 * s, hz + 0.6 * s, 0.065 * s, CYL8);
+    for (const sd of [-1, 1]) box(b, 0xa0a4aa, hx + sd * 0.27 * s, hy + 0.13 * s, hz + 0.92 * s, 0.5 * s, 0.06 * s, 0.07 * s, 0, sd * 0.4, 0);
   }, 'chewie'));
-  const ap = pivot(armGroup(s, 1, fur, fur2), 0.56 * s, 2.3 * s, 0);
+  const ap = pivot(group((b) => chewieArm(b, s, 1, 0, 0, 0, 0.1, 0.06), 'arm'), 0.56 * s, 2.3 * s, 0);
   root.add(ap);
   root.userData.anim = (t) => { ap.rotation.x = -2.4 + Math.sin(t * 3) * 0.35; ap.rotation.z = 0.3; };
   return root;

@@ -3,7 +3,10 @@
 // lightsabers and blasters live in starwars-parts.js and only appear (ignite, twirl,
 // fire) while a gesture plays.
 import { seatedFig, taperGeo } from './kit.js';
-import { FACES, trooperHelmet, trooperPrints, c3poHead, c3poPrints, PEARL_GOLD, pearlGold, printQuad, cHand } from '../maps/starwars-props.js';
+import {
+  FACES, trooperHelmet, trooperPrints, c3poHead, c3poPrints, PEARL_GOLD, pearlGold, printQuad, cHand,
+  CHEWIE, tuft, furRng, furStrokes, chewieFace, chewieHead, chewieJaw, chewieJawAt, GROGU, groguHead,
+} from '../maps/starwars-props.js';
 import {
   THREE, BrickBuilder, C, plastic, mat4, rbox, rod, glowMat, S, A, PI,
   metalMat, CONE, HEMI, BOWL, HOOD, FLARE, HEADCYL, HALFCYL, hair, handAt, saber, blaster, gaffi, flames,
@@ -74,9 +77,6 @@ function torsoPanel(b, mat, d, back = false) {
 const SPH = () => cached('swdSph', () => new THREE.SphereGeometry(1, 18, 12));
 const TORUS = () => cached('swdTorus', () => new THREE.TorusGeometry(1, 0.17, 6, 22));
 const ROLL = () => cached('swdRoll', () => new THREE.TorusGeometry(1, 0.4, 8, 22));
-// a transform whose yaw is applied last, so `pitch` tilts in the yawed frame (pieces set round a head)
-const _ye = new THREE.Euler(), _yq = new THREE.Quaternion(), _yp = new THREE.Vector3(), _ys = new THREE.Vector3();
-const ymat = (x, y, z, yaw, pitch, sx, sy, sz, roll = 0) => new THREE.Matrix4().compose(_yp.set(x, y, z), _yq.setFromEuler(_ye.set(pitch, yaw, roll, 'YXZ')), _ys.set(sx, sy, sz));
 const strokeP = (g, col, w, pts) => { g.strokeStyle = col; g.lineWidth = w; g.beginPath(); pts.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); g.stroke(); };
 const curveP = (g, col, w, a, c, b) => { g.strokeStyle = col; g.lineWidth = w; g.beginPath(); g.moveTo(...a); g.quadraticCurveTo(...c, ...b); g.stroke(); };
 // a minifig eye: a dark oval with a white glint up and to the left
@@ -90,8 +90,6 @@ function moldHair(hb, d, col, { low = 0.2, band = 0.76, tall = 0.5, open = 0.8 }
   hb.add(SHELL(open), m, 0, H * low, 0, 0, R * 1.1, H * (0.98 - low), R * 1.1);
   hb.add(BAND(open), m, 0, H * band, 0, 0, R * 1.1, H * (0.98 - band), R * 1.1);
 }
-// deterministic scatter for fur
-const rng = (seed) => () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
 
 // ---- heroes ---------------------------------------------------------------------------
 // Luke, Tatooine farm boy: sandy swept hair, a white wrap tunic with a belt, tan trousers,
@@ -310,65 +308,13 @@ function han() {
 
 // Chewbacca: layered shaggy fur (darker and lighter), blue eyes deep under the brow, a big
 // black nose and a roaring jaw full of teeth, the bandolier of silver boxes and his bowcaster.
-const FUR = 0x6a4a2c, FUR_D = 0x46301a, FUR_L = 0x8a6440, FUR_X = 0x58391f;
-// a flat, pointed tuft of fur hanging down (and flaring out by `flare`) at yaw `a`
-const tuft = (b, x, y, z, a, w, h, col, flare = 0.35, roll = 0) => b.addMatrix(CONE(), plastic(col), ymat(x, y, z, a, PI - flare, w, h, w * 0.32, roll));
-const FUR_COLS = ['#46301a', '#8a6440', '#5a3e24', '#a07a4e', '#3a2614', '#7a5634'];
-function furStrokes(g, r, x0, x1, y0, y1, step = 0.05, len = 0.09, w = 0.016) {
-  for (let y = y1 + 0.03, row = 0; y > y0 - 0.02; y -= step * 0.8, row++) {
-    for (let x = x0 + (row % 2) * step * 0.5; x < x1; x += step) {
-      const xx = x + (r() - 0.5) * step * 0.6, yy = y + (r() - 0.5) * step * 0.4, L = len * (0.7 + r() * 0.6);
-      curveP(g, FUR_COLS[Math.floor(r() * FUR_COLS.length)], w, [xx - w * 0.6, yy], [xx + w * 0.8, yy - L * 0.5], [xx - w * 0.2, yy - L]);
-    }
-  }
-}
-const chewieFur = (back) => torsoMat(back ? 'swd-chewie-b' : 'swd-chewie-f', 1.05, '#6a4a2c', (g, T) => furStrokes(g, rng(back ? 11 : 5), -0.56, 0.56, 0, T, 0.045, 0.085, 0.015));
-const chewieFace = (R, H) => headPrint('swd-chewie', R, H, '#6a4a2c', (g) => {
-  furStrokes(g, rng(23), -1.7, 1.7, 0, H, 0.05, 0.09, 0.016);
-  // the lighter muzzle and cheeks
-  ellipse(g, 0, 0.3, 0.24, 0.2, '#9c7a52');
-  furStrokes(g, rng(29), -0.2, 0.2, 0.16, 0.42, 0.04, 0.06, 0.013);
-  ellipse(g, 0, 0.29, 0.17, 0.13, '#a8865c');
-  for (const sd of [-1, 1]) {
-    // deep-set blue eyes under a heavy furry brow
-    ellipse(g, sd * 0.14, 0.555, 0.09, 0.062, '#2a1a0c');
-    ellipse(g, sd * 0.14, 0.552, 0.052, 0.042, '#3f86d8');
-    ellipse(g, sd * 0.14, 0.55, 0.024, 0.024, '#0a0a14');
-    ellipse(g, sd * 0.14 - 0.018, 0.566, 0.013, 0.012, '#fff');
-    poly(g, '#3a2614', [[sd * 0.03, 0.6], [sd * 0.24, 0.62], [sd * 0.25, 0.68], [sd * 0.04, 0.655]]);
-  }
-});
-function chewieHead(hb, d) {
-  const R = d.headR, H = d.headH;
-  hb.sphere(0, H * 0.93, -R * 0.04, R * 1.1, FUR, { sy: 0.52 });
-  // layered tufts of fur round the head, skipping the face; the lowest rows hang over the shoulders
-  const cols = [FUR_D, FUR, FUR_L, FUR_X];
-  const rows = [[H * 1.06, 0.0, 14, 0.82, 0.95], [H * 0.82, 0.62, 14, 1.02, 0.3], [H * 0.58, 0.8, 14, 1.06, 0.3], [H * 0.34, 0.86, 14, 1.1, 0.32], [H * 0.1, 0.84, 14, 1.14, 0.38]];
-  for (let k = 0; k < 8; k++) { const a = k / 8 * PI * 2 + 0.2; tuft(hb, Math.sin(a) * R * 0.42, H * 1.2, Math.cos(a) * R * 0.42, a, R * 0.26, H * 0.3, [FUR, FUR_X, FUR_L][k % 3], 1.25); }   // crown
-  rows.forEach(([y, skip, n, rr, flare], row) => {
-    for (let k = 0; k < n; k++) {
-      const a = (k + (row % 2) * 0.5) / n * PI * 2, aa = Math.atan2(Math.sin(a), Math.cos(a));
-      if (Math.abs(aa) < skip) continue;
-      tuft(hb, Math.sin(a) * R * rr, y, Math.cos(a) * R * rr, a, R * 0.3, H * (row ? 0.42 : 0.36), cols[(k * 3 + row) % 4], flare, ((k * 7) % 5 - 2) * 0.08);
-    }
-  });
-  // a heavy brow over the eyes and fur framing the cheeks
-  for (const sd of [-1, 1]) {
-    tuft(hb, sd * R * 0.22, H * 0.73, R * 0.95, sd * 0.2, R * 0.24, H * 0.2, FUR_D, 0.9, sd * 0.35);
-    tuft(hb, sd * R * 0.62, H * 0.36, R * 0.84, sd * 0.7, R * 0.2, H * 0.36, FUR_L, 0.25, -sd * 0.12);
-    tuft(hb, sd * R * 0.44, H * 0.14, R * 0.94, sd * 0.45, R * 0.18, H * 0.26, FUR, 0.2, -sd * 0.2);
-  }
-  // muzzle, big black nose, upper fangs and the dark mouth that shows when the jaw drops
-  hb.addMatrix(SPH(), plastic(0xa8865c), mat4(0, H * 0.36, R * 0.84, 0, 0, 0, R * 0.42, H * 0.11, R * 0.26));
-  hb.addMatrix(SPH(), plastic(0x161010, { rough: 0.2 }), mat4(0, H * 0.43, R * 1.04, 0, 0, 0, R * 0.2, H * 0.06, R * 0.12));
-  rbox(hb, 0, H * 0.25, R * 0.8, R * 0.72, H * 0.14, R * 0.32, 0, 0, 0, 0x3a0c0a);
-  rbox(hb, 0, H * 0.3, R * 0.9, R * 0.5, H * 0.03, R * 0.14, 0, 0, 0, 0xf0ead8);
-  for (const sd of [-1, 1]) hb.addMatrix(CONE(), plastic(0xf4eedc), mat4(sd * R * 0.22, H * 0.26, R * 0.95, PI, 0, 0, R * 0.05, H * 0.09, R * 0.05));   // fangs
-}
+// The head, its print and the jaw are the track figure's (../maps/starwars-props.js).
+const { fur: FUR, dark: FUR_D, light: FUR_L, mid: FUR_X } = CHEWIE;
+const chewieFur = (back) => torsoMat(back ? 'swd-chewie-b' : 'swd-chewie-f', 1.05, '#6a4a2c', (g, T) => furStrokes(g, furRng(back ? 11 : 5), -0.56, 0.56, 0, T, 0.045, 0.085, 0.015));
 function chewie() {
   const r = seatedFig({
     name: 'chewie', s: 1.6, wide: 1.05, torso: FUR, arms: FUR, legs: FUR, hips: FUR_D, hands: 0x3a2818, skin: FUR, neck: FUR,
-    face: chewieFace(0.33 * 1.6, 0.56 * 1.6), headR: 0.33, headH: 0.56, noStud: true, extraHeight: 0.12,
+    face: chewieFace(), headR: 0.33, headH: 0.56, noStud: true, extraHeight: 0.12,
     torsoExtra: (b, d) => {
       const s = d.s;
       torsoPanel(b, chewieFur(false), d); torsoPanel(b, chewieFur(true), d, true);
@@ -403,12 +349,9 @@ function chewie() {
     headExtra: chewieHead,
   });
   // lower jaw (roars)
-  const d = r.dims, R = d.headR, H = d.headH;
-  const jaw = new THREE.Group(); jaw.position.set(0, H * 0.3, R * 0.25);
+  const jaw = new THREE.Group(); jaw.position.set(...chewieJawAt(r.dims));
   const jb = new BrickBuilder(1);
-  jb.addMatrix(SPH(), plastic(0x9c7a52), mat4(0, -H * 0.08, R * 0.55, 0, 0, 0, R * 0.48, H * 0.11, R * 0.34));
-  rbox(jb, 0, -H * 0.02, R * 0.74, R * 0.66, H * 0.05, R * 0.14, 0, 0, 0, 0xf0ead8);   // teeth
-  for (const sd of [-1, 1]) jb.addMatrix(CONE(), plastic(0xf4eedc), mat4(sd * R * 0.24, H * 0.02, R * 0.78, 0, 0, 0, R * 0.05, H * 0.08, R * 0.05));
+  chewieJaw(jb, r.dims);
   jaw.add(jb.build({ name: 'chewie-jaw' }));
   r.head.add(jaw);
   r.jaw = jaw; r.jawOpen = 0.55;
@@ -534,7 +477,7 @@ function mando() {
 // uses the Force. A big moulded head, huge ears straight out to the sides, big glossy black
 // eyes, and a tiny body in a tan robe with a big rolled collar.
 function grogu() {
-  const skin = 0x86ad68, robe = 0xb39566, collar = 0xc4a678;
+  const { skin, robe, collar, crossover } = GROGU;
   const root = new THREE.Group(); root.name = 'grogu';
   const pram = new THREE.Group(); root.add(pram);
   const pb = new BrickBuilder(1);
@@ -550,29 +493,11 @@ function grogu() {
   const b = new BrickBuilder(1);
   b.cyl(0, 0.42, 0.06, 0.25, 0.4, robe, { seg: 14 });
   b.addMatrix(ROLL(), plastic(collar), mat4(0, 0.8, 0.06, PI / 2, 0, 0, 0.27, 0.27, 0.3));   // the big collar
-  for (const sd of [-1, 1]) rbox(b, sd * 0.07, 0.6, 0.3, 0.03, 0.3, 0.02, 0, 0, sd * 0.3, 0x9a7e54);   // robe crossover
+  for (const sd of [-1, 1]) rbox(b, sd * 0.07, 0.6, 0.3, 0.03, 0.3, 0.02, 0, 0, sd * 0.3, crossover);   // robe crossover
   torso.add(b.build({ name: 'grogu-body' }));
   const head = new THREE.Group(); head.position.set(0, 0.86, 0.06); torso.add(head);
-  const hb = new BrickBuilder(1), sk = plastic(skin);
-  hb.addMatrix(SPH(), sk, mat4(0, 0.29, 0, 0, 0, 0, 0.31, 0.27, 0.28));   // a broad brow
-  hb.addMatrix(SPH(), sk, mat4(0, 0.17, 0.04, 0, 0, 0, 0.23, 0.17, 0.22));   // cheeks and chin
-  for (const sd of [-1, 1]) hb.addMatrix(SPH(), sk, mat4(sd * 0.11, 0.35, 0.19, 0, 0, sd * 0.05, 0.12, 0.05, 0.09));   // brow ridge
-  // big glossy black eyes with highlights
-  const eyeM = plastic(0x0b0806, { rough: 0.06 }), glint = glowMat(0xffffff, 0.7);
-  for (const sd of [-1, 1]) {
-    hb.addMatrix(SPH(), eyeM, mat4(sd * 0.115, 0.255, 0.212, 0, sd * 0.42, 0, 0.088, 0.078, 0.065));
-    hb.addMatrix(SPH(), glint, mat4(sd * 0.115 - 0.028, 0.285, 0.262 + sd * 0.012, 0, 0, 0, 0.02, 0.02, 0.012));
-    hb.addMatrix(SPH(), glint, mat4(sd * 0.115 + 0.022, 0.228, 0.27 - sd * 0.01, 0, 0, 0, 0.009, 0.009, 0.008));
-  }
-  hb.addMatrix(SPH(), sk, mat4(0, 0.19, 0.255, 0, 0, 0, 0.04, 0.028, 0.03));   // little nose
-  for (const sd of [-1, 1]) hb.sphere(sd * 0.014, 0.182, 0.282, 0.008, 0x2e4a24);
-  rbox(hb, 0, 0.115, 0.245, 0.07, 0.012, 0.012, 0, 0, 0, 0x4e6e3e);   // mouth
-  // the huge ears, straight out to the sides, pink inside
-  for (const sd of [-1, 1]) {
-    const rz = -sd * (PI / 2 - 0.14), ry = sd * 0.28;
-    hb.addMatrix(CONE(), plastic(0x96bc7a), mat4(sd * 0.6, 0.32, -0.05, 0, ry, rz, 0.18, 0.72, 0.055));
-    hb.addMatrix(CONE(), plastic(0xe6a8a2), mat4(sd * 0.57, 0.32, -0.02, 0, ry, rz, 0.115, 0.56, 0.035));
-  }
+  const hb = new BrickBuilder(1);
+  groguHead(hb);   // the track figure's head (../maps/starwars-props.js)
   head.add(hb.build({ name: 'grogu-head' }));
   const arms = [1, -1].map((sd) => {
     const pv = new THREE.Group(); pv.position.set(sd * 0.22, 0.77, 0.11);
