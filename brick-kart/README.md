@@ -28,9 +28,10 @@ Play: <https://hoai2k.github.io/francis/brick-kart/>
 **Simplified mode** (Options, off by default, remembered once you turn it on)
 offers a smaller set (82 drivers and 41 karts) on the select screen, as one
 big grid without movie headings, and CPU racers use only that set too. The set lives in `js/simplified.js` (`null` means all).
-Choose it in the **workbench** at
-<https://hoai2k.github.io/francis/brick-kart/workbench/>: every character and
-kart is a card you tap to include or leave out (it starts from the current
+Gliders can be narrowed the same way (`gliders` in `js/simplified.js`; all of them
+for now). Choose the set in the **workbench** at
+<https://hoai2k.github.io/francis/brick-kart/workbench/> (Characters, Karts and
+Gliders tabs): every character, kart and glider is a card you tap to include or leave out (it starts from the current
 set), then **Export** downloads `brick-kart-simplified.json` with the chosen
 ids. Each card also has a **🗑 bin** button (or press Delete on a focused card)
 that marks it to be removed from the game entirely; marked cards turn red with
@@ -81,13 +82,17 @@ You pick a **driver** and then a **kart** separately, like Mario Kart. Pick a
 driver from the grid (they stand on their own in your preview, introducing
 themselves with waves, hops, twirls, dances and their signature moves) and press
 **A** (they jump-spin with a cheer, then hop into their kart); then flip through karts with **◀ ▶** in your
-own preview and press **A** again to lock it in (**B** steps back). Every player
+own preview and press **A** again to lock it in (**B** steps back). While you're on
+the kart, press **▲ / ▼** (or tap **Kart** / **Glider**) to switch to choosing your
+**glider**: the preview slides up or down out of its panel and back in as the
+kart flying under its open glider, seen from further back so the whole wing shows;
+◀ ▶ then flips through gliders, and ▲ / ▼ again switches back to the kart. Every player
 does this at their own pace, so nobody waits for anyone else. On phones there's
 no grid: the preview fills the screen and you flip through drivers with ◀ ▶ too
 tapping **Lock in**. The **Back**
 button steps back one stage (ready → kart → driver → menu), coming back from the
 cup or map screen keeps everyone locked in, and each player slot remembers the
-driver and kart it last looked at. The 14 original Brick Kart drivers are listed after the
+driver, kart and glider it last looked at. The 14 original Brick Kart drivers are listed after the
 movie casts, and the classic karts come after the newer vehicles. The drivers are brick-built movie characters from
 the Movie Cup: 16 from Marvel, 16 from Star Wars, 14 from Harry Potter, 13 from
 Jujutsu Kaisen and 14 from Jurassic World (73 in all). The Harry Potter cast
@@ -172,6 +177,27 @@ The **Video Game Cup** casts follow the movie casts (33 more):
   Each has a signature celebration and a little synthesised voice.
 - After the finish, the top three celebrate and the rest sulk. In a Grand Prix,
   the podium shows the top three drivers celebrating in 3D.
+
+### Gliders (25)
+
+The wing that pops out on glider ramps is your pick too. CPU racers get one from
+their own movie or game half the time. Most of them move: they flap, spin, flutter
+or crackle while you fly.
+
+- **Originals**: Brick Wing (the classic, in your kart's colours, and the default),
+  Parasol (spins), Paper Plane, Butterfly (flaps), Hot-Air Balloon (burner flickers),
+  Dragon Wings (ripple), Gyrocopter (rotor spins), Delta Kite (bow tail waves) and
+  Big Plate (a giant studded 2x8 plate).
+- **Marvel**: Repulsor Wing (Iron Man, with flickering repulsor blasts), Web Glider.
+- **Star Wars**: S-Foil Wing (an X-wing whose wings open into an X), TIE Panels.
+- **Harry Potter**: Fawkes (hang on to the phoenix's tail feathers), Marauder's Map
+  (footprints walk across it).
+- **Jujutsu Kaisen**: Nue (Megumi's thunderbird, crackling with lightning),
+  Malevolent Shrine (Sukuna's shrine roof with cursed flames).
+- **Jurassic World**: Ptera Ride (a Pteranodon gripping the bar), Park Para-sail.
+- **Minecraft**: Elytra, Ghast (it screeches every now and then).
+- **Pokémon**: Charizard Wings (tail flame flickers), Poké Chute.
+- **Sonic the Hedgehog**: Tornado Wings (propeller spins), Tails Rotor.
 
 ## Movie and game powers (34)
 
@@ -346,13 +372,15 @@ setups.
 - `js/world.js`, `js/decor.js`, `js/lego.js`: sky, ground, lighting, brick-built props and the brick mesh merger
 - `js/characters.js`: minifig drivers and karts (plus the five kart body styles)
 - `js/driver.js`: movie-character drivers: the seated rig contract, weight classes and the gesture animator
+- `js/gliders.js`, `js/gliders/*.js`: the glider list and the glider packs (the glider contract is at the top of `js/gliders.js`)
 - `js/vehicles.js`, `js/vehicles/*.js`: the kart list and the vehicle packs (the vehicle contract is documented above `buildVehicle` in `js/characters.js`)
 - `js/drivers/*.js`: the driver casts per movie (`kit.js` has the seated figure builder); `js/showcase.js`: the 3D select stage, portraits and podium; `js/gallery.js`: a developer line-up view
 - `js/effects.js`, `js/audio.js`, `js/hud.js`, `js/input.js`: particles, sound, HUD and input devices
 
 For development, `?quick=<map id>` (city, meadow, pirate, candy, jungle, frost, factory, lava, space, jurassic, starwars, marvel, hogwarts, jjk-goodwill, jjk-inventory, jjk, jjk-culling, minecraft, pokemon, sonic) goes
 straight into a race. Add `&players=2` to test split-screen, and `&driver=<driver id>`
-/ `&kart=<kart id>` to pick player 1's driver and kart. `?gallery=<movie id
+/ `&kart=<kart id>` / `&glider=<glider id>` to pick player 1's driver, kart and glider. `?gallery=<movie id
 | driver id | all>` lines drivers up in their karts; add `&pose=cheer` (taunt,
 ouch, trick, win, lose, glide, look…) to hold a gesture. `?garage=<pack | kart id |
 all>&driver=<id>` does the same for vehicles (`&pose=boost` shows boost effects).
+`?glider=<pack | glider id | all>` lines the gliders up open over `&kart=<kart id>` with `&driver=<id>` holding on.

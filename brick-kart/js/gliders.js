@@ -33,7 +33,7 @@ export const GLIDER_GROUPS = [
 ];
 // Packs are listed in FINISHED once reviewed; unfinished ones only load in the workbench and the
 // developer views (?garage=…, ?glider=…, ?packs=all) so half-built gliders never reach players.
-const FINISHED = ['originals'];
+const FINISHED = GLIDER_GROUPS.map((g) => g.id);
 const q = new URLSearchParams(location.search);
 const dev = location.pathname.includes('/workbench/') || ['garage', 'glider', 'packs', 'quick'].some((k) => q.has(k));
 const PACKS = GLIDER_GROUPS.map((g) => g.id).filter((id) => dev || FINISHED.includes(id));

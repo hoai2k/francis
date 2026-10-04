@@ -89,8 +89,9 @@ export function gliderPortrait(def) {
     g.updateMatrixWorld(true);
     const sph = new THREE.Box3().setFromObject(g).getBoundingSphere(new THREE.Sphere());
     const cam = new THREE.PerspectiveCamera(30, 1, 0.05, 100);
-    const d = sph.radius / Math.sin(15 * Math.PI / 180) * 0.95;
-    cam.position.set(sph.center.x + d * 0.35, sph.center.y + d * 0.42, sph.center.z + d * 0.84);
+    // gliders are wide and flat: frame them tighter than their bounding sphere, from a little above
+    const d = sph.radius / Math.sin(15 * Math.PI / 180) * 0.68;
+    cam.position.set(sph.center.x + d * 0.3, sph.center.y + d * 0.55, sph.center.z + d * 0.78);
     cam.lookAt(sph.center);
     r.render(scene, cam);
     url = r.domElement.toDataURL('image/png');
