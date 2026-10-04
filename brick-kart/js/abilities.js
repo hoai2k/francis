@@ -3,7 +3,7 @@
 // js/abilities/<movie>.js exports an array of ability definitions:
 //
 //   { id, name, color, icon (SVG string, viewBox 0 0 64 64), help (one sentence for How to Play),
-//     from: 'starwars' | 'marvel' | 'jjk' | 'jurassic' | 'potter',
+//     from: 'starwars' | 'marvel' | 'jjk' | 'jurassic' | 'potter' | 'minecraft' | 'pokemon' | 'sonic',
 //     odds: [w0, w1, w2, w3, w4],   weights per position band (leader … last), same scale as the
 //                                   base tables (each band sums to ~110): defensive/weak items in
 //                                   early bands, big comeback items in the last bands
@@ -31,7 +31,7 @@
 const FINISHED = ['starwars', 'marvel', 'jjk', 'jurassic', 'potter'];
 const q = new URLSearchParams(location.search);
 const dev = q.has('quick') || q.has('abilities');
-const PACKS = ['starwars', 'marvel', 'potter', 'jjk', 'jurassic'].filter((id) => dev || FINISHED.includes(id));
+const PACKS = ['starwars', 'marvel', 'potter', 'jjk', 'jurassic', 'minecraft', 'pokemon', 'sonic'].filter((id) => dev || FINISHED.includes(id));
 const loaded = await Promise.allSettled(PACKS.map((id) => import(`./abilities/${id}.js`)));
 export const ABILITIES = [];
 loaded.forEach((r, i) => {

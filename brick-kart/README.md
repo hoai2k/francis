@@ -207,7 +207,11 @@ anyone, and the knock slides off over a moment (longer on ice). Traffic, cows,
 forklifts and other "bump" hazards shove you aside rather than spinning you.
 Rolling boulders, snowballs, gumballs and asteroids: hit one square in the middle
 and it stops you; clip it towards a side and you're thrown off the other way and
-slowed, but keep driving. The factory's wrecking arms spin you out. Only power-ups turn contact
+slowed, and the nearer the very edge, the less speed you lose. Every other hazard
+is graded the same way by where in it you are hit: crushers, geysers, cannonball
+and meteor impacts, stomping feet and fire bars wreck you only in their middle,
+spin you out further out, and at the edge just shove you out and cost a little
+speed. Steering away at the last moment pays off. Only power-ups turn contact
 into a hit: a Golden, Mega or Bullet Brick bowls you over into a spin-out and
 flings you aside, and only Black Flash wrecks you on contact.
 

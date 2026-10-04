@@ -21,8 +21,17 @@ export const UNIVERSES = [
   { id: 'potter', name: 'Harry Potter', color: '#d3a625' },
   { id: 'jjk', name: 'Jujutsu Kaisen', color: '#8a5cff' },
   { id: 'jurassic', name: 'Jurassic World', color: '#e8a33a' },
+  { id: 'minecraft', name: 'Minecraft', color: '#5fa83a' },
+  { id: 'pokemon', name: 'Pokémon', color: '#ffcb05' },
+  { id: 'sonic', name: 'Sonic the Hedgehog', color: '#1e6cff' },
 ];
 
+// Casts still being built only load in the workbench and the developer views (?gallery=…,
+// ?quick=…, ?packs=all), so they can be reviewed before they reach the select screen.
+const PREVIEW = ['minecraft', 'pokemon', 'sonic'];
+const q = new URLSearchParams(location.search);
+const dev = location.pathname.includes('/workbench/') || ['gallery', 'garage', 'quick', 'packs'].some((k) => q.has(k));
+for (let i = UNIVERSES.length - 1; i >= 0; i--) if (!dev && PREVIEW.includes(UNIVERSES[i].id)) UNIVERSES.splice(i, 1);
 // each universe loads on its own so one broken file never stops the game
 const loaded = await Promise.allSettled(UNIVERSES.map((u) => import(`./drivers/${u.id}.js`)));
 export const DRIVERS = [];
