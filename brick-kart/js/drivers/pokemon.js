@@ -110,47 +110,140 @@ function pikachu() {
 }
 
 // ============================================================================================
-// Ash Ketchum: blue vest, green gloves, the red-and-white cap and a Poké Ball
+// Ash Ketchum: the red-and-white League cap with the green 'L', spiky black hair, big determined
+// anime eyes with the zig-zag cheek marks, the open blue jacket with white sleeves and collar over
+// a black tee, green fingerless gloves and a Poké Ball on his belt
 // ============================================================================================
+// local shape helpers for Ash and Mewtwo (custom geometry into a shape kit's builder)
+import { taperGeo as akTaper, plastic as akPlastic, cached as akCached } from './kit.js';
+const _am = new THREE.Matrix4(), _aq = new THREE.Quaternion(), _ae = new THREE.Euler(), _ap = new THREE.Vector3(), _as = new THREE.Vector3();
+const _aUp = new THREE.Vector3(0, 1, 0), _ad = new THREE.Vector3();
+function putGeo(L, geo, col, x, y, z, rx, ry, rz, sx, sy, sz) {
+  L.b.addMatrix(geo, akPlastic(col), _am.compose(_ap.set(x, y, z), _aq.setFromEuler(_ae.set(rx, ry, rz)), _as.set(sx, sy, sz)));
+}
+// a cone from base point a along dir (length len, base radius r, squashed by flat across it)
+function spike(L, a, dir, len, r, col, flat = 1) {
+  _aq.setFromUnitVectors(_aUp, _ad.set(dir[0], dir[1], dir[2]).normalize());
+  const geo = akCached('ak-cone8', () => new THREE.ConeGeometry(1, 1, 8).translate(0, 0.5, 0));
+  L.b.addMatrix(geo, akPlastic(col), _am.compose(_ap.set(a[0], a[1], a[2]), _aq, _as.set(r, len, r * flat)));
+}
+// a smooth tube through points whose radius follows rad(u), u = 0..1 along it (tails, cables)
+function taperTube(L, key, pts, rad, col, n = 24, rs = 10) {
+  const geo = akCached('ak-tube-' + key, () => {
+    const curve = new THREE.CatmullRomCurve3(pts.map((p) => new THREE.Vector3(p[0], p[1], p[2])));
+    const g = new THREE.TubeGeometry(curve, n, 1, rs, false);
+    const pos = g.attributes.position, P = new THREE.Vector3(), v = new THREE.Vector3();
+    for (let i = 0; i <= n; i++) {
+      curve.getPointAt(i / n, P); const r = rad(i / n);
+      for (let j = 0; j <= rs; j++) { const k = i * (rs + 1) + j; v.fromBufferAttribute(pos, k).sub(P).multiplyScalar(r).add(P); pos.setXYZ(k, v.x, v.y, v.z); }
+    }
+    return g;
+  });
+  L.b.addMatrix(geo, akPlastic(col), _am.identity());
+  const a = pts[0], e = pts[pts.length - 1], r0 = rad(0), r1 = rad(1);
+  L.ell(a[0], a[1], a[2], r0, r0, r0, col);
+  L.ell(e[0], e[1], e[2], r1, r1, r1, col);
+}
+
 function ash() {
-  const SK = 0xf3c9a0, VEST = 0x2a5ab8, HAIR = 0x16161c, CAP = 0xd0262a;
+  const SK = 0xf3c9a0, VEST = 0x2456c0, HAIR = 0x17171d, CAP = 0xd8242a, TEE = 0x1e1e24, GLOVE = 0x2c9a48, GLOVE2 = 0x1f7a36, LOGO = 0x1c8c3c;
   const rig = seatedFig({
-    name: 'ash', s: 1.3, torso: VEST, arms: VEST, legs: 0x34508a, hips: 0x34508a, skin: SK, hands: 0x2f9a4a, noStud: true, extraHeight: 0.15,
-    face: faceMat('pk-ash', (g) => {
-      const y = 60;
-      g.fillStyle = '#2a1a10';
-      for (const s of [-1, 1]) { g.beginPath(); g.ellipse(128 + s * 17, y, 5.5, 8, 0, 0, PI * 2); g.fill(); }
-      g.fillStyle = '#fff'; for (const s of [-1, 1]) { g.beginPath(); g.arc(128 + s * 17 + 2, y - 3, 2, 0, PI * 2); g.fill(); }
-      g.strokeStyle = '#2a1a10'; g.lineWidth = 4; g.lineCap = 'round';
-      for (const s of [-1, 1]) { g.beginPath(); g.moveTo(128 + s * 9, y - 15); g.lineTo(128 + s * 26, y - 19); g.stroke(); }
-      // the Z marks on his cheeks
-      g.lineWidth = 2.5; g.strokeStyle = '#a0603a';
-      for (const s of [-1, 1]) { const x = 128 + s * 30; g.beginPath(); g.moveTo(x - 5, y + 8); g.lineTo(x + 4, y + 8); g.lineTo(x - 4, y + 15); g.lineTo(x + 5, y + 15); g.stroke(); }
-      g.fillStyle = '#7a1a10'; g.beginPath(); g.moveTo(112, y + 18); g.quadraticCurveTo(128, y + 38, 144, y + 18); g.closePath(); g.fill();
-      g.fillStyle = '#fff'; g.fillRect(116, y + 19, 24, 4);
+    name: 'ash', s: 1.3, torso: VEST, arms: WH, legs: 0x34508a, hips: 0x34508a, skin: SK, hands: GLOVE, noStud: true, extraHeight: 0.22,
+    face: faceMat('pk-ash2', (g) => {
+      const y = 70;
+      g.lineCap = 'round'; g.lineJoin = 'round';
+      // a fringe of black hair peeking out under the brim
+      g.fillStyle = '#17171d';
+      g.beginPath(); g.moveTo(84, 0); g.lineTo(172, 0); g.lineTo(172, 30);
+      for (let i = 0; i <= 8; i++) g.lineTo(172 - i * 11, 30 + (i % 2 ? 10 : 0) + (i === 4 ? 4 : 0));
+      g.closePath(); g.fill();
+      for (const s of [-1, 1]) {
+        const x = 128 + s * 16;
+        // big anime eyes: white, deep brown iris looking a touch inward, pupil, two shines
+        g.fillStyle = '#fff'; g.beginPath(); g.ellipse(x, y, 8.5, 15, 0, 0, PI * 2); g.fill();
+        g.fillStyle = '#4a2a14'; g.beginPath(); g.ellipse(x - s * 1.2, y + 2, 6.4, 12.5, 0, 0, PI * 2); g.fill();
+        g.fillStyle = '#100804'; g.beginPath(); g.ellipse(x - s * 1.2, y + 3, 3.4, 7.5, 0, 0, PI * 2); g.fill();
+        g.fillStyle = '#fff'; g.beginPath(); g.ellipse(x - s * 1.2 + 2, y - 4, 2.2, 4.2, 0, 0, PI * 2); g.fill();
+        g.beginPath(); g.ellipse(x - s * 1.2 - 2, y + 8, 1.2, 2.2, 0, 0, PI * 2); g.fill();
+        // heavy upper lid with a flick at the outer corner, thin lower lid
+        g.strokeStyle = '#120a06'; g.lineWidth = 5;
+        g.beginPath(); g.ellipse(x, y + 1, 9.5, 16, 0, PI * 1.1, PI * 1.92); g.stroke();
+        g.lineWidth = 3; g.beginPath(); g.moveTo(x + s * 8, y - 9); g.lineTo(x + s * 12, y - 13); g.stroke();
+        g.lineWidth = 1.6; g.beginPath(); g.ellipse(x, y, 8.5, 15, 0, PI * 0.25, PI * 0.75); g.stroke();
+        // determined brows, low at the nose
+        g.lineWidth = 6; g.beginPath(); g.moveTo(128 + s * 5, y - 17); g.lineTo(128 + s * 27, y - 25); g.stroke();
+        // the zig-zag cheek marks
+        g.strokeStyle = '#8a4a2a'; g.lineWidth = 2.8;
+        const cx = 128 + s * 29, cy = y + 19;
+        g.beginPath(); g.moveTo(cx - s * 5, cy - 4); g.lineTo(cx + s * 1, cy - 4); g.lineTo(cx - s * 3, cy + 2); g.lineTo(cx + s * 4, cy + 2); g.stroke();
+      }
+      // small nose, big open grin
+      g.strokeStyle = '#c08a64'; g.lineWidth = 2; g.beginPath(); g.moveTo(129, y + 14); g.lineTo(131, y + 20); g.stroke();
+      g.fillStyle = '#5a1210'; g.beginPath(); g.moveTo(116, y + 27); g.quadraticCurveTo(128, y + 25, 140, y + 27); g.quadraticCurveTo(138, y + 45, 128, y + 46); g.quadraticCurveTo(118, y + 45, 116, y + 27); g.fill();
+      g.fillStyle = '#e8606a'; g.beginPath(); g.ellipse(128, y + 41, 7, 4.5, 0, 0, PI * 2); g.fill();
+      g.fillStyle = '#fff'; g.beginPath(); g.moveTo(117, y + 27.5); g.quadraticCurveTo(128, y + 25.5, 139, y + 27.5); g.lineTo(138, y + 31); g.quadraticCurveTo(128, y + 29.5, 118, y + 31); g.fill();
+      g.strokeStyle = '#2a0a06'; g.lineWidth = 2; g.beginPath(); g.moveTo(116, y + 27); g.quadraticCurveTo(128, y + 25, 140, y + 27); g.quadraticCurveTo(138, y + 45, 128, y + 46); g.quadraticCurveTo(118, y + 45, 116, y + 27); g.stroke();
     }, '#f3c9a0'),
     torsoExtra: (b, d) => {
+      const s = d.s, c = d.chestY, L = shape(b);
+      // black tee in the open jacket, a brown belt
+      rbox(b, 0, c + 0.42 * s, 0.226 * s, 0.32 * s, 0.82 * s, 0.03, -0.025, 0, 0, TEE);
+      rbox(b, 0, c + 0.05 * s, 0.232 * s, 0.33 * s, 0.07 * s, 0.03, -0.025, 0, 0, 0x4a3020);
+      rbox(b, 0, c + 0.05 * s, 0.238 * s, 0.07 * s, 0.06 * s, 0.02, -0.025, 0, 0, 0xc8a040);
+      // white trim down the open edges, yellow tabs at the hem
+      for (const sd of [-1, 1]) {
+        rbox(b, sd * 0.175 * s, c + 0.4 * s, 0.234 * s, 0.05 * s, 0.8 * s, 0.03, -0.025, 0, 0, WH);
+        rbox(b, sd * 0.33 * s, c + 0.08 * s, 0.234 * s, 0.13 * s, 0.07 * s, 0.03, -0.025, 0, 0, 0xf2cd37);
+        // the white collar: wide flaps folded down on the shoulders
+        rbox(b, sd * 0.17 * s, c + 0.8 * s, 0.13 * s, 0.2 * s, 0.05 * s, 0.24 * s, 0.18, 0, -sd * 0.22, WH);
+        rbox(b, sd * 0.15 * s, c + 0.73 * s, 0.22 * s, 0.1 * s, 0.14 * s, 0.04 * s, -0.12, 0, sd * 0.5, WH);
+      }
+      rbox(b, 0, c + 0.82 * s, -0.12 * s, 0.4 * s, 0.1 * s, 0.1 * s, -0.25, 0, 0, WH);
+      // a Poké Ball clipped to the belt on his right hip
+      pokeBall(L, -0.36 * s, c + 0.06 * s, 0.25 * s, 0.075 * s);
+    },
+    arm: (ab, sd, d) => {
       const s = d.s;
-      // black T-shirt between the open vest, white collar trim
-      rbox(b, 0, d.chestY + 0.42 * s, 0.226 * s, 0.3 * s, 0.82 * s, 0.03, -0.025, 0, 0, 0x222226);
-      for (const sd of [-1, 1]) rbox(b, sd * 0.17 * s, d.chestY + 0.62 * s, 0.234 * s, 0.05 * s, 0.36 * s, 0.03, -0.025, 0, sd * 0.12, WH);
-      rbox(b, 0.25 * s, d.chestY + 0.3 * s, 0.234 * s, 0.1 * s, 0.12 * s, 0.03, -0.025, 0, 0, 0xf2cd37);
+      // short white sleeve with a hem, bare forearm, green fingerless glove with a dark cuff
+      ab.add(akTaper(0.226, 0.247, 0.27, 0.266), akPlastic(SK), 0, -0.52 * s, 0, 0, s, s, s);
+      ab.add(akTaper(0.262, 0.264, 0.05, 0.28), akPlastic(WH), 0, -0.27 * s, 0, 0, s, s, s);
+      ab.cyl(0, -0.55 * s, 0, 0.108 * s, 0.05 * s, GLOVE2, { seg: 12 });
+      ab.cyl(0, -0.735 * s, 0, 0.09 * s, 0.06 * s, SK, { seg: 12 });
     },
     headExtra: (hb, d) => {
       const L = shape(hb), H = d.headH, R = d.headR;
-      // spiky black hair poking out under the cap
-      for (let i = 0; i < 9; i++) {
-        const a = PI * 0.45 + (i / 8) * PI * 1.1;
-        L.cone(S(a) * R * 1.0, H * (0.62 + (i % 2) * 0.1), CO(a) * R * 1.0, R * 0.22, R * 0.75, HAIR, { rx: CO(a) * 1.3, rz: -S(a) * 1.3 });
+      const y0 = H * 0.78, cx = R * 1.15, cy = H * 0.54;
+      // messy black hair bursting out under the cap at the sides and back
+      L.ell(0, H * 0.66, -R * 0.14, R * 1.08, H * 0.2, R * 1.04, HAIR);
+      for (const a of [1.45, 1.85, 2.3, 2.75, -1.45, -1.85, -2.3, -2.75, PI]) {
+        const sx = S(a), cz = CO(a);
+        spike(L, [sx * R * 0.92, H * 0.72, cz * R * 0.92], [sx, -0.12, cz - 0.15], R * (0.62 + (abs(a) > 2 ? 0.1 : 0)), R * 0.24, HAIR, 0.7);
+        spike(L, [sx * R * 0.9, H * 0.56, cz * R * 0.9], [sx * 0.9, -0.75, cz - 0.1], R * 0.5, R * 0.2, HAIR, 0.7);
       }
-      L.ell(0, H * 0.6, -R * 0.1, R * 1.06, H * 0.32, R * 1.02, HAIR);
-      for (const sd of [-1, 1]) L.cone(sd * R * 0.75, H * 0.85, R * 0.72, R * 0.16, R * 0.5, HAIR, { rx: 1.0, rz: -sd * 0.5 });
-      // the cap: red crown, white front panel with the green logo, red brim
-      L.hemi(0, H * 0.8, 0, R * 1.12, H * 0.48, R * 1.12, CAP);
-      L.ell(0, H * 0.96, R * 0.4, R * 0.8, H * 0.3, R * 0.74, WH);
-      L.box(0, H * 1.02, R * 1.06, R * 0.32, R * 0.32, 0.03, 0x2a9a3a, { rx: -0.6 });
-      L.box(0, H * 0.82, R * 1.38, R * 1.55, 0.06 * d.s, R * 0.9, CAP, { rx: 0.1 });
-      L.stud(0, H * 0.8 + H * 0.48, 0, R * 0.2, CAP);
+      for (const sd of [-1, 1]) {
+        // sideburn tufts in front of the ears
+        spike(L, [sd * R * 0.95, H * 0.7, R * 0.42], [sd * 0.3, -1, 0.12], R * 0.42, R * 0.15, HAIR, 0.6);
+        spike(L, [sd * R * 0.98, H * 0.74, R * 0.12], [sd * 0.55, -0.8, -0.05], R * 0.48, R * 0.17, HAIR, 0.6);
+      }
+      // short bangs under the brim
+      for (const x of [-0.42, -0.05, 0.32]) spike(L, [x * R, H * 0.8, R * 0.93], [x * 0.6, -1, 0.35], R * 0.2, R * 0.12, HAIR, 0.5);
+      // the cap: red crown with a white front panel and a red button, band and long brim
+      L.hemi(0, y0, 0, cx, cy, cx, CAP);
+      L.cyl(0, y0 + 0.012, 0, cx * 1.005, 0.03 * d.s, CAP, { seg: 20 });
+      const panel = akCached('ash-panel', () => new THREE.SphereGeometry(1, 18, 8, PI / 2 - 1.4, 2.8, 0.2, PI / 2 - 0.2));
+      putGeo(L, panel, WH, 0, y0 + 0.005, 0, 0, 0, 0, cx * 1.015, cy * 1.015, cx * 1.015);
+      L.ell(0, y0 + cy * 1.0, 0, R * 0.13, R * 0.07, R * 0.13, CAP);
+      const brim = akCached('ash-brim', () => new THREE.CylinderGeometry(1, 1, 1, 24, 1, false, -PI / 2, PI));
+      putGeo(L, brim, CAP, 0, y0 - 0.005, R * 0.08, 0.16, 0, 0, cx * 0.97, 0.05 * d.s, R * 1.75);
+      // the green League 'L' on the front panel
+      const e = 0.5, a = Math.atan2(S(e) / cy, CO(e) / cx), cxz = cx * 1.03;
+      const P0 = [0, y0 + cy * 1.03 * S(e), cxz * CO(e)], Y = [0, CO(a), -S(a)], N = [0, S(a), CO(a)];
+      const at = (lx, ly, ln = 0) => [lx, P0[1] + ly * Y[1] + ln * N[1], P0[2] + ly * Y[2] + ln * N[2]];
+      L.box(...at(-R * 0.1, R * 0.04), R * 0.13, R * 0.46, 0.025, LOGO, { rx: -a });
+      L.box(...at(R * 0.04, -R * 0.14), R * 0.4, R * 0.12, 0.025, LOGO, { rx: -a });
+      L.box(...at(R * 0.2, -R * 0.06), R * 0.1, R * 0.26, 0.025, LOGO, { rx: -a });
+      // the adjuster opening at the back
+      L.ell(0, y0 + cy * 0.12, -cx * 0.985, R * 0.24, H * 0.09, R * 0.05, TEE);
     },
   });
   // the Poké Ball in his right hand (counter the minifig arm stretch so it stays round)

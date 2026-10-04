@@ -20,6 +20,7 @@ const pulse = (g, t, k = 1) => { g.rotation.set(t * 7, t * 11, 0); g.scale.setSc
 
 // ---- Sonic ---------------------------------------------------------------------------------
 const BLUE = 0x1f5fd8;
+// the generic swept quill crown (Metal Sonic wears it)
 function sonicQuills(H, c, o = {}) {
   const r = o.r ?? 0.46;
   H.quill(PI, 0.65, 0.5, 2.35, r, c);
@@ -30,19 +31,138 @@ function sonicQuills(H, c, o = {}) {
   }
   H.quill(PI, -0.05, -0.32, 2.15, r * 0.95, c);
 }
+// A curved, tapering spine (quill, ear, back spike) along the quadratic Bézier a → m → c, root
+// radius r, its cross-section squashed to `flat` across `wide` (default: the bend plane's normal).
+const V3 = (p) => new THREE.Vector3(p[0], p[1], p[2]);
+const _ID = new THREE.Matrix4();
+function curvedSpine(b, a, m, c, r, cl, o = {}) {
+  const N = o.n ?? 9, M = o.seg ?? 10, flat = o.flat ?? 0.85, k = o.taper ?? 0.9;
+  const A = V3(a), B = V3(m), Cc = V3(c);
+  const w = o.wide ? V3(o.wide) : new THREE.Vector3().subVectors(B, A).cross(new THREE.Vector3().subVectors(Cc, A));
+  if (w.lengthSq() < 1e-9) w.set(1, 0, 0);
+  w.normalize();
+  const pos = [], idx = [], P = new THREE.Vector3(), T = new THREE.Vector3(), U = new THREE.Vector3(), W = new THREE.Vector3();
+  for (let i = 0; i < N; i++) {
+    const t = i / (N - 1), u = 1 - t;
+    P.set(0, 0, 0).addScaledVector(A, u * u).addScaledVector(B, 2 * u * t).addScaledVector(Cc, t * t);
+    if (i === N - 1) { pos.push(P.x, P.y, P.z); break; }
+    T.subVectors(B, A).multiplyScalar(2 * u).addScaledVector(new THREE.Vector3().subVectors(Cc, B), 2 * t).normalize();
+    U.copy(w).addScaledVector(T, -w.dot(T)).normalize(); W.crossVectors(T, U);
+    const rr = r * Math.pow(u, k);
+    for (let j = 0; j < M; j++) {
+      const th = (j / M) * PI * 2, cu = CO(th) * rr, sv = S(th) * rr * flat;
+      pos.push(P.x + U.x * cu + W.x * sv, P.y + U.y * cu + W.y * sv, P.z + U.z * cu + W.z * sv);
+    }
+  }
+  const tip = (N - 1) * M;
+  for (let i = 0; i < N - 1; i++) for (let j = 0; j < M; j++) {
+    const a0 = i * M + j, a1 = i * M + ((j + 1) % M);
+    if (i === N - 2) { idx.push(a0, a1, tip); continue; }
+    const b0 = a0 + M, b1 = a1 + M;
+    idx.push(a0, a1, b1, a0, b1, b0);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array((pos.length / 3) * 2), 2));
+  g.setIndex(idx); g.computeVertexNormals();
+  b.addMatrix(g, typeof cl === 'number' ? plastic(cl) : cl, _ID);
+  g.dispose();
+}
+// Sonic's head: quills swept back in a fan, pointed ears, the conjoined white eye patch with big
+// green eyes under a cocky blue brow, the wrap-around peach muzzle, a black nose and a smirk
+const SRED = 0xd8202a, SIRIS = 0x1fa83c, SMOUTH = 0x3a1414;
+function sonicHead(H, hb) {
+  const R = H.R, cy = H.cy, at = H.at, n = H.n;
+  // quills: rooted in the back of the head, bowing up then sweeping back and down to the tips
+  const q = (y0, p0, y1, p1, len, r, lift = 0.3) => {
+    const a = at(y0, p0, 0.5), s0 = at(y0, p0, 1), c = at(y1, p1, len);
+    const m = [(s0[0] + c[0]) / 2, (s0[1] + c[1]) / 2 + lift * R, (s0[2] + c[2]) / 2];
+    curvedSpine(hb, a, m, c, r * R, BLUE);
+  };
+  q(PI, 0.78, PI, 0.22, 2.35, 0.5, 0.42);                           // crown
+  for (const sd of [-1, 1]) {
+    q(PI - sd * 0.62, 0.45, PI - sd * 0.74, -0.05, 2.3, 0.46, 0.34);   // upper pair
+    q(PI - sd * 0.8, -0.02, PI - sd * 0.86, -0.5, 2.05, 0.4, 0.28);   // lower pair
+  }
+  q(PI, 0.2, PI, -0.3, 2.2, 0.44, 0.3);                             // centre back
+  q(PI, -0.32, PI, -0.72, 1.85, 0.36, 0.22);                         // nape
+  // ears: blue points on top, peach inside
+  for (const sd of [-1, 1]) {
+    const a = [sd * 0.34 * R, cy + 0.58 * R, 0.1 * R], c = [sd * 0.66 * R, cy + 1.36 * R, -0.06 * R];
+    const m = [(a[0] + c[0]) / 2, (a[1] + c[1]) / 2, (a[2] + c[2]) / 2 + 0.04 * R];
+    curvedSpine(hb, a, m, c, 0.27 * R, BLUE, { wide: [1, -0.35 * sd, 0], flat: 0.5 });
+    curvedSpine(hb, [a[0], a[1] + 0.25 * R, a[2] + 0.1 * R], [m[0], m[1], m[2] + 0.09 * R], [c[0] * 0.94, c[1] - 0.14 * R, c[2] + 0.08 * R], 0.15 * R, PEACH, { wide: [1, -0.35 * sd, 0], flat: 0.4 });
+  }
+  // muzzle: a wide peach snout wrapping the lower face, with cheeks and a chin
+  const mc = [0, cy - 0.34 * R, 0.6 * R], mr = [0.6 * R, 0.38 * R, 0.6 * R];
+  H.blob(mc, mr[0], mr[1], mr[2], PEACH);
+  for (const sd of [-1, 1]) H.blob(at(sd * 0.5, -0.22, 0.7), 0.34 * R, 0.3 * R, 0.32 * R, PEACH, n(sd * 0.5, -0.22));
+  H.blob(at(0, -0.06, 0.8), 0.32 * R, 0.17 * R, 0.24 * R, PEACH);
+  // a point on the muzzle's surface (u: yaw-like, v: pitch-like)
+  const ms = (u, v, out = 1) => [mc[0] + S(u) * CO(v) * mr[0] * out, mc[1] + S(v) * mr[1] * out, mc[2] + CO(u) * CO(v) * mr[2] * out];
+  // the eye patch: two tall whites joined low in the middle, notched by the blue brow
+  const ey = 0.2, ex = 0.25;
+  for (const sd of [-1, 1]) H.blob(at(sd * ex, ey, 0.84), 0.27 * R, 0.39 * R, 0.26 * R, 0xffffff, n(sd * ex, ey), -sd * 0.22);
+  H.blob(at(0, 0.04, 0.86), 0.22 * R, 0.2 * R, 0.22 * R, 0xffffff, n(0, 0.04));
+  H.blob(at(0, ey + 0.25, 0.86), 0.1 * R, 0.24 * R, 0.21 * R, BLUE, n(0, ey + 0.25));                     // brow notch
+  for (const sd of [-1, 1]) {
+    // brow: blue lid tilting down toward the middle (confident)
+    H.blob(at(sd * 0.27, ey + 0.34, 0.86), 0.34 * R, 0.13 * R, 0.25 * R, BLUE, n(sd * 0.27, ey + 0.34), sd * 0.3);
+    // big green iris, black pupil, highlight
+    const iy = sd * (ex - 0.05), ip = ey - 0.03;
+    H.blob(at(iy, ip, 0.99), 0.16 * R, 0.23 * R, 0.12 * R, SIRIS, n(iy, ip));
+    H.blob(at(iy, ip, 1.04), 0.065 * R, 0.13 * R, 0.08 * R, 0x0c0c0c, n(iy, ip));
+    H.blob(at(iy + sd * 0.05, ip + 0.08, 1.09), 0.04 * R, 0.055 * R, 0.03 * R, 0xffffff, n(iy, ip));
+  }
+  // nose: a glossy black button on the top of the snout
+  const np = ms(0, 0.62, 1.0);
+  H.blob(np, 0.13 * R, 0.1 * R, 0.11 * R, 0x101010, [0, 0.35, 1]);
+  H.blob([np[0] + 0.04 * R, np[1] + 0.05 * R, np[2] + 0.07 * R], 0.035 * R, 0.025 * R, 0.02 * R, 0xffffff);
+  // cocky smirk: a line rising to his left with a dimple, and the cheek pushed up on that side
+  const pts = [[-0.3, -0.3], [-0.1, -0.36], [0.12, -0.33], [0.3, -0.22], [0.42, -0.04]].map(([u, v]) => ms(u, v, 1.0));
+  for (let i = 0; i < pts.length - 1; i++) rod(hb, pts[i], pts[i + 1], 0.026 * R, SMOUTH, 6);
+  for (const p of pts) H.blob(p, 0.028 * R, 0.028 * R, 0.028 * R, SMOUTH);
+  H.blob(ms(0.5, -0.04, 0.9), 0.14 * R, 0.11 * R, 0.12 * R, PEACH);
+}
+let _cuff = null;
+const cuffGeo = () => (_cuff ||= new THREE.TorusGeometry(1, 0.32, 8, 16).rotateX(PI / 2));
 function sonic() {
   const rig = toon({
-    name: 'sonic', body: BLUE, belly: PEACH, iris: 0x22b04a, mouth: 'smirk',
-    eyes: { dx: 0.2, w: 0.22, h: 0.32, joined: true },
-    ears: { inner: PEACH },
-    head: (H) => sonicQuills(H, BLUE),
-    torso: (b, d) => { const s = d.s; for (const sd of [-1, 1]) spike(b, [sd * 0.12 * s, d.chestY + 0.5 * s, -0.12 * s], [sd * 0.14 * s, d.chestY + 0.3 * s, -0.55 * s], 0.13 * s, BLUE); },
+    name: 'sonic', s: 1.08, R: 0.54, wide: 0.74, deep: 0.9, body: BLUE, belly: null, shoes: null, cuff: null,
+    eyes: false, muzzle: false,
+    head: (H, hb) => sonicHead(H, hb),
+    torso: (b, d) => {
+      const s = d.s, W = d.W;
+      // peach chest and tummy
+      blob(b, 0, d.chestY + 0.4 * s, 0.12 * s, 0.25 * s, 0.38 * s, 0.12 * s, PEACH);
+      // the two small spines on his back
+      for (const sd of [-1, 1]) curvedSpine(b, [sd * 0.1 * s, d.chestY + 0.6 * s, -0.08 * s], [sd * 0.13 * s, d.chestY + 0.52 * s, -0.3 * s], [sd * 0.16 * s, d.chestY + 0.3 * s, -0.46 * s], 0.13 * s, BLUE);
+      // red sneakers: rounded toe, white sole, white strap with a gold buckle, white collar
+      for (const sd of [-1, 1]) {
+        const x = sd * 0.19 * s, w = 0.3 * s;
+        const y = -0.17 * s, z = 0.8 * s, gold = metal(0xf2b818, 0.5);
+        blob(b, x, y - 0.01 * s, z + 0.1 * s, 0.155 * s, 0.14 * s, 0.24 * s, SRED, [0, 0.12, 1]);   // round toe
+        blob(b, x, y + 0.03 * s, z - 0.12 * s, 0.15 * s, 0.16 * s, 0.2 * s, SRED);                  // heel
+        blob(b, x, -0.28 * s, z, 0.165 * s, 0.05 * s, 0.34 * s, GLOVE);                             // sole
+        blob(b, x, y + 0.02 * s, z - 0.02 * s, 0.168 * s, 0.168 * s, 0.075 * s, GLOVE);              // strap
+        b.box(x + sd * 0.165 * s, y - 0.035 * s, z - 0.02 * s, 0.03 * s, 0.1 * s, 0.085 * s, 0xf2b818, { mat: gold });   // buckle
+        blob(b, x, y + 0.17 * s, z - 0.14 * s, 0.12 * s, 0.045 * s, 0.13 * s, GLOVE);              // collar
+      }
+    },
+    arm: (ab, sd, d) => {
+      const s = d.s;
+      // big white glove with a rolled cuff
+      ab.cyl(0, -0.55 * s, 0, 0.145 * s, 0.09 * s, GLOVE, { seg: 14 });
+      ab.addMatrix(cuffGeo(), plastic(GLOVE), new THREE.Matrix4().makeTranslation(0, -0.47 * s, 0).scale(new THREE.Vector3(0.14 * s, 0.14 * s, 0.14 * s)));
+      blob(ab, 0, -0.67 * s, 0.01 * s, 0.165 * s, 0.17 * s, 0.165 * s, GLOVE);
+      blob(ab, -sd * 0.09 * s, -0.63 * s, 0.11 * s, 0.06 * s, 0.08 * s, 0.065 * s, GLOVE);
+    },
   });
   const s = rig.dims.s;
   // index finger (finger-wag) and thumb (thumbs up) on the right glove
-  const finger = part(rig.armR, (b) => b.cyl(0, -0.9 * s, 0, 0.045 * s, 0.22 * s, GLOVE, { seg: 8 }), 'sonic-finger');
-  const thumb = part(rig.armR, (b) => blob(b, 0, -0.6 * s, 0.17 * s, 0.05 * s, 0.05 * s, 0.13 * s, GLOVE), 'sonic-thumb');
-  const glint = star(thumb, 0xffffff, 0.35, 7); glint.position.set(0, -0.6 * s, 0.32 * s);
+  const finger = part(rig.armR, (b) => { b.cyl(0, -1.02 * s, 0, 0.05 * s, 0.22 * s, GLOVE, { seg: 8 }); b.sphere(0, -1.02 * s, 0, 0.05 * s, GLOVE); }, 'sonic-finger');
+  const thumb = part(rig.armR, (b) => blob(b, 0, -0.62 * s, 0.2 * s, 0.055 * s, 0.06 * s, 0.14 * s, GLOVE), 'sonic-thumb');
+  const glint = star(thumb, 0xffffff, 0.35, 7); glint.position.set(0, -0.62 * s, 0.38 * s);
   const rings = orbit(rig.root, Array.from({ length: 7 }, () => ring(new THREE.Group(), 1.1)), 1.4);
   rig.fx = (n, f, t) => {
     const ch = n === 'cheer';
