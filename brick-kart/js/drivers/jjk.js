@@ -523,11 +523,105 @@ function geto() {
 }
 
 // ---- Ryomen Sukuna --------------------------------------------------------------------------
+// Four red eyes (a smaller pair under the first), a sharp-toothed smirk and his black markings
+// on a custom face print; spiky salmon hair swept up and back.
+const SK = { HAIR: 0xf08c96, HAIR2: 0xdc6f80 };
+const sukunaFace = () => faceMat('jjk-sukuna-heian', (g) => atlasStyle(g, (ell, line, g) => {
+  const poly = (pts, col) => { g.fillStyle = col; g.beginPath(); pts.forEach(([x, y], k) => (k ? g.lineTo(x, y) : g.moveTo(x, y))); g.closePath(); g.fill(); };
+  // four eyes: red irises, black slit pupils, angry lids; the lower pair a little smaller, on the cheeks
+  const eye = (x, y, w, hh, sd) => {
+    g.save();
+    g.beginPath(); g.moveTo(x - sd * w, y); g.quadraticCurveTo(x, y - hh * 1.5, x + sd * w, y - hh * 0.7); g.quadraticCurveTo(x + sd * w * 0.2, y + hh * 1.3, x - sd * w, y); g.closePath();
+    g.fillStyle = '#fffaf2'; g.fill(); g.clip();
+    ell(x + sd * 1, y - hh * 0.15, hh * 1.0, hh * 1.0, '#d0161c');
+    ell(x + sd * 1, y - hh * 0.15, hh * 0.28, hh * 0.85, '#120406');
+    ell(x - sd * 3, y - hh * 0.55, hh * 0.25, hh * 0.25, '#fff');
+    g.restore();
+    line([[x - sd * (w + 2), y + 1], [x, y - hh * 1.05], [x + sd * (w + 4), y - hh * 1.0]], '#141216', Math.max(3, hh * 0.55));
+  };
+  for (const sd of [-1, 1]) {
+    eye(sd * 30, -15, 17, 10, sd);
+    eye(sd * 33, 8, 13, 7.5, sd);
+    g.fillStyle = '#141216'; g.beginPath(); g.moveTo(sd * 10, -24); g.lineTo(sd * 52, -38); g.lineTo(sd * 54, -30); g.lineTo(sd * 14, -18); g.closePath(); g.fill();   // angry brows
+    // tattoos: two bands across each cheek, a line under each lower eye
+    line([[sd * 52, 10], [sd * 76, 7]], '#141216', 5);
+    line([[sd * 52, 20], [sd * 74, 18]], '#141216', 5);
+  }
+  // the forehead mark
+  line([[-22, -44], [-8, -40], [8, -40], [22, -44]], '#141216', 4);
+  line([[0, -52], [0, -40]], '#141216', 4);
+  line([[2, -4], [6, 12], [0, 15]], '#b98a74', 3);   // nose
+  // a wide, cocky, sharp-toothed grin (his left corner higher)
+  const q = (a, c, b, k) => [(1 - k) * (1 - k) * a[0] + 2 * (1 - k) * k * c[0] + k * k * b[0], (1 - k) * (1 - k) * a[1] + 2 * (1 - k) * k * c[1] + k * k * b[1]];
+  const L = [-36, 28], R = [38, 20], TOP = [0, 38], BOT = [6, 64];
+  g.fillStyle = '#3a080c'; g.beginPath(); g.moveTo(...L); g.quadraticCurveTo(...TOP, ...R); g.quadraticCurveTo(...BOT, ...L); g.fill();
+  g.fillStyle = '#fbf6ea';
+  for (let k = 0; k < 8; k++) {
+    const a = q(L, TOP, R, 0.06 + k * 0.115), b = q(L, TOP, R, 0.06 + (k + 1) * 0.115), m = q(L, TOP, R, 0.06 + (k + 0.5) * 0.115);
+    const len = k === 0 || k === 7 ? 11 : 7;
+    g.beginPath(); g.moveTo(...a); g.lineTo(...b); g.lineTo(m[0], m[1] + len); g.closePath(); g.fill();
+    const c = q(L, BOT, R, 0.1 + k * 0.1), e = q(L, BOT, R, 0.1 + (k + 1) * 0.1), n = q(L, BOT, R, 0.1 + (k + 0.5) * 0.1);
+    if (k < 8) { g.beginPath(); g.moveTo(...c); g.lineTo(...e); g.lineTo(n[0], n[1] - (k === 0 || k === 7 ? 9 : 6)); g.closePath(); g.fill(); }
+  }
+  line([L, [L[0] - 4, L[1] - 3]], '#5a1a1a', 3); line([R, [R[0] + 5, R[1] - 6]], '#5a1a1a', 3);   // smirk creases
+}), '#f3d6bf');
+// a crossing slash of neon light (cross = an X for Cleave)
+function skSlash(parent, cross) {
+  const g = fxg(parent);
+  const b = new BrickBuilder(1), red = neon(0xe0000c, 1.7), core = neon(0xffe0e0, 1.6);
+  const cut = (rz, L) => { rbox(b, 0, 0, 0, L, 0.08, 0.04, 0, 0, rz, 0, { mat: red }); rbox(b, 0, 0, 0.02, L * 0.8, 0.025, 0.04, 0, 0, rz, 0, { mat: core }); };
+  cut(0.6, 1.6);
+  if (cross) cut(-0.6, 1.6);
+  else { rbox(b, 0.08, -0.14, 0, 1.0, 0.045, 0.04, 0, 0, 0.66, 0, { mat: red }); }
+  g.add(b.build({ name: 'slash' }));
+  addGlow(g, 0xff2020, cross ? 1.8 : 1.2, 0, 0, 0, 0.65);
+  return g;
+}
+// Malevolent Shrine: a dark shrine with a fanged maw, horns and skulls (front = +Z)
+function skShrine(parent) {
+  const g = fxg(parent);
+  const b = new BrickBuilder(1), WOOD = 0x3a1416, DARK = 0x1a1214, BONE = 0xe8e0cc;
+  b.box(0, 0, 0, 2.6, 0.22, 1.3, DARK);
+  b.box(0, 0.22, 0, 2.2, 0.12, 1.1, 0x2a1c1c);
+  for (const x of [-0.9, -0.3, 0.3, 0.9]) b.box(x, 0.34, 0.38, 0.14, 1.3, 0.14, WOOD);
+  b.box(0, 0.34, -0.2, 2.0, 1.3, 0.6, 0x241618);
+  // the shrine's great maw between the middle pillars
+  b.box(0, 0.48, 0.42, 0.46, 1.0, 0.04, 0, { mat: neon(0x5a0010, 1.6) });
+  for (let k = 0; k < 5; k++) { const x = -0.18 + k * 0.09; spike(b, x, 1.46, 0.44, 0.04, 0.2, PI, 0, BONE); spike(b, x, 0.5, 0.44, 0.04, 0.18, 0, 0, BONE); }
+  // two sweeping roofs with upturned eaves
+  b.add(taperGeo(2.9, 2.2, 0.3, 1.6, 1.2), plastic(DARK), 0, 1.64, 0.05);
+  b.add(taperGeo(2.2, 1.2, 0.36, 1.2, 0.7), plastic(DARK), 0, 2.12, 0.05);
+  for (const sd of [-1, 1]) {
+    rbox(b, sd * 1.5, 1.82, 0.05, 0.5, 0.1, 1.6, 0, 0, -sd * 0.45, DARK);
+    rbox(b, sd * 1.12, 2.3, 0.05, 0.4, 0.09, 1.2, 0, 0, -sd * 0.5, DARK);
+    spike(b, sd * 0.34, 2.46, 0.05, 0.08, 0.6, 0, -sd * 0.7, BONE);   // horns on the ridge
+  }
+  b.box(-0.6, 1.94, 0.05, 1.2, 0.04, 1.3, 0, { mat: neon(0xb0101c, 1.4) });
+  b.box(0.6, 1.94, 0.05, 1.2, 0.04, 1.3, 0, { mat: neon(0xb0101c, 1.4) });
+  // a pile of skulls at its feet
+  for (let k = 0; k < 7; k++) {
+    const x = -1.15 + k * 0.38, z = 0.62 + (k % 2) * 0.06;
+    b.sphere(x, 0.36, z, 0.13, BONE, { sy: 0.9 });
+    for (const sd of [-1, 1]) b.box(x + sd * 0.045, 0.36, z + 0.1, 0.05, 0.05, 0.04, DARK);
+  }
+  g.add(b.build({ name: 'malevolent-shrine' }));
+  addGlow(g, 0xff1020, 1.4, 0, 0.95, 0.5, 0.75);
+  addGlow(g, 0x8a0010, 4.0, 0, 1.4, -0.2, 0.45);
+  return g;
+}
 function sukuna() {
   const KIM = 0xf2eee4, SSK = 0xf3d6bf, TAT = 0x1b1b1b;
   const rig = jfig({
-    name: 'sukuna', face: 'sukuna', s: 1.38, wide: 1.15, torso: KIM, legs: KIM, hips: KIM, arms: SSK, hands: SSK, skin: SSK,
-    hair: (b, r, h) => { back(b, r, h, PINK, 0.5, 0.9); cap(b, r, h, PINK, 0.82); spikes(b, r, h, PINK, 10, 0.3, 1.15, { seed: 17, back: 0.3, ring: 0.8 }); },
+    name: 'sukuna', face: sukunaFace(), s: 1.38, wide: 1.15, torso: KIM, legs: KIM, hips: KIM, arms: SSK, hands: SSK, skin: SSK, extraHeight: 0.3,
+    hair: (b, r, h) => {
+      back(b, r, h, SK.HAIR, 0.3, 0.92); cap(b, r, h, SK.HAIR, 0.86);
+      b.sphere(0, h * 0.95, -r * 0.1, r * 1.0, SK.HAIR, { sy: 0.42 });
+      spikes(b, r, h, SK.HAIR, 12, 0.4, 0.85, { seed: 17, back: 0.45, ring: 0.85, rnd: 0.5 });
+      spikes(b, r, h, SK.HAIR2, 7, 0.3, 1.35, { seed: 5, back: 0.7, ring: 0.95, top: false });
+      spikes(b, r, h * 0.62, SK.HAIR2, 6, 0.24, 1.7, { seed: 23, back: 0.9, ring: 0.9, top: false });   // the nape
+      fringe(b, r, h, SK.HAIR, 4, 0.3, 0.45, { spread: 0.75, y: 0.9, rad: 0.2 });
+      fringe(b, r, h, SK.HAIR2, 5, 0.12, 2.5, { spread: 0.85, y: 0.9, rad: 0.15 });   // short locks over the hairline
+    },
     arm: (ab, sd, d) => { const s = d.s; for (let k = 0; k < 2; k++) ab.box(0, (-0.3 - k * 0.12) * s, 0, 0.29 * s, 0.035 * s, 0.29 * s, TAT); },
     torsoExtra: (b, d) => {
       const s = d.s;
@@ -536,48 +630,46 @@ function sukuna() {
       for (const sd of [-1, 1]) rbox(b, sd * 0.1 * s, 0.6 * s, 0.215 * s, 0.07 * s, 0.6 * s, 0.03 * s, 0, 0, sd * 0.35, TAT);
     },
   });
-  const d = rig.dims;
-  // the second pair of arms
-  const low = [];
-  for (const sd of [1, -1]) {
-    const pv = new THREE.Group(); pv.position.set(sd * 0.42 * d.s * 1.15, 0.7 * d.s, 0.04);
-    const ab = new BrickBuilder(1);
-    ab.sphere(0, 0, 0, 0.11 * d.s, SSK);
-    ab.add(taperGeo(0.2, 0.24, 0.45, 0.24), plastic(SSK), 0, -0.47 * d.s, 0, 0, d.s, d.s, d.s);
-    ab.box(0, -0.3 * d.s, 0, 0.27 * d.s, 0.035 * d.s, 0.27 * d.s, TAT);
-    ab.cyl(0, -0.62 * d.s, 0, 0.09 * d.s, 0.16 * d.s, SSK, { seg: 10 });
-    pv.add(ab.build({ name: 'sukuna-arm' }));
-    rig.torso.add(pv); low.push(pv);
-  }
-  // Dismantle: crossing red slashes around the kart
-  const slashes = [[0.95, 1.55, 0.7, 0.3], [-1.05, 0.95, 0.85, -0.5], [0.15, 2.35, -0.3, 1.2]].map(([x, y, z, ry], k) => {
-    const g = fxg(rig.root, x, y, z);
-    const b = new BrickBuilder(1);
-    rbox(b, 0, 0, 0, 1.5, 0.07, 0.05, 0, 0, 0.62, 0, { mat: neon(0xff1020, 3) });
-    rbox(b, 0, 0.05, 0, 1.3, 0.06, 0.05, 0, 0, -0.5 - k * 0.2, 0, { mat: neon(0xff1020, 3) });
-    rbox(b, 0.1, -0.12, 0, 0.9, 0.04, 0.04, 0, 0, 0.7, 0, { mat: neon(0xff1020, 3) });
-    addGlow(g, 0xff2020, 1.2, 0, 0, 0, 0.6);
-    g.add(b.build({ name: 'slash' }));
-    g.rotation.y = ry;
-    return g;
-  });
+  // Dismantle / Cleave: slashes thrown from his hands, flying ahead of the kart
+  const hy = handY(rig);
+  const slashes = [
+    { g: skSlash(rig.root, false), a: 0.18, from: [rig.armR], rz: 0.3 },
+    { g: skSlash(rig.root, false), a: 0.35, from: [rig.armL], rz: -0.3 },
+    { g: skSlash(rig.root, true), a: 0.52, from: [rig.armL, rig.armR], rz: 0 },
+  ];
+  const wins = [0.1, 0.42, 0.7];
+  const mi = new THREE.Matrix4(), hv = new THREE.Vector3();
+  const launch = (sl) => {
+    rig.root.updateMatrixWorld(true); mi.copy(rig.root.matrixWorld).invert();
+    sl.p0 = (sl.p0 || new THREE.Vector3()).set(0, 0, 0);
+    for (const arm of sl.from) sl.p0.add(hv.set(0, hy, 0).applyMatrix4(arm.matrixWorld).applyMatrix4(mi));
+    sl.p0.divideScalar(sl.from.length);
+  };
   const aura = fxg(rig.root, 0, 1.35, -0.3); addGlow(aura, 0xff1a1a, 3.0, 0, 0, 0, 0.5);
+  // Domain Expansion: Malevolent Shrine rises behind the kart on the win
+  const shrine = skShrine(rig.root); shrine.position.set(0, -0.5, -2.6); shrine.scale.setScalar(1.25);
+  let winT = -1;
   rig.fx = (n, f, t) => {
     const ch = n === 'cheer', win = n === 'win';
     const lf = win ? (t % 1.6) / 1.6 : f;
-    for (let k = 0; k < 3; k++) {
-      const a = 0.18 + k * 0.17, on = (ch || win) && lf > a && lf < a + 0.32;
-      vis(slashes[k], on);
-      if (on) slashes[k].scale.set(sm(seg(lf, a, a + 0.06)) * (1 - seg(lf, a + 0.24, a + 0.32)), 1, 1);
-    }
+    slashes.forEach((sl, k) => {
+      const a = win ? wins[k] : sl.a, p = seg(lf, a, a + 0.32), on = (ch || win) && lf > a && lf < a + 0.32;
+      if (on && !sl.live) launch(sl);
+      sl.live = on;
+      vis(sl.g, on);
+      if (on) {
+        sl.g.position.set(sl.p0.x * (1 - p * 0.3), sl.p0.y + p * 0.3, sl.p0.z + 0.3 + p * 3.2);
+        sl.g.rotation.set(0, 0, sl.rz + (k === 2 ? S(t * 9) * 0.1 : 0));
+        const sc = sm(seg(p, 0, 0.18)) * (0.7 + p * 0.9);
+        sl.g.scale.set(sc * (1 - sm(seg(p, 0.7, 1))), sc, sc);
+      }
+    });
     vis(aura, ch || win);
     if (ch || win) aura.scale.setScalar(1 + S(t * 13) * 0.08);
-    for (let k = 0; k < 2; k++) {
-      const sd = k ? -1 : 1, pv = low[k];
-      if (ch) pv.rotation.set(-0.5 + S(t * 30 + k) * 0.05, 0, sd * 1.35);
-      else if (win) pv.rotation.set(-1.4 + S(t * LOOP * 3 + k * 3) * 0.3, 0, sd * 1.0);
-      else pv.rotation.set(-0.55 + S(t * 2 + k) * 0.06, 0, sd * 0.5);
-    }
+    if (win && winT < 0) winT = t;
+    if (!win) winT = -1;
+    vis(shrine, win);
+    if (win) shrine.position.y = lerp(-3.2, -0.5, sm((t - winT) / 0.9));
   };
   return rig;
 }
