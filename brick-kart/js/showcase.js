@@ -75,29 +75,50 @@ export function kartPortrait(ch) {
   return url;
 }
 
-// A driver on their own feet (the select screen's driver step on phones). Rigs are built seated, so
-// a minifig's seated hips and thighs are clipped away (cloned materials, so karts elsewhere keep
-// theirs) and standing legs are added in its leg colour. Creatures that aren't minifigs (dinosaurs,
-// droids…) sit on a brick pedestal instead.
+// Delete the triangles of a mesh that lie entirely below y = cut, measured in `frame`'s space
+// (works on a copy of the geometry; keeps material groups).
+function trimBelow(mesh, frame, cut) {
+  const toFrame = new THREE.Matrix4().copy(frame.matrixWorld).invert().multiply(mesh.matrixWorld);
+  const src = mesh.geometry.index ? mesh.geometry.toNonIndexed() : mesh.geometry.clone();
+  const pos = src.attributes.position, tris = pos.count / 3, keep = [], v = new THREE.Vector3();
+  for (let t = 0; t < tris; t++) {
+    let top = -Infinity;
+    for (let k = 0; k < 3; k++) top = Math.max(top, v.fromBufferAttribute(pos, t * 3 + k).applyMatrix4(toFrame).y);
+    if (top > cut) keep.push(t);
+  }
+  if (keep.length === tris) return;
+  const out = new THREE.BufferGeometry();
+  for (const [name, attr] of Object.entries(src.attributes)) {
+    const n = attr.itemSize, arr = new attr.array.constructor(keep.length * 3 * n);
+    keep.forEach((t, j) => arr.set(attr.array.subarray(t * 3 * n, t * 3 * n + 3 * n), j * 3 * n));
+    out.setAttribute(name, new THREE.BufferAttribute(arr, n, attr.normalized));
+  }
+  // material groups: re-count the kept triangles of each one
+  for (const g of src.groups) {
+    const first = keep.findIndex((t) => t * 3 >= g.start), from = first < 0 ? keep.length : first;
+    let n = 0; while (from + n < keep.length && keep[from + n] * 3 < g.start + g.count) n++;
+    if (n) out.addGroup(from * 3, n * 3, g.materialIndex);
+  }
+  mesh.geometry = out;
+}
+
+// A driver on their own feet (the select screen's driver step). Rigs are built seated: a minifig's
+// hips and thighs are part of its torso model, sticking forward. Those triangles are deleted from
+// the torso (so nothing can poke out however the torso leans in a gesture) and standing hips, legs
+// and feet are added in its leg colour. Creatures that aren't minifigs (dinosaurs, droids…) sit on
+// a brick pedestal instead.
 function standDriver(rig) {
   const root = new THREE.Group(), mats = [];
   const d = rig.dims;
   if (d) {
-    // cut just above where the torso starts: the seated hips/thighs reach exactly up to it, and a
-    // clipping plane keeps faces lying on it (their top faces would show as a thin slab)
-    const s = d.s, W = d.W ?? 1, L = 0.86 * s, cutY = L + (d.chestY ?? 0.18 * s) + 0.015 * s;
-    // leg colour: the figure's own (or, failing that, whatever its lowest part is made of)
-    let low = null, lowY = Infinity;
-    const box = new THREE.Box3();
+    const s = d.s, W = d.W ?? 1, L = 0.86 * s, chest = d.chestY ?? 0.18 * s, cutY = L + chest;
     rig.root.updateMatrixWorld(true);
-    rig.root.traverse((o) => { if (o.isMesh && !Array.isArray(o.material)) { box.setFromObject(o); if (box.min.y < lowY) { lowY = box.min.y; low = o.material; } } });
-    const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -cutY);
-    rig.root.traverse((o) => {
-      if (!o.isMesh) return;
-      const clip = (m) => { const c = m.clone(); c.clippingPlanes = [plane]; mats.push(c); return c; };
-      o.material = Array.isArray(o.material) ? o.material.map(clip) : clip(o.material);
-    });
-    const legM = d.legColor !== undefined ? plastic(d.legColor) : low || plastic(0x0055bf);
+    // the torso's own parts (not the head or arms, which hang below the waist)
+    const skip = new Set([rig.head, rig.armL, rig.armR].filter(Boolean));
+    const torsoMeshes = [];
+    rig.torso.traverse((o) => { if (!o.isMesh) return; for (let p = o; p && p !== rig.torso; p = p.parent) if (skip.has(p)) return; torsoMeshes.push(o); });
+    for (const m of torsoMeshes) trimBelow(m, rig.torso, chest + 0.002 * s);
+    const legM = plastic(d.legColor ?? 0x0055bf);
     const add = (w, h, dd, x, y, z) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, dd), legM); m.position.set(x, y, z); root.add(m); };
     add(0.9 * s * W, 0.16 * s, 0.46 * s * (d.D ?? 1), 0, cutY - 0.08 * s, 0);          // hips, up to the torso
     for (const sd of [-1, 1]) {
@@ -174,7 +195,6 @@ export class Showcase {
   constructor(canvas, { cam = [5.2, 3.2, 7.2], look = [0, 1.15, 0], fov = 30, spin = 0.35, cells = null } = {}) {
     this.canvas = canvas;
     this.r = newRenderer(canvas.clientWidth || 400, canvas.clientHeight || 300, canvas);
-    this.r.localClippingEnabled = true;   // standing drivers clip their seated legs away
     this.scene = stage(this.r);
     this.cam = new THREE.PerspectiveCamera(fov, 1, 0.1, 100);
     this.camBase = new THREE.Vector3(...cam); this.lookAt = new THREE.Vector3(...look);
