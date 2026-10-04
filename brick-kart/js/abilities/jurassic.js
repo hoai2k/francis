@@ -115,7 +115,7 @@ function rexRoar(k, ctx) {
         fwd.set(Math.sin(k.yaw), 0, Math.cos(k.yaw));
         side.set(fwd.z, 0, -fwd.x);
         h.updateMatrixWorld(true);
-        rig.jaw.localToWorld(mouth.set(0, 0.3, 4.6));
+        rig.jaw.localToWorld(mouth.copy(rig.mouth));
         origin.copy(k.pos).addScaledVector(fwd, 1.5);
         cone.position.copy(mouth);
         cone.lookAt(_c.copy(origin).addScaledVector(fwd, R).setY(groundY + 2));

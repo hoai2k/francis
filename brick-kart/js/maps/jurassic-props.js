@@ -201,7 +201,7 @@ export function theroIdle(r, t, roar = 0) {
 // glowing golden eyes and a deep ragged-toothed jaw; darker brown/khaki hide with tiger
 // stripes and old raptor scars, huge drumstick thighs, tiny two-fingered arms and a thick
 // banded tail. Same rig and pivots as theropod() (works with theroWalk / theroIdle).
-const REXY = {
+export const REXY = {
   body: 0x6e543a, back: 0x3c2c1e, dark: 0x2a1e14, belly: 0xb49a72, belly2: 0x8e7656, scar: 0xd8bca4,
   brow: 0x54402c, eye: 0xffb020, mouth: 0x5a1210, tooth: 0xf2e8cc,
 };

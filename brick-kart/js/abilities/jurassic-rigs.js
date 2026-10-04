@@ -2,11 +2,11 @@
 // Rigs are built once and pooled: an ability takes one, poses it every frame and gives
 // it back when it ends, so using a power-up never rebuilds (or leaks) geometry.
 import * as THREE from 'three';
-import { theropod, raptor, raptorRun, mosasaurus, RAPTORS, part } from '../maps/jurassic-props.js';
+import { trex, REXY, raptor, raptorRun, mosasaurus, RAPTORS, part } from '../maps/jurassic-props.js';
 
 export { raptorRun };
 
-const REX = { body: 0x7a5a3c, dark: 0x4a3222, belly: 0xb09a74, eye: 0xffa020 };
+const REX = REXY;   // the track's (and the driver's) T. rex palette
 
 function disposeTree(obj) {
   obj.traverse((o) => { if (o.isMesh) o.geometry.dispose(); });
@@ -22,11 +22,17 @@ const MAKERS = {
   },
   // a giant T. rex head on a brick neck that grows out of the ground
   rex() {
-    const t = theropod(REX);
+    const t = trex();
     const head = t.head;
     head.removeFromParent();
     disposeTree(t.root);
-    const r = { holder: new THREE.Group(), head, jaw: t.jaw };
+    // where the mouth tip is in the jaw's own frame (the roar comes out of it)
+    const jp = { p: t.jaw.position.clone(), r: t.jaw.rotation.clone(), parent: t.jaw.parent };
+    t.jaw.removeFromParent(); t.jaw.position.set(0, 0, 0); t.jaw.rotation.set(0, 0, 0); t.jaw.updateMatrixWorld(true);
+    const bb = new THREE.Box3().setFromObject(t.jaw);
+    jp.parent.add(t.jaw); t.jaw.position.copy(jp.p); t.jaw.rotation.copy(jp.r);
+    const mouth = new THREE.Vector3(0, bb.max.y, bb.max.z - 0.3);
+    const r = { holder: new THREE.Group(), head, jaw: t.jaw, mouth };
     r.neck = new THREE.Group();
     r.holder.add(r.neck);
     r.neck.add(part((L) => {
@@ -35,10 +41,13 @@ const MAKERS = {
       L.box(0, 5.2, -0.6, 4.0, 3.6, 4.0, REX.body, { rx: 0.3 });
       L.box(0, 7.4, 0.4, 3.5, 2.6, 3.4, REX.body, { rx: 0.45 });
       L.box(0, 3.0, 0.9, 3.4, 6.4, 1.0, REX.belly, { rx: 0.22 });
-      for (const sd of [-1, 1]) for (const y of [2.4, 4.0, 5.6, 7.0]) L.box(sd * (y < 3.5 ? 2.36 : y < 6.5 ? 2.06 : 1.8), y, -0.9 + y * 0.12, 0.14, 0.28, 2.4, REX.dark, { rx: 0.2 });
-      for (const y of [1.6, 4.4, 6.8]) L.brick(0, y + 1.2, -3.2 + y * 0.25, 2, 2, 1, REX.body);
+      // dark tiger stripes wrapping the sides, a row of dark bony plates down the back, a scar
+      for (const sd of [-1, 1]) for (const y of [2.4, 4.0, 5.6, 7.0]) L.box(sd * (y < 3.5 ? 2.36 : y < 6.5 ? 2.06 : 1.8), y, -0.9 + y * 0.12, 0.14, 0.42, 2.8, REX.dark, { rx: 0.2 });
+      for (const y of [1.6, 4.4, 6.8]) L.brick(0, y + 1.2, -3.2 + y * 0.25, 2, 2, 1, REX.back);
+      L.box(2.0, 5.6, 0.6, 0.12, 0.2, 1.6, REX.scar, { rx: -0.5 });
     }, 'rex-neck'));
     head.position.set(0, 8.2, 1.4);
+    head.scale.setScalar(1.3);   // a giant head on the neck (the mouth point follows the scale)
     r.neck.add(head);
     return r;
   },
