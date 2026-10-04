@@ -121,25 +121,84 @@ function megumi() {
 }
 
 // ---- Panda --------------------------------------------------------------------------------
+// local: a smooth ellipsoid turned rx/ry/rz with radii sx/sy/sz (head, patches, belly)
+const pdSph = () => cached('pdSph', () => new THREE.SphereGeometry(1, 26, 18));
+const pdQ = new THREE.Quaternion(), pdE = new THREE.Euler();
+function pdBlob(b, x, y, z, sx, sy, sz, color, rx = 0, ry = 0, rz = 0) {
+  pdQ.setFromEuler(pdE.set(rx, ry, rz));
+  b.addMatrix(pdSph(), typeof color === 'number' ? plastic(color) : color, new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), pdQ, new THREE.Vector3(sx, sy, sz)));
+}
 function panda() {
-  const BK = 0x1b1b1b, WH = 0xf4f4f4;
+  const BK = 0x161616, WH = 0xf6f6f2, JK = 0x1a1e2e, JK2 = 0x2a3048, PAD = 0x3a3434;
+  // the head: a big round ellipsoid; on(a, e, k) = a point on its surface (azimuth a, elevation e), pushed out by k
+  const JKM = plastic(JK, { rough: 0.62 }), BKM = plastic(BK, { rough: 0.5 });
+  const HC = [0, 0.5, 0], HR = [0.63, 0.55, 0.58];
+  const on = (a, e, k = 1) => [HC[0] + HR[0] * S(a) * Math.cos(e) * k, HC[1] + HR[1] * S(e) * k, HC[2] + HR[2] * Math.cos(a) * Math.cos(e) * k];
   const rig = jfig({
-    name: 'panda', wide: 1.45, torso: WH, legs: BK, hips: BK, arms: BK, hands: BK, neck: WH, skin: WH, headH: 0.75, extraHeight: 0,
+    name: 'panda', s: 1.42, wide: 1.62, deep: 1.35, torso: JK, legs: BK, hips: BK, arms: JK, hands: BK, neck: WH, skin: WH, headH: 0.75, extraHeight: 0.06,
     head: (b) => {
-      b.sphere(0, 0.45, 0, 0.55, WH, { sy: 0.9 });
+      pdBlob(b, ...HC, ...HR, WH);
+      // round black ears
+      for (const sd of [-1, 1]) { pdBlob(b, sd * 0.43, 0.95, -0.06, 0.2, 0.2, 0.13, BK); }
+      // droopy teardrop eye patches with small bright eyes
       for (const sd of [-1, 1]) {
-        b.sphere(sd * 0.33, 0.82, -0.05, 0.17, BK);
-        b.sphere(sd * 0.2, 0.52, 0.45, 0.14, BK, { sy: 1.3 });
-        b.sphere(sd * 0.21, 0.55, 0.57, 0.045, WH);
+        const a = sd * 0.43, e = 0.12;
+        pdBlob(b, ...on(a, e, 0.98), 0.115, 0.16, 0.08, BK, -e, a, sd * 0.5);
+        pdBlob(b, ...on(a + sd * 0.075, e - 0.1, 0.975), 0.12, 0.115, 0.08, BK, -(e - 0.1), a + sd * 0.075, 0);
+        pdBlob(b, ...on(a - sd * 0.03, e + 0.04, 1.11), 0.046, 0.052, 0.025, WH, -e, a, 0);
+        pdBlob(b, ...on(a - sd * 0.035, e + 0.035, 1.15), 0.03, 0.036, 0.016, BK, -e, a, 0);
+        pdBlob(b, ...on(a - sd * 0.06, e + 0.08, 1.17), 0.011, 0.011, 0.006, WH, -e, a, 0);
       }
-      b.sphere(0, 0.3, 0.42, 0.22, WH, { sy: 0.75 });
-      b.sphere(0, 0.36, 0.62, 0.07, BK);
-      b.box(0, 0.2, 0.6, 0.12, 0.03, 0.04, BK);
+      // white muzzle, black nose and a little smile
+      pdBlob(b, 0, 0.35, 0.42, 0.27, 0.19, 0.24, WH);
+      pdBlob(b, 0, 0.44, 0.63, 0.09, 0.055, 0.06, BK);
+      rbox(b, 0, 0.37, 0.654, 0.022, 0.07, 0.02, 0.08, 0, 0, BK);
+      for (const sd of [-1, 1]) rbox(b, sd * 0.045, 0.32, 0.65, 0.08, 0.022, 0.02, 0.15, sd * 0.25, sd * 0.4, BK);
     },
-    torsoExtra: (b) => { b.box(0, 0.9, 0, 1.42, 0.32, 0.64, BK); b.sphere(0, 0.62, 0.08, 0.45, WH); },
+    torsoExtra: (b, d) => {
+      const s = d.s, W = d.W, D = d.D;
+      // barrel chest: a big rounded jacket mass over the boxy torso; bz(x, y) = its front surface
+      const BC = [0, 0.5 * s, -0.02 * s], BR = [0.6 * s, 0.56 * s, 0.4 * s * D];
+      const bz = (x, y) => BC[2] + BR[2] * Math.sqrt(Math.max(0, 1 - (x / BR[0]) ** 2 - ((y - BC[1]) / BR[1]) ** 2));
+      pdBlob(b, ...BC, ...BR, JKM);
+      // very broad, rounded shoulders sloping down from the neck (a big slouched bear)
+      for (const sd of [-1, 1]) {
+        pdBlob(b, sd * 0.36 * s, 0.9 * s, -0.03 * s, 0.36 * s, 0.22 * s, 0.36 * s * D, JKM, 0, 0, -sd * 0.42);
+        pdBlob(b, sd * 0.42 * s, 0.7 * s, -0.04 * s, 0.4 * s, 0.2 * s, 0.36 * s * D, JKM, 0, 0, -sd * 0.38);
+      }
+      // the jacket hangs open over a huge round white belly, black fur band across the chest
+      pdBlob(b, 0, 0.78 * s, bz(0, 0.78 * s) - 0.1 * s, 0.32 * s, 0.13 * s, 0.12 * s, BKM);
+      pdBlob(b, 0, 0.4 * s, bz(0, 0.4 * s) - 0.17 * s, 0.4 * s, 0.42 * s, 0.26 * s, WH);
+      for (const sd of [-1, 1]) {
+        // rolled jacket edges framing the belly (a smooth tube over the chest), gold buttons on one side
+        const pts = [];
+        for (let k = 0; k < 6; k++) { const y = (0.8 - k * 0.13) * s, x = sd * (0.24 + k * 0.03) * s; pts.push([x, y, bz(x, y) + 0.005 * s]); }
+        pts.forEach((p, k) => { b.sphere(...p, 0.045 * s, JK2); if (k) rod(b, pts[k - 1], p, 0.045 * s, JK2, 10); });
+        if (sd > 0) for (let k = 0; k < 4; k++) { const y = (0.74 - k * 0.15) * s, x = (0.31 + k * 0.03) * s; b.sphere(x, y, bz(x, y) + 0.02 * s, 0.038 * s, GOLD, { sy: 0.7 }); }
+      }
+      // the high stand collar with a gold button at the throat
+      b.cyl(0, 0.86 * s, 0, 0.3 * s, 0.2 * s, JK, { seg: 18 });
+      b.cyl(0, 1.05 * s, 0, 0.305 * s, 0.025 * s, JK2, { seg: 18 });
+      b.sphere(0, 0.95 * s, 0.3 * s, 0.04 * s, GOLD);
+      // thick black haunches and short heavy legs, a little white tail
+      pdBlob(b, 0, -0.08 * s, -0.04 * s, 0.56 * s * W / 1.55, 0.24 * s, 0.32 * s * D, BKM);
+      for (const sd of [-1, 1]) pdBlob(b, sd * 0.34 * s, -0.06 * s, 0.34 * s, 0.36 * s, 0.22 * s, 0.44 * s, BKM);
+      pdBlob(b, 0, 0.0, -0.36 * s * D, 0.1 * s, 0.09 * s, 0.07 * s, WH);
+    },
+    arm: (ab, sd, d) => {
+      // thick heavy arms in the jacket sleeves, turned cuffs and big round black paws
+      const s = d.s;
+      pdBlob(ab, 0, -0.07 * s, 0, 0.23 * s, 0.22 * s, 0.22 * s, JKM);
+      pdBlob(ab, 0, -0.34 * s, 0.005 * s, 0.205 * s, 0.32 * s, 0.2 * s, JKM);
+      ab.cyl(0, -0.62 * s, 0.01 * s, 0.185 * s, 0.07 * s, JK2, { seg: 14 });
+      pdBlob(ab, 0, -0.75 * s, 0.02 * s, 0.2 * s, 0.19 * s, 0.2 * s, BKM);
+      pdBlob(ab, 0, -0.78 * s, 0.17 * s, 0.08 * s, 0.065 * s, 0.04 * s, PAD);
+    },
   });
+  // set the heavy arms a little further out (to clear the barrel chest) and lower, on the sloping shoulders
+  for (const [a, sd] of [[rig.armL, 1], [rig.armR, -1]]) { a.position.x += sd * 0.06 * rig.dims.s; a.position.y -= 0.14 * rig.dims.s; }
   // Drumming Beat: shockwave rings off his chest
-  const waves = fxg(rig.root, 0, 0.95, 0.55);
+  const waves = fxg(rig.root, 0, 0.62 * rig.dims.s, 0.75 * rig.dims.s);
   const w1 = ringMesh(waves, 0xffd860, 1, 0.035, 1.6), w2 = ringMesh(waves, 0xffd860, 1, 0.035, 1.6);
   rig.fx = (n, f, t) => {
     const on = n === 'cheer' || (n === 'win' && t % 1.6 < 0.8);
