@@ -476,100 +476,203 @@ const firebolt = {
   },
 };
 
-// ---- Buckbeak: the hippogriff trots on talons and hooves and spreads his wings to glide ----------
+// ---- Buckbeak: the hippogriff. Eagle in front (hooked beak, orange eyes, ruff, talons), horse behind
+// (haunches, hooves, a long tail) and great storm-grey wings; he gallops, flaps and soars ---------------
+// a flat feather/plate: root at p, length along d, its flat face towards n
+const bbX = new THREE.Vector3(), bbY = new THREE.Vector3(), bbZ = new THREE.Vector3();
+function feather(b, p, d, n, w, len, th, color, o) {
+  bbZ.set(...d).normalize(); bbX.crossVectors(bbY.set(...n), bbZ).normalize(); bbY.crossVectors(bbZ, bbX);
+  const m = new THREE.Matrix4().makeBasis(bbX, bbY, bbZ).scale(new THREE.Vector3(w, th, len));
+  m.setPosition(p[0] + bbZ.x * len / 2, p[1] + bbZ.y * len / 2, p[2] + bbZ.z * len / 2);
+  geo(b, G.box, color, m, o);
+}
+// a cone from its base a to its tip c (claws, hooks, tufts)
+function spike(b, a, c, r, color, o) {
+  const A = new THREE.Vector3(...a), D = new THREE.Vector3(...c).sub(A), len = D.length();
+  const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), D.clone().normalize());
+  geo(b, G.cone, color, new THREE.Matrix4().compose(A.addScaledVector(D, 0.5), q, new THREE.Vector3(r, len, r)), o);
+}
 const buckbeak = {
   id: 'buckbeak', name: 'Buckbeak', form: 'Hippogriff', blurb: 'Bow first, then fly',
   stats: { speed: 3, accel: 4, handling: 4, weight: 2 }, colors: [0x8d9196, 0xc4c8cc, 0xfe8a18, 0x5d6166],
   build(kit) {
-    const { sprung } = kit; const f = fitOf(kit.rig);
-    const GR = 0x8d9196, GR2 = 0x6c7075, GR3 = 0xc4c8cc, BEAK = 0xd9b35a, TAL = 0xe0b24a, HOOF = 0x2a2a2a;
-    const WX = Math.max(0.66, f.hip + 0.08);
+    const { sprung, rig } = kit; const f = fitOf(rig);
+    const GR = 0x5b6168, GRH = 0x545a61, GR2 = 0x43484f, GR3 = 0x777e86, PALE = 0x9ea5ac, DK = 0x2f3338;
+    const BRN = 0x5a5047, BRN2 = 0x766b5f, BEAK = 0xf2a535, BEAK2 = 0xd4801f, CERE = 0xf6c759;
+    const TAL = 0xeab23c, TAL2 = 0xc98e24, CLAW = 0x25272a, HOOF = 0x3b3431, ROPE = 0x8a6a45;
     const b = new BrickBuilder(0.4);
-    // horse barrel and rump, feathered eagle chest, neck with a ruff
-    ell(b, 0, 1.05, -0.2, 0.6, 0.45, 1.0, GR);
-    ell(b, 0, 1.1, -0.95, 0.56, 0.42, 0.5, GR2);
-    ell(b, 0, 1.0, 0.72, 0.58, 0.45, 0.55, GR3);
-    for (let i = 0; i < 9; i++) { const a = (i / 8 - 0.5) * 2.2; rbox(b, S(a) * 0.5, 0.95 - (i % 2) * 0.15, 0.78 + CO(a) * 0.45, 0.2, 0.06, 0.24, 0.6, a, 0, i % 2 ? GR : GR3); }
-    rbox(b, 0, 1.62, 1.18, 0.44, 0.85, 0.45, 0.55, 0, 0, GR3);
-    for (let i = 0; i < 5; i++) rbox(b, (i - 2) * 0.1, 1.45, 1.38 + Math.abs(i - 2) * -0.04, 0.12, 0.3, 0.06, 0.3, 0, 0, i % 2 ? GR : GR3);
-    rbox(b, 0, 1.47, -0.3, 0.7, 0.05, 0.55, 0, 0, 0, GR2);   // a feathered patch under the rider
-    // head: grey eagle head with orange eyes and a hooked beak (turns into the corner)
-    const head = new THREE.Group(); head.position.set(0, 2.0, 1.5);
+    // -- horse half: barrel, belly, a raised croup and muscled haunches
+    ell(b, 0, 1.1, -0.45, 0.6, 0.47, 1.0, GR);
+    ell(b, 0, 0.86, -0.4, 0.5, 0.3, 0.82, GR2);
+    ell(b, 0, 1.18, -1.2, 0.58, 0.5, 0.6, GR);
+    for (const sd of [-1, 1]) ell(b, sd * 0.31, 1.06, -1.22, 0.32, 0.5, 0.55, GRH);
+    // -- eagle half: a deep feathered breast covered in layered scale feathers
+    ell(b, 0, 1.15, 0.55, 0.62, 0.6, 0.62, GR3);
+    for (let r = 0; r < 5; r++) {
+      const y = 1.6 - r * 0.19, R = 0.62 * Math.sqrt(Math.max(0.15, 1 - ((y - 1.15) / 0.62) ** 2)) + 0.01;
+      for (let i = 0; i < 7; i++) {
+        const a = (i / 6 - 0.5) * 2.5 + (r % 2 ? 0.18 : 0), n = [S(a), 0.15, CO(a)];
+        feather(b, [S(a) * R, y + 0.08, 0.55 + CO(a) * R], [S(a) * 0.35, -1, CO(a) * 0.35], n, 0.22, 0.3, 0.05, (i + r) % 2 ? PALE : GR3);
+      }
+    }
+    // feathered cape over the shoulders, spilling back onto the horse's flanks
+    for (const sd of [-1, 1]) for (let r = 0; r < 3; r++) for (let i = 0; i < 4; i++) {
+      const y = 1.42 - r * 0.2, z = 0.42 - i * 0.17 - r * 0.06, x = sd * (0.56 - r * 0.02 + (i === 3 ? -0.02 : 0));
+      feather(b, [x, y, z], [sd * 0.08, -0.35, -1], [sd, 0.35, 0], 0.18, 0.38 - r * 0.04, 0.05, (i + r) % 2 ? GR : GR3);
+    }
+    for (let i = 0; i < 4; i++) for (const sd of [-1, 1]) feather(b, [sd * 0.2, 1.62 - i * 0.03, 0.85 - i * 0.2], [sd * 0.15, -0.25, -1], [sd * 0.4, 1, 0], 0.26, 0.34, 0.05, i % 2 ? GR : GR3);
+    // -- the neck sweeping up and forward, with hackles down its back and a ruff at its base
+    const NB = [0, 1.5, 0.82], NT = [0, 2.42, 1.33], NA = [0, 0.88, 0.48], NN = [0, 0.48, -0.88];
+    const at = (t) => NB.map((v, k) => v + (NT[k] - v) * t);
+    for (let i = 0; i <= 5; i++) { const t = i / 5, p = at(t), r = 0.37 - 0.12 * t; ell(b, p[0], p[1], p[2], r, r, r * 1.05, t < 0.35 ? GR3 : PALE); }
+    for (let i = 0; i < 6; i++) {
+      const t = 0.2 + i * 0.15, p = at(t), r = 0.37 - 0.12 * t;
+      for (const sd of [-1, 0, 1]) {
+        const o = [sd * r * 0.55, NN[1] * r * 0.85, NN[2] * r * 0.85];
+        feather(b, [p[0] + o[0], p[1] + o[1] + 0.06, p[2] + o[2]], [sd * 0.2, -0.75, -0.6], [sd * 0.5, 0.5, -0.85], 0.16, 0.36, 0.05, (i + sd) % 2 ? GR3 : PALE);
+      }
+    }
+    for (let k = 0; k < 14; k++) {
+      const ph = (k / 14) * PI * 2, rad = [CO(ph), NN[1] * S(ph), NN[2] * S(ph)], p = at(0.28), r = 0.36;
+      feather(b, [p[0] + rad[0] * r * 0.9, p[1] + rad[1] * r * 0.9 + 0.05, p[2] + rad[2] * r * 0.9], [rad[0] * 0.7 - NA[0], rad[1] * 0.7 - NA[1], rad[2] * 0.7 - NA[2]], rad, 0.2, 0.36, 0.05, k % 2 ? GR3 : GR);
+    }
+    // a rope halter collar for the reins
+    const CP = at(0.6);
+    geo(b, new THREE.TorusGeometry(0.31, 0.035, 6, 18), ROPE, M(CP[0], CP[1], CP[2], -1.07, 0, 0));
+    // -- head: pale eagle head, fierce brow, orange eyes, a big hooked yellow-orange beak
+    const head = new THREE.Group(); head.position.set(0, 2.66, 1.5); head.scale.setScalar(1.3);
     const hb = new BrickBuilder(0.4);
-    ell(hb, 0, 0, 0, 0.26, 0.26, 0.32, GR3);
-    geo(hb, G.cone, BEAK, M(0, -0.06, 0.42, PI / 2 + 0.35, 0, 0, 0.1, 0.34, 0.12));
-    geo(hb, G.cone, BEAK, M(0, -0.18, 0.55, PI, 0, 0, 0.04, 0.12, 0.04));
-    rbox(hb, 0, -0.16, 0.36, 0.12, 0.05, 0.2, 0.2, 0, 0, 0xc49a3a);
+    ell(hb, 0, 0, 0, 0.29, 0.28, 0.36, PALE);
+    ell(hb, 0, -0.1, 0.1, 0.25, 0.19, 0.3, GR3);
+    for (let i = 0; i < 5; i++) feather(hb, [(i - 2) * 0.08, 0.16 - Math.abs(i - 2) * 0.04, -0.18], [(i - 2) * 0.18, 0.3, -1], [0, 1, 0.3], 0.1, 0.42 - Math.abs(i - 2) * 0.05, 0.05, i % 2 ? GR3 : PALE);
+    rbox(hb, 0, -0.01, 0.31, 0.25, 0.2, 0.14, 0, 0, 0, CERE);
+    rbox(hb, 0, 0.0, 0.44, 0.22, 0.19, 0.18, 0.1, 0, 0, BEAK);
+    rbox(hb, 0, -0.03, 0.58, 0.18, 0.17, 0.16, 0.35, 0, 0, BEAK);
+    rbox(hb, 0, -0.1, 0.68, 0.13, 0.14, 0.12, 0.8, 0, 0, BEAK);
+    spike(hb, [0, -0.12, 0.72], [0, -0.3, 0.66], 0.06, BEAK2);
+    rbox(hb, 0, -0.16, 0.48, 0.16, 0.07, 0.3, -0.06, 0, 0, BEAK2);
     for (const sd of [-1, 1]) {
-      rbox(hb, sd * 0.2, 0.06, 0.16, 0.06, 0.09, 0.1, 0, sd * 0.4, 0, C.orange, LIT(0xff7a10, 0.5));
-      rbox(hb, sd * 0.225, 0.06, 0.18, 0.03, 0.05, 0.05, 0, sd * 0.4, 0, 0x111111);
-      rbox(hb, sd * 0.17, 0.15, 0.12, 0.12, 0.04, 0.14, 0, sd * 0.4, sd * -0.3, GR2);
-      for (let i = 0; i < 3; i++) rbox(hb, sd * (0.06 + i * 0.06), 0.2 - i * 0.04, -0.28 - i * 0.04, 0.06, 0.05, 0.36, -0.35, sd * 0.25, 0, i % 2 ? GR : GR3);
+      rbox(hb, sd * 0.11, -0.115, 0.46, 0.012, 0.022, 0.3, -0.06, 0, 0, 0x5a3010);
+      rbox(hb, sd * 0.1, 0.04, 0.36, 0.03, 0.03, 0.05, 0, 0, 0, 0x5a3010);
+      rbox(hb, sd * 0.22, 0.04, 0.16, 0.08, 0.1, 0.12, 0, sd * 0.35, 0, 0xff7a10, LIT(0xff6a00, 0.7));
+      rbox(hb, sd * 0.255, 0.04, 0.18, 0.03, 0.06, 0.05, 0, sd * 0.35, 0, 0x111111);
+      rbox(hb, sd * 0.25, 0.07, 0.21, 0.02, 0.02, 0.02, 0, sd * 0.35, 0, 0xffffff);
+      rbox(hb, sd * 0.19, 0.14, 0.18, 0.13, 0.07, 0.3, 0.38, sd * 0.3, 0, DK);
     }
     head.add(hb.build({ name: 'buckbeakHead' }));
-    // horse tail
-    const tail = new THREE.Group(); tail.position.set(0, 1.25, -1.4);
-    const tb = new BrickBuilder(0.4);
-    for (let i = 0; i < 5; i++) rbox(tb, (i - 2) * 0.05, -0.35, -0.12 - Math.abs(i - 2) * 0.02, 0.07, 0.75, 0.08, 0.35, 0, (i - 2) * 0.08, i % 2 ? GR3 : GR);
-    tail.add(tb.build({ name: 'tail' }));
-    // legs: eagle talons in front, hooves behind (pivots at the shoulders/hips)
+    // -- horse tail: four linked hanks of long hair that stream back, swish and flare at the end
+    const tail = new THREE.Group(); tail.position.set(0, 1.55, -1.74);
+    const tails = []; let tp = tail;
+    for (let i = 0; i < 4; i++) {
+      const g = i ? new THREE.Group() : tp; if (i) { g.position.set(0, 0, -0.38); tp.add(g); }
+      const tb = new BrickBuilder(0.4), wd = 0.07 + i * 0.035;
+      if (!i) rbox(tb, 0, 0.02, -0.1, 0.18, 0.18, 0.3, 0, 0, 0, GR);
+      for (let k = 0; k < 7; k++) {
+        const a = (k / 7) * PI * 2 + i * 0.4, x = CO(a) * wd, y = S(a) * wd * 1.2;
+        rbox(tb, x, y, -0.22, 0.12, 0.12, 0.48, 0, x * 0.5, 0, k % 2 ? DK : GR2);
+      }
+      g.add(tb.build({ name: 'tail' })); tails.push(g); tp = g;
+    }
+    // -- legs: taloned eagle forelegs, horse hind legs with hooves (pivots at shoulder / hip)
     const legs = [];
-    for (const [x, z, off, front] of [[0.3, 0.75, 0, true], [-0.3, 0.75, 0.5, true], [0.32, -0.85, PI, false], [-0.32, -0.85, PI + 0.5, false]]) {
-      const g = new THREE.Group(); g.position.set(x, 0.95, z);
-      const lb = new BrickBuilder(0.4);
+    for (const [x, z, off, front] of [[0.36, 0.72, PI, true], [-0.36, 0.72, PI + 0.5, true], [0.36, -1.25, 0, false], [-0.36, -1.25, 0.5, false]]) {
+      const g = new THREE.Group(); g.position.set(x, 1.12, z);
+      const lb = new BrickBuilder(0.4), sx = Math.sign(x);
       if (front) {
-        rbox(lb, 0, -0.25, 0, 0.26, 0.5, 0.3, 0, 0, 0, GR3);
-        rbox(lb, 0, -0.68, 0.02, 0.12, 0.42, 0.12, 0, 0, 0, TAL);
-        for (const a of [-0.45, 0, 0.45]) geo(lb, G.cone, 0x30343a, M(S(a) * 0.08, -0.9, 0.12 + CO(a) * 0.06, PI / 2 + 0.3, a, 0, 0.035, 0.18, 0.035));
-        rbox(lb, 0, -0.9, 0.04, 0.18, 0.06, 0.16, 0, 0, 0, TAL);
+        ell(lb, 0, -0.22, 0.02, 0.25, 0.38, 0.27, GR3);
+        for (let k = 0; k < 6; k++) { const a = (k / 6) * PI * 2; feather(lb, [S(a) * 0.16, -0.38, CO(a) * 0.17 + 0.02], [S(a) * 0.4, -1, CO(a) * 0.4], [S(a), 0, CO(a)], 0.15, 0.28, 0.04, k % 2 ? PALE : GR3); }
+        rbox(lb, 0, -0.8, 0.05, 0.15, 0.5, 0.15, 0, 0, 0, TAL);
+        for (let k = 0; k < 4; k++) rbox(lb, 0, -0.62 - k * 0.11, 0.115, 0.11, 0.03, 0.02, 0, 0, 0, TAL2);
+        rbox(lb, 0, -1.06, 0.07, 0.2, 0.09, 0.2, 0, 0, 0, TAL);
+        for (const a of [-0.55, 0, 0.55]) {
+          const tx = S(a) * 0.27, tz = 0.07 + CO(a) * 0.27;
+          rod(lb, [0, -1.07, 0.07], [tx, -1.08, tz], 0.05, TAL);
+          spike(lb, [tx, -1.06, tz], [tx + S(a) * 0.13, -1.12, tz + CO(a) * 0.1], 0.045, CLAW);
+        }
+        rod(lb, [0, -1.07, 0.07], [0, -1.07, -0.14], 0.045, TAL);
+        spike(lb, [0, -1.06, -0.14], [0, -1.12, -0.26], 0.04, CLAW);
       } else {
-        rbox(lb, 0, -0.28, -0.02, 0.28, 0.56, 0.36, 0, 0, 0, GR2);
-        rbox(lb, 0, -0.7, 0.02, 0.15, 0.36, 0.15, 0, 0, 0, GR2);
-        rbox(lb, 0, -0.9, 0.03, 0.2, 0.1, 0.22, 0, 0, 0, HOOF);
+        ell(lb, 0, -0.2, 0.0, 0.28, 0.44, 0.36, GRH);
+        rbox(lb, 0, -0.55, -0.12, 0.2, 0.38, 0.24, -0.35, 0, 0, GR);
+        ell(lb, 0, -0.72, -0.2, 0.13, 0.12, 0.14, GR);
+        rbox(lb, 0, -0.88, -0.16, 0.14, 0.32, 0.15, 0.12, 0, 0, GR2);
+        ell(lb, 0, -1.0, -0.11, 0.12, 0.08, 0.13, GR2);
+        for (const dx of [-0.06, 0, 0.06]) spike(lb, [dx, -0.96, -0.14], [dx * 1.4, -1.05, -0.22], 0.04, DK);
+        geo(lb, new THREE.CylinderGeometry(0.11, 0.15, 0.12, 10), HOOF, M(0, -1.05, -0.08, 0, 0, 0, 1, 1, 1.1));
       }
-      g.add(lb.build({ name: 'leg' })); legs.push({ g, off, tuck: front ? 0.7 : 0.55 });
+      g.add(lb.build({ name: 'leg' })); legs.push({ g, off, front });
     }
-    // wings: span along +X (or -X), folded back along the flanks with the feathers hanging down;
-    // the pivot yaws them back and the inner group twists them flat and flaps
-    const wings = [];
+    // -- wings: root at the shoulders, span along ±X, chord back along -Z. The root pivot sweeps, the
+    // arm group raises/flaps and the hand (primaries) folds back and lags the beat
+    const WX = Math.max(0.52, Math.min(0.75, f.hip * 0.78)), wings = [];
     for (const sd of [-1, 1]) {
-      const p = new THREE.Group(); p.position.set(sd * WX, 1.35, 0.55);
-      const fl = new THREE.Group(); p.add(fl);
+      const p = new THREE.Group(); p.position.set(sd * WX, 1.55, 0.45);
+      const arm = new THREE.Group(); p.add(arm);
+      const hand = new THREE.Group(); hand.position.x = sd * 1.3; arm.add(hand);
       const wb = new BrickBuilder(0.4);
-      rbox(wb, sd * 0.55, 0, 0, 1.1, 0.1, 0.2, 0, 0, 0, GR);
-      rbox(wb, sd * 0.55, -0.01, -0.3, 1.0, 0.06, 0.5, 0, 0, 0, GR3);
-      for (let i = 0; i < 6; i++) {
-        const len = 0.7 - i * 0.06, a = sd * (0.1 + i * 0.16);
-        rbox(wb, sd * (1.05 + CO(a) * len * 0.5), 0, -0.05 - i * 0.12 - Math.abs(S(a)) * len * 0.5, len, 0.05, 0.16, 0, a, 0, i % 2 ? GR2 : GR);
+      rbox(wb, sd * 0.65, 0, 0.0, 1.34, 0.16, 0.28, 0, 0, 0, GR);
+      for (let i = 0; i < 6; i++) rbox(wb, sd * (0.12 + i * 0.22), -0.01, -0.22, 0.24, 0.1, 0.28, 0, 0, 0, i % 2 ? GR3 : GR);
+      for (let i = 0; i < 7; i++) rbox(wb, sd * (0.1 + i * 0.19), -0.02, -0.42, 0.2, 0.08, 0.32, 0, 0, 0, i % 2 ? GR : BRN2);
+      for (let i = 0; i < 8; i++) {
+        const len = 0.6 + Math.min(i, 5) * 0.13 + (i % 2) * 0.07;
+        rbox(wb, sd * (0.08 + i * 0.165), -0.03, -0.5 - len / 2, 0.18, 0.04, len, 0, 0, 0, i % 2 ? BRN : GR2);
       }
-      for (let i = 0; i < 5; i++) rbox(wb, sd * (0.15 + i * 0.2), -0.02, -0.6, 0.18, 0.05, 0.3, 0, 0, 0, i % 2 ? GR : GR2);
-      fl.add(wb.build({ name: 'wing' })); wings.push({ p, fl, sd });
+      arm.add(wb.build({ name: 'wing' }));
+      const hb2 = new BrickBuilder(0.4);
+      rbox(hb2, sd * 0.38, 0, -0.04, 0.78, 0.14, 0.26, 0, sd * 0.1, 0, GR);
+      for (let i = 0; i < 5; i++) rbox(hb2, sd * (0.1 + i * 0.16), -0.01, -0.26, 0.17, 0.09, 0.26, 0, 0, 0, i % 2 ? GR : GR3);
+      for (let i = 0; i < 8; i++) {
+        const a = 0.1 + i * 0.19, len = 1.5 - i * 0.08, r0 = [sd * (0.74 - i * 0.08), -0.02 - i * 0.004, -0.12 - i * 0.035];
+        feather(hb2, r0, [sd * CO(a), 0, -S(a)], [0, 1, 0], 0.19, len, 0.04, i % 2 ? BRN : DK);
+      }
+      hand.add(hb2.build({ name: 'wingtip' }));
+      wings.push({ p, arm, hand, sd });
     }
-    let ph = 0, wph = 0, open = 0;
-    // a big rider gets a slightly broader, taller hippogriff
-    const kx = clamp(1 + (f.W - 1.3) * 0.25, 1, 1.15), ky = 1 + f.big * 0.05;
+    // a big rider gets a bigger, broader hippogriff
+    const K = 1.15 + f.big * 0.12, kx = K * clamp(1 + (f.W - 1.3) * 0.2, 1, 1.12), ky = K, kz = K;
+    const seat = [0, 1.63 * ky, (-0.35 - f.big * 0.18) * kz];
+    // reins from the halter collar to the rider's hands (where a steering wheel would be)
+    const sh = rig.shoulder, L = rig.armLen ?? 0.86, rim = Math.min(Math.abs(sh.x ?? 0.56), 0.32 + L * 0.08);
+    const hy = seat[1] + sh.y - CO(1) * L, hz = seat[2] + (sh.z || 0) + S(1) * L;
+    const reins = new THREE.Group(); const rb = new BrickBuilder(0.4);
+    for (const sd of [-1, 1]) {
+      const c = [sd * 0.3 * kx, CP[1] * ky, CP[2] * kz], h = [sd * rim, hy - 0.04, hz], m = [(c[0] + h[0]) / 2, (c[1] + h[1]) / 2 - 0.12, (c[2] + h[2]) / 2];
+      rod(rb, c, m, 0.025, ROPE); rod(rb, m, h, 0.025, ROPE);
+    }
+    reins.add(rb.build({ name: 'reins', shadows: false }));
+    let ph = 0, wph = 0, open = 0, pitch = 0, lift = 0;
     return {
-      mesh: grow([b.build({ name: 'buckbeak' }), head, tail, ...legs.map((l) => l.g), ...wings.map((w) => w.p)], kx, ky, ky),
-      seat: [0, 1.5 * ky, -0.25 * ky], control: 'none',
-      exhaust: [[0.25, 1.05 * ky, -1.45 * ky, BACK, 0.8], [-0.25, 1.05 * ky, -1.45 * ky, BACK, 0.8]],
+      mesh: grow([b.build({ name: 'buckbeak' }), head, tail, ...legs.map((l) => l.g), ...wings.map((w) => w.p)], kx, ky, kz),
+      parts: [reins], seat, control: 'none', glider: { z: seat[2] - 0.1 },
+      exhaust: [[0.3 * kx, 0.95 * ky, -1.85 * kz, BACK, 0.8], [-0.3 * kx, 0.95 * ky, -1.85 * kz, BACK, 0.8]],
       fx(s, dt) {
         const air = s.gliding || !s.grounded, pace = Math.min(1, 0.15 + s.speed01 * 1.3);
         ph += dt * (2 + s.speed01 * 10 + (s.boosting ? 4 : 0));
-        for (const l of legs) l.g.rotation.x += ((air ? l.tuck : S(ph + l.off) * 0.65 * pace) - l.g.rotation.x) * ease(dt, 14);
-        open += ((s.gliding ? 1 : s.boosting ? 0.6 : 0) - open) * ease(dt, 4);
-        wph += dt * (s.gliding ? 4.5 : 12);
-        const flap = S(wph) * (s.gliding ? 0.4 : 0.55);
+        // gallop: hind pair then fore pair; legs tuck up in the air
+        for (const l of legs) l.g.rotation.x += ((air ? (l.front ? 1.0 : 0.8) : S(ph + l.off) * 0.6 * pace) - l.g.rotation.x) * ease(dt, 14);
+        // wings: half-spread and gently beating on the ground, wide open and flapping to glide or boost
+        open += ((s.gliding ? 1 : s.boosting ? 0.75 : 0) - open) * ease(dt, 4);
+        wph += dt * (s.boosting ? 10 : s.gliding ? 4.5 : 2.5 + s.speed01 * 3);
+        const amp = s.boosting ? 0.45 : s.gliding ? 0.32 : 0.1 + s.speed01 * 0.08, flap = S(wph) * amp, lag = S(wph - 0.9) * amp;
         for (const w of wings) {
-          w.p.rotation.y = w.sd * (PI / 2 - 0.08 - open * (PI / 2 - 0.3));
-          w.fl.rotation.x = -PI / 2 * (1 - open); w.p.scale.setScalar(1 + open * 0.35);
-          w.fl.rotation.z = w.sd * (open * (0.12 + flap) + (1 - open) * S(ph) * 0.04);
+          w.p.rotation.y = w.sd * (0.12 * (1 - open));
+          w.arm.rotation.z = w.sd * ((0.8 - open * 0.55) + flap);
+          w.hand.rotation.y = w.sd * (0.6 * (1 - open));
+          w.hand.rotation.z = w.sd * ((-0.45 + open * 0.4) + lag * 0.6);
         }
         head.rotation.y = -s.steer * 0.35;
-        head.rotation.x = (air ? -0.15 : S(ph * 2) * 0.07 * pace);
-        head.position.y = 2.0 + (air ? 0 : Math.abs(S(ph)) * 0.05 * pace);
-        tail.rotation.x = -0.25 - s.speed01 * 0.55 + S(ph * 0.7) * 0.08;
-        tail.rotation.y = s.steer * 0.4 + S(ph * 0.5) * 0.2;
-        sprung.position.y = air ? 0 : Math.abs(S(ph)) * 0.05 * pace;
+        head.rotation.x = air ? -0.1 : s.boosting ? 0.15 : S(ph * 2) * 0.07 * pace;
+        const stream = Math.min(1, s.speed01 + (air ? 0.5 : 0));
+        tails[0].rotation.x = 0.3 - stream * 0.15 + S(ph * 0.7) * 0.06;
+        tails[1].rotation.x = -0.75 + stream * 0.4 + S(ph - 0.8) * 0.12 * pace;
+        tails[2].rotation.x = -0.4 + stream * 0.25 + S(ph - 1.6) * 0.14 * pace;
+        tails[3].rotation.x = -0.25 + stream * 0.15 + S(ph - 2.4) * 0.16 * pace;
+        for (let i = 0; i < 4; i++) tails[i].rotation.y = s.steer * 0.25 + S(ph * 0.5 - i * 0.7) * 0.12;
+        reins.visible = !s.gliding;
+        // the body rocks with the gallop, noses down on boost and up to glide
+        pitch += ((air ? (s.gliding ? -0.06 : 0) : (s.boosting ? 0.05 : 0) + S(ph * 2 + 1) * 0.035 * pace) - pitch) * ease(dt, 10);
+        lift = air ? 0 : Math.abs(S(ph)) * 0.06 * pace;
+        pitchAbout(sprung, pitch, 1.2 * ky, -0.3 * kz, lift);
       },
     };
   },

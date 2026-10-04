@@ -25,7 +25,7 @@ Play: <https://hoai2k.github.io/francis/brick-kart/>
 ### Simplified mode
 
 **Simplified mode** (Options, off by default, remembered once you turn it on)
-offers a smaller set (61 drivers and 31 karts) on the select screen, as one
+offers a smaller set (82 drivers and 41 karts) on the select screen, as one
 big grid without movie headings, and CPU racers use only that set too. The set lives in `js/simplified.js` (`null` means all).
 Choose it in the **workbench** at
 <https://hoai2k.github.io/francis/brick-kart/workbench/>: every character and
@@ -65,10 +65,11 @@ or the sky.
 
 ## Racers
 
-There are 16 original Brick Kart karts, and 14 of their racers are drivers like
-the movie casts below: Brick Bob, Astro Ava, Cap'n Redbeard, Sir Kara, Robo-Rex, Ninja Nix,
-Chief Flo, Wizard Wendel, Chef Pepper, Cowgirl Cassie, Viking Bjorn, Queen
-Regina, Zorp the Alien and Mummy Max (Skater Sam's and Dino Dina's karts stay).
+The original Brick Kart racers come as 14 drivers like the movie casts below
+(Brick Bob, Astro Ava, Cap'n Redbeard, Sir Kara, Robo-Rex, Ninja Nix, Chief Flo,
+Wizard Wendel, Chef Pepper, Cowgirl Cassie, Viking Bjorn, Queen Regina, Zorp the
+Alien and Mummy Max) and 13 original karts (Skater Sam and Dino Dina are karts
+only; Sir Kara, Wizard Wendel and Chef Pepper are drivers only).
 
 ### Drivers and karts
 
@@ -104,12 +105,12 @@ the race (CPU ones too) gets one of them at the wheel.
   in your browser, and starts on them next time. Stat bars show the kart's stats adjusted by the driver's weight
   class (light drivers accelerate and handle better; heavy ones are faster and
   push harder).
-- 46 karts in one grid: the first 8 originals, the Wild Rides, the movie rides,
-  then the other 8 originals. The **originals** are themed on their racers: Hard
+- 43 karts in one grid: the first 7 originals, the Wild Rides, the movie rides,
+  then the other 6 originals. The **originals** are themed on their racers: Hard
   Hat Hauler (loader-dumper), Comet Cruiser (moon rover), Plank Plunderer
-  (paddle-wheel pirate ship), Iron Bastion (castle on rolling logs), Turbo Titan
+  (paddle-wheel pirate ship), Turbo Titan
   (robot-head jet dragster), Shadow Dart (shuriken trike), Blaze Runner (fire
-  engine), Spell Streak (flying broomstick), Hot Wok (wok cart), Dust Devil
+  engine), Dust Devil
   (covered wagon), Long Hammer (Viking longship on runners), Royal Coach
   (pumpkin coach), Skate Spark (giant skateboard), Saucer Buggy (flying saucer
   with a beamed-up cow), Tomb Rover (scarab walker), Fossil Flyer (T. rex
@@ -206,7 +207,11 @@ anyone, and the knock slides off over a moment (longer on ice). Traffic, cows,
 forklifts and other "bump" hazards shove you aside rather than spinning you.
 Rolling boulders, snowballs, gumballs and asteroids: hit one square in the middle
 and it stops you; clip it towards a side and you're thrown off the other way and
-slowed, but keep driving. The factory's wrecking arms spin you out. Only power-ups turn contact
+slowed, and the nearer the very edge, the less speed you lose. Every other hazard
+is graded the same way by where in it you are hit: crushers, geysers, cannonball
+and meteor impacts, stomping feet and fire bars wreck you only in their middle,
+spin you out further out, and at the edge just shove you out and cost a little
+speed. Steering away at the last moment pays off. Only power-ups turn contact
 into a hit: a Golden, Mega or Bullet Brick bowls you over into a spin-out and
 flings you aside, and only Black Flash wrecks you on contact.
 

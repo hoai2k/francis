@@ -3,7 +3,7 @@
 // has a signature cursed technique played on cheer / win with emissive effects
 // (helpers in ./jjk-kit.js).
 import {
-  THREE, BrickBuilder, C, plastic, rbox, rod, mat4, faceMat, neon, spike, atlasHead, taperGeo,
+  THREE, BrickBuilder, C, plastic, rbox, rod, mat4, cached, faceMat, neon, spike, atlasHead, taperGeo,
   NAVY, GOLD, INK, jfig, handY, cap, back, spikes, fringe, frustum, atlasStyle,
   fxg, addGlow, ball, ringMesh, sparks, vis, seg, sm, lerp, bump,
 } from './jjk-kit.js';
@@ -155,16 +155,92 @@ function panda() {
 }
 const drum = (t) => ({ lx: -1.1 + S(t * 18) * 0.35, lz: -0.7, rx: -1.1 - S(t * 18) * 0.35, rz: 0.7, hx: -0.35, by: abs(S(t * 18)) * 0.04, tx: -0.1 });
 
+// ---- local modelling helpers (Todo, Nanami, Jogo, Mahoraga) --------------------------------
+const lsph = () => cached('jjkLocSph', () => new THREE.SphereGeometry(1, 12, 8));
+// a squashed ellipsoid (spots, muscles) with any scale; ry turns it about Y
+const blob = (b, x, y, z, sx, sy, sz, color, ry = 0) => b.add(lsph(), typeof color === 'number' ? plastic(color) : color, x, y, z, ry, sx, sy, sz);
+// a pointed flat blade (feather, fin) from base (x, y, z): phi = angle in the XY plane from +X,
+// psi = sweep back about Y; length L, breadth w, thickness t
+const feather = (b, x, y, z, phi, psi, L, w, t, color) => b.addMatrix(taperGeo(1, 0.18, 1, 1), plastic(color), mat4(x, y, z, 0, psi, phi - PI / 2, w, L, t));
+// a point on the seatedFig torso surface: side 'f' | 'b' (u = -1..1 across) or sd = +-1 (u across depth)
+const torsoPt = (d, side, u, y) => {
+  const t = (y - d.chestY) / (0.82 * d.s), hw = (0.46 - 0.11 * t) * d.s * d.W, hd = (0.23 - 0.02 * t) * d.s * d.D;
+  if (side === 'f') return [u * hw, y, hd, 0];
+  if (side === 'b') return [u * hw, y, -hd, 0];
+  return [side * hw, y, u * hd, PI / 2];
+};
+// a thin dark crease (muscle line) of width w at (x, y, z), turned rz
+const line3 = (b, x, y, z, w, color, rz = 0) => rbox(b, x, y, z, w, 0.012, 0.01, 0, 0, rz, color);
+// a flat painted spot stuck to the torso
+const torsoSpot = (b, d, side, u, y, rx, ry, color) => { const [x, yy, z, rot] = torsoPt(d, side, u, y); blob(b, x, yy, z, rx, ry, 0.014, color, rot); };
+
 // ---- Aoi Todo ------------------------------------------------------------------------------
+const todoFace = () => faceMat('jjk-todo2', (g) => atlasStyle(g, (ell, line, g) => {
+  // heavy brow ridge shadow + thick angled brows
+  ell(0, -30, 62, 10, '#b57a4a');
+  for (const sd of [-1, 1]) {
+    g.fillStyle = '#121212'; g.beginPath();
+    g.moveTo(sd * 8, -28); g.lineTo(sd * 54, -48); g.lineTo(sd * 58, -38); g.lineTo(sd * 12, -18); g.closePath(); g.fill();
+    // small, fierce eyes
+    ell(sd * 32, -12, 13, 7, '#fff'); ell(sd * 30, -12, 6, 6, '#111'); ell(sd * 28, -14, 2, 2, '#fff');
+    line([[sd * 16, -18], [sd * 48, -20]], '#111', 4);
+    line([[sd * 20, 14], [sd * 34, 30]], '#9a6036', 3);              // cheek lines
+  }
+  // the long scar down his left side, through the eye
+  line([[34, -62], [30, -26]], '#efc59c', 6); line([[30, -4], [38, 30]], '#efc59c', 6);
+  for (const [x, y] of [[33, -50], [32, -36], [33, 6], [36, 20]]) line([[x - 7, y], [x + 7, y + 2]], '#efc59c', 3);
+  // broad nose
+  line([[0, -14], [-4, 6], [4, 10]], '#93582e', 4);
+  // big confident grin
+  g.fillStyle = '#3a120c'; g.beginPath(); g.moveTo(-34, 24); g.quadraticCurveTo(0, 54, 34, 24); g.quadraticCurveTo(0, 30, -34, 24); g.fill();
+  g.fillStyle = '#fff'; g.beginPath(); g.moveTo(-28, 27); g.quadraticCurveTo(0, 34, 28, 27); g.lineTo(26, 32); g.quadraticCurveTo(0, 38, -26, 32); g.closePath(); g.fill();
+  line([[-6, 54], [-3, 60]], '#93582e', 3); line([[6, 54], [3, 60]], '#93582e', 3);   // cleft chin
+}), '#c68a58');
 function todo() {
-  const SK = 0xd9a878, JK = 0x2a2a2a;
+  const SK = 0xc68a58, JK = 0x1e2130, PANTS = 0x2e2f3a, SASH = 0x2f86e8, SHIRT = 0xf2f0ea;
   const rig = jfig({
-    name: 'todo', face: 'todo', s: 1.4, wide: 1.3, skin: SK, torso: JK, arms: JK, hands: SK, legs: 0x3a3a3a,
-    hair: (b, r, h) => { cap(b, r, h, INK, 0.84); back(b, r, h, INK, 0.5, 0.9); b.cyl(0, h, -r * 0.3, r * 0.28, 0.16, INK, { seg: 10 }); b.sphere(0, h + 0.25, -r * 0.35, r * 0.36, INK); },
+    name: 'todo', face: todoFace(), s: 1.45, wide: 1.38, deep: 1.1, headR: 0.28, headH: 0.5, extraHeight: 0.45,
+    skin: SK, torso: JK, arms: JK, hands: SK, legs: PANTS, hips: PANTS, neck: SK,
+    hair: (b, r, h) => {
+      // slicked back, tied into his top-knot
+      b.cyl(0, h * 0.86, 0, r * 1.04, h * 0.14 + 0.01, INK, { seg: 18 });
+      b.sphere(0, h, 0, r * 1.04, INK, { sy: 0.32 });
+      b.cyl(0, h * 0.2, -r * 0.1, r * 1.04, h * 0.72, INK, { seg: 18 });   // hugging the back of the skull
+      for (const sd of [-1, 1]) b.box(sd * r * 0.99, h * 0.44, r * 0.1, 0.03, h * 0.32, r * 0.16, INK);   // sideburns
+      b.cyl(0, h + r * 0.22, -r * 0.3, r * 0.22, 0.1, 0x8a1a1a, { seg: 10 });   // the tie
+      b.sphere(0, h + r * 0.22 + 0.17, -r * 0.34, r * 0.4, INK, { sy: 0.85 });   // the top-knot
+      spike(b, 0, h + r * 0.22 + 0.22, -r * 0.55, r * 0.2, 0.2, -1.2, 0, INK);
+    },
     torsoExtra: (b, d) => {
-      const s = d.s;
-      b.box(0, 0.3 * s, 0.225 * s, 0.34 * s, 0.62 * s, 0.05 * s, SK);
-      b.box(0, 0.5 * s, 0.25 * s, 0.02 * s, 0.32 * s, 0.01 * s, 0xb98858);
+      const s = d.s, W = d.W;
+      // the open jacket shows a bare, ripped chest
+      const D = d.D, F = 0.25 * s * D;   // front of the torso
+      b.box(0, 0.24 * s, F - 0.06 * s, 0.56 * s, 0.76 * s, 0.1 * s, SK);
+      for (const sd of [-1, 1]) {
+        rbox(b, sd * 0.13 * s, 0.73 * s, F + 0.01 * s, 0.24 * s, 0.17 * s, 0.07 * s, 0.25, 0, sd * 0.1, SK);   // slab pecs
+        line3(b, sd * 0.13 * s, 0.645 * s, F + 0.035 * s, 0.22 * s, 0x9a6036, sd * 0.1);
+        for (let k = 0; k < 3; k++) b.box(sd * 0.055 * s, (0.46 - k * 0.11) * s, F, 0.09 * s, 0.085 * s, 0.035 * s, SK);   // abs
+        // torn undershirt and jacket edges framing the chest
+        rbox(b, sd * 0.29 * s, 0.58 * s, F + 0.005 * s, 0.05 * s, 0.78 * s, 0.05 * s, 0, 0, sd * 0.06, SHIRT);
+        rbox(b, sd * 0.34 * s, 0.6 * s, F + 0.02 * s, 0.07 * s, 0.82 * s, 0.05 * s, 0, 0, sd * 0.06, JK);
+        rbox(b, sd * 0.24 * s, 0.98 * s, 0.14 * s, 0.2 * s, 0.07 * s, 0.24 * s, 0.3, 0, -sd * 0.35, JK);   // flared collar
+        // big traps
+        b.sphere(sd * 0.2 * s * W, 0.94 * s, -0.04 * s, 0.16 * s, JK, { sy: 0.5 });
+      }
+      for (let k = 0; k < 3; k++) b.box(0.36 * s, (0.78 - k * 0.2) * s, F + 0.03 * s, 0.05 * s, 0.05 * s, 0.03 * s, GOLD);
+      b.cyl(0, 0.86 * s, 0.02 * s, 0.18 * s, 0.16 * s, SK, { seg: 12 });   // thick neck
+      // bright blue sash over the martial-arts pants
+      b.box(0, -0.02 * s, 0, 0.96 * s * W, 0.24 * s, 0.5 * s * d.D, SASH);
+      b.sphere(0.3 * s, 0.1 * s, 0.26 * s * d.D, 0.08 * s, SASH);
+      rbox(b, 0.36 * s, -0.08 * s, 0.28 * s * d.D, 0.09 * s, 0.26 * s, 0.03 * s, 0, 0, 0.25, SASH);
+      rbox(b, 0.26 * s, -0.1 * s, 0.28 * s * d.D, 0.09 * s, 0.22 * s, 0.03 * s, 0, 0, -0.2, SASH);
+    },
+    arm: (ab, sd, d) => {
+      const s = d.s, w = Math.sqrt(d.W);
+      ab.sphere(0, -0.03 * s, 0, 0.15 * s * w, JK, { sy: 1.15 });       // deltoid
+      ab.cyl(0, -0.36 * s, 0, 0.15 * s * w, 0.08 * s, JK, { seg: 12 }); // rolled-up sleeve
+      ab.cyl(0, -0.56 * s, 0, 0.14 * s * w, 0.22 * s, SK, { seg: 12 }); // bare forearm
+      ab.sphere(0, -0.44 * s, 0.02 * s, 0.125 * s * w, SK);
     },
   });
   // Boogie Woogie: a flash ring every clap
@@ -175,7 +251,7 @@ function todo() {
   const tears = fxg(rig.head, 0, 0, 0);
   const tb = new BrickBuilder(1);
   const r = rig.dims.headR, h = rig.dims.headH;
-  for (const sd of [-1, 1]) tb.box(sd * r * 0.42, h * 0.08, r * 0.92, 0.05, h * 0.46, 0.03, 0, { mat: neon(0x6ac8ff, 1.8) });
+  for (const sd of [-1, 1]) rbox(tb, Math.sin(sd * 0.5) * r * 1.02, h * 0.42, Math.cos(sd * 0.5) * r * 1.02, 0.05, h * 0.42, 0.03, 0, sd * 0.5, 0, 0, { mat: neon(0x6ac8ff, 1.8) });
   tears.add(tb.build({ name: 'tears' }));
   rig.fx = (n, f, t) => {
     const ch = n === 'cheer';
@@ -192,28 +268,93 @@ function todo() {
 }
 
 // ---- Kento Nanami --------------------------------------------------------------------------
+const nanamiFace = () => faceMat('jjk-nanami2', (g) => atlasStyle(g, (ell, line) => {
+  for (const sd of [-1, 1]) {
+    line([[sd * 12, -44], [sd * 52, -47]], '#9a7230', 8);     // straight, serious brows
+    ell(sd * 30, -18, 30, 17, '#3a3a2a');                     // under the goggles
+    line([[sd * 18, 0], [sd * 42, 0]], '#d4a582', 3);         // overtime eye bags
+    line([[sd * 20, 10], [sd * 30, 32]], '#c4946e', 3);       // tired cheek lines
+  }
+  line([[0, -6], [5, 12], [-2, 15]], '#b98663', 4);           // nose
+  line([[-18, 33], [0, 31], [18, 34]], '#5a2a20', 5);         // flat, unimpressed mouth
+  line([[-7, 50], [7, 50]], '#d4a684', 3);                    // long chin
+}), '#f0cda8');
+// the cloth-wrapped cleaver: grip at the origin, blade up +Y, broad along Z
+function cleaver() {
+  const b = new BrickBuilder(1), CL = 0xf3efe4, DOT = 0x18181c;
+  b.box(0, -0.16, 0, 0.06, 0.3, 0.07, 0x2a2018);
+  for (let k = 0; k < 3; k++) b.box(0, -0.13 + k * 0.08, 0, 0.07, 0.025, 0.08, 0x5a4a3a);
+  b.box(0, 0.13, 0, 0.09, 0.04, 0.2, 0x2a2018);
+  b.box(0, 0.15, 0.01, 0.07, 0.74, 0.19, CL);
+  rbox(b, 0, 0.89, 0.01, 0.07, 0.09, 0.19, 0, 0, 0, CL);
+  rbox(b, 0, 0.9, -0.03, 0.07, 0.12, 0.12, PI / 4, 0, 0, CL);   // the slanted blunt tip
+  for (let k = 0; k < 3; k++) rbox(b, 0, 0.28 + k * 0.24, 0.01, 0.075, 0.02, 0.2, 0.35, 0, 0, 0xd8d2c2);   // cloth wraps
+  const dots = [[0.24, 0.05], [0.36, -0.05], [0.46, 0.06], [0.58, -0.04], [0.68, 0.05], [0.8, -0.05], [0.9, 0.04], [0.52, 0], [0.31, -0.07]];
+  for (const sd of [-1, 1]) for (const [y, z] of dots) blob(b, sd * 0.036, y, z, 0.006, 0.026, 0.026, DOT);
+  return b.build({ name: 'cleaver' });
+}
 function nanami() {
-  const SUIT = 0xd8c8a0, BLOND = 0xf0d890, SHIRT = 0x2a3a6a, TIE = 0xe0b040;
+  const SUIT = 0xcdb27a, LAPEL = 0xb3965c, BLOND = 0xf0c858, PART = 0x9a7428, SHIRT = 0x2b3c6c, TIE = 0xe2a832, SPOT = 0x4a2a10;
+  const FRAME = 0x26261e;
+  const lens = plastic(0x8cc23c, { rough: 0.12, metal: 0.3, emissive: 0x3c7010, emissiveIntensity: 0.55 });
   const rig = jfig({
-    name: 'nanami', face: 'nanami', s: 1.33, torso: SUIT, arms: SUIT, legs: 0xc8b890, skin: SKIN,
-    hair: (b, r, h) => { cap(b, r, h, BLOND, 0.84); back(b, r, h, BLOND, 0.45, 0.9); b.box(r * 0.25, h * 0.98, -r * 0.1, r * 0.08, 0.05, r * 1.6, 0xc9a860); spike(b, -r * 0.3, h * 0.93, r * 0.62, r * 0.32, 0.22, 2.25, 0.25, BLOND); spike(b, -r * 0.6, h * 0.9, r * 0.5, r * 0.26, 0.2, 2.2, 0.55, BLOND); },
+    name: 'nanami', face: nanamiFace(), s: 1.33, headR: 0.3, headH: 0.54, extraHeight: 0.2,
+    torso: SUIT, arms: SUIT, legs: 0xc2a670, hips: 0xc2a670, skin: 0xf0cda8, hands: 0xf0cda8, neck: 0xf0cda8,
+    hair: (b, r, h) => {
+      // short, neat back and sides
+      b.cyl(0, h * 0.42, -r * 0.18, r * 1.0, h * 0.5, BLOND, { seg: 18 });
+      b.cyl(0, h * 0.88, 0, r * 1.05, h * 0.12 + 0.01, BLOND, { seg: 18 });
+      // the 7:3 part: flat and close on the '3' side, a full glossy sweep over the '7' side
+      b.sphere(-r * 0.42, h + 0.01, -r * 0.05, r * 0.66, BLOND, { sy: 0.36 });
+      b.sphere(r * 0.2, h + 0.02, -r * 0.02, r * 0.9, BLOND, { sy: 0.62 });
+      rbox(b, -r * 0.36, h + r * 0.27, -r * 0.08, 0.04, 0.05, r * 1.5, 0, 0, 0.5, PART);    // the part line
+      rbox(b, r * 0.16, h * 0.97, r * 0.72, r * 1.35, h * 0.13, r * 0.45, 0.45, 0, 0.18, BLOND);   // swept front
+      rbox(b, r * 0.86, h * 0.86, r * 0.2, r * 0.3, h * 0.2, r * 1.1, 0, 0, -0.2, BLOND);    // the sweep falls over his temple
+      spike(b, -r * 0.14, h * 0.98, r * 0.88, r * 0.13, 0.22, 2.55, 0.35, BLOND);   // stray locks on the forehead
+      spike(b, r * 0.02, h * 0.98, r * 0.92, r * 0.11, 0.17, 2.65, 0.15, BLOND);
+      // the green goggle glasses
+      for (const sd of [-1, 1]) {
+        const a = sd * 0.42, y = h * 0.64;
+        rbox(b, S(a) * r, y, Math.cos(a) * r, r * 0.62, h * 0.27, 0.06, 0, a, 0, FRAME);
+        rbox(b, S(a) * (r + 0.03), y, Math.cos(a) * (r + 0.03), r * 0.5, h * 0.19, 0.03, 0, a, 0, 0, { mat: lens });
+        b.box(S(a) * (r + 0.05) - sd * r * 0.12, y + h * 0.03, Math.cos(a) * (r + 0.05), 0.04, 0.03, 0.01, 0xe8ffd0);   // glint
+        rod(b, [S(sd * 0.72) * (r + 0.015), y, Math.cos(0.72) * (r + 0.015)], [S(sd * 1.25) * (r + 0.015), y + 0.01, Math.cos(1.25) * (r + 0.015)], 0.016, FRAME, 5);   // temple arms
+      }
+      b.box(0, h * 0.64, r * 0.97, r * 0.26, 0.05, 0.05, FRAME);
+    },
     torsoExtra: (b, d) => {
       const s = d.s;
-      b.cyl(0, 0.88 * s, 0, 0.2 * s, 0.2 * s, SHIRT, { seg: 14 });
-      b.box(0, 0.5 * s, 0.215 * s, 0.3 * s, 0.42 * s, 0.04 * s, SHIRT);
-      b.box(0, 0.38 * s, 0.235 * s, 0.11 * s, 0.52 * s, 0.04 * s, TIE);
-      b.box(0, 0.84 * s, 0.235 * s, 0.14 * s, 0.08 * s, 0.05 * s, TIE);
-      for (let k = 0; k < 3; k++) b.box(((k % 2) - 0.5) * 0.04 * s, (0.48 + k * 0.12) * s, 0.258 * s, 0.03 * s, 0.03 * s, 0.01 * s, C.black);
+      // navy shirt in the V of the jacket
+      b.box(0, 0.46 * s, 0.205 * s, 0.34 * s, 0.54 * s, 0.03 * s, SHIRT);
+      b.cyl(0, 0.86 * s, 0, 0.2 * s, 0.15 * s, SHIRT, { seg: 14 });
+      for (const sd of [-1, 1]) rbox(b, sd * 0.08 * s, 0.94 * s, 0.17 * s, 0.1 * s, 0.07 * s, 0.05 * s, 0.2, 0, sd * 0.5, SHIRT);   // collar points
+      // leopard-print tie
+      b.box(0, 0.84 * s, 0.215 * s, 0.12 * s, 0.1 * s, 0.05 * s, TIE);
+      b.box(0, 0.44 * s, 0.225 * s, 0.11 * s, 0.42 * s, 0.03 * s, TIE);
+      rbox(b, 0, 0.44 * s, 0.225 * s, 0.078 * s, 0.078 * s, 0.03 * s, 0, 0, PI / 4, TIE);
+      for (const [x, y] of [[-0.03, 0.8], [0.025, 0.74], [-0.025, 0.66], [0.03, 0.6], [-0.02, 0.53], [0.02, 0.48], [0.035, 0.87], [0, 0.7]]) blob(b, x * s, y * s, 0.243 * s, 0.018 * s, 0.022 * s, 0.006, SPOT);
+      // lapels and buttons
+      for (const sd of [-1, 1]) {
+        rbox(b, sd * 0.11 * s, 0.72 * s, 0.226 * s, 0.1 * s, 0.56 * s, 0.035 * s, 0, 0, -sd * 0.27, LAPEL);
+        rbox(b, sd * 0.2 * s, 0.86 * s, 0.222 * s, 0.11 * s, 0.13 * s, 0.03 * s, 0, 0, -sd * 0.6, LAPEL);
+        b.box(sd * 0.27 * s, 0.34 * s, 0.226 * s, 0.17 * s, 0.035 * s, 0.03 * s, LAPEL);   // pocket flaps
+      }
+      for (const y of [0.4, 0.27]) b.box(0, y * s, 0.232 * s, 0.05 * s, 0.05 * s, 0.03 * s, 0x5a4026);
+      b.box(0.24 * s, 0.7 * s, 0.222 * s, 0.13 * s, 0.025 * s, 0.03 * s, LAPEL);           // breast pocket
+    },
+    arm: (ab, sd, d) => {
+      const s = d.s;
+      ab.cyl(0, -0.53 * s, 0, 0.12 * s, 0.035 * s, SHIRT, { seg: 10 });   // cuffs
+      if (sd > 0) { ab.cyl(0, -0.565 * s, 0, 0.112 * s, 0.05 * s, 0x2a2018, { seg: 10 }); ab.box(0.1 * s, -0.575 * s, 0, 0.03 * s, 0.07 * s, 0.07 * s, GOLD); }   // the watch: no overtime
     },
   });
-  // a cloth-wrapped cleaver
+  const s = rig.dims.s;
+  // the cleaver rides on his back, and comes out for the cheer
+  const sheath = new THREE.Group(); sheath.position.set(-0.24 * s, 0.98 * s, -0.27 * s); sheath.rotation.z = 0.5; rig.torso.add(sheath);
+  const sc = cleaver(); sc.rotation.set(PI, PI / 2, 0); sc.scale.setScalar(1.1); sheath.add(sc);
   const blade = fxg(rig.armR, 0, handY(rig), 0);
-  const bb = new BrickBuilder(1);
-  bb.box(0, -0.08, 0.36, 0.07, 0.17, 0.74, 0xece6d6);
-  for (let k = 0; k < 3; k++) bb.box(0, -0.09, 0.12 + k * 0.22, 0.09, 0.19, 0.05, 0x3a3a3a);
-  bb.box(0, -0.06, -0.1, 0.06, 0.12, 0.22, 0x3a2a1a);
-  blade.add(bb.build({ name: 'cleaver' }));
-  blade.scale.setScalar(1.35);
+  const hc = cleaver(); hc.rotation.x = PI / 2; blade.add(hc);
+  blade.scale.setScalar(1.3);
   // Ratio Technique: a line through the target with its 7:3 weak point
   const ratio = fxg(rig.root, 0, 1.05, 1.1);
   const rb = new BrickBuilder(1);
@@ -225,7 +366,7 @@ function nanami() {
   ratio.rotation.z = -0.45;
   rig.fx = (n, f, t) => {
     const ch = n === 'cheer', win = n === 'win';
-    vis(blade, ch || win);
+    vis(blade, ch || win); vis(sheath, !(ch || win));
     const on = (ch && f > 0.28 && f < 0.95) || win;
     vis(ratio, on);
     if (on) {
@@ -426,25 +567,70 @@ function mahito() {
 }
 
 // ---- Jogo -------------------------------------------------------------------------------------
+const jogoFace = () => faceMat('jjk-jogo2', (g) => atlasStyle(g, (ell, line, g) => {
+  // one huge, furious eye
+  ell(0, -12, 40, 27, '#5e5a52');
+  ell(0, -10, 36, 23, '#fbf6ea');
+  ell(2, -8, 20, 18, '#c0201a'); ell(2, -8, 10, 10, '#140808'); ell(-6, -15, 5, 4, '#fff');
+  g.fillStyle = '#4a4740'; g.beginPath(); g.moveTo(-46, -30); g.lineTo(46, -20); g.lineTo(44, -10); g.quadraticCurveTo(0, -30, -44, -22); g.closePath(); g.fill();   // scowling lid
+  // black lips, black teeth
+  g.fillStyle = '#121212'; g.beginPath(); g.moveTo(-50, 24); g.quadraticCurveTo(0, 18, 50, 24); g.quadraticCurveTo(46, 52, 0, 54); g.quadraticCurveTo(-46, 52, -50, 24); g.fill();
+  g.fillStyle = '#3e3d3a'; for (let k = -4; k <= 4; k++) { g.fillRect(k * 10 - 4, 28, 8, 9); g.fillRect(k * 9 - 3.5, 40, 7, 8); }
+  for (const sd of [-1, 1]) line([[sd * 54, 18], [sd * 60, 36]], '#9a978e', 3);   // cheek creases
+}), '#c9c6bd');
 function jogo() {
-  const JY = 0xe8c040, JSK = 0xc9c6bd;
+  const JY = 0xe0a81c, JSK = 0xc9c6bd, BLK = 0x1b1b1b, ROCK = 0x8a4a26, ROCK2 = 0x6a3418, FLUFF = 0xf6f4ee;
+  const lava = neon(0xff5a10, 2.4);
+  const smoke = plastic(0x9a958e, { trans: true, opacity: 0.7 });
   const rig = jfig({
-    name: 'jogo', s: 1.2, headR: 0.36, headH: 0.55, extraHeight: 0.45, torso: JY, arms: JY, hands: JSK, legs: 0x1b1b1b, hips: 0x1b1b1b, neck: JSK, skin: JSK,
-    head: (b, d) => {
-      const r = d.headR, h = d.headH;
-      atlasHead(b, 'jogo', 0, 0, 0, r, h);
-      b.add(frustum(0.68, 1), plastic(0xbcb8ae), 0, h, 0, 0, r, 0.3, r);
-      b.add(frustum(0.74, 1), plastic(0x7a4a2a), 0, h + 0.3, 0, 0, r * 0.68, 0.12, r * 0.68);
-      b.cyl(0, h + 0.4, 0, r * 0.45, 0.03, 0, { mat: neon(0xff5a10, 2.4), seg: 12 });
-      for (const sd of [-1, 1]) b.box(sd * r * 1.02, h * 0.42, 0, 0.12, 0.16, 0.16, C.tan);
+    name: 'jogo', face: jogoFace(), s: 1.05, wide: 1.3, deep: 1.15, headR: 0.45, headH: 0.5, extraHeight: 0.85,
+    torso: JY, arms: JY, hands: JSK, legs: BLK, hips: BLK, neck: JSK, skin: JSK,
+    hair: (b, r, h) => {
+      // the head tapers up into a volcano: grey shoulders, a rocky brown cone, a lava crater
+      b.add(frustum(0.74, 1, 18), plastic(JSK), 0, h, 0, 0, r, 0.24, r);
+      b.add(frustum(0.6, 1, 18), plastic(ROCK), 0, h + 0.24, 0, 0, r * 0.76, 0.26, r * 0.76);
+      const T = h + 0.5, R = r * 0.456;
+      b.addMatrix(cached('jjkJogoRim', () => new THREE.TorusGeometry(1, 0.16, 6, 18)), plastic(ROCK2), mat4(0, T, 0, PI / 2, 0, 0, R, R, R));
+      b.cyl(0, T - 0.04, 0, R * 0.92, 0.05, 0, { mat: lava, seg: 14 });
+      // glowing cracks running down the cone
+      for (const a of [0.35, 1.5, 2.7, 3.8, 5.0]) {
+        const pt = (k, da) => { const rr = lerp(R * 1.03, r * 0.78, k), aa = a + da; return [S(aa) * rr, T - k * 0.26, Math.cos(aa) * rr]; };
+        rod(b, pt(0, 0), pt(0.5, 0.12), 0.02, lava, 4);
+        rod(b, pt(0.5, 0.12), pt(0.92, 0.02), 0.018, lava, 4);
+      }
+      // a curl of smoke
+      b.add(lsph(), smoke, 0.03, T + 0.12, 0, 0, 0.11, 0.09, 0.11);
+      b.add(lsph(), smoke, -0.06, T + 0.26, -0.03, 0, 0.13, 0.11, 0.13);
+      b.add(lsph(), smoke, 0.05, T + 0.42, -0.07, 0, 0.15, 0.12, 0.15);
+      // corks plugged into his ear holes
+      for (const sd of [-1, 1]) {
+        rod(b, [sd * r * 0.9, h * 0.5, 0], [sd * (r + 0.02), h * 0.5, 0], 0.11, 0x3a3834, 12);
+        rod(b, [sd * r * 0.9, h * 0.5, 0], [sd * (r + 0.1), h * 0.5, 0], 0.085, 0xc49a5a, 12);
+      }
     },
     torsoExtra: (b, d) => {
-      const s = d.s;
-      for (let k = 0; k < 9; k++) { const a = (k / 9) * PI * 2; b.sphere(S(a) * 0.3 * s, 0.9 * s, Math.cos(a) * 0.22 * s, 0.11 * s, WHITE); }
-      for (const [x, y] of [[-0.22, 0.3], [0.18, 0.5], [-0.05, 0.68], [0.25, 0.18], [-0.28, 0.6]]) b.box(x * s, y * s, 0.22 * s, 0.09 * s, 0.09 * s, 0.03 * s, 0x2a2a2a);
+      const s = d.s, W = d.W, D = d.D;
+      // black clothes under the open yellow shawl
+      b.box(0, 0.18 * s, 0.19 * s * D, 0.3 * s, 0.7 * s, 0.1 * s, BLK);
+      // fluffy white collar
+      for (let k = 0; k < 12; k++) { const a = (k / 12) * PI * 2; b.sphere(S(a) * 0.31 * s * W, 0.92 * s, Math.cos(a) * 0.22 * s * D, 0.11 * s, FLUFF); }
+      for (let k = 0; k < 8; k++) { const a = (k / 8) * PI * 2 + 0.3; b.sphere(S(a) * 0.2 * s * W, 1.0 * s, Math.cos(a) * 0.14 * s * D, 0.09 * s, FLUFF); }
+      // black splotches all over the shawl
+      for (const [u, y, rx, ry] of [[-0.62, 0.62, 0.07, 0.06], [0.7, 0.42, 0.06, 0.07], [-0.75, 0.3, 0.06, 0.05], [0.58, 0.72, 0.05, 0.05], [-0.5, 0.42, 0.04, 0.04], [0.82, 0.62, 0.04, 0.05]]) torsoSpot(b, d, 'f', u, y * s, rx * s, ry * s, BLK);
+      for (const [u, y, rx, ry] of [[-0.5, 0.7, 0.08, 0.07], [0.3, 0.5, 0.07, 0.06], [-0.1, 0.3, 0.06, 0.06], [0.6, 0.8, 0.06, 0.05], [-0.6, 0.35, 0.05, 0.06], [0.1, 0.78, 0.05, 0.05], [0.7, 0.3, 0.05, 0.05]]) torsoSpot(b, d, 'b', u, y * s, rx * s, ry * s, BLK);
+      for (const sd of [-1, 1]) for (const [u, y] of [[0.3, 0.6], [-0.5, 0.35]]) torsoSpot(b, d, sd, u, y * s, 0.06 * s, 0.055 * s, BLK);
+    },
+    arm: (ab, sd, d) => {
+      const s = d.s, w = Math.sqrt(d.W);
+      ab.cyl(0, -0.58 * s, 0, 0.15 * s * w, 0.12 * s, JY, { seg: 12 });   // wide sleeve mouth
+      for (const [y, side, u] of [[-0.2, 'o', 0.2], [-0.4, 'f', -0.3], [-0.32, 'b', 0.4], [-0.5, 'o', -0.4]]) {
+        const hw = (0.12 + 0.02 * ((y * s + 0.52 * s) / (0.5 * s))) * s * w;
+        if (side === 'o') blob(ab, sd * hw, y * s, u * hw, 0.01, 0.05 * s, 0.05 * s, BLK);
+        else blob(ab, u * hw, y * s, (side === 'f' ? 1 : -1) * hw, 0.05 * s, 0.045 * s, 0.01, BLK);
+      }
     },
   });
-  const d = rig.dims, top = d.headH + 0.42;
+  const d = rig.dims, top = d.headH + 0.5;
   // eruption from the crater
   const er = fxg(rig.head, 0, top, 0);
   const jet = new THREE.Group(); er.add(jet);
@@ -454,7 +640,7 @@ function jogo() {
   const blobs = [];
   for (let k = 0; k < 6; k++) blobs.push(ball(er, 0xff8a20, 0.1, 0, 0, 0, 2.4));
   // Maximum Meteor
-  const met = fxg(rig.root, 0, 2.75, 0.1);
+  const met = fxg(rig.root, 0, 2.95, 0.1);
   ball(met, 0xff5010, 0.4, 0, 0, 0, 1.4);
   const mb = new BrickBuilder(1);
   for (let k = 0; k < 7; k++) { const a = k * 0.9, e = S(k * 2.3) * 0.9; mb.sphere(Math.cos(a) * Math.cos(e) * 0.37, S(e) * 0.37, S(a) * Math.cos(e) * 0.37, 0.13, 0x3a1a10); }
@@ -474,7 +660,7 @@ function jogo() {
       }
     }
     vis(met, win);
-    if (win) { met.rotation.set(t * 0.7, t * 1.3, 0); met.position.y = 2.75 + S(t * 3) * 0.06; }
+    if (win) { met.rotation.set(t * 0.7, t * 1.3, 0); met.position.y = 2.95 + S(t * 3) * 0.06; }
   };
   return rig;
 }
@@ -516,39 +702,92 @@ function transfigured() {
 }
 
 // ---- Mahoraga --------------------------------------------------------------------------------
+const mahoFace = () => faceMat('jjk-mahoraga', (g) => atlasStyle(g, (ell, line, g) => {
+  ell(0, -36, 70, 9, '#d9d4ca');                                        // heavy brow
+  for (const sd of [-1, 1]) { ell(sd * 32, -14, 20, 9, '#4a4a52'); ell(sd * 32, -13, 13, 5, '#16161a'); }   // the eye sockets the wings grow from
+  line([[0, -26], [0, 8]], '#cbc5bb', 6); ell(-7, 12, 5, 3, '#9a948a'); ell(7, 12, 5, 3, '#9a948a');   // nose
+  // the wide, stern statue mouth
+  ell(0, 32, 30, 10, '#b0a29f'); line([[-30, 31], [0, 34], [30, 31]], '#3a2c2c', 5);
+  line([[-12, 48], [12, 48]], '#d0cac0', 4);
+  for (const sd of [-1, 1]) line([[sd * 60, 0], [sd * 50, 40], [sd * 22, 58]], '#d6d1c7', 4);   // jaw
+}), '#ece8e0');
 function mahoraga() {
-  const MW = 0xece8e0, MG = 0xc8c4bc;
+  const MW = 0xece8e0, MG = 0xd2cdc4, WING = 0xfaf8f2, WING2 = 0xdedad2, HAK = 0x24242c, SASH = 0xf6f4ee, CHAIN = 0x8a8e98;
   const metal = { matOpts: { metal: 0.6, rough: 0.3 } };
   const rig = jfig({
-    name: 'mahoraga', s: 1.4, wide: 1.25, headR: 0.3, headH: 0.48, extraHeight: 0.72, torso: MW, arms: MW, hands: MW, legs: 0xdcd8d0, hips: 0xdcd8d0, skin: MW, neck: MW,
-    head: (b, d) => {
-      const r = d.headR, h = d.headH;
-      b.cyl(0, 0, 0, r, h, MW, { seg: 16 });
-      b.box(0, h * 0.5, r * 0.55, r * 1.55, h * 0.16, r * 0.6, 0x2a2a2a);
-      b.box(0, h * 0.2, r * 0.75, r * 0.6, 0.03, r * 0.5, 0x6a6a6a);
-      for (const sd of [-1, 1]) for (let k = 0; k < 2; k++) rbox(b, sd * r * 0.95, h * (0.8 - k * 0.32), -r * 0.15, 0.07, h * 0.3, r * 1.5, 0.25, 0, sd * (0.55 + k * 0.4), 0xf6f2ea);
-      b.box(0, h, -r * 0.1, r * 0.4, 0.07, r * 1.3, MG);
-      b.box(0, h, 0, 0.07, 0.3, 0.07, GOLD, metal);
+    name: 'mahoraga', face: mahoFace(), s: 1.5, wide: 1.4, deep: 1.1, headR: 0.27, headH: 0.46, extraHeight: 1.0,
+    torso: MW, arms: MW, hands: MW, legs: HAK, hips: HAK, skin: MW, neck: MW,
+    hair: (b, r, h) => {
+      // four wings sprouting from the eye sockets
+      for (const sd of [-1, 1]) {
+        const bx = sd * r * 0.42, bz = r * 0.86;
+        for (const [phi, L, dy] of [[0.38, 0.82, 0.03], [-0.22, 0.66, -0.03]]) {
+          feather(b, bx, h * 0.6 + dy, bz, sd > 0 ? phi : PI - phi, sd * 0.4, L, 0.3, 0.04, WING);
+          feather(b, bx, h * 0.6 + dy, bz - 0.03, sd > 0 ? phi + 0.2 : PI - phi - 0.2, sd * 0.55, L * 0.8, 0.24, 0.04, WING2);
+          feather(b, bx, h * 0.6 + dy, bz - 0.05, sd > 0 ? phi - 0.18 : PI - phi + 0.18, sd * 0.5, L * 0.7, 0.2, 0.04, WING2);
+        }
+      }
+      // the serpent-like tail from the back of the head
+      for (let k = 0; k < 10; k++) { const u = k / 9; b.sphere(S(u * 3) * r * 0.12, h * (0.82 - u * 0.75), -r * (0.9 + u * 0.55) - S(u * PI) * r * 0.25, r * (0.3 - u * 0.2), k % 3 === 2 ? MG : MW); }
+      b.sphere(0, h * 0.98, 0, r * 1.0, MW, { sy: 0.3 });   // domed crown
     },
-    torsoExtra: (b, d) => { const s = d.s; for (let k = 0; k < 3; k++) b.box(0, (0.4 + k * 0.14) * s, 0.21 * s, 0.5 * s * 1.25, 0.03 * s, 0.03 * s, MG); b.box(0, 0.8 * s, 0.2 * s, 0.03 * s, 0.25 * s, 0.03 * s, MG); },
+    torsoExtra: (b, d) => {
+      const s = d.s, W = d.W, D = d.D;
+      b.cyl(0, 0.84 * s, 0, 0.2 * s, 0.2 * s, MW, { seg: 14 });   // thick neck
+      for (const sd of [-1, 1]) {
+        b.sphere(sd * 0.27 * s * W * 0.8, 0.96 * s, -0.03 * s, 0.2 * s, MW, { sy: 0.55 });   // traps
+        b.sphere(sd * 0.2 * s, 0.7 * s, 0.15 * s * D, 0.21 * s, MW, { sy: 0.68 });          // pecs
+        for (let k = 0; k < 3; k++) b.sphere(sd * 0.085 * s, (0.47 - k * 0.12) * s, 0.205 * s * D, 0.075 * s, MW, { sy: 0.8 });   // abs
+        for (let k = 0; k < 2; k++) rbox(b, sd * 0.33 * s, (0.48 - k * 0.12) * s, 0.2 * s * D, 0.12 * s, 0.035 * s, 0.03 * s, 0, 0, sd * 0.5, MG);   // serratus
+      }
+      b.box(0, 0.2 * s, 0.23 * s * D, 0.025 * s, 0.4 * s, 0.02 * s, MG);
+      // a broad back: shoulder blades, lats and the spine
+      for (const sd of [-1, 1]) {
+        rbox(b, sd * 0.2 * s, 0.76 * s, -0.215 * s * D, 0.26 * s, 0.22 * s, 0.06 * s, -0.12, 0, sd * 0.25, MW);   // shoulder blades
+        rbox(b, sd * 0.3 * s, 0.44 * s, -0.215 * s * D, 0.16 * s, 0.34 * s, 0.05 * s, 0, 0, sd * 0.3, MW);       // lats
+      }
+      b.box(0, 0.25 * s, -0.25 * s * D, 0.03 * s, 0.6 * s, 0.03 * s, MG);
+      // the metal chain over the collarbones
+      for (let k = 0; k <= 10; k++) {
+        const u = k / 10 - 0.5, x = u * 0.7 * s * W, y = (0.84 + u * u * 0.5) * s, z = (0.24 - u * u * 0.25) * s * D;
+        rbox(b, x, y, z, 0.075 * s, 0.04 * s, 0.025 * s, k % 2 ? PI / 2 : 0, 0, u * 1.1, CHAIN, metal);
+      }
+      // white sash over the black hakama
+      b.box(0, -0.02 * s, 0, 0.97 * s * W, 0.24 * s, 0.5 * s * D, SASH);
+      b.sphere(0, 0.1 * s, 0.27 * s * D, 0.08 * s, SASH);
+      for (const sd of [-1, 1]) rbox(b, sd * 0.07 * s, -0.08 * s, 0.29 * s * D, 0.08 * s, 0.24 * s, 0.03 * s, 0, 0, sd * 0.2, SASH);
+    },
+    arm: (ab, sd, d) => {
+      const s = d.s, w = Math.sqrt(d.W);
+      ab.sphere(0, -0.03 * s, 0, 0.18 * s * w, MW);                       // deltoid
+      ab.sphere(0, -0.25 * s, 0.04 * s, 0.135 * s * w, MW, { sy: 1.2 });  // bicep
+      ab.sphere(0, -0.47 * s, 0, 0.13 * s * w, MW, { sy: 1.1 });           // forearm
+      ab.cyl(0, -0.56 * s, 0, 0.13 * s * w, 0.05 * s, MG, { seg: 12 });
+    },
   });
   const d = rig.dims;
   // the Eight-Handled Sword Divergent Sila Divine General's wheel
-  const wheelPv = new THREE.Group(); wheelPv.position.set(0, d.headH + 0.4, 0); rig.head.add(wheelPv);
-  const wb = new BrickBuilder(1), ws = 0.3;
-  wb.add(new THREE.TorusGeometry(1, 0.1, 6, 20), plastic(GOLD, metal.matOpts), 0, 0, 0, 0, ws, ws, ws);
+  const wheelPv = new THREE.Group(); wheelPv.position.set(0, d.headH + 0.55, -0.05); rig.head.add(wheelPv);
+  const wb = new BrickBuilder(1), ws = 0.36, GLD = 0xd9b04a;
+  const gm = plastic(GLD, metal.matOpts);
+  wb.add(cached('jjkMahoTorus', () => new THREE.TorusGeometry(1, 0.11, 8, 24)), gm, 0, 0, 0, 0, ws, ws, ws);
+  wb.add(cached('jjkMahoTorus2', () => new THREE.TorusGeometry(1, 0.08, 6, 20)), gm, 0, 0, 0, 0, ws * 0.32, ws * 0.32, ws * 0.32);
+  wb.sphere(0, 0, 0, ws * 0.18, GLD, metal);
   for (let k = 0; k < 8; k++) {
-    const a = (k / 8) * PI * 2;
-    rbox(wb, Math.cos(a) * 0.55 * ws, S(a) * 0.55 * ws, 0, 1.1 * ws, 0.09 * ws, 0.09 * ws, 0, 0, a, GOLD, metal);
-    rbox(wb, Math.cos(a) * 1.25 * ws, S(a) * 1.25 * ws, 0, 0.5 * ws, 0.16 * ws, 0.16 * ws, 0, 0, a, GOLD, metal);
+    const a = (k / 8) * PI * 2, c = Math.cos(a), sn = S(a);
+    rod(wb, [c * 0.3 * ws, sn * 0.3 * ws, 0], [c * ws, sn * ws, 0], 0.06 * ws, gm, 6);
+    rod(wb, [c * ws, sn * ws, 0], [c * 1.5 * ws, sn * 1.5 * ws, 0], 0.075 * ws, gm, 6);
+    wb.sphere(c * 1.55 * ws, sn * 1.55 * ws, 0, 0.13 * ws, GLD, metal);
   }
   const wheel = wb.build({ name: 'dharma-wheel' }); wheelPv.add(wheel);
-  const shine = fxg(wheelPv, 0, 0, 0.05); addGlow(shine, 0xffe08a, 1.4, 0, 0, 0, 0.9);
+  const shine = fxg(wheelPv, 0, 0, 0.05); addGlow(shine, 0xffe08a, 1.6, 0, 0, 0, 0.9);
   // Sword of Extermination on its right arm
   const sword = fxg(rig.armR, 0, handY(rig), 0);
   const sb = new BrickBuilder(1);
-  sb.box(0, -1.15, 0.05, 0.07, 1.15, 0.26, 0xdfe6ee, metal);
-  spike(sb, 0, -1.15, 0.05, 0.13, 0.25, PI, 0, 0xdfe6ee, 0, metal);
+  sb.box(0, -0.12, 0.02, 0.16, 0.16, 0.34, 0xb8b0a0, metal);                // hilt fused to the fist
+  sb.box(0, -1.25, 0.04, 0.07, 1.15, 0.3, 0xe4eaf2, metal);
+  sb.box(0, -1.25, 0.04, 0.085, 1.1, 0.06, 0x9aa4b4, metal);                // ridge
+  spike(sb, 0, -1.25, 0.04, 0.16, 0.32, PI, 0, 0xe4eaf2, 0, metal);
   sword.add(sb.build({ name: 'sword' }));
   let turns = 0, prev = '';
   rig.fx = (n, f, t) => {

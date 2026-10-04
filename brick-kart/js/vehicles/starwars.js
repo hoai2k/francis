@@ -216,69 +216,149 @@ function podracer({ rig }) {
 }
 
 // ---- X-wing -----------------------------------------------------------------------------
+const UNIT = new THREE.BoxGeometry(1, 1, 1);
+// a flat unit box whose +x end is narrowed to k and shifted by s along z (a tapered wing panel)
+const traps = new Map();
+function trap(k, s) {
+  const key = k.toFixed(3) + ',' + s.toFixed(3);
+  let g = traps.get(key);
+  if (!g) {
+    g = UNIT.clone();
+    const p = g.attributes.position;
+    for (let i = 0; i < p.count; i++) if (p.getX(i) > 0) p.setZ(i, p.getZ(i) * k + s);
+    g.computeVertexNormals();
+    traps.set(key, g);
+  }
+  return g;
+}
+// a box laid from point a to point c (w across, kept level; h up): stripes and panels on sloped hulls
+function bar(b, base, a, c, w, h, color, o) {
+  const A = new THREE.Vector3(...a), Z = new THREE.Vector3(...c).sub(A), len = Z.length();
+  Z.normalize();
+  const X = new THREE.Vector3(0, 1, 0).cross(Z).normalize(), Y = Z.clone().cross(X);
+  const m = new THREE.Matrix4().makeBasis(X, Y, Z).setPosition(A.addScaledVector(Z, len / 2)).multiply(new THREE.Matrix4().makeScale(w, h, len));
+  geo(b, base, UNIT, color, m, o);
+}
+// a small box sitting on a sphere (centre c, radius r) at azimuth az / elevation el, facing out
+function onDome(b, c, r, az, el, w, h, d, color, o) {
+  const n = new THREE.Vector3(Math.cos(el) * Math.sin(az), Math.sin(el), Math.cos(el) * Math.cos(az));
+  const m = new THREE.Matrix4().makeRotationY(az).multiply(new THREE.Matrix4().makeRotationX(-el));
+  m.setPosition(c[0] + n.x * r, c[1] + n.y * r, c[2] + n.z * r).multiply(new THREE.Matrix4().makeScale(w, h, d));
+  geo(b, null, UNIT, color, m, o);
+}
+
 function xwing({ rig }) {
   const f = fitOf(rig);
   const W = C.white, R = C.red, G = C.ltgray, D = C.dkgray, BK = C.black;
   const b = new BrickBuilder(0.4);
   const eng = glow(0xff3018, 1.4, { base: 0xff2000 });
   // cockpit tub: the side walls clear the driver's hips
-  const TX = f.clamp(f.hip + 0.08, 0.68, 0.95), dx = TX - 0.68;
-  box(b, null, 0, 0.4, -0.25, 1.5 + dx * 2, 0.6, 1.8, W);
+  const TX = f.clamp(f.hip + 0.08, 0.68, 0.95), dx = TX - 0.68, TW = 1.5 + dx * 2;
+  box(b, null, 0, 0.41, -0.15, TW, 0.62, 1.8, W);
+  box(b, null, 0, 0.07, -0.45, 1.0, 0.1, 3.6, D);                  // dark keel under the hull
+  box(b, null, 0, 0.725, -0.2, TW - 0.3, 0.02, 1.5, D);             // cockpit floor
   for (const sd of [-1, 1]) {
-    box(b, null, sd * TX, 0.85, -0.3, 0.16, 0.3, 1.6, W);
-    box(b, null, sd * TX, 1.01, -0.3, 0.2, 0.04, 1.62, G);
-    box(b, null, sd * (TX + 0.08), 0.5, -0.3, 0.02, 0.1, 1.5, R);
+    box(b, null, sd * TX, 0.86, -0.2, 0.16, 0.3, 1.5, W);
+    box(b, null, sd * TX, 1.02, -0.2, 0.2, 0.04, 1.52, G);
+    box(b, null, sd * (TW / 2 + 0.005), 0.5, -0.15, 0.02, 0.1, 1.7, R);     // red flank stripe
+    box(b, null, sd * (TW / 2 + 0.005), 0.25, -0.35, 0.02, 0.14, 0.9, G);   // grey hull panel
+    for (let i = 0; i < 3; i++) box(b, null, sd * (TW / 2 + 0.01), 0.25, -0.65 + i * 0.3, 0.02, 0.1, 0.04, D);
   }
-  box(b, null, 0, 0.66, -0.4, 1.1 + dx * 2, 0.1, 0.7, D);
-  box(b, null, 0, 0.95, -0.98, 1.2 + dx * 2, 0.7, 0.15, D);
-  // long tapered nose with the red band, canopy glass + frame (as tall as the driver's chest)
-  frustum(b, null, 0, 0.42, 0.65, 2.6, 1.5 + dx * 2, 0.6, 0.5, 0.3, W, { drop: -0.25 });
-  box(b, null, 0, 0.42, 0.92, 1.46 + dx * 2, 0.58, 0.2, R);
-  box(b, null, 0, 0.27, 2.62, 0.5, 0.3, 0.05, G);
-  for (const sd of [-1, 1]) box(b, null, sd * 0.25, 0.62, 1.55, 0.12, 0.03, 0.7, R, { rx: 0.15 });
-  const ch = 0.44 * f.clamp(f.sy / 1.2, 0.85, 1.3), cy = 0.7 + ch, cx = 0.52 + dx * 0.8;
-  box(b, null, 0, 0.7 + ch / 2, 0.785, 1.0 + dx * 1.6, 0.03, Math.hypot(0.47, ch) - 0.02, 0, { mat: glass(), rx: Math.atan2(ch, 0.47) + 0.12 });
-  for (const sd of [-1, 1]) rod(b, null, [sd * cx, 0.7, 1.02], [sd * cx, cy, 0.55], 0.04, D);
-  rod(b, null, [-cx, cy, 0.55], [cx, cy, 0.55], 0.04, D);
-  rod(b, null, [0, 0.7, 1.02], [0, cy, 0.55], 0.03, D);
-  // rear fuselage with R2 in his socket
-  box(b, null, 0, 0.42, -1.6, 1.1, 0.58, 1.0, W);
-  box(b, null, 0, 0.42, -2.13, 0.8, 0.45, 0.08, D);
-  box(b, null, 0, 0.72, -1.4, 0.62, 0.04, 0.62, D);
-  cyl(b, null, 0, 0.83, -1.4, 0.25, 0.22, W, 'y', { seg: 16 });
-  cyl(b, null, 0, 0.9, -1.4, 0.255, 0.05, C.blue, 'y', { seg: 16 });
-  sphere(b, null, 0, 0.94, -1.4, 0.25, G, { sy: 0.85 });
-  box(b, null, 0, 1.05, -1.18, 0.12, 0.08, 0.05, C.blue);
-  sphere(b, null, 0, 1.0, -1.16, 0.05, BK);
-  // S-foils: four wings built closed and open, morphed by one weight
-  const WR = 0.55 + dx * 0.25;   // wing roots move out a little with the tub
+  // seat back, dash with a couple of lights
+  box(b, null, 0, 0.9, -0.93, TW - 0.4, 0.36, 0.12, D);
+  box(b, null, 0, 0.84, -1.07, TW - 0.3, 0.24, 0.18, W);
+  box(b, null, 0, 0.83, 0.52, TW - 0.32, 0.24, 0.56, D);
+  box(b, null, 0.2, 0.96, 0.6, 0.12, 0.03, 0.1, C.lime);
+  box(b, null, -0.2, 0.96, 0.6, 0.12, 0.03, 0.1, R);
+  // the long nose: a quick taper under the canopy, then a slim pointed snout
+  const NA = 0.75, NB = 1.25, NT = 2.75, nw = 0.95 + dx;
+  frustum(b, null, 0, 0.41, NA, NB, TW, 0.62, nw, 0.5, W, { drop: -0.065 });
+  frustum(b, null, 0, 0.37, NB, NT, nw, 0.5, 0.34, 0.24, W, { drop: -0.14 });
+  box(b, null, 0, 0.3, NT + 0.04, 0.3, 0.2, 0.08, G);
+  cyl(b, null, 0, 0.3, NT + 0.1, 0.06, 0.1, D, 'z', { seg: 8 });
+  const nhw = (z) => nw / 2 + (0.17 - nw / 2) * (z - NB) / (NT - NB), ntop = (z) => 0.62 - 0.2 * (z - NB) / (NT - NB);
+  for (const sd of [-1, 1]) {
+    // Red Five's twin nose stripes, and grey panels down the nose flanks
+    bar(b, null, [sd * (nhw(1.4) - 0.1), ntop(1.4) + 0.012, 1.4], [sd * (nhw(2.5) - 0.05), ntop(2.5) + 0.012, 2.5], 0.08, 0.02, R);
+    bar(b, null, [sd * (nhw(1.45) + 0.012), 0.38, 1.45], [sd * (nhw(2.3) + 0.012), 0.33, 2.3], 0.02, 0.12, G);
+  }
+  box(b, null, 0, ntop(1.32) + 0.01, 1.32, nw - 0.1, 0.02, 0.1, R, { rx: 0.13 });
+  // canopy: sloped windscreen + dark frame, side rails back to the tub walls
+  const ch = 0.42 * f.clamp(f.sy / 1.2, 0.85, 1.3), cy = 0.72 + ch, cx = 0.5 + dx * 0.8, cxb = 0.4 + dx * 0.5;
+  const WF = [1.15, 0.64], WT = [0.74, cy];
+  box(b, null, 0, (WF[1] + WT[1]) / 2, (WF[0] + WT[0]) / 2, (cx + cxb), 0.03, Math.hypot(WF[0] - WT[0], WT[1] - WF[1]), 0, { mat: glass(), rx: -Math.atan2(WT[1] - WF[1], WF[0] - WT[0]) });
+  for (const sd of [-1, 1]) {
+    rod(b, null, [sd * cxb, WF[1], WF[0]], [sd * cx, WT[1], WT[0]], 0.045, D);
+    rod(b, null, [sd * cx, WT[1], WT[0]], [sd * TX, 1.03, 0.45], 0.04, D);
+    rod(b, null, [sd * cxb, WF[1], WF[0]], [sd * TX, 1.0, 0.55], 0.035, D);
+  }
+  rod(b, null, [-cx, cy, WT[0]], [cx, cy, WT[0]], 0.045, D);
+  rod(b, null, [0, WF[1], WF[0]], [0, cy, WT[0]], 0.03, D);
+  rod(b, null, [-cxb, WF[1], WF[0]], [cxb, WF[1], WF[0]], 0.04, D);
+  // rear fuselage: wing roots, vents, tail plate
+  box(b, null, 0, 0.45, -1.65, 1.08, 0.6, 1.2, W);
+  box(b, null, 0, 0.45, -2.28, 0.86, 0.46, 0.08, D);
+  box(b, null, 0, 0.45, -2.33, 0.4, 0.2, 0.06, G);
+  for (const sd of [-1, 1]) {
+    box(b, null, sd * 0.56, 0.45, -1.65, 0.06, 0.26, 1.05, G);
+    box(b, null, sd * 0.548, 0.66, -1.9, 0.02, 0.08, 0.5, D);
+    studs(b, null, sd * 0.36, 0.75, -1.95, 1, 2, W);
+  }
+  // R2-D2 riding in his socket behind the cockpit
+  const RZ = -1.5, RY = 0.98, DR = 0.22;
+  box(b, null, 0, 0.76, RZ, 0.58, 0.04, 0.58, D);
+  cyl(b, null, 0, 0.87, RZ, DR, 0.22, W, 'y', { seg: 16 });
+  for (const sx of [-0.08, 0.08]) box(b, null, sx, 0.87, RZ + DR - 0.01, 0.07, 0.14, 0.03, C.blue);
+  cyl(b, null, 0, RY - 0.005, RZ, DR + 0.006, 0.035, C.blue, 'y', { seg: 16 });
+  const metal = { matOpts: { metal: 0.5, rough: 0.28 } };
+  sphere(b, null, 0, RY, RZ, DR, G, { sy: 0.92, w: 16, h: 10, ...metal });
+  const dc = [0, RY, RZ];
+  onDome(b, dc, DR * 0.95, 0, 0.55, 0.13, 0.1, 0.03, C.blue);
+  for (const az of [-1, 1]) onDome(b, dc, DR * 0.97, az * 1.1, 0.3, 0.09, 0.1, 0.03, C.blue);
+  for (const az of [-2.3, 2.3, PI]) onDome(b, dc, DR * 0.97, az, 0.35, 0.1, 0.08, 0.03, C.blue);
+  onDome(b, dc, DR * 0.97, 0.38, 0.28, 0.08, 0.08, 0.06, BK);
+  onDome(b, dc, DR * 0.98, -0.35, 0.2, 0.04, 0.04, 0.03, R, { matOpts: { emissive: 0xff2010, emissiveIntensity: 0.8 } });
+  // S-foils: four tapered wings with root engines and wingtip cannons, built closed and open
+  // and morphed by one weight (they spread into the X on boost / glide)
+  const WR = 0.54, ZW = -1.65, SPAN = 1.32, CHD = 1.1, TIPK = 0.5, SW = -0.17, EX = 0.38, EY = 0.26, ER = 0.25;
+  const foil = (sd, ud, k) => mat(sd * WR, 0.45, ZW, 0, 0, (0.06 + 0.27 * k) * sd * ud).multiply(mat(0, ud * 0.045, 0));
   const wing = (wb, k, sd, ud) => {
-    const base = mat(sd * WR, 0.45, -1.55, 0, 0, 0.36 * k * sd * ud).multiply(mat(0, ud * 0.045, 0));
-    box(wb, base, sd * 0.4, 0, 0, 0.8, 0.07, 1.05, W);
-    box(wb, base, sd * 0.93, 0, -0.08, 0.36, 0.07, 0.75, W);
-    box(wb, base, sd * 0.62, ud * 0.04, 0.03, 0.16, 0.02, 0.92, R);
-    box(wb, base, sd * 0.86, ud * 0.04, -0.05, 0.1, 0.02, 0.72, R);
-    const ey = ud * 0.22;
-    box(wb, base, sd * 0.3, ey / 2, 0.05, 0.1, 0.2, 0.7, G);
-    cyl(wb, base, sd * 0.3, ey, 0.05, 0.19, 1.2, G, 'z', { seg: 12 });
-    cyl(wb, base, sd * 0.3, ey, 0.66, 0.205, 0.1, D, 'z', { seg: 12 });
-    cyl(wb, base, sd * 0.3, ey, 0.715, 0.15, 0.02, BK, 'z', { seg: 12 });
-    cyl(wb, base, sd * 0.3, ey, -0.6, 0.16, 0.12, D, 'z', { seg: 12 });
-    cyl(wb, base, sd * 0.3, ey, -0.67, 0.13, 0.03, 0, 'z', { mat: eng, seg: 12 });
-    cyl(wb, base, sd * 1.1, 0, -0.12, 0.07, 0.8, G, 'z', { seg: 8 });
-    cyl(wb, base, sd * 1.1, 0, 0.6, 0.035, 0.7, D, 'z', { seg: 6 });
-    cyl(wb, base, sd * 1.1, 0, 0.98, 0.055, 0.1, D, 'z', { seg: 6 });
+    const base = foil(sd, ud, k);
+    geo(wb, base, trap(TIPK, SW), W, mat(sd * SPAN / 2, 0, 0, 0, 0, sd > 0 ? 0 : PI, SPAN, 0.07, CHD));
+    for (const [t, w] of [[0.6, 0.17], [0.8, 0.07]]) for (const fy of [-1, 1]) {
+      box(wb, base, sd * t * SPAN, fy * 0.04, CHD * t * SW, w, 0.012, CHD * (1 - t * (1 - TIPK)) - 0.03, R);
+    }
+    // engine: big round intake in front, glowing nozzle behind
+    const ex = sd * EX, ey = ud * EY;
+    box(wb, base, ex, ey / 2, -0.05, 0.12, EY, 0.9, G);
+    cyl(wb, base, ex, ey, -0.05, ER, 1.2, G, 'z', { seg: 16 });
+    cyl(wb, base, ex, ey, 0.22, ER + 0.012, 0.06, D, 'z', { seg: 16 });
+    cyl(wb, base, ex, ey, -0.4, ER + 0.012, 0.05, R, 'z', { seg: 16 });
+    cyl(wb, base, ex, ey, 0.64, ER + 0.05, 0.2, W, 'z', { seg: 16 });
+    cyl(wb, base, ex, ey, 0.745, ER - 0.02, 0.02, BK, 'z', { seg: 16 });
+    cone(wb, base, ex, ey, 0.7, 0.09, 0.13, G, 'z', { seg: 10 });
+    cyl(wb, base, ex, ey, -0.72, ER - 0.03, 0.16, D, 'z', { seg: 16 });
+    cyl(wb, base, ex, ey, -0.81, ER - 0.08, 0.03, 0, 'z', { mat: eng, seg: 16 });
+    // wingtip laser cannon reaching far forward
+    const lx = sd * (SPAN + 0.06);
+    box(wb, base, sd * (SPAN + 0.02), 0, -0.15, 0.06, 0.06, 0.6, G);
+    cyl(wb, base, lx, 0, -0.12, 0.085, 0.8, G, 'z', { seg: 10 });
+    cyl(wb, base, lx, 0, -0.53, 0.06, 0.04, D, 'z', { seg: 10 });
+    cyl(wb, base, lx, 0, 0.48, 0.06, 0.4, W, 'z', { seg: 8 });
+    cyl(wb, base, lx, 0, 1.35, 0.032, 1.35, D, 'z', { seg: 6 });
+    cyl(wb, base, lx, 0, 1.85, 0.058, 0.16, D, 'z', { seg: 8 });
+    cyl(wb, base, lx, 0, 2.08, 0.04, 0.1, D, 'z', { seg: 6 });
   };
   const foils = morphPair(0.4, (wb, k) => { for (const sd of [-1, 1]) for (const ud of [-1, 1]) wing(wb, k, sd, ud); }, 'sfoils');
   let open = 0;
   // boost flames at the four engine nozzles in the open (attack) pose, where they are while boosting
   const V3 = new THREE.Vector3(), exhaust = [];
   for (const sd of [-1, 1]) for (const ud of [-1, 1]) {
-    V3.set(sd * 0.3, ud * 0.22, -0.74).applyMatrix4(mat(sd * WR, 0.45, -1.55, 0, 0, 0.36 * sd * ud).multiply(mat(0, ud * 0.045, 0)));
+    V3.set(sd * EX, ud * EY, -0.86).applyMatrix4(foil(sd, ud, 1));
     exhaust.push([V3.x, V3.y, V3.z, BACK]);
   }
   return {
-    mesh: b.build({ name: 'xwing' }), seat: [0, 0.62, -0.3], control: 'yoke', hover: 0.45, parts: [foils.group], exhaust,
+    mesh: b.build({ name: 'xwing' }), seat: [0, 0.62 - f.big * 0.06, -0.3], control: 'yoke', hover: 0.45, parts: [foils.group], exhaust,
     fx(s, dt) {
       open += ((s.gliding || s.boosting ? 1 : 0) - open) * Math.min(1, dt * 5);
       for (const m of foils.meshes) m.morphTargetInfluences[0] = open;
@@ -292,69 +372,110 @@ function atst({ rig, sprung }) {
   const f = fitOf(rig);
   const G = C.ltgray, D = C.dkgray, BK = C.black, ST = C.dkstone;
   const b = new BrickBuilder(0.4);
-  const LIFT = 0.3, K = mat(0, LIFT, 0);   // the cab rides on taller legs
-  // the head cab (the driver pops out of the roof hatch)
-  box(b, K, 0, 1.68, -0.25, 1.9, 0.86, 1.8, G);
-  frustum(b, K, 0, 1.66, 0.65, 1.25, 1.8, 0.8, 1.3, 0.45, G);
-  box(b, K, 0, 2.08, 0.62, 1.8, 0.08, 0.36, D, { rx: 0.3 });
-  // roof hatch: its rim is sized to the driver's shoulders, the lid stands open behind
-  const HAX = f.clamp(f.sx + 0.1, 0.6, 0.84);
+  // the head: wide at the back, its flanks and roof closing in to a narrow sloped face
+  // (the shell widens a little for broad drivers so their hips stay inside)
+  const kx = 1 + f.wide * 0.25, HK = mat(0, 0, 0, 0, 0, 0, kx, 1, 1);
+  const HB = 1.98, HT = 2.78, HC = (HB + HT) / 2, HW = 1.8;
+  const ZB = -1.0, ZM = -0.2, ZF = 0.55, ZN = 0.9;
+  box(b, HK, 0, HC, (ZB + ZM) / 2, HW, HT - HB, ZM - ZB, G);
+  const FW = 1.3 + f.wide * 0.25, NW = 0.82 + f.wide * 0.15;   // face widths
+  frustum(b, HK, 0, HC, ZM, ZF, HW, 0.8, FW, 0.6, G, { drop: -0.1 });
+  frustum(b, HK, 0, 2.3, ZF, ZN, FW, 0.6, NW, 0.36, G, { drop: -0.05 });
+  // face: brow, the main viewport slit with its frame, a second slit on each cheek
+  box(b, HK, 0, 2.44, ZN - 0.01, 0.82, 0.05, 0.08, D);
+  box(b, HK, 0, 2.29, ZN + 0.005, 0.66, 0.1, 0.03, BK);
+  for (const x of [-0.17, 0, 0.17]) box(b, HK, x, 2.29, ZN + 0.015, 0.04, 0.12, 0.03, G);
+  const cheek = (z) => FW / 2 + (NW / 2 - FW / 2) * (z - ZF) / (ZN - ZF);   // half-width of the face section
   for (const sd of [-1, 1]) {
-    box(b, K, sd * 0.3, 1.75, 1.255, 0.42, 0.1, 0.03, BK);
-    box(b, K, sd * 0.955, 1.88, -0.25, 0.02, 0.06, 1.7, D);
-    box(b, K, sd * 0.955, 1.5, -0.25, 0.02, 0.06, 1.7, D);
-    if (HAX < 0.7) studs(b, K, sd * 0.81, 2.11, -0.3, 1, 3, G);
-    box(b, K, sd * HAX, 2.15, -0.28, 0.1, 0.1, 1.3, D);
+    bar(b, HK, [sd * (cheek(0.6) + 0.01), 2.32, 0.6], [sd * (cheek(0.84) + 0.01), 2.3, 0.84], 0.03, 0.08, BK);
+    // side seams and the flank lip that runs round the head
+    box(b, HK, sd * (HW / 2 + 0.01), 2.12, (ZB + ZM) / 2, 0.03, 0.05, ZM - ZB, D);
+    bar(b, HK, [sd * (HW / 2 + 0.01), 2.12, ZM], [sd * (FW / 2 + 0.01), 2.12, ZF], 0.03, 0.05, D);
+    // roof chamfers along the top edges
+    box(b, HK, sd * 0.78, HT - 0.02, (ZB + ZM) / 2, 0.2, 0.06, ZM - ZB, D, { rz: sd * 0.5 });
+    // chin guns: twin blasters under the cheeks
+    box(b, null, sd * 0.42 * kx, 2.04, 0.6, 0.22, 0.2, 0.42, D);
+    cyl(b, null, sd * 0.42 * kx, 2.02, 1.0, 0.055, 0.6, BK, 'z', { seg: 8 });
+    cyl(b, null, sd * 0.42 * kx, 2.02, 1.3, 0.075, 0.1, D, 'z', { seg: 8 });
   }
-  box(b, K, 0, 2.15, 0.32, HAX * 2 + 0.1, 0.1, 0.1, D);
-  box(b, K, 0, 2.15, -0.88, HAX * 2 + 0.1, 0.1, 0.1, D);
-  box(b, K, 0, 2.42, -1.04, HAX * 2 - 0.1, 0.5, 0.06, G, { rx: -0.35 });
-  box(b, K, 0, 2.42, -1.08, HAX * 1.2, 0.08, 0.04, D, { rx: -0.35 });
-  box(b, K, 0, 1.38, 1.0, 1.0, 0.2, 0.42, D);
-  for (const sd of [-1, 1]) cyl(b, K, sd * 0.2, 1.32, 1.45, 0.06, 0.75, BK, 'z', { seg: 8 });
-  // side weapons: grenade launcher (port) and blaster (starboard)
-  box(b, K, 0.98, 1.6, 0.1, 0.16, 0.22, 0.32, D);
-  cyl(b, K, 1.08, 1.6, 0.28, 0.14, 0.9, D, 'z', { seg: 8 });
-  cyl(b, K, 1.08, 1.6, 0.74, 0.1, 0.04, BK, 'z', { seg: 8 });
-  cyl(b, K, -1.02, 1.62, 0.0, 0.12, 0.45, D, 'z', { seg: 10 });
-  cyl(b, K, -1.02, 1.62, 0.55, 0.06, 0.9, BK, 'z', { seg: 8 });
-  // rear pack, antenna, hip housing
-  box(b, K, 0, 1.65, -1.25, 1.6, 0.7, 0.25, D);
-  for (let i = 0; i < 3; i++) box(b, K, 0, 1.45 + i * 0.16, -1.38, 1.2, 0.05, 0.03, ST);
-  rod(b, K, [-0.75, 2.1, -1.05], [-0.8, 2.85, -1.1], 0.025, BK);
-  box(b, K, 0, 1.15, -0.25, 1.3, 0.25, 1.0, D);
-  for (const sd of [-1, 1]) cyl(b, K, sd * 0.75, 1.12, -0.25, 0.22, 0.25, D, 'x', { seg: 12 });
+  box(b, HK, 0, 2.0, 0.42, 0.6, 0.1, 0.5, D);
+  // port side: the concussion grenade launcher (boxy pod, drum, short fat barrel)
+  const PX = 0.9 * kx;
+  box(b, null, PX + 0.08, 2.36, 0.05, 0.16, 0.3, 0.6, D);
+  cyl(b, null, PX + 0.2, 2.36, 0.0, 0.16, 0.38, G, 'x', { seg: 12 });
+  cyl(b, null, PX + 0.2, 2.36, 0.42, 0.12, 0.55, D, 'z', { seg: 10 });
+  cyl(b, null, PX + 0.2, 2.36, 0.71, 0.085, 0.04, BK, 'z', { seg: 10 });
+  // starboard side: the light blaster cannon (slim and long)
+  box(b, null, -PX - 0.07, 2.4, -0.05, 0.14, 0.2, 0.5, D);
+  cyl(b, null, -PX - 0.17, 2.4, 0.1, 0.09, 0.55, D, 'z', { seg: 10 });
+  cyl(b, null, -PX - 0.17, 2.4, 0.75, 0.045, 0.8, BK, 'z', { seg: 8 });
+  cyl(b, null, -PX - 0.17, 2.4, 1.1, 0.065, 0.1, D, 'z', { seg: 8 });
+  // roof hatch: its rim is sized to the driver's shoulders, the lid stands open behind
+  const HAX = f.clamp(f.sx + 0.1, 0.6, 0.84), SZ = -0.3 - f.big * 0.25, RB = -0.88 - f.big * 0.12;
+  for (const sd of [-1, 1]) {
+    if (HAX < 0.7 * kx) studs(b, null, sd * 0.79 * kx - sd * 0.08, HT, -0.6, 1, 3, G);
+    box(b, null, sd * HAX, HT + 0.02, (0.1 + RB) / 2, 0.1, 0.1, 0.1 - RB, D);
+  }
+  box(b, null, 0, HT - 0.03, 0.1, HAX * 2 + 0.1, 0.1, 0.1, D);
+  box(b, null, 0, HT + 0.02, RB, HAX * 2 + 0.1, 0.1, 0.1, D);
+  box(b, null, 0, HT + 0.17, RB - 0.14, HAX * 1.6, 0.34, 0.06, G, { rx: -0.6 });
+  box(b, null, 0, HT + 0.2, RB - 0.19, HAX * 0.9, 0.06, 0.04, D, { rx: -0.6 });
+  // back of the head: rear pack with vents, antenna
+  box(b, HK, 0, 2.36, -1.1, 1.5, 0.6, 0.2, D);
+  for (let i = 0; i < 3; i++) box(b, HK, 0, 2.18 + i * 0.16, -1.21, 1.2, 0.05, 0.03, ST);
+  rod(b, null, [-0.72 * kx, HT, -0.95], [-0.78 * kx, HT + 0.75, -1.0], 0.025, BK);
+  // a slim neck down to a compact hip block with the big round leg joints
+  cyl(b, null, 0, 1.92, -0.25, 0.26, 0.16, D, 'y', { seg: 14 });
+  cyl(b, null, 0, 1.86, -0.25, 0.18, 0.12, BK, 'y', { seg: 12 });
+  box(b, null, 0, 1.68, -0.25, 0.92, 0.34, 0.62, D);
+  box(b, null, 0, 1.47, -0.22, 0.4, 0.14, 0.4, G);
+  studs(b, null, 0, 1.85, -0.45, 2, 1, D);
+  for (const sd of [-1, 1]) {
+    cyl(b, null, sd * 0.5, 1.72, -0.25, 0.3, 0.1, G, 'x', { seg: 16 });
+    rod(b, null, [sd * 0.3, 1.55, -0.05], [sd * 0.3, 1.5, 0.25], 0.04, ST);
+  }
 
-  // legs: hip -> thigh forward-down -> knee -> shin back-down -> ankle -> flat foot
-  const A = 0.75, B = 0.85, CH = 0.2, HY = 1.12 + LIFT, HZ = -0.25, HX = 0.96, FOOT = 0.12;
+  // legs: hip -> thigh forward-down -> knee -> long shin back-down -> ankle -> short strut
+  // forward-down onto a big flat splayed foot (the foot stays flat on the ground)
+  const A = 0.8, B = 0.95, HY = 1.72, HZ = -0.25, HX = 0.66, AH = 0.42, AF = 0.14, FT = 0.12;
   const legs = [];
   for (const sd of [-1, 1]) {
     const hip = new THREE.Group(); hip.position.set(sd * HX, HY, HZ);
     let lb = new BrickBuilder(0.4);
-    cyl(lb, null, 0, 0, 0, 0.21, 0.3, D, 'x', { seg: 12 });
-    box(lb, null, 0, -A / 2, 0, 0.26, A, 0.34, G);
-    rod(lb, null, [sd * 0.14, -0.08, -0.08], [sd * 0.14, -A + 0.08, -0.06], 0.035, D);
-    cyl(lb, null, 0, -A, 0, 0.17, 0.3, D, 'x', { seg: 12 });
+    cyl(lb, null, 0, 0, 0, 0.2, 0.26, D, 'x', { seg: 14 });
+    box(lb, null, 0, -A / 2, 0, 0.2, A, 0.26, G);
+    box(lb, null, sd * 0.12, -A * 0.45, -0.02, 0.05, A * 0.75, 0.42, G);     // flat outer armour
+    box(lb, null, sd * 0.15, -A * 0.45, -0.02, 0.02, A * 0.55, 0.06, D);
+    rod(lb, null, [-sd * 0.02, -0.12, 0.17], [-sd * 0.02, -A + 0.14, 0.16], 0.035, D);
+    cyl(lb, null, 0, -A, 0, 0.17, 0.3, D, 'x', { seg: 14 });
+    cyl(lb, null, 0, -A, 0, 0.1, 0.38, G, 'x', { seg: 10 });
     hip.add(lb.build({ name: 'thigh' }));
     const knee = new THREE.Group(); knee.position.set(0, -A, 0); hip.add(knee);
     lb = new BrickBuilder(0.4);
-    box(lb, null, 0, -B / 2, 0, 0.24, B, 0.3, G);
-    box(lb, null, 0, -B * 0.35, 0.14, 0.12, B * 0.5, 0.04, D);
-    rod(lb, null, [-sd * 0.13, -0.1, 0], [-sd * 0.13, -B + 0.08, 0], 0.03, D);
-    cyl(lb, null, 0, -B, 0, 0.13, 0.26, D, 'x', { seg: 10 });
+    box(lb, null, 0, -B / 2, 0, 0.18, B, 0.22, G);
+    box(lb, null, 0, -0.22, 0.1, 0.26, 0.32, 0.12, G, { rx: 0.15 });      // shin guard below the knee
+    box(lb, null, 0, -B * 0.55, -0.12, 0.1, B * 0.6, 0.04, D);
+    rod(lb, null, [sd * 0.11, -0.12, -0.05], [sd * 0.11, -B + 0.12, -0.04], 0.03, D);
+    cyl(lb, null, 0, -B, 0, 0.13, 0.26, D, 'x', { seg: 12 });
     knee.add(lb.build({ name: 'shin' }));
     const ankle = new THREE.Group(); ankle.position.set(0, -B, 0); knee.add(ankle);
     lb = new BrickBuilder(0.4);
-    box(lb, null, 0, -CH / 2, 0.02, 0.16, CH, 0.18, D);
-    box(lb, null, 0, -CH - FOOT / 2, 0.1, 0.56, FOOT, 0.74, D);
-    box(lb, null, 0, -CH + 0.02, 0.08, 0.38, 0.05, 0.46, G);
-    for (const tx of [-0.16, 0.16]) box(lb, null, tx, -CH - FOOT / 2 - 0.01, 0.5, 0.15, FOOT - 0.02, 0.22, ST);
-    box(lb, null, 0, -CH - FOOT / 2 - 0.01, -0.3, 0.16, FOOT - 0.02, 0.18, ST);
+    const fy = -AH;   // sole, relative to the ankle joint
+    rod(lb, null, [0, 0, 0], [0, fy + FT + 0.06, AF], 0.075, G);
+    box(lb, null, 0, fy + FT + 0.06, AF, 0.24, 0.12, 0.24, D);
+    box(lb, null, 0, fy + FT / 2, AF, 0.52, FT, 0.5, D);
+    box(lb, null, 0, fy + FT + 0.01, AF, 0.36, 0.03, 0.34, G);
+    for (const a of [-0.5, 0, 0.5]) {
+      const tm = mat(0, fy + FT * 0.4, AF + 0.18, 0, a, 0);
+      box(lb, tm, 0, 0, 0.22, 0.15, FT * 0.8, 0.4, G);
+      box(lb, tm, 0, -0.01, 0.44, 0.13, FT * 0.6, 0.08, ST);
+    }
+    box(lb, mat(0, fy + FT * 0.4, AF - 0.2, 0, 0, 0), 0, 0, -0.12, 0.15, FT * 0.8, 0.26, G);
     ankle.add(lb.build({ name: 'foot' }));
     legs.push({ hip, knee, ankle });
   }
   const mesh = b.build({ name: 'atst' });
-  // two-bone IK from the hip to an ankle target (dz forward, dy up, relative to the hip)
+  // two-bone IK from the hip to an ankle target (dz forward, dy up, relative to the hip); knee forward
   const solve = (L, dz, dy) => {
     let d = Math.hypot(dz, dy);
     const dm = Math.min(A + B - 0.02, Math.max(0.2, d));
@@ -366,28 +487,32 @@ function atst({ rig, sprung }) {
     const tb = Math.atan2(dz - kz, -(dy - ky));
     L.hip.rotation.x = -ta; L.knee.rotation.x = -(tb - ta); L.ankle.rotation.x = tb;
   };
+  // gait: each foot plants and slides back (stance), then lifts high and swings forward;
+  // the body bobs at mid-stance and rolls a little over the planted leg
   let ph = 0, amp = 0, air = 0;
-  const STRIDE = 0.5;
+  const STRIDE = 0.42, FZ = 0.12;
   const fx = (s, dt) => {
     const onGround = s.grounded && !s.gliding;
     amp += ((onGround ? Math.min(1, s.speed01 * 3) : 0) - amp) * Math.min(1, dt * 4);
     air += ((onGround ? 0 : 1) - air) * Math.min(1, dt * 5);
-    ph = (ph + dt * (2.5 + 9 * s.speed01) * Math.min(1, amp * 4)) % (PI * 2);
-    const bob = amp * 0.07 * Math.abs(S(ph)) * (1 - air);
+    ph = (ph + dt * (2.5 + 8 * s.speed01) * Math.min(1, amp * 4)) % (PI * 2);
+    const bob = amp * 0.08 * Math.abs(S(ph)) * (1 - air);
     sprung.position.y = bob;
+    sprung.rotation.z = amp * 0.035 * S(ph) * (1 - air);
+    sprung.rotation.x = amp * 0.03;
     legs.forEach((L, i) => {
       const u = (ph + i * PI) % (PI * 2);
       let fz, lift;
-      if (u < PI) { fz = STRIDE * (1 - (2 * u) / PI); lift = 0; } else { fz = STRIDE * (-1 + (2 * (u - PI)) / PI); lift = 0.24 * S(u - PI); }
+      if (u < PI) { fz = STRIDE * (1 - (2 * u) / PI); lift = 0; } else { const v = (u - PI) / PI; fz = STRIDE * (-1 + 2 * (v * v * (3 - 2 * v))); lift = 0.3 * S(v * PI); }
       fz = fz * amp + air * S(s.t * 3 + i * PI) * 0.12;
-      const ay = -bob + lift * amp + FOOT + CH - air * 0.2;
-      solve(L, fz - 0.02, ay - HY);
+      const ay = -bob + lift * amp + AH - air * 0.2;
+      solve(L, FZ + fz - AF, ay - HY);
     });
   };
   fx({ speed01: 0, grounded: true, gliding: false, t: 0 }, 0);
   return {
-    mesh, seat: [0, 1.75 + LIFT + Math.max(0, 1.8 - f.H) * 0.25 - f.wide * 0.2, -0.25], control: 'bars', parts: legs.map((l) => l.hip), fx,
-    exhaust: [[0.45, 1.62 + LIFT, -1.4, BACK], [-0.45, 1.62 + LIFT, -1.4, BACK]],
+    mesh, seat: [0, HT - 0.42 + Math.max(0, 1.8 - f.H) * 0.25 - f.wide * 0.15, SZ], control: 'bars', parts: legs.map((l) => l.hip), fx,
+    exhaust: [[0.45, 2.36, -1.22, BACK], [-0.45, 2.36, -1.22, BACK]],
   };
 }
 

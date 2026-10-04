@@ -93,7 +93,57 @@ const pepper = {
 };
 
 // ============================================================================ Cowgirl Cassie
-// Huge curled-brim hat, long braids, fringed vest, a lasso that spins over her head.
+// Huge curled-brim hat with a feather, thick golden braids, red western shirt under a dark
+// fringed vest with a gold sheriff star, polka-dot bandana, gauntlet gloves, a lasso that spins.
+const cassTri = () => cached('cassTri', () => new THREE.CylinderGeometry(1, 1, 1, 3).rotateX(PI / 2));
+// a six-point star (two triangles) facing +Z, with ball tips
+function cassStar(b, x, y, z, R, col, tips = true, ry = 0) {
+  for (const a of [0, PI]) geoM(b, cassTri(), col, x, y, z, 0, ry, a, R, R, 0.03);
+  if (tips) for (let k = 0; k < 6; k++) { const a = (k / 6) * PI * 2; b.sphere(x + Math.sin(a) * R * 1.0, y + Math.cos(a) * R * 1.0, z, R * 0.17, col); }
+}
+// the hat brim as one smooth sheet: flat round the crown, curling up hard at the sides and
+// dipping a touch front and back; returns { top, edge } geometries (edge = the bound rim)
+function cassBrim(r) {
+  return cached('cassBrim' + r.toFixed(3), () => {
+    const N = 48, M = 7, T = 0.045, Rin = r * 0.9;
+    const prof = (a, u) => {
+      const sa = Math.sin(a), ca = Math.cos(a), Ro = r * (2.15 + 0.35 * ca * ca);
+      const c = Math.max(0, (u - 0.42) / 0.58), lift = r * (-0.12 + 0.95 * sa * sa);
+      const y = lift * c * c, rho = Rin + (Ro - Rin) * u - Math.max(0, y) * 0.55;
+      return [rho * sa, y, rho * ca];
+    };
+    const mk = () => ({ pos: [], idx: [] });
+    const top = mk(), edge = mk();
+    const vert = (G, p) => { G.pos.push(...p); return G.pos.length / 3 - 1; };
+    // top (j = radial) and bottom surfaces
+    for (const [off, flip] of [[0, false], [-T, true]]) {
+      const base = top.pos.length / 3;
+      for (let i = 0; i <= N; i++) for (let j = 0; j <= M; j++) { const p = prof((i / N) * PI * 2, j / M); p[1] += off; vert(top, p); }
+      for (let i = 0; i < N; i++) for (let j = 0; j < M; j++) {
+        const A = base + i * (M + 1) + j, B = A + M + 1, Cc = A + 1, D = B + 1;
+        if (!flip) top.idx.push(A, Cc, B, Cc, D, B); else top.idx.push(A, B, Cc, Cc, B, D);
+      }
+    }
+    // the outer rim, a little proud of the sheet
+    for (let i = 0; i <= N; i++) {
+      const a = (i / N) * PI * 2, p = prof(a, 1), q = prof(a, 0.97), k = 1.012;
+      vert(edge, [p[0] * k, p[1] + 0.012, p[2] * k]); vert(edge, [p[0] * k, p[1] - T - 0.012, p[2] * k]);
+      vert(edge, [q[0], q[1] + 0.012, q[2]]);
+    }
+    for (let i = 0; i < N; i++) {
+      const A = i * 3, B = A + 3;
+      edge.idx.push(A, A + 1, B, B, A + 1, B + 1, A + 2, A, B + 2, B + 2, A, B);
+    }
+    const geo = (G) => {
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute(G.pos, 3));
+      g.setAttribute('uv', new THREE.Float32BufferAttribute(new Array((G.pos.length / 3) * 2).fill(0), 2));
+      g.setIndex(G.idx); g.computeVertexNormals(); return g;
+    };
+    return { top: geo(top), edge: geo(edge) };
+  });
+}
+const cassAt = (d, y) => { const k = (y - d.chestY) / (0.82 * d.s); return [lerp(0.92, 0.7, k) * d.W * d.s, lerp(0.46, 0.42, k) * d.D * d.s]; };
 const cassie = {
   voice: { kind: 'human', pitch: 1.3 }, style: { cheer: 'wave', win: 'wave', trick: 'arms' },
   gestures: {
@@ -103,58 +153,120 @@ const cassie = {
     win: (f, t) => ({ rx: -2.6 + S(t * 12) * 0.05, rz: -0.3 + CO(t * 12) * 0.1, lx: -0.9, lz: 1.1, hx: -0.2, hy: S(t * 4) * 0.3, by: abs(S(t * 9)) * 0.06 }),
   },
   build() {
-    const SHIRT = 0xc91a09, VEST = 0x7c503a, HAT = 0x8a5a3a, HAIR = 0xd08a2c, ROPE = 0xd8b878;
+    const SHIRT = 0xd2201a, VEST = 0x4a2814, FRINGE = 0xd09a5a, HAT = 0x9a5a2e, BAND = 0x2a1408, HAIR = 0xf0a020,
+      ROPE = 0xe2c27e, GOLD = 0xf2c230, SILVER = 0xdfe3e8, BANDANA = 0x1f5fd0, GLOVE = 0xc89050;
     const rig = fig({
-      name: 'cassie', s: 1.25, wide: 1.02, deep: 1.0, headR: 0.3, headH: 0.48,
-      torso: SHIRT, legs: 0x2a4a8a, arms: SHIRT, hands: 0x8a5a3a, skin: SKIN,
+      name: 'cassie', s: 1.25, wide: 1.08, deep: 1.02, headR: 0.3, headH: 0.48,
+      torso: SHIRT, legs: 0x2a4a8a, arms: SHIRT, hands: GLOVE, skin: SKIN,
       face: face('cassie', SKIN, (P) => {
-        P.eyes(17, -6, 7, 10);
-        for (const sd of [-1, 1]) { P.line([[sd * 9, -23], [sd * 26, -25]], '#7a4a10', 5); for (const k of [0, 1, 2]) P.ell(sd * (24 + k * 6), 8 + (k % 2) * 4, 2, 2, '#b06a30'); }
-        P.mouth(14, 16, 'grin');
+        const g = P.g;
+        // her left eye open (big, lashes), her right eye a cheeky wink
+        P.ell(19, -4, 11, 13, '#fff');
+        P.ell(18, -2, 8, 10.5, '#1b1b1b'); P.ell(21, -6, 3, 3.5, '#fff');
+        g.strokeStyle = '#1b1b1b'; g.lineWidth = 3.5; g.beginPath(); g.ellipse(19, -4, 11, 13, 0, PI * 1.05, PI * 1.95); g.stroke();
+        P.line([[28, -12], [35, -18]], '#1b1b1b', 3.5); P.line([[23, -16], [27, -22]], '#1b1b1b', 3);
+        P.curve(-30, -2, -19, -12, -8, -2, '#1b1b1b', 5);
+        P.line([[-30, -2], [-36, -6]], '#1b1b1b', 3.5); P.line([[-26, -6], [-30, -12]], '#1b1b1b', 3);
+        // arched brows, one cocked up over the open eye
+        P.curve(7, -26, 20, -36, 34, -27, '#6a3410', 7);
+        P.curve(-7, -22, -20, -28, -33, -21, '#6a3410', 7);
+        // freckles over the nose, a small nose
+        for (const sd of [-1, 1]) {
+          for (const [x, y] of [[12, 8], [20, 12], [27, 8]]) P.ell(sd * x, y, 2.2, 2.2, '#b06a30');
+        }
+        P.curve(-5, 9, 0, 13, 5, 9, '#b07a10', 3);
+        // big lopsided grin with red lips
+        g.fillStyle = '#5a0e0e'; g.beginPath(); g.moveTo(-20, 20); g.quadraticCurveTo(2, 48, 24, 16); g.quadraticCurveTo(2, 26, -20, 20); g.fill();
+        g.fillStyle = '#fff'; g.beginPath(); g.moveTo(-17, 21.5); g.quadraticCurveTo(2, 27, 21, 18); g.lineTo(19, 24); g.quadraticCurveTo(2, 31, -15, 26); g.closePath(); g.fill();
+        P.ell(3, 35, 8, 4.5, '#e05a6a');
+        P.curve(-20, 20, 2, 48, 24, 16, '#b0141a', 3.5);
+        P.curve(-20, 20, 2, 26, 24, 16, '#b0141a', 3);
       }, 0.5),
       torsoExtra: (b, d) => {
-        const s = d.s, fz = frontZ(d);
-        // plaid lines, open fringed vest, sheriff star, belt, bandana, lasso coil
-        for (const x of [-0.18, 0, 0.18]) b.box(x * s, 0.18 * s, fz - 0.01, 0.025 * s, 0.82 * s, 0.03, 0x8a0f0a);
-        for (const y of [0.4, 0.65]) b.box(0, y * s, fz - 0.01, 0.4 * s, 0.025 * s, 0.03, 0x8a0f0a);
+        const s = d.s, at = (y) => cassAt(d, y), fz = (y) => at(y)[1] / 2;
+        // the vest: a shell over the shirt, open down the front to a V
+        b.add(taperGeo(+(0.92 * d.W + 0.035).toFixed(3), +(0.7 * d.W + 0.035).toFixed(3), 0.8, +(0.46 * d.D + 0.03).toFixed(3), +(0.42 * d.D + 0.03).toFixed(3)), plastic(VEST), 0, d.chestY + 0.01 * s, 0, 0, s, s, s);
+        // (stops at the collar line so the red V never pokes up beside her face)
+        b.add(taperGeo(0.14 * s, 0.34 * s, 0.36 * s, 0.03, 0.03), plastic(SHIRT), 0, 0.6 * s, fz(0.6 * s) + 0.02, 0, 1, 1, 1);
+        // shirt: white pearl snaps; vest buttons below the V
+        for (const y of [0.64, 0.76]) b.sphere(0, y * s, fz(y * s) + 0.045, 0.025 * s, 0xffffff);
+        for (const y of [0.36, 0.48]) b.sphere(0, y * s, fz(y * s) + 0.03, 0.032 * s, GOLD);
+        // fringe on a yoke seam across the chest and the back, and along the hem
         for (const sd of [-1, 1]) {
-          b.box(sd * 0.3 * s, 0.2 * s, 0.01, 0.28 * s, 0.8 * s, 0.47 * s, VEST);
-          for (let k = 0; k < 4; k++) b.box(sd * (0.2 + k * 0.06) * s, 0.06 * s, fz + 0.01, 0.025 * s, 0.14 * s, 0.03, VEST);
+          b.box(sd * 0.3 * s, 0.7 * s, fz(0.7 * s) + 0.005, 0.3 * s, 0.035 * s, 0.03, FRINGE);
+          for (let k = 0; k < 6; k++) rbox(b, sd * (0.18 + k * 0.045) * s, 0.61 * s, fz(0.64 * s) + 0.03, 0.022 * s, 0.17 * s, 0.022, -0.12, 0, sd * 0.05, FRINGE);
         }
-        for (let k = 0; k < 3; k++) rbox(b, 0.3 * s, 0.68 * s, fz + 0.03, 0.14 * s, 0.035 * s, 0.02, 0, 0, (k * PI) / 3, 0xf2cd37);
-        b.box(0, 0.14 * s, 0, 0.95 * s * d.W, 0.1 * s, 0.5 * s * d.D, 0x3a2a1a);
-        b.box(0, 0.13 * s, fz + 0.02, 0.16 * s, 0.12 * s, 0.04, 0xc8ccd0);
-        b.cyl(0, d.neckY - 0.12 * s, 0, 0.23 * s, 0.1 * s, 0x2a6ad0, { seg: 14 });
-        rbox(b, 0, d.neckY - 0.2 * s, 0.2 * s, 0.2 * s, 0.2 * s, 0.04, 0.25, 0, PI / 4, 0x2a6ad0);
-        geoM(b, torusGeo(0.22, 16), ROPE, -0.52 * s * d.W, 0.2 * s, 0.05, 0, PI / 2, 0, 0.17 * s);
+        const [bw] = at(0.84 * s);
+        b.box(0, 0.84 * s, -fz(0.84 * s) - 0.025, bw * 0.92, 0.035 * s, 0.03, FRINGE);
+        for (let k = 0; k < 15; k++) rbox(b, (k / 14 - 0.5) * bw * 0.88, 0.75 * s, -fz(0.78 * s) - 0.035, 0.022 * s, 0.17 * s, 0.022, 0.12, 0, 0, FRINGE);
+        b.box(0, 0.52 * s, -fz(0.52 * s) - 0.025, at(0.52 * s)[0] * 0.92, 0.035 * s, 0.03, FRINGE);
+        for (let k = 0; k < 15; k++) rbox(b, (k / 14 - 0.5) * at(0.52 * s)[0] * 0.88, 0.43 * s, -fz(0.46 * s) - 0.035, 0.022 * s, 0.17 * s, 0.022, 0.12, 0, 0, FRINGE);
+        // gold sheriff star on her left breast
+        cassStar(b, 0.21 * s, 0.86 * s, fz(0.86 * s) + 0.045, 0.085 * s, GOLD);
+        b.sphere(0.21 * s, 0.86 * s, fz(0.86 * s) + 0.06, 0.028 * s, 0xb08010);
+        // belt with a big oval buckle
+        const [bw2, bd2] = at(0.22 * s);
+        b.box(0, 0.2 * s, 0, bw2 + 0.05, 0.13 * s, bd2 + 0.05, 0x3a2010);
+        geoM(b, sphGeo(), GOLD, 0, 0.265 * s, bd2 / 2 + 0.04, 0, 0, 0, 0.13 * s, 0.095 * s, 0.03);
+        geoM(b, sphGeo(), SILVER, 0, 0.265 * s, bd2 / 2 + 0.055, 0, 0, 0, 0.09 * s, 0.06 * s, 0.025);
+        // polka-dot bandana: neck roll, big triangle on the chest, knot at the back
+        b.cyl(0, d.neckY - 0.12 * s, 0, 0.24 * s, 0.11 * s, BANDANA, { seg: 14 });
+        const yc = d.neckY - 0.22 * s, zc = fz(1.1 * s) + 0.05;
+        geoM(b, cassTri(), BANDANA, 0, yc, zc, -0.2, 0, 0, 0.18 * s, 0.2 * s, 0.03);
+        for (const [x, y] of [[0, 0.04], [-0.07, -0.03], [0.07, -0.03], [0, -0.1], [-0.12, 0.07], [0.12, 0.07], [0, -0.16]]) {
+          b.sphere(x * s, yc + y * s, zc + 0.02 - y * s * 0.2, 0.022 * s, 0xffffff);
+        }
+        b.sphere(0, d.neckY - 0.08 * s, -0.25 * s, 0.07 * s, BANDANA);
+        // lasso coiled on her right hip
+        for (const k of [0, 1, 2]) geoM(b, torusGeo(0.14, 18), ROPE, -(0.5 * d.W + 0.02 + k * 0.03) * s, 0.3 * s, 0.02, 0, PI / 2, 0, (0.2 - k * 0.012) * s);
       },
-      arm: (ab, sd, d) => { const s = d.s; ab.cyl(0, -0.52 * s, 0, 0.14 * s, 0.05 * s, 0xf4f4f4, { seg: 10 }); },
+      arm: (ab, sd, d) => {
+        const s = d.s, k = Math.sqrt(d.W);
+        // white cuff piping, fringe down the outside of the sleeve, flared leather gauntlets
+        ab.cyl(0, -0.5 * s, 0, 0.14 * s * k, 0.04 * s, 0xffffff, { seg: 10 });
+        rbox(ab, sd * 0.15 * s * k, -0.24 * s, 0, 0.03, 0.34 * s, 0.035 * s, 0, 0, sd * 0.06, FRINGE);
+        for (let i = 0; i < 6; i++) rbox(ab, sd * 0.175 * s * k, (-0.13 - i * 0.055) * s, 0, 0.02 * s, 0.12 * s, 0.03, 0, 0, sd * 0.35, FRINGE);
+        ab.add(frustum(1.55, 1, 10), plastic(GLOVE), 0, -0.6 * s, 0, 0, 0.11 * s, 0.14 * s, 0.11 * s);
+        for (let i = 0; i < 3; i++) rbox(ab, sd * 0.16 * s, (-0.5 - i * 0.03) * s, 0, 0.06 * s, 0.018 * s, 0.025, 0, 0, sd * -0.5, FRINGE);
+      },
       headExtra: (hb, d) => {
-        const r = d.headR, h = d.headH;
-        // long braids over the shoulders
-        hb.cyl(0, h * 0.25, -r * 0.3, r * 1.04, h * 0.6, HAIR, { seg: 14 });
+        const r = d.headR, h = d.headH, y0 = h * 0.84;
+        // hair under the hat, side-swept bangs, two thick braids over the shoulders
+        hb.cyl(0, h * 0.2, -r * 0.25, r * 1.06, h * 0.68, HAIR, { seg: 14 });
+        for (const sd of [-1, 1]) hb.sphere(sd * r * 0.95, h * 0.55, r * 0.3, 0.1, HAIR, { sy: 1.5 });
+        const BR = [[0.33, 0.3, -0.04], [0.43, 0.12, 0.05], [0.47, -0.02, 0.17], [0.47, -0.16, 0.29], [0.46, -0.32, 0.34], [0.45, -0.48, 0.35], [0.44, -0.62, 0.35]];
         for (const sd of [-1, 1]) {
-          for (let k = 0; k < 6; k++) hb.sphere(sd * (r * 0.95 + k * 0.012), h * 0.35 - k * 0.11, r * 0.2 + k * 0.035, 0.075 - k * 0.004, HAIR);
-          hb.cyl(sd * (r * 0.95 + 0.07), h * 0.35 - 0.7, r * 0.2 + 0.21, 0.05, 0.05, 0x2a6ad0, { seg: 8 });
+          BR.forEach(([x, y, z], i) => {
+            const rr = 0.105 - i * 0.006, w = (i % 2 ? 1 : -1) * 0.03;
+            hb.sphere(sd * x + w, y, z, rr, HAIR, { sy: 1.15 });
+            hb.sphere(sd * x - w * 0.6, y - 0.07, z + 0.01, rr * 0.85, 0xd88a18, { sy: 1.1 });
+          });
+          hb.cyl(sd * 0.44, -0.74, 0.35, 0.065, 0.06, BANDANA, { seg: 8 });
+          geoM(hb, coneGeo(), HAIR, sd * 0.44, -0.7, 0.35, PI, 0, 0, 0.085, 0.16, 0.085);
         }
-        // the hat: crown with a pinch, band, huge brim curled up at the sides
-        const y0 = h * 0.82;
-        hb.cyl(0, y0, 0, r * 2.05, 0.04, HAT, { seg: 22, rz: r * 1.75 });
-        for (const sd of [-1, 1]) ybox(hb, sd * r * 1.75, y0 + 0.1, 0, r * 0.75, 0.04, r * 2.6, 0, 0, sd * 0.65, HAT);
-        hb.cyl(0, y0, 0, r * 1.02, 0.36, HAT, { seg: 16 });
-        hb.cyl(0, y0 + 0.02, 0, r * 1.05, 0.08, 0x3a2a1a, { seg: 16 });
-        hb.box(0, y0 + 0.34, 0, 0.05, 0.06, r * 1.4, 0x6a4028);
-        geoM(hb, domeGeo(), HAT, 0, y0 + 0.36, 0, 0, 0, 0, r * 1.02, r * 0.25, r * 1.02);
-        hb.sphere(0, y0 + 0.06, r * 1.04, 0.04, 0xc8ccd0);
+        // the hat: a big brim curling up at the sides, with a darker bound edge
+        const brim = cassBrim(r);
+        geoM(hb, brim.top, HAT, 0, y0, 0, 0, 0, 0, 1);
+        geoM(hb, brim.edge, 0x5a3014, 0, y0, 0, 0, 0, 0, 1);
+        // tall crown with a centre crease and side dents
+        hb.cyl(0, y0, 0, r * 1.02, 0.4, HAT, { seg: 18, rz: r * 1.14 });
+        for (const sd of [-1, 1]) geoM(hb, domeGeo(), HAT, sd * r * 0.4, y0 + 0.38, 0, 0, 0, sd * 0.25, r * 0.6, 0.14, r * 1.1);
+        hb.box(0, y0 + 0.36, 0, 0.06, 0.05, r * 1.9, 0x7a4422);
+        // band with a silver star concho, and a red-tipped feather
+        hb.cyl(0, y0 + 0.02, 0, r * 1.05, 0.09, BAND, { seg: 18, rz: r * 1.17 });
+        cassStar(hb, 0, y0 + 0.065, r * 1.18, 0.055, SILVER, false);
+        const fx = -r * 0.95, fz0 = -r * 0.45;
+        geoM(hb, sphGeo(), 0xf4f0e8, fx, y0 + 0.24, fz0, -0.55, 0, 0.35, 0.035, 0.24, 0.07);
+        geoM(hb, sphGeo(), C.red, fx - 0.06, y0 + 0.39, fz0 - 0.11, -0.55, 0, 0.35, 0.032, 0.09, 0.06);
       },
     });
     const s = rig.dims.s, d = rig.dims;
     // lasso: a tilt pivot, a spinner, the loop and the rope to the hand
     const lasso = fxg(rig.torso, { x: -d.shoulderX * 0.8, y: d.shoulderY + 1.05 * s, z: 0.12 });
     const spin = new THREE.Group(); lasso.add(spin);
-    const loop = ring(spin, plastic(ROPE), 0.6, 0.045, 28); loop.position.x = 0.0;
-    const rope = prop(spin, (b) => { rod(b, [0.6, 0, 0], [0.04, -0.5, 0], 0.025, ROPE, 5); rbox(b, 0.6, 0, 0, 0.08, 0.08, 0.08, 0, 0, 0, ROPE); }, { name: 'lasso-rope' });
-    finish(rig, 1.3);
+    const loop = ring(spin, plastic(ROPE), 0.6, 0.05, 28); loop.position.x = 0.0;
+    const rope = prop(spin, (b) => { rod(b, [0.6, 0, 0], [0.04, -0.5, 0], 0.028, ROPE, 5); rbox(b, 0.6, 0, 0, 0.09, 0.09, 0.09, 0, 0, 0, ROPE); }, { name: 'lasso-rope' });
+    finish(rig, 1.35);
     rig.fx = (n, f, t) => {
       const ch = n === 'cheer' && f > 0.06, win = n === 'win';
       vis(lasso, ch || win);

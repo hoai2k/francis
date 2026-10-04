@@ -221,28 +221,71 @@ export class Hazards {
       const c = (this.cool.get(k) || 0) - dt;
       this.cool.set(k, c);
       if (c > 0) continue;
+      const before = this._before ||= new THREE.Vector3();
       for (const h of this.list) {
+        before.copy(k.pos);
         const kind = h.test(k.pos);
         if (!kind) continue;
         this.cool.set(k, 1.0);
-        if (kind === 'bump') {
-          // clipping traffic or an animal knocks you aside (light karts further) instead of stopping you
-          if (k.goldenTime > 0 || k.megaTime > 0 || k.bulletTime > 0) break;
-          if (!k.shieldBlocks()) {
-            k.speed *= 0.85;
-            this.knock(k, h, 10);
-            this.race.audio.sfx('bump', k.pos);
-            k.player?.rumble(0.5, 200);
-          }
-        } else if (kind === 'spin' && h.pos && h.radius) this.glance(k, h);
-        else if (k.hit(kind) && kind === 'spin') this.knock(k, h, 7);
+        // a hazard whose test moves the kart itself (e.g. a swap pad) is an effect, not an obstacle
+        if (!k.pos.equals(before)) { if (k.hit(kind) && kind === 'spin') this.knock(k, h, 7); }
+        else if (kind === 'spin' && h.pos && h.radius) this.glance(k, h);   // rolling balls, animals, carts
+        else this.graded(k, h, kind);
         break;
       }
     }
   }
+
+  // How deep in a hazard's hit zone is p? Probes the hazard's own test() outward in 8 directions
+  // (works for any shape: circles, square crushers, a fire bar's arm). Returns { c, ox, oz }: c from
+  // 0 (dead centre) to 1 (right at the edge), (ox, oz) the way out through the nearest edge.
+  zone(h, p) {
+    const q = this._q ||= new THREE.Vector3(), d = [];
+    for (let a = 0; a < 8; a++) {
+      const dx = Math.cos(a * Math.PI / 4), dz = Math.sin(a * Math.PI / 4);
+      let r = 0.35;
+      while (r < 10) { q.set(p.x + dx * r, p.y, p.z + dz * r); if (!h.test(q)) break; r += 0.35; }
+      d.push(r);
+    }
+    let m = 0; for (let a = 1; a < 8; a++) if (d[a] < d[m]) m = a;
+    const half = (d[m] + d[(m + 4) % 8]) / 2;
+    return { c: Math.max(0, Math.min(1, 1 - d[m] / half)), ox: Math.cos(m * Math.PI / 4), oz: Math.sin(m * Math.PI / 4) };
+  }
+
+  // Every hit is graded by where in the hazard it lands: square in the middle does the full thing,
+  // towards the edge it's a lesser hit, and a clip of the very edge just shoves you out and costs a
+  // little speed. So steering away at the last moment pays off.
+  graded(k, h, kind) {
+    const pro = k.goldenTime > 0 || k.megaTime > 0 || k.bulletTime > 0;
+    const { c, ox, oz } = this.zone(h, k.pos);
+    const graze = (keep, force, spin = 0) => {
+      if (pro || k.invincible || k.shieldBlocks()) return;
+      k.cancelDrift();
+      const target = k.speed * keep, f = force / k.weight;
+      k.shove(ox * f, oz * f, spin * (Math.random() < 0.5 ? -1 : 1));
+      k.speed = Math.min(k.speed, target);   // a hit never speeds you up
+      k.invuln = Math.max(k.invuln, 0.4);
+      k.emote?.('ouch');
+      this.race.audio.sfx('bump', k.pos);
+      k.player?.rumble(0.5, 200);
+    };
+    if (kind === 'bump') return graze(0.78 + 0.17 * c, 10 * (1 - 0.4 * c));
+    if (kind === 'wreck') {
+      if (c < 0.5) { k.hit('wreck'); return; }
+      if (c < 0.8) { if (k.hit('spin')) this.knock(k, h, 6, ox, oz); return; }
+      return graze(0.75, 9, 1.5);
+    }
+    if (kind === 'freeze') { if (c < 0.6) k.hit('freeze'); else graze(0.7, 8, 1); return; }
+    // 'spin' (and anything else): the core spins you out; the rest is a graze that costs less
+    // the nearer the edge
+    if (c < 0.45) { if (k.hit(kind)) this.knock(k, h, 6, ox, oz); return; }
+    const e = (c - 0.45) / 0.55;
+    graze(0.55 + 0.4 * e, 10 * (1 - 0.4 * e), 2.2 * (1 - e));
+  }
+
   // A rolling ball / moving obstacle: hit square in the middle and it stops you (spin-out); clip it
-  // towards a side and you're thrown off the other way, spun partly round and slowed, but keep
-  // driving.
+  // towards a side and you're thrown off the other way, spun partly round and slowed (less the
+  // nearer the very edge), but keep driving.
   glance(k, h) {
     if (k.invincible || k.megaTime > 0 || k.finishedCoast) return;
     if (k.shieldBlocks()) return;
@@ -252,19 +295,22 @@ export class Hazards {
       if (k.hit('spin')) { k.speed *= 0.3; this.knock(k, h, 4); }
       return;
     }
-    const away = side > 0 ? -1 : 1, f = 11 / k.weight;                  // ball on the right: off to the left
+    const e = Math.min(1, (Math.abs(side) - 0.3) / 0.7);                  // 0 just off centre .. 1 the very edge
+    const away = side > 0 ? -1 : 1, f = (11 - 5 * e) / k.weight;         // ball on the right: off to the left
     k.cancelDrift();
-    k.speed *= 0.62;
-    k.shove(rx * away * f, rz * away * f, -away * 3.2);
+    const target = k.speed * (0.45 + 0.5 * e);
+    k.shove(rx * away * f, rz * away * f, -away * 3.2 * (1 - 0.6 * e));
+    k.speed = Math.min(k.speed, target);
     k.invuln = Math.max(k.invuln, 0.5);
     k.emote?.('ouch');
     this.race.audio.sfx('bump', k.pos);
-    k.player?.rumble(0.6, 220);
+    k.player?.rumble(0.6 - 0.3 * e, 220);
   }
   // shove a kart away from a hazard (movers expose pos; otherwise off to one side and back a bit)
-  knock(k, h, force) {
+  knock(k, h, force, ox, oz) {
     let nx, nz;
-    if (h.pos) { nx = k.pos.x - h.pos.x; nz = k.pos.z - h.pos.z; }
+    if (ox !== undefined) { nx = ox; nz = oz; }
+    else if (h.pos) { nx = k.pos.x - h.pos.x; nz = k.pos.z - h.pos.z; }
     else { const side = Math.random() < 0.5 ? 1 : -1; nx = side * Math.cos(k.yaw) - 0.5 * Math.sin(k.yaw); nz = -side * Math.sin(k.yaw) - 0.5 * Math.cos(k.yaw); }
     const L = Math.hypot(nx, nz) || 1, f = force / k.weight;
     k.shove(nx / L * f, nz / L * f);
