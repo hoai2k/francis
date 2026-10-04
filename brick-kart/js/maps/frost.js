@@ -52,9 +52,9 @@ export default {
     ctx.scatter(16, { minC: 2, maxC: 40, r: 3, test: (x, z) => lake.test(x, z) }, (x, z) => crystal(b, x, 0, z, 1.3, rand));
     // big mountain under the summit (the glide launches off its shoulder)
     const sp = tr.at(tr.kToIndex(7.0), 0, 0);
-    mountain(b, sp.x + 40, 0, sp.z + 70, 70, 80, rand, [C.ltgray, C.white, C.dkgray]);
+    mountain(b, sp.x + 40, 0, sp.z + 70, 70, 80, rand, [C.ltgray, C.white, C.dkgray], C.white, tr);
     ctx.claim(sp.x + 40, sp.z + 70, 70);
-    ctx.scatter(18, { minC: 70, maxC: 360, r: 50, pad: 340, tries: 60 }, (x, z) => mountain(b, x, 0, z, 40 + rand() * 50, 60 + rand() * 80, rand, [C.ltgray, C.white, C.dkgray]));
+    ctx.scatter(18, { minC: 70, maxC: 360, r: 50, pad: 340, tries: 60 }, (x, z) => mountain(b, x, 0, z, 40 + rand() * 50, 60 + rand() * 80, rand, [C.ltgray, C.white, C.dkgray], C.white, tr));
     ctx.scatter(190, { minC: 2, maxC: 130, r: 3, pad: 200, test: (x, z) => !lake.test(x, z) }, (x, z) => pine(b, x, 0, z, 0.9 + rand() * 0.9, true));
     edges(ctx, 0, 16.9, 13, 2, (p, i) => { if (!lake.test(p.x, p.z) && rand() < 0.7) pine(b, p.x, p.y, p.z, 1 + rand() * 0.5, true); });
     ctx.scatter(12, { minC: 3, maxC: 50, r: 3, test: (x, z) => !lake.test(x, z) }, (x, z) => snowman(b, x, 0, z, 1 + rand() * 0.5));
@@ -73,7 +73,8 @@ export default {
     b.box(lp.x + 3, 2, lp.z + 6.1, 3, 2, 0.3, C.yellow, { matOpts: { emissive: 0xffc040, emissiveIntensity: 0.8 } });
     ctx.claim(lp.x, lp.z, 12);
     const top = new THREE.Vector3(sp.x + 40, 78, sp.z + 70), bottom = new THREE.Vector3(lp.x + 10, 6, lp.z - 10);
-    for (let k = 0; k <= 7; k++) { const p = bottom.clone().lerp(top, k / 7); b.box(p.x, 0, p.z, 1, p.y + 4, 1, C.dkgray); b.box(p.x, p.y + 4, p.z, 6, 0.6, 1, C.dkgray); }
+    // lift pylons (none on the road: the cable just spans over it)
+    for (let k = 0; k <= 7; k++) { const p = bottom.clone().lerp(top, k / 7); if (tr.clearance(p.x, p.z, 10) < 5) continue; b.box(p.x, 0, p.z, 1, p.y + 4, 1, C.dkgray); b.box(p.x, p.y + 4, p.z, 6, 0.6, 1, C.dkgray); }
     const cable = new THREE.BufferGeometry().setFromPoints([bottom.clone().add(new THREE.Vector3(2.5, 4, 0)), top.clone().add(new THREE.Vector3(2.5, 4, 0)), top.clone().add(new THREE.Vector3(-2.5, 4, 0)), bottom.clone().add(new THREE.Vector3(-2.5, 4, 0))]);
     ctx.group.add(new THREE.LineLoop(cable, new THREE.LineBasicMaterial({ color: 0x222222 })));
     const chairProto = built((c) => { c.box(0, -3, 0, 2.6, 0.4, 1.4, C.red); c.box(0, -3, -0.6, 2.6, 1.6, 0.3, C.red); c.box(0, -3, 0, 0.2, 3, 0.2, C.black); });

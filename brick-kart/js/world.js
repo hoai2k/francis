@@ -4,7 +4,7 @@
 import * as THREE from 'three';
 import { Track } from './track.js';
 import { BrickBuilder, baseplateMat } from './lego.js';
-import { rng } from './decor.js';
+import { rng, LEGO } from './decor.js';
 
 function skyDome(top, horizon, bottom) {
   const mat = new THREE.ShaderMaterial({
@@ -112,6 +112,13 @@ export function groundPlane(color, y, size, pitch, opts = {}) {
 }
 
 export class World {
+  // Is there solid ground plane at (x, z) to drive on off the road? Not on maps without ground or
+  // with a lava floor, and not where the ground is cut away for water / holes.
+  groundAt(x, z) {
+    if (!this.ground || this.theme.noGround || this.theme.groundOpts?.emissive) return false;
+    const m = this.groundMask;
+    return !m?.test || m.test(x, z);
+  }
   constructor(def, scene) {
     this.def = def;
     this.scene = scene;
@@ -193,8 +200,9 @@ export class World {
     };
     const ctx = {
       track: tr, group, scene: this.scene, rand, bounds, world: this,
-      b: new BrickBuilder(1, 160),
-      bNoShadow: new BrickBuilder(1, 400),
+      // scenery builders: with Legoized on, plain boxes get brick courses and studded tops
+      b: new BrickBuilder(1, 160, { lego: LEGO.on }),
+      bNoShadow: new BrickBuilder(1, 400, { lego: LEGO.on }),
       anim: (fn) => this.anims.push(fn),
       hazard: (h) => { this.hazards.push(h); return h; },
       obstacle: (x, z, r, h, y0) => tr.addObstacle(x, z, r, h, y0),
@@ -203,6 +211,7 @@ export class World {
         const m = this.ground?.material;
         if (!m) return;
         m.alphaMap = new THREE.CanvasTexture(mask); m.alphaTest = 0.5; m.needsUpdate = true;
+        this.groundMask = mask;   // where the ground still is (drivable off-road, see groundAt)
       },
       free(x, z, r) { return claims.free(x, z, r); },
       claim(x, z, r) { claims.push([x, z, r]); },

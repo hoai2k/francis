@@ -252,28 +252,6 @@ function snape() {
   return rig;
 }
 
-// ---- Minerva McGonagall ----------------------------------------------------------------------------
-function mcgonagall() {
-  const GREEN = 0x1d5e3a, GREY = 0x9a9a9a;
-  const rig = fig({
-    name: 'mcgonagall', s: 1.26, torso: GREEN, arms: GREEN, hips: GREEN, legs: 0x123a24, extraHeight: 0.8,
-    front: decal('mcgonagall', (P) => {
-      P.poly([[40, 0], [88, 0], [74, 50], [54, 50]], '#0e3420');
-      for (let x = 8; x < 128; x += 20) P.line([[x, 60], [x, 160]], 'rgba(160,30,30,0.5)', 3);
-      for (let y = 70; y < 160; y += 20) P.line([[0, y], [128, y]], 'rgba(160,30,30,0.5)', 3);
-      P.dot(64, 44, 8, '#d8b040'); P.dot(64, 44, 4, '#2a6a3a');
-    }),
-    face: face('mcgonagall', SKIN, (P) => {
-      P.eyes({ r: 5.5 }); P.brows({ y: -22, col: '#6a6a6a', w: 4, tilt: -0.5 }); P.glasses({ sq: true, r: 13, w: 3.5, col: '#3a3a3a' });
-      P.flat('#7a2a2a', 26); P.line([[-38, 18], [-30, 28]], 'rgba(0,0,0,0.2)', 2); P.line([[38, 18], [30, 28]], 'rgba(0,0,0,0.2)', 2);
-    }),
-    hair: (b, r, h) => { back(b, r, h, GREY, 0.35, 0.95); b.sphere(0, h * 0.62, -r * 1.05, r * 0.38, GREY); wizardHat(b, r, h, GREEN, { brim: 1.9, tall: 1.35, lean: 0.25, band: 0x0e3420 }); },
-  });
-  const { tip } = wand(rig, { color: 0x3a2a1c, handle: 0x1a1a1a });
-  rig.fx = spells(rig, { tip, color: 0xffb030, patronus: 'cat', psize: 1.6 });
-  return rig;
-}
-
 // ---- Lord Voldemort ----------------------------------------------------------------------------------
 function voldemort() {
   const PALE2 = 0xcdd0c6, BLK = 0x111114;
@@ -353,31 +331,6 @@ function neville() {
     vis(sw, sword); vis(w, !sword);
     fx(sword ? 'race' : n, f, t);
   };
-  return rig;
-}
-
-// ---- Luna Lovegood ------------------------------------------------------------------------------------
-function luna() {
-  const HAIR = 0xd8bc70;
-  const rig = fig({
-    name: 'luna', s: 1.22, front: schoolFront('rav'), extraHeight: 0.2,
-    face: face('luna', SKIN, (P) => { P.eyes({ col: '#5a8ac8', r: 8 }); P.brows({ y: -28, col: '#c8b070', w: 3 }); P.smile('#c86a7a', 18, 13); }),
-    hair: (b, r, h, d) => {
-      cap(b, r, h, HAIR, 0.82); long(b, r, h, HAIR, -0.85, 1.2);
-      for (const sd of [-1, 1]) b.box(sd * r * 0.98, -h * 0.75, -r * 0.2, r * 0.26, h * 1.55, r * 0.6, HAIR);
-      fringe(b, r, h, HAIR, 0.3, 0.88);
-      // Spectrespecs: big candy-coloured lenses
-      for (const sd of [-1, 1]) {
-        rod(b, [sd * r * 0.42, h * 0.53, r * 0.96], [sd * r * 0.42, h * 0.53, r * 1.06], r * 0.36, 0xf0d020, 14);
-        rod(b, [sd * r * 0.42, h * 0.53, r * 1.0], [sd * r * 0.42, h * 0.53, r * 1.08], r * 0.3, sd > 0 ? 0x30c8f0 : 0xf040a0, 14);
-        b.sphere(sd * r * 1.05, h * 0.18, r * 0.15, r * 0.14, 0xff7a20);   // radish earrings
-        b.box(sd * r * 1.05, h * 0.26, r * 0.15, r * 0.06, r * 0.18, r * 0.06, 0x3aa83a);
-      }
-      b.box(0, h * 0.53, r * 1.02, r * 0.3, r * 0.12, r * 0.08, 0xf0d020);
-    },
-  });
-  const { tip } = wand(rig, { color: 0xb8a070, knobs: 1 });
-  rig.fx = spells(rig, { tip, color: 0x60c8ff, patronus: 'hare', psize: 1.7 });
   return rig;
 }
 
@@ -593,11 +546,6 @@ export default [
     gestures: { cheer: (f, t) => ({ ...cast(f, t), hy: -0.2, hx: 0.05, lx: -0.2, lz: 0.1 }), win: raise }, build: snape,
   },
   {
-    id: 'mcgonagall', name: 'Minerva McGonagall', blurb: 'Deputy Head, Animagus cat', weight: 'medium', color: 0x1d5e3a,
-    voice: { kind: 'human', pitch: 1.2 }, style: { cheer: 'point', trick: 'arms' },
-    gestures: { cheer: wandCheer(-1.3), win: raise }, build: mcgonagall,
-  },
-  {
     id: 'voldemort', name: 'Lord Voldemort', blurb: 'He Who Must Not Be Named', weight: 'light', color: 0x2a3a2a,
     voice: { kind: 'human', pitch: 0.78 }, style: { cheer: 'point', trick: 'superman' },
     gestures: { cheer: (f, t) => ({ ...cast(f, t), lx: -1.4, lz: 0.9, hx: -0.15 }), win: (f, t) => ({ lx: -2.4, lz: 0.7, rx: -2.4, rz: -0.7, hx: -0.45, tx: -0.15, by: abs(S(t * LOOP)) * 0.03 }) }, build: voldemort,
@@ -611,11 +559,6 @@ export default [
     id: 'neville', name: 'Neville Longbottom', blurb: 'Draws the Sword of Gryffindor', weight: 'medium', color: 0xc0101a,
     voice: { kind: 'human', pitch: 1.0 }, style: { cheer: 'fist', trick: 'arms' },
     gestures: { cheer: (f, t) => ({ rx: -2.95 + S(t * 8) * 0.06, rz: -0.1, lx: -1.0, lz: 0.4, hx: -0.4, tx: -0.08, by: bump(f, 0.1, 0.4) * 0.06 }), win: (f, t) => ({ rx: -2.95, rz: -0.1, lx: UP + S(t * LOOP * 2) * 0.3, lz: 0.4, hx: -0.35, by: abs(S(t * LOOP * 2)) * 0.05 }) }, build: neville,
-  },
-  {
-    id: 'luna', name: 'Luna Lovegood', blurb: 'Dreamy Ravenclaw, Spectrespecs on', weight: 'light', color: 0x1e3a8a,
-    voice: { kind: 'human', pitch: 1.45 }, style: { cheer: 'wave', trick: 'twist' },
-    gestures: { cheer: (f, t) => ({ ...cast(f, t, { aim: -1.4 }), hz: S(t * 4) * 0.2, tz: S(t * 4) * 0.08, lx: -1.6, lz: 0.6 + S(t * 6) * 0.3 }), win: raise }, build: luna,
   },
   {
     id: 'ginny', name: 'Ginny Weasley', blurb: 'Chaser with a Bat-Bogey Hex', weight: 'light', color: 0xc8401a,

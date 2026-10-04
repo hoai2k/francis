@@ -66,18 +66,19 @@ const TABLES = [
   [0.75, { boost3: 13, rocket3: 11, mega: 10, golden: 10, goldturbo: 9, seeker: 7, ink: 8, ghost: 6, bomb: 5, cannon3: 5, bullet: 6 }],
   [1.01, { bullet: 24, golden: 15, goldturbo: 15, seeker: 7, mega: 10, boost3: 10, rocket3: 7 }],
 ];
-// Dead last always gets a real comeback item: only the big ones, never a defensive dud
-const LAST = { bullet: 22, golden: 16, goldturbo: 16, mega: 12, seeker: 9, boost3: 8, rocket3: 7 };
+// Dead last always gets a catch-up item: speed (boosts, Golden / Bullet Brick, Mega, studs) or a
+// movie / game power that carries you up the track, never one that just hits other racers
+const LAST = { bullet: 22, golden: 16, goldturbo: 16, boost3: 14, mega: 8, studbag: 6 };
+const LAST_ABILITIES = { hyperjump: 10, snitch: 10, cloak: 4, enderpearl: 10, elytra: 6, quickattack: 8, supersonic: 10, spindash: 6 };
 // the plain Brick Kart tables, before the movie / game powers join them (Simplified mode uses these)
 const BASE = TABLES.map(([u, t]) => [u, { ...t }]), BASE_LAST = { ...LAST };
-// movie abilities join the tables (see abilities.js); the ones that favour last place (odds of 4+
-// in the last band) are comeback powers and join the last-place table too
+// movie abilities join the tables (see abilities.js); the catch-up ones join the last-place table
 for (const a of ABILITIES) {
   ITEMS[a.id] = { name: a.name, color: a.color || '#ffffff' };
   ICONS[a.id] = a.icon || ICONS.boost;
   if (a.multi) MULTI[a.id] = a.multi;
   TABLES.forEach(([, t], band) => { if (a.odds[band] > 0) t[a.id] = a.odds[band]; });
-  if (a.odds[4] >= 4) LAST[a.id] = a.odds[4];
+  if (LAST_ABILITIES[a.id]) LAST[a.id] = LAST_ABILITIES[a.id];
 }
 
 // Simplified mode: a themed track's item boxes hold mostly its own powers (and no other movie's
@@ -115,9 +116,8 @@ function simpleOdds(band, last, from) {
     let t;
     if (!from || !ABILITIES.some((a) => a.from === from)) t = last ? BASE_LAST : BASE[band][1];
     else if (last) {
-      // last place: the pack's comeback powers (or failing that, anything it has for the back)
-      const comeback = ABILITIES.some((a) => a.from === from && a.odds[4] >= 4);
-      t = simpleTable(BASE_LAST, from, (a) => (comeback ? (a.odds[4] >= 4 ? a.odds[4] : 0) : a.odds[4]));
+      // last place: the pack's catch-up powers (plain catch-up items if it has none)
+      t = ABILITIES.some((a) => a.from === from && LAST_ABILITIES[a.id]) ? simpleTable(BASE_LAST, from, (a) => LAST_ABILITIES[a.id] || 0) : BASE_LAST;
     } else t = simpleTable(BASE[band][1], from, (a) => a.odds[band]);
     simpleCache.set(key, t);
   }

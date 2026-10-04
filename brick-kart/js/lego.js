@@ -229,11 +229,72 @@ function paint(g, hex) {
   return g;
 }
 
+// ---- LEGO surfaces for scenery boxes -------------------------------------------------------
+// Plain boxes are the building block of most scenery (walls, roofs, houses, temples, rocks...).
+// Smooth they read as generic 3D; with `lego` on, a builder gives them brick courses on the sides
+// (staggered seams, 1.2 units per course like a real brick) and studs on top, mapped in world
+// space so neighbouring boxes line up like a real build.
+let courseTex = null, legoSide = null, legoTop = null;
+function legoMats() {
+  if (legoSide) return { side: legoSide, top: legoTop };
+  // one tile = 4 studs wide x 2 courses high, running bond
+  courseTex = canvasTex(256, 256, (g, w, h) => {
+    g.fillStyle = '#f4f4f4'; g.fillRect(0, 0, w, h);
+    const row = h / 2;
+    for (let r = 0; r < 2; r++) {
+      const y = r * row;
+      g.fillStyle = 'rgba(0,0,0,0.30)'; g.fillRect(0, y, w, 3);                  // seam between courses
+      g.fillStyle = 'rgba(255,255,255,0.55)'; g.fillRect(0, y + 3, w, 2);         // lit top edge of the brick
+      g.fillStyle = 'rgba(0,0,0,0.10)'; g.fillRect(0, y + row - 6, w, 6);         // shade at its bottom
+      // 1x4 bricks: one seam per course, staggered by half a brick
+      const x = r ? w / 2 : 0;
+      g.fillStyle = 'rgba(0,0,0,0.30)'; g.fillRect(x - 1, y, 3, row); if (!x) g.fillRect(w - 2, y, 2, row);
+      g.fillStyle = 'rgba(255,255,255,0.35)'; g.fillRect(x + 2, y, 2, row);
+    }
+  });
+  courseTex.colorSpace = THREE.SRGBColorSpace;
+  legoSide = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.34, map: courseTex });
+  const { map, bump } = studTextures();
+  legoTop = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.34, map, bumpMap: bump, bumpScale: 1.2 });
+  return { side: legoSide, top: legoTop };
+}
+const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _c = new THREE.Vector3(), _n = new THREE.Vector3(), _t = new THREE.Vector3();
+// Split a transformed box into studded tops and coursed sides with world-space UVs.
+function legoSplit(g) {
+  const pos = g.attributes.position, idx = g.index ? g.index.array : null;
+  const tris = idx ? idx.length / 3 : pos.count / 3;
+  const side = [], top = [];
+  for (let t = 0; t < tris; t++) {
+    const ia = idx ? idx[t * 3] : t * 3, ib = idx ? idx[t * 3 + 1] : t * 3 + 1, ic = idx ? idx[t * 3 + 2] : t * 3 + 2;
+    _a.fromBufferAttribute(pos, ia); _b.fromBufferAttribute(pos, ib); _c.fromBufferAttribute(pos, ic);
+    _n.subVectors(_c, _b).cross(_t.subVectors(_a, _b)).normalize();
+    const isTop = _n.y > 0.7;
+    const out = isTop ? top : side;
+    // sides: u along the face horizontally, v up (1 tile = 4 studs x 2 courses); tops: studs (2x2 per tile)
+    let tx = -_n.z, tz = _n.x; const tl = Math.hypot(tx, tz) || 1; tx /= tl; tz /= tl;
+    for (const v of [_a, _b, _c]) {
+      const u = isTop ? v.x / 2 : (v.x * tx + v.z * tz) / 4, w = isTop ? v.z / 2 : v.y / 2.4;
+      out.push(v.x, v.y, v.z, _n.x, _n.y, _n.z, u, w);
+    }
+  }
+  const make = (arr) => {
+    if (!arr.length) return null;
+    const n = arr.length / 8, P = new Float32Array(n * 3), N = new Float32Array(n * 3), U = new Float32Array(n * 2);
+    for (let i = 0; i < n; i++) { P.set(arr.slice(i * 8, i * 8 + 3), i * 3); N.set(arr.slice(i * 8 + 3, i * 8 + 6), i * 3); U.set(arr.slice(i * 8 + 6, i * 8 + 8), i * 2); }
+    const o = new THREE.BufferGeometry();
+    o.setAttribute('position', new THREE.BufferAttribute(P, 3)); o.setAttribute('normal', new THREE.BufferAttribute(N, 3)); o.setAttribute('uv', new THREE.BufferAttribute(U, 2));
+    return o;
+  };
+  return { side: make(side), top: make(top) };
+}
+
 export class BrickBuilder {
   // chunk > 0 splits output meshes spatially so they can be frustum-culled.
-  constructor(pitch = 1, chunk = 0) {
+  // opts.lego: give plain scenery boxes brick courses and studded tops (see legoMats)
+  constructor(pitch = 1, chunk = 0, opts = {}) {
     this.pitch = pitch;
     this.chunk = chunk;
+    this.lego = !!opts.lego;
     this.chunks = new Map();   // chunkKey -> Map(material -> geometry[])
   }
   bucket(mat, x, z) {
@@ -267,13 +328,38 @@ export class BrickBuilder {
   // Plain box (no studs), centre bottom.
   box(x, y, z, sx, sy, sz, color, opts = {}) {
     const geo = cached('unitbox', () => new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0));
-    this.add(geo, opts.mat || plastic(color, opts.matOpts), x, y, z, opts.rot || 0, sx, sy, sz);
+    const mat = opts.mat || plastic(color, opts.matOpts);
+    if (this.legoOk(mat, sx, sy, sz, opts)) {
+      tmpQ.setFromAxisAngle(up, opts.rot || 0);
+      this.legoBox(geo, mat, tmpM.compose(tmpP.set(x, y, z), tmpQ, tmpS.set(sx, sy, sz)));
+    } else this.add(geo, mat, x, y, z, opts.rot || 0, sx, sy, sz);
     return y + sy;
   }
   // Box with an arbitrary transform (unit box centred at origin).
   boxM(matrix, color, opts = {}) {
     const geo = cached('unitboxc', () => new THREE.BoxGeometry(1, 1, 1));
-    this.addMatrix(geo, opts.mat || plastic(color, opts.matOpts), matrix);
+    const mat = opts.mat || plastic(color, opts.matOpts);
+    if (this.lego) {
+      matrix.decompose(tmpP, tmpQ, tmpS);
+      if (this.legoOk(mat, tmpS.x, tmpS.y, tmpS.z, opts)) { this.legoBox(geo, mat, matrix); return; }
+    }
+    this.addMatrix(geo, mat, matrix);
+  }
+  // big enough plain-plastic boxes in a lego builder get LEGO surfaces (thin trims and small
+  // details stay smooth; opts.smooth opts out)
+  legoOk(mat, sx, sy, sz, opts) {
+    if (!this.lego || opts.smooth || mat.userData.plain === undefined) return false;
+    const d = [Math.abs(sx), Math.abs(sy), Math.abs(sz)].sort((a, b) => a - b);
+    return d[0] >= 0.45 && d[1] >= 1.1;
+  }
+  legoBox(geo, mat, matrix) {
+    const g = geo.clone().applyMatrix4(matrix);
+    const { side, top } = legoSplit(g);
+    g.dispose();
+    const { side: sm, top: tm } = legoMats(), col = mat.userData.plain;
+    const x = matrix.elements[12], z = matrix.elements[14];
+    if (side) this.bucket(sm, x, z).push(paint(side, col));
+    if (top) this.bucket(tm, x, z).push(paint(top, col));
   }
   // Round brick / cylinder, centre bottom.
   cyl(x, y, z, r, h, color, opts = {}) {

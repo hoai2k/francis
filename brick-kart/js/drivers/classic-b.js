@@ -1,8 +1,8 @@
-// Brick Kart Originals, part 2: Pepper, Cassie, Bjorn, Regina, Sam, Zorp, Max, Dina.
+// Brick Kart Originals, part 2: Pepper, Cassie, Bjorn, Regina, Zorp, Max.
 import {
-  THREE, BrickBuilder, C, plastic, seatedFig, rbox, rod, taperGeo, glowMat, cached, S, CO, PI, abs, UP,
+  THREE, BrickBuilder, C, plastic, rbox, rod, taperGeo, glowMat, cached, S, CO, PI, abs, UP,
   seg, sm, lerp, bump, winF, vis, face, fxMat, clear, prop, fxg, grip, hold, ball, ring, puffs, sparkles,
-  finish, loFig, lo, oct, domeGeo, frustum, trod, ybox, geoM, torusGeo, coneGeo, sphGeo,
+  finish, loFig, lo, domeGeo, frustum, trod, ybox, geoM, torusGeo, coneGeo, sphGeo,
 } from './classic-kit.js';
 
 const fig = (o) => loFig({ noStud: true, ...o });
@@ -364,93 +364,6 @@ const regina = {
   },
 };
 
-// ============================================================================ Skater Sam
-// Lanky skater on a long neck: backwards cap, hoodie, headphones, a skateboard that kickflips.
-function board(b) {
-  const DECK = 0xfe8a18;
-  b.box(0, -0.025, -0.02, 0.32, 0.05, 0.82, DECK);
-  for (const sd of [-1, 1]) rbox(b, 0, 0.03, sd * 0.47, 0.32, 0.05, 0.2, sd * -0.35, 0, 0, DECK);
-  b.box(0, 0.0, -0.02, 0.3, 0.012, 0.8, 0x1b1b1b);
-  b.box(0, -0.035, 0.1, 0.33, 0.012, 0.18, 0x36aebf);
-  for (const z of [-0.3, 0.3]) {
-    b.box(0, -0.1, z, 0.22, 0.06, 0.06, 0xc8ccd0);
-    for (const sd of [-1, 1]) rod(b, [sd * 0.12, -0.13, z], [sd * 0.2, -0.13, z], 0.055, 0xbbe90b, 10);
-  }
-}
-const sam = {
-  voice: { kind: 'human', pitch: 1.08 }, style: { cheer: 'both', win: 'both', trick: 'twist' },
-  gestures: {
-    // kickflip! the board spins up over his head, shaka hands
-    cheer: (f, t) => ({ lx: -0.8, lz: 1.25, rx: -0.8, rz: -1.25, hx: -0.6 * bump(f, 0.05, 0.95), tx: -0.12, by: bump(f, 0, 0.3) * 0.12, hy: S(t * 6) * 0.1 }),
-    // board held overhead, bobbing to the beat, blowing a gum bubble
-    win: (f, t) => ({ lx: -2.95, lz: 0.3, rx: -2.95, rz: -0.3, hy: S(f * PI * 2) * 0.35, hz: S(t * 8) * 0.08, by: abs(S(t * 8)) * 0.06, tz: S(t * 4) * 0.06 }),
-  },
-  build() {
-    const HOOD = 0xa5d80f, CAP = 0x2a8aa0, HAIR = 0x5a3a1a;
-    const rig = fig({
-      name: 'sam', s: 1.4, wide: 0.74, deep: 0.78, headR: 0.26, headH: 0.48,
-      torso: HOOD, legs: 0x0a3463, arms: HOOD, hands: SKIN, skin: SKIN,
-      face: face('sam', SKIN, (P) => {
-        for (const sd of [-1, 1]) { P.ell(sd * 15, -4, 6, 7, '#1b1b1b'); P.rect(sd * 15 - 8, -13, 16, 6, '#ffc917'); P.line([[sd * 7, -9], [sd * 23, -8]], '#1b1b1b', 3); }
-        P.line([[6, -22], [24, -27]], '#4a2a10', 4); P.line([[-6, -19], [-24, -19]], '#4a2a10', 4);
-        P.curve(-14, 14, 4, 26, 16, 10, '#1b1b1b', 5);
-        P.ell(10, 21, 5, 4, '#e86a7a');
-      }, 0.59),
-      torsoExtra: (b, d) => {
-        const s = d.s, fz = frontZ(d), bz = backZ(d);
-        // long neck, bunched hood, lightning-bolt print, pocket, strings, headphones
-        b.cyl(0, d.neckY - 0.08 * s, 0, 0.1 * s, 0.32 * s, SKIN, { seg: 10 });
-        b.sphere(0, d.neckY - 0.02 * s, bz - 0.04, 0.22 * s, HOOD, { sy: 0.6 });
-        rbox(b, 0.02 * s, 0.6 * s, fz + 0.005, 0.07 * s, 0.24 * s, 0.03, 0, 0, 0.5, 0x36aebf);
-        rbox(b, -0.02 * s, 0.44 * s, fz + 0.005, 0.07 * s, 0.24 * s, 0.03, 0, 0, 0.5, 0x36aebf);
-        b.box(0, 0.5 * s, fz + 0.002, 0.1 * s, 0.04 * s, 0.03, 0x36aebf);
-        b.box(0, 0.16 * s, fz - 0.01, 0.42 * s, 0.2 * s, 0.04, 0x8ab80a);
-        for (const sd of [-1, 1]) b.box(sd * 0.07 * s, 0.68 * s, fz + 0.01, 0.02 * s, 0.26 * s, 0.02, C.white);
-        b.cyl(0, d.neckY - 0.02 * s, 0, 0.17 * s, 0.05 * s, 0x1b1b1b, { seg: 14 });
-        for (const sd of [-1, 1]) rod(b, [sd * 0.16 * s, d.neckY, 0.04], [sd * 0.22 * s, d.neckY, 0.04], 0.09 * s, 0xc91a09, 12);
-      },
-      arm: (ab, sd, d) => { const s = d.s; ab.cyl(0, -0.52 * s, 0, 0.13 * s, 0.06 * s, 0x36aebf, { seg: 10 }); },
-      headExtra: (hb, d) => {
-        const r = d.headR, h = d.headH;
-        // messy hair poking out under a backwards cap
-        for (let k = 0; k < 5; k++) rbox(hb, (k - 2) * 0.08, h * 0.86, r * 0.92, 0.06, 0.16, 0.06, 0.9 + (k % 2) * 0.3, 0, (k - 2) * 0.2, HAIR);
-        for (const sd of [-1, 1]) rbox(hb, sd * r * 1.02, h * 0.62, -0.02, 0.06, 0.2, 0.12, 0, 0, sd * 0.3, HAIR);
-        geoM(hb, domeGeo(), CAP, 0, h * 0.78, 0, 0, 0, 0, r * 1.1, r * 0.95, r * 1.1);
-        hb.cyl(0, h * 0.74, 0, r * 1.1, 0.07, CAP, { seg: 16 });
-        rbox(hb, 0, h * 0.78, -r * 1.35, 0.36, 0.035, 0.34, -0.12, 0, 0, CAP);
-        hb.sphere(0, h * 0.78 + r * 0.95, 0, 0.04, 0xfe8a18);
-        hb.box(0, h * 0.8, r * 0.9, 0.2, 0.08, 0.08, 0xfe8a18);
-      },
-    });
-    const s = rig.dims.s, d = rig.dims;
-    // long neck: lift the head
-    rig.head.position.y += 0.16 * s;
-    const sb = new THREE.Group(); sb.rotation.order = 'ZYX'; sb.scale.setScalar(1.3); rig.torso.add(sb);
-    const REST = new THREE.Vector3(0.02, 0.98 * s, backZ(d) - 0.2);
-    prop(sb, board, { name: 'skateboard' });
-    const setRest = () => { sb.position.copy(REST); sb.rotation.set(PI / 2, 0, 0.45); };
-    setRest();
-    const bubble = new THREE.Mesh(sphGeo(), plastic(0xff7ab0, { trans: true, opacity: 0.75, rough: 0.15 }));
-    bubble.position.set(0.05, d.headH * 0.32, d.headR); bubble.visible = false; rig.head.add(bubble);
-    finish(rig, 1.05);
-    rig.fx = (n, f, t) => {
-      if (n === 'cheer') {
-        const up = sm(seg(f, 0.04, 0.3)), down = sm(seg(f, 0.75, 0.98)), k = up * (1 - down);
-        const fl = seg(f, 0.18, 0.7);
-        sb.position.set(lerp(REST.x, 0, k), lerp(REST.y, 2.45 + bump(fl) * 0.35, k), lerp(REST.z, 0.35, k));
-        sb.rotation.set(lerp(PI / 2, 0, k), 0, lerp(0.45, 0, k) + sm(fl) * PI * 4);
-      } else if (n === 'win') {
-        sb.position.set(0, 2.5, 0.12);
-        sb.rotation.set(0, PI / 2 + S(t * 2) * 0.25, 0);
-      } else setRest();
-      const w = winF(t), bub = n === 'win' && w < 0.82;
-      vis(bubble, bub);
-      if (bub) bubble.scale.setScalar(0.03 + sm(w / 0.82) * 0.24);
-    };
-    return rig;
-  },
-};
-
 // ============================================================================ Zorp the Alien
 // Tiny body, huge egg head with giant eyes, wobbling antennae, tentacle arms, retro ray gun.
 let zorpFace = null;
@@ -643,87 +556,4 @@ const max = {
   },
 };
 
-// ============================================================================ Dino Dina
-// A kid in a dinosaur onesie: hood with a toothy snout that roars open, back plates and a tail.
-const dina = {
-  voice: { kind: 'beast', pitch: 1.75 }, style: { cheer: 'roar', win: 'roar', trick: 'arms' },
-  gestures: {
-    // RAWR: hood jaws wide, tiny T. rex arms clawing, shaking with effort
-    cheer: (f, t) => ({ jaw: 1, hx: -0.45, tx: -0.15, lx: -1.05 + S(t * 26) * 0.15, rx: -1.05 - S(t * 26) * 0.15, lz: -0.35, rz: 0.35, tz: S(t * 35) * 0.05, by: abs(S(t * 17)) * 0.03 }),
-    // stomp dance, claws up, tail wagging hard
-    win: (f, t) => ({ by: abs(S(t * 8)) * 0.12, ty: S(f * PI * 2) * 0.35, tz: S(t * 8) * 0.1, lx: -1.9 + S(t * 8) * 0.4, rx: -1.9 - S(t * 8) * 0.4, lz: -0.2, rz: 0.2, jaw: 0.6 + S(t * 8) * 0.35, hx: -0.3 }),
-  },
-  build() {
-    const GR = 0x2f9a48, BELLY = 0xd8e86a, SPIKE = 0xfe8a18, TOOTH = 0xf8f8f0;
-    const rig = fig({
-      name: 'dina', s: 1.05, wide: 1.15, deep: 1.12, headR: 0.3, headH: 0.46,
-      torso: GR, legs: GR, arms: GR, hands: GR, skin: SKIN,
-      face: face('dina', SKIN, (P) => {
-        P.eyes(17, 4, 7, 10);
-        for (const sd of [-1, 1]) { P.line([[sd * 8, -10], [sd * 26, -4]], '#5a3010', 5); P.ell(sd * 30, 18, 7, 5, '#f39a8a'); }
-        P.mouth(20, 13, 'open');
-      }, 0.49),
-      torsoExtra: (b, d) => {
-        const s = d.s, fz = frontZ(d), bz = backZ(d);
-        // belly patch and back plates
-        b.box(0, 0.05 * s, fz - 0.01, 0.5 * s, 0.75 * s, 0.05, BELLY);
-        for (let k = 0; k < 3; k++) b.box(0, (0.22 + k * 0.2) * s, fz + 0.02, 0.4 * s, 0.02 * s, 0.03, 0xb8c84a);
-        for (let k = 0; k < 4; k++) geoM(b, coneGeo(), SPIKE, 0, (0.25 + k * 0.22) * s, bz - 0.01, -0.9, 0, 0, 0.07 * s, (0.2 + k * 0.03) * s, 0.04 * s);
-      },
-      // stubby paws with white claws
-      arm: (ab, sd, d) => { const s = d.s; for (const z of [-1, 0, 1]) geoM(ab, coneGeo(), TOOTH, 0, -0.72 * s, z * 0.06 * s + 0.05 * s, PI * 0.82, 0, 0, 0.03 * s, 0.09 * s, 0.03 * s); },
-      headExtra: (hb, d) => {
-        const r = d.headR, h = d.headH;
-        // the hood: rounded dino skull with a snout over her face
-        geoM(hb, domeGeo(), GR, 0, h * 0.78, -0.03, 0, 0, 0, r * 1.3, r * 1.15, r * 1.35);
-        hb.cyl(0, h * 0.1, -r * 0.35, r * 1.18, h * 0.7, GR, { seg: 14 });
-        hb.box(0, h * 0.8, r * 0.95, r * 2.0, 0.17, r * 1.25, GR);
-        geoM(hb, domeGeo(), GR, 0, h * 0.8 + 0.16, r * 1.0, 0, 0, 0, r * 1.0, r * 0.4, r * 0.65);
-        for (let k = 0; k < 7; k++) {
-          const u = (k / 6 - 0.5) * 2, x = u * r * 0.92, z = r * 1.55 - Math.abs(u) * r * 0.3;
-          geoM(hb, coneGeo(), TOOTH, x, h * 0.81, z, PI, 0, 0, 0.035, 0.1, 0.035);
-        }
-        for (const sd of [-1, 1]) {
-          hb.sphere(sd * 0.15, h * 0.8 + 0.3, r * 0.55, 0.1, C.white);
-          hb.sphere(sd * 0.15, h * 0.8 + 0.32, r * 0.55 + 0.07, 0.05, C.black);
-          hb.sphere(sd * 0.08, h * 0.8 + 0.14, r * 1.55, 0.025, 0x1b4a24);
-        }
-        for (let k = 0; k < 3; k++) geoM(hb, coneGeo(), SPIKE, 0, h * 0.8 + r * 1.05 - k * 0.1, -k * r * 0.45, -0.5 - k * 0.35, 0, 0, 0.06, 0.2 - k * 0.02, 0.035);
-      },
-    });
-    const s = rig.dims.s, r = rig.dims.headR, h = rig.dims.headH;
-    // hood lower jaw (roars open)
-    const jaw = new THREE.Group(); jaw.position.set(0, h * 0.02, -r * 0.1); rig.head.add(jaw);
-    prop(jaw, (b) => {
-      b.box(0, -0.06, r * 0.85, r * 1.9, 0.08, r * 1.3, GR);
-      b.box(0, -0.05, r * 0.85, r * 1.5, 0.02, r * 1.1, 0xc84a5a);
-      for (let k = 0; k < 6; k++) {
-        const u = (k / 5 - 0.5) * 2;
-        geoM(b, coneGeo(), TOOTH, u * r * 0.8, 0.02, r * 1.42 - Math.abs(u) * r * 0.25, 0, 0, 0, 0.03, 0.08, 0.03);
-      }
-    }, { name: 'dina-jaw' });
-    rig.jaw = jaw; rig.jawOpen = 0.55;
-    // tail (driver.js sways it)
-    const tail = new THREE.Group(); tail.position.set(0, 0.28 * s, backZ(rig.dims) + 0.05); rig.root.add(tail);
-    prop(tail, (b) => {
-      const P = [[0, 0, 0], [0, 0.12, -0.42], [0, 0.34, -0.78], [0, 0.62, -1.0], [0, 0.9, -1.04]];
-      const R = [0.22, 0.17, 0.12, 0.07, 0.03];
-      for (let i = 0; i < 4; i++) { trod(b, P[i], P[i + 1], R[i], R[i + 1], GR, 10); if (i) b.sphere(...P[i], R[i], GR); }
-      for (let i = 0; i < 4; i++) { const [x, y, z] = P[i]; geoM(b, coneGeo(), SPIKE, x, y + R[i] * 0.8, z - 0.15, -1.0, 0, 0, 0.05, 0.16 - i * 0.025, 0.03); }
-    }, { name: 'dina-tail' });
-    rig.tail = tail;
-    // roar shockwaves
-    const roar = fxg(rig.head, { y: h * 0.45, z: r * 1.3 });
-    const rings = [0, 1].map(() => { const m = ring(roar, fxMat(0xffffff, 0.55), 0.3, 0.07, 22); m.rotation.x = PI / 2; return m; });
-    finish(rig, 1.25);
-    rig.fx = (n, f, t) => {
-      const on = n === 'cheer' && f > 0.1 && f < 0.85;
-      vis(roar, on);
-      if (on) rings.forEach((m, k) => { const u = (t * 2.2 + k * 0.5) % 1; m.scale.setScalar(0.15 + u * 1.1); m.position.z = u * 0.6; });
-      if (n === 'cheer' || n === 'win') tail.rotation.y += S(t * 16) * 0.45;
-    };
-    return rig;
-  },
-};
-
-export default { pepper, cassie, bjorn, regina, sam, zorp, max, dina };
+export default { pepper, cassie, bjorn, regina, zorp, max };

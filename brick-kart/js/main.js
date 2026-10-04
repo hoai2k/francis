@@ -14,6 +14,7 @@ import { simpleDriver, simpleKart } from './simplified.js';
 import { ABILITY } from './abilities.js';
 import { Showcase, driverPortrait } from './showcase.js';
 import { ICONS, ITEMS } from './items.js';
+import { setDetail } from './decor.js';
 import { fmt } from './hud.js';
 
 // arrows: chevrons drawn as SVG (◀ ▶ text gets turned into emoji boxes on iOS; text arrows carry U+FE0E)
@@ -34,9 +35,9 @@ const hex = (c) => '#' + c.toString(16).padStart(6, '0');
 
 class Game {
   constructor() {
-    this.settings = load(SKEY, { cc: 100, difficulty: 'normal', laps: 3, racers: 12, music: 0.5, sfx: 0.8, autoGas: false, simple: false, touchSteer: 'both', tiltStyle: 'wheel', tiltSens: 'med', tiltInvert: false, quality: MOBILE ? 'low' : 'high' });
+    this.settings = load(SKEY, { cc: 100, difficulty: 'normal', laps: 3, music: 0.5, sfx: 0.8, autoGas: false, simple: false, touchSteer: 'both', tiltStyle: 'wheel', tiltSens: 'med', tiltInvert: false, lego: true, quality: MOBILE ? 'low' : 'high' });
     // at most 12 karts per race (players included)
-    if (!(this.settings.racers <= 12)) { this.settings.racers = 12; save(SKEY, this.settings); }
+    if ('racers' in this.settings) { delete this.settings.racers; save(SKEY, this.settings); }   // races always have 12 karts
     // characters are always on now: drop the old toggle
     if ('useChars' in this.settings || 'charsDefault' in this.settings) { delete this.settings.useChars; delete this.settings.charsDefault; save(SKEY, this.settings); }
     this.best = load(TKEY, {});
@@ -322,14 +323,14 @@ class Game {
     const cyc = (key, list, dir) => { const i = list.indexOf(s[key]); s[key] = list[(i + dir + list.length) % list.length]; save(SKEY, s); };
     const vol = (key, dir) => { s[key] = Math.round(Math.max(0, Math.min(1, s[key] + dir * 0.1)) * 10) / 10; save(SKEY, s); this.audio.setVolumes(s.music, s.sfx); };
     const tilt = (key, list, dir) => { cyc(key, list, dir); this.applyTilt(); if (s.touchSteer !== 'drag') this.input.enableTilt(); };
-    const ccs = [50, 100, 150, 200], diffs = ['easy', 'normal', 'hard'], laps = [1, 2, 3, 4, 5], racers = [4, 6, 8, 10, 12];
+    const ccs = [50, 100, 150, 200], diffs = ['easy', 'normal', 'hard'], laps = [1, 2, 3, 4, 5];
     this.menu({
       title: 'Options',
       items: [
         { label: 'Engine class', value: () => s.cc + 'cc', left: () => cyc('cc', ccs, -1), right: () => cyc('cc', ccs, 1) },
         { label: 'CPU racers', value: () => s.difficulty[0].toUpperCase() + s.difficulty.slice(1), left: () => cyc('difficulty', diffs, -1), right: () => cyc('difficulty', diffs, 1) },
-        { label: 'Racers per race', value: () => String(s.racers), left: () => cyc('racers', racers, -1), right: () => cyc('racers', racers, 1) },
         { label: 'Laps', value: () => String(s.laps), left: () => cyc('laps', laps, -1), right: () => cyc('laps', laps, 1) },
+        { label: 'Legoized', value: () => (s.lego !== false ? 'On' : 'Off'), left: () => { s.lego = s.lego === false; save(SKEY, s); }, right: () => { s.lego = s.lego === false; save(SKEY, s); } },
         { label: 'Simplified mode', value: () => (s.simple ? 'On' : 'Off'), left: () => { s.simple = !s.simple; save(SKEY, s); }, right: () => { s.simple = !s.simple; save(SKEY, s); } },
         // phones: how steering works (dragging always works unless it's tilt only)
         ...(isTouchDevice() ? [
@@ -782,7 +783,7 @@ class Game {
     const cards = CUPS.map((c, i) => `<div class="cup" data-i="${i}" style="--cc:${c.color}"><div class="trophy">🏆</div><div class="cn">${esc(c.name)}</div><div class="cl">${c.tracks.length} races</div></div>`).join('');
     this.setScreen(`<div class="screen tracks cups"><div class="panel wide"><h2>Grand Prix · Choose a cup</h2><div class="cupgrid">${cards}</div>
       <div class="cuppv"></div>
-      <div class="selfoot"><button class="bbtn" data-act="back">◀︎ Back</button><div class="hint2">${this.settings.cc}cc · ${this.settings.racers} racers · ${this.settings.laps} laps · CPU ${this.settings.difficulty}</div><span></span></div></div></div>`);
+      <div class="selfoot"><button class="bbtn" data-act="back">◀︎ Back</button><div class="hint2">${this.settings.cc}cc · 12 racers · ${this.settings.laps} laps · CPU ${this.settings.difficulty}</div><span></span></div></div></div>`);
     // the focused cup's races, in order, with a picture of each map
     const preview = () => {
       if (shown === focus) return;
@@ -829,7 +830,8 @@ class Game {
       this.attract?.dispose(); this.attract = null;
       this.race?.dispose();
       const s = this.settings;
-      this.race = new Race(this, { ...opts, players: this.players, simple: !!s.simple, cc: CC[s.cc] || 0.92, difficulty: s.difficulty, racers: s.racers, laps: opts.mode === 'tt' ? 3 : s.laps, bestTime: opts.mode === 'tt' ? this.best[opts.def.id] : 0 });
+      setDetail(s.quality, s.lego !== false);   // Fast graphics: lighter scenery; Legoized: brick-built props
+      this.race = new Race(this, { ...opts, players: this.players, simple: !!s.simple, cc: CC[s.cc] || 0.92, difficulty: s.difficulty, racers: 12, laps: opts.mode === 'tt' ? 3 : s.laps, bestTime: opts.mode === 'tt' ? this.best[opts.def.id] : 0 });
       this.race.world.sun.shadow.mapSize.set(this.shadowSize, this.shadowSize);
       this.race.onDone = (res) => this.onRaceDone(res);
       this.race.warmup(this.renderer);

@@ -347,8 +347,9 @@ export class Kart {
     const onShoulder = !loc.gap && !onRoad && loc.edge !== 1 && absLat <= loc.hw + loc.sh;
     const hasGround = onRoad || onShoulder || (loc.edge === 0 && !loc.gap);
     const groundY = hasGround ? loc.y : -Infinity;
-    this.surf = onRoad ? loc.surf : onShoulder ? 'offroad' : 'air';
-    this.offroad = onShoulder && this.grounded;
+    const inField = !onRoad && !onShoulder && loc.edge !== 1 && this.grounded && !!this.race.world?.groundAt?.(this.pos.x, this.pos.z);
+    this.surf = onRoad ? loc.surf : onShoulder || inField ? 'offroad' : 'air';
+    this.offroad = (onShoulder || inField) && this.grounded;
 
     // --- speed -----------------------------------------------------------------
     let max = this.topSpeed * this.speedMult * (1 + this.studs * 0.012);
@@ -431,7 +432,11 @@ export class Kart {
     const absLat2 = Math.abs(loc.lat);
     const onRoad2 = !loc.gap && absLat2 <= loc.hw + 0.3;
     const onSh2 = !loc.gap && !onRoad2 && loc.edge !== 1 && absLat2 <= loc.hw + loc.sh + 0.2;
-    const gY = (onRoad2 || onSh2) ? loc.y : -Infinity;
+    // beside the road (not a void edge): the map's ground is drivable, slowly, wherever it exists
+    // (water, lava and holes still drop you into a respawn)
+    const onField = !onRoad2 && !onSh2 && loc.edge !== 1 && !!this.race.world?.groundAt?.(this.pos.x, this.pos.z);
+    const gY = (onRoad2 || onSh2) ? loc.y : onField ? tr.groundY : -Infinity;
+    if (this.grounded && onField) { this.offroad = true; this.surf = 'offroad'; }
     void groundY;
     if (this.grounded) {
       const ballistic = this.pos.y + this.vy * dt - 0.5 * G * dt * dt;
@@ -465,7 +470,22 @@ export class Kart {
       this.emote('trick');
       if (this.human) this.race.audio.sfx('trick');
     }
-    if (this.pos.y < loc.y - 14 || this.pos.y < tr.groundY - 1) { this.startRespawn(); this.syncModel(dt); return; }
+    if ((this.pos.y < loc.y - 14 && !onField) || this.pos.y < tr.groundY - 1) { this.startRespawn(); this.syncModel(dt); return; }
+    // off in the field: a soft boundary keeps karts near the track, and anyone stranded below a
+    // raised stretch of road (no way back up) gets craned back after a moment
+    if (onField && this.grounded) {
+      const lim = loc.hw + loc.sh + 10;
+      if (absLat2 > lim) {
+        const sg = Math.sign(loc.lat), pen = absLat2 - lim;
+        this.pos.x -= loc.rx * sg * pen; this.pos.z -= loc.rz * sg * pen;
+        const kn = (this.kvx * loc.rx + this.kvz * loc.rz) * sg;
+        if (kn > 0) { this.kvx -= loc.rx * sg * kn; this.kvz -= loc.rz * sg * kn; }
+        const ty = Math.atan2(loc.tx, loc.tz), rel = angleDiff(ty, this.moveYaw);
+        this.moveYaw = lerpAngle(this.moveYaw, Math.cos(rel) >= 0 ? ty : ty + Math.PI, 0.25);
+      }
+      this.stranded = loc.y - tr.groundY > 3.5 ? (this.stranded || 0) + dt : 0;
+      if (this.stranded > 2.5) { this.stranded = 0; this.startRespawn(); this.syncModel(dt); return; }
+    } else this.stranded = 0;
 
     // --- walls ------------------------------------------------------------------------------
     if (loc.edge === 0 && !loc.gap && this.pos.y < loc.y + 4) {
