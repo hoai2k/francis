@@ -73,7 +73,7 @@ const nue = {
         const pts = [[0, 0, 0]];
         for (let i = 1; i <= segs; i++) pts.push([rnd() * spread, -drop * i / segs + rnd() * 0.1, -i * 0.22 + rnd() * 0.15]);
         const bb = new BrickBuilder(0.4);
-        T.zig(bb, pts, 0.03, ZCOL, ZAP);
+        T.zig(bb, pts, 0.04, ZCOL, ZAP);
         // a short fork
         const k = 1 + (p + seed) % (segs - 1);
         T.zig(bb, [pts[k], [pts[k][0] + rnd() * 0.5, pts[k][1] - 0.2, pts[k][2] - 0.2]], 0.022, ZCOL, ZAP);
@@ -126,7 +126,7 @@ const nue = {
           next = s.t + 0.06 + ((seq * 37) % 7) * 0.012;
           for (let i = 0; i < bolts.length; i++) {
             const h = (seq * 7 + i * 13) % 11;   // cheap pseudo-random pick: off / pattern A / pattern B
-            bolts[i][0].visible = h < 3; bolts[i][1].visible = h > 7;
+            bolts[i][0].visible = h < 4; bolts[i][1].visible = h > 6;
           }
           seq++;
         }
@@ -142,7 +142,7 @@ const shrine = {
   build(kit) {
     const { THREE, BrickBuilder, C } = kit; const T = tools(kit);
     const ROOF = 0x2b2530, TILE = 0x3d3542, RED = 0x9b1c1c, DRED = 0x5e0f12, BONE = 0xe8e0c8, GOLD = 0xdcbc81;
-    const FLAME = LIT(0xd0102a, 1.7), CORE = LIT(0xff5a3c, 1.9);
+    const FLAME = LIT(0xe0201a, 1.2), MID = LIT(0xff4a10, 1.5), CORE = LIT(0xffc040, 1.7);
     const b = new BrickBuilder(0.4);
     // the grip: a red lacquer crossbar with black caps, two pillars and a tie beam
     T.R(b, 0, 0, 0, 1.2, 0.13, 0.13, 0, 0, 0, RED);
@@ -203,10 +203,13 @@ const shrine = {
     const fire = (x, y, z, size) => {
       const g = new THREE.Group(); g.position.set(x, y, z);
       const fb = new BrickBuilder(0.4);
-      T.cone(fb, 0, size * 0.35, 0, size * 0.18, size * 0.7, size * 0.18, 0, 0, 0, 0xa0101c, FLAME);
-      T.cone(fb, size * 0.08, size * 0.22, 0.02, size * 0.1, size * 0.44, size * 0.1, 0, 0, 0.25, 0xa0101c, FLAME);
-      T.cone(fb, -size * 0.06, size * 0.2, -0.02, size * 0.09, size * 0.4, size * 0.09, 0, 0, -0.3, 0xa0101c, FLAME);
-      T.cone(fb, 0, size * 0.22, 0, size * 0.09, size * 0.42, size * 0.09, 0, 0, 0, 0xff8a5a, CORE);
+      // three dark-red tongues leaning apart, an orange heart showing between them, a yellow core
+      for (let i = 0; i < 3; i++) {
+        const an = i * 2.1, ox = Math.cos(an) * 0.09 * size, oz = Math.sin(an) * 0.09 * size;
+        T.cone(fb, ox, size * (0.3 - i * 0.04), oz, size * 0.13, size * (0.6 - i * 0.1), size * 0.13, oz * 2, 0, -ox * 2, 0x8a0c12, FLAME);
+      }
+      T.cone(fb, 0, size * 0.32, 0, size * 0.1, size * 0.64, size * 0.1, 0, 0, 0, 0xff5a20, MID);
+      T.cone(fb, 0, size * 0.12, 0, size * 0.11, size * 0.24, size * 0.11, 0, 0, 0, 0xffd060, CORE);
       g.add(fb.build({ name: 'cursedFire', shadows: false })); flames.push(g); parts.push(g);
     };
     for (const sd of [-1, 1]) {
