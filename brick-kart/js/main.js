@@ -993,7 +993,6 @@ const ITEM_HELP = {
   trap: 'Drop a pile of loose bricks. Ouch! Stick ↑ throws it forward.',
   shield: 'A bubble that blocks the next hit.',
   golden: 'Invincible and extra fast. Bowl other karts over!',
-  storm: 'Rains bricks down on the racers ahead and spins them out.',
   bullet: 'Turn into a giant brick bullet that drives itself at huge speed, blasting karts aside and spinning them out.',
   rocket3: 'Three homing rockets.',
   cannon3: 'Three bouncer bricks.',

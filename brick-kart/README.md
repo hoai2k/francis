@@ -166,11 +166,11 @@ big comeback ones.
   Mosasaurus Breach (it leaps out of the road ahead and crashes down in a
   splash).
 
-## Power-ups (23)
+## Power-ups (22)
 
 Drive through the rainbow **?** bricks to get an item. You can hold two: the one you can use now (big slot) and the next one (small slot), which moves up once you use the first.
 
-The further back you are, the better your items. The leader mostly gets defensive items, and the racers at the back get the big comeback items. Being far behind the leader also improves your odds.
+The further back you are, the better your items. The leader mostly gets defensive items, and the racers at the back get the big comeback items. Whoever is in **last place** always gets one of the big ones (Bullet Brick, Golden Brick, Gold Turbo, Mega Brick, Leader Seeker, triples, or a comeback movie power). Being far behind the leader also improves your odds.
 
 | Item | What it does |
 | --- | --- |
@@ -191,7 +191,6 @@ The further back you are, the better your items. The leader mostly gets defensiv
 | Paint Puddle | A slippery puddle that spins everyone who drives through it |
 | Fake Box | Looks like an item box, but blows up whoever touches it |
 | Ink Splat | Splats ink over the screens of everyone ahead |
-| Brick Storm | Rains bricks down on the racers ahead and spins them out |
 | Brick Shield | Blocks the next hit |
 | Brick Horn | A shockwave that destroys nearby items (even the Leader Seeker) and spins nearby karts |
 
@@ -205,8 +204,7 @@ swipe knocks both karts sideways (the lighter one further) instead of stopping
 anyone, and the knock slides off over a moment (longer on ice). Traffic, cows,
 forklifts and other "bump" hazards shove you aside rather than spinning you.
 Rolling boulders, snowballs, gumballs, asteroids and the factory's wrecking arms
-spin you out and throw you aside instead of wrecking you, and Brick Storm spins
-racers out (like Lightning) instead of wrecking them. Only power-ups turn contact
+spin you out and throw you aside instead of wrecking you. Only power-ups turn contact
 into a hit: a Golden, Mega or Bullet Brick bowls you over into a spin-out and
 flings you aside, and only Black Flash wrecks you on contact.
 
@@ -234,7 +232,7 @@ you drop some.
   purple. Let go for a mini-turbo.
 - **Tricks**: tap drift in mid-air after a ramp to land with a boost.
 - **Rocket start**: hold accelerate just after the second start light comes on.
-- **Gliding**: steer while you fly. You land wherever the road is below you. Ground obstacles like hay bales and cupcakes only stop you if you fly low enough to hit them.
+- **Gliding**: steer while you fly. You land wherever the road is below you, and once you're past the gap you come down twice as fast. Ground obstacles like hay bales and cupcakes only stop you if you fly low enough to hit them.
 - **Falling off**: the crane puts you back on a safe stretch of road. If you fall again right away, it puts you further ahead next time.
 - Sound mutes when you switch to another tab or window.
 - **Touch steering**: drag a finger left / right anywhere on the screen (it steers

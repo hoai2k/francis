@@ -12,7 +12,6 @@ export const ITEMS = {
   trap:   { name: 'Stray Bricks', color: '#f2cd37' },
   shield: { name: 'Brick Shield', color: '#36aebf' },
   golden: { name: 'Golden Brick', color: '#ffd040' },
-  storm:  { name: 'Brick Storm', color: '#9a5aff' },
   bullet: { name: 'Bullet Brick', color: '#1b2a34' },
   rocket3: { name: 'Triple Rockets', color: '#e0301a' },
   cannon3: { name: 'Triple Bouncers', color: '#2fa84a' },
@@ -56,7 +55,6 @@ export const ICONS = {
   boomerang: `<svg viewBox="0 0 64 64"><path d="M8 50L32 10l24 40-8 4-16-28-16 28z" fill="#fe8a18" stroke="#1b2a34" stroke-width="3" stroke-linejoin="round"/><path d="M28 18l4-6 4 6" stroke="#fff" stroke-width="3" fill="none"/></svg>`,
   ink: `<svg viewBox="0 0 64 64"><path d="M32 6c10 0 14 10 12 18 8-4 16 4 10 12 8 4 2 16-8 12 0 8-10 12-14 6-6 8-18 2-14-6-10 2-14-10-6-14-8-6 0-16 8-12-2-8 2-16 12-16z" fill="#1b1b3a" stroke="#000" stroke-width="2"/><circle cx="26" cy="28" r="4" fill="#fff"/><circle cx="38" cy="28" r="4" fill="#fff"/></svg>`,
   horn: `<svg viewBox="0 0 64 64"><path d="M8 26h10l24-14v40L18 38H8z" fill="#f2cd37" stroke="#1b2a34" stroke-width="3" stroke-linejoin="round"/><path d="M48 22q8 10 0 20M52 14q14 18 0 36" stroke="#ff4a3a" stroke-width="4" fill="none" stroke-linecap="round"/></svg>`,
-  storm: `<svg viewBox="0 0 64 64"><path d="M14 30c-8 0-8-12 0-12 2-10 16-12 20-4 6-6 18-2 16 8 8 2 6 12-2 12H14z" fill="#6a5a9a" stroke="#1b2a34" stroke-width="3"/><g stroke="#1b2a34" stroke-width="2"><rect x="14" y="40" width="10" height="7" fill="#c91a09" transform="rotate(20 19 43)"/><rect x="30" y="46" width="10" height="7" fill="#f2cd37" transform="rotate(-15 35 49)"/><rect x="44" y="40" width="10" height="7" fill="#0055bf" transform="rotate(30 49 43)"/></g></svg>`,
 };
 
 // Odds by race position (0 = leader, 1 = last). Front-runners get defensive,
@@ -65,20 +63,25 @@ const TABLES = [
   [0.01, { trap: 16, cannon: 16, puddle: 12, fakebox: 12, boost: 8, shield: 12, studbag: 10, boomerang: 8, horn: 8 }],
   [0.25, { cannon: 13, trap: 9, puddle: 8, fakebox: 6, rocket: 13, boomerang: 10, bomb: 9, boost: 10, shield: 8, studbag: 7, ice: 7 }],
   [0.5, { rocket: 13, cannon3: 8, bomb: 9, boost3: 12, ice: 8, boomerang: 6, ghost: 6, ink: 6, seeker: 4, mega: 6, rocket3: 6, shield: 5, studbag: 7, horn: 4 }],
-  [0.75, { boost3: 13, rocket3: 11, mega: 10, golden: 10, goldturbo: 9, seeker: 7, ink: 8, ghost: 6, storm: 5, bomb: 5, cannon3: 5, bullet: 6 }],
-  [1.01, { bullet: 24, golden: 15, goldturbo: 15, storm: 12, seeker: 7, mega: 10, boost3: 10, rocket3: 7 }],
+  [0.75, { boost3: 13, rocket3: 11, mega: 10, golden: 10, goldturbo: 9, seeker: 7, ink: 8, ghost: 6, bomb: 5, cannon3: 5, bullet: 6 }],
+  [1.01, { bullet: 24, golden: 15, goldturbo: 15, seeker: 7, mega: 10, boost3: 10, rocket3: 7 }],
 ];
-// movie abilities join the tables (see abilities.js)
+// Dead last always gets a real comeback item: only the big ones, never a defensive dud
+const LAST = { bullet: 22, golden: 16, goldturbo: 16, mega: 12, seeker: 9, boost3: 8, rocket3: 7 };
+// movie abilities join the tables (see abilities.js); the ones that favour last place (odds of 4+
+// in the last band) are comeback powers and join the last-place table too
 for (const a of ABILITIES) {
   ITEMS[a.id] = { name: a.name, color: a.color || '#ffffff' };
   ICONS[a.id] = a.icon || ICONS.boost;
   if (a.multi) MULTI[a.id] = a.multi;
   TABLES.forEach(([, t], band) => { if (a.odds[band] > 0) t[a.id] = a.odds[band]; });
+  if (a.odds[4] >= 4) LAST[a.id] = a.odds[4];
 }
 export function rollItem(rankFrac, rand = Math.random, gapBehind = 0, trackFrom = null) {
+  const last = rankFrac >= 0.999;
   // being far behind the leader counts as being further back
   rankFrac = Math.min(1, rankFrac + Math.min(0.3, Math.max(0, gapBehind) / 1500));
-  let t = TABLES.find(([u]) => rankFrac <= u)[1];
+  let t = last ? LAST : TABLES.find(([u]) => rankFrac <= u)[1];
   // on a movie track, that movie's abilities turn up twice as often
   if (trackFrom) { t = { ...t }; for (const a of ABILITIES) if (a.from === trackFrom && t[a.id]) t[a.id] *= 2; }
   let sum = 0;
@@ -174,14 +177,6 @@ function trapMesh() {
   }
   return g;
 }
-function stormMesh() {
-  const g = new THREE.Group();
-  const cloud = new BrickBuilder(0.8);
-  for (let k = 0; k < 5; k++) cloud.brick((k - 2) * 1.4, (k % 2) * 0.6, (Math.random() - 0.5), 3, 2, 3, 0x4a4a6a, {});
-  g.add(cloud.build({ shadows: false }));
-  return g;
-}
-
 export class Items {
   constructor(race) {
     this.race = race;
@@ -189,7 +184,6 @@ export class Items {
     this.scene = race.scene;
     this.proj = [];   // rockets, bouncers, freeze bricks, boomerangs, seekers
     this.traps = [];  // stray bricks, puddles, fake boxes, bombs
-    this.storms = [];
     this.rings = [];  // horn shockwaves
     this.tmp = new THREE.Vector3();
     this.loc = {};
@@ -256,7 +250,6 @@ export class Items {
       case 'bomb': this.dropTrap(k, !back, 'bomb'); au.sfx('cannon', k.pos); break;
       case 'shield': k.shieldTime = 12; au.sfx('shield', k.pos); break;
       case 'golden': k.goldenTime = 7.5; k.boost(0.6); au.sfx('golden', k.pos); break;
-      case 'storm': this.brickStorm(k); break;
       case 'bullet': k.bulletTime = 6.5; k.cancelDrift(); au.sfx('rocket', k.pos); au.sfx('golden', k.pos); break;
       case 'mega': k.megaTime = 8; k.boost(0.4); au.sfx('golden', k.pos); break;
       case 'seeker': this.fireSeeker(k); au.sfx('rocket', k.pos); break;
@@ -338,17 +331,6 @@ export class Items {
     m.position.copy(pos).add(new THREE.Vector3(0, 0.6, 0));
     this.scene.add(m);
     this.rings.push({ m, t: 0, radius });
-  }
-  brickStorm(k) {
-    this.race.audio.sfx('storm');
-    this.race.flash(0xb0a0ff);
-    for (const o of this.race.karts) {
-      if (o === k || o.finished) continue;
-      if (o.rank > k.rank && Math.random() < 0.5) continue; // mostly hits karts ahead
-      const cloud = stormMesh();
-      this.scene.add(cloud);
-      this.storms.push({ kart: o, cloud, t: 0, hit: false, by: k });
-    }
   }
   ghost(k) {
     k.ghostTime = 5;
@@ -535,19 +517,6 @@ export class Items {
         }
       }
     }
-    // brick storms: a cloud gathers over each victim then rains bricks on them
-    for (let n = this.storms.length - 1; n >= 0; n--) {
-      const s = this.storms[n];
-      s.t += dt;
-      const k = s.kart;
-      s.cloud.position.set(k.pos.x, k.pos.y + 7 - Math.min(1, s.t) * 1.5, k.pos.z);
-      s.cloud.rotation.y += dt;
-      if (s.t > 0.8 && s.t < 1.4) {
-        this.race.fx.debrisOne(s.cloud.position.clone().add(new THREE.Vector3((Math.random() - 0.5) * 3, -1, (Math.random() - 0.5) * 3)), [C.red, C.yellow, C.blue, C.green][Math.floor(Math.random() * 4)], new THREE.Vector3(0, -12, 0), 1.2);
-      }
-      if (s.t > 1.1 && !s.hit) { s.hit = true; k.hit('spin', s.by); }   // like Lightning: a spin-out, not a wreck
-      if (s.t > 1.8) { this.scene.remove(s.cloud); this.storms.splice(n, 1); }
-    }
     // shockwave rings
     for (let n = this.rings.length - 1; n >= 0; n--) {
       const r = this.rings[n];
@@ -570,7 +539,6 @@ export class Items {
     this.ents = [];
     for (const p of this.proj) this.scene.remove(p.mesh);
     for (const t of this.traps) this.scene.remove(t.mesh);
-    for (const s of this.storms) this.scene.remove(s.cloud);
     for (const r of this.rings) { this.scene.remove(r.m); r.m.geometry.dispose(); r.m.material.dispose(); }
   }
 }

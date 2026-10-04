@@ -465,7 +465,6 @@ class Patronus {
       p.life = 0; p.mesh.visible = false;
       block(p.pos);
     }
-    for (const s of items.storms) if (s.kart === k && !s.hit) { s.hit = true; block(s.cloud.position); }
     for (const e of items.ents) if (e !== this && e.deflect && e.k !== k && e.kart !== k) e.deflect(k.pos, R, k);
   }
   dispose() {

@@ -446,9 +446,12 @@ export class Kart {
     } else {
       this.airTime += dt;
       if (this.gliding) {
-        // gentle glide: low gravity, capped sink rate, speed held
-        this.vy -= G * 0.18 * dt;
-        this.vy = Math.max(this.vy, -4.2);
+        // gentle glide: low gravity, capped sink rate, speed held. Once the gap has been crossed
+        // and there's ground below again, come down twice as fast.
+        if (gY === -Infinity) this.glideGap = true;
+        const sink = this.glideGap && gY > -Infinity ? 2 : 1;
+        this.vy -= G * 0.18 * sink * dt;
+        this.vy = Math.max(this.vy, -4.2 * sink);
         if (this.speed < this.topSpeed * 0.85) this.speed += 10 * dt;
       } else this.vy -= G * dt;
       this.pos.y += this.vy * dt;
@@ -547,6 +550,7 @@ export class Kart {
 
   setGliding(on) {
     this.gliding = on;
+    this.glideGap = false;
     if (this.model.glider) this.model.glider.visible = on;
     this.gliderT = 0;
   }

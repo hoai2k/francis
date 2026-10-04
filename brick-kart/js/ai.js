@@ -142,7 +142,7 @@ export class AIDriver {
     }
     switch (k.item) {
       case 'boost': case 'boost3': case 'golden': case 'goldturbo': case 'mega': use = curv < 0.5 && !k.offroad || k.offroad; break;
-      case 'bullet': case 'ink': case 'storm': case 'studbag': case 'seeker': case 'ghost': use = true; break;
+      case 'bullet': case 'ink': case 'studbag': case 'seeker': case 'ghost': use = true; break;
       case 'rocket': case 'rocket3': use = !!ahead && gapAhead < 180; break;
       case 'cannon': case 'cannon3': case 'ice': case 'boomerang': {
         use = aheadShot();
