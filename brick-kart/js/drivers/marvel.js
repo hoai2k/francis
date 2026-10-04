@@ -810,62 +810,118 @@ const rocket = {
     use: (f) => ({ rx: -1.6, rz: 0.1, lx: -1.5, lz: -0.3, hx: -0.05 }),
   },
   build() {
-    const fur = 0x8a6a50, dk = 0x3a2a20, cream = 0xe8dcc0;
+    const fur = 0x8c7560, furDk = 0x5a4838, mask = 0x241c18, cream = 0xf0e6d0, nose = 0x16120f;
+    const suit = M.orange, navy = 0x24366a, strap = 0x4a3424, pouch = 0x86704a;
+    const cone = cached('rkCone', () => new THREE.ConeGeometry(1, 1, 7).translate(0, 0.5, 0));
     const root = new THREE.Group(); root.name = 'rocket';
-    // booster seat
+    // he sits up on an ammo crate to see over the wheel
     const bb = new BrickBuilder(1);
-    bb.box(0, -0.4, -0.05, 0.9, 0.62, 0.8, C.dkgray);
+    bb.box(0, -0.42, -0.04, 0.78, 0.6, 0.72, 0x56603f);
+    for (const y of [-0.42, 0.1]) bb.box(0, y, -0.04, 0.8, 0.08, 0.74, 0x3a4230);
+    for (let j = 0; j < 4; j++) bb.boxM(mat4(-0.27 + j * 0.18, -0.17, 0.325, 0, 0, 0.6, 0.06, 0.3, 0.02), 0xe8b020);
     root.add(bb.build({ name: 'driver-booster' }));
     const torso = new THREE.Group(); root.add(torso);
     const tb = new BrickBuilder(1);
-    const y0 = 0.22;
-    for (const sd of [-1, 1]) { tb.box(sd * 0.15, y0 - 0.02, 0.18, 0.22, 0.2, 0.5, M.orange); tb.box(sd * 0.15, y0 - 0.02, 0.4, 0.24, 0.12, 0.12, dk); }
-    tb.box(0, y0, 0, 0.62, 0.62, 0.44, M.orange);
-    tb.box(0, y0 + 0.04, 0, 0.64, 0.08, 0.46, dk);
-    tb.box(0, y0 + 0.3, 0.215, 0.3, 0.2, 0.02, 0x2a3a6a);
-    tb.box(0, y0 + 0.6, 0, 0.4, 0.08, 0.36, fur);
-    torso.add(tb.build({ name: 'driver-torso' }));
-    // head
-    const head = new THREE.Group(); head.position.set(0, y0 + 0.66, 0.02); torso.add(head);
-    const hb = new BrickBuilder(1);
-    hb.box(0, 0, 0, 0.62, 0.46, 0.5, fur);
-    hb.box(0, 0.2, 0.25, 0.64, 0.12, 0.04, dk);
-    hb.box(0, 0.04, 0.25, 0.3, 0.16, 0.18, cream);
-    hb.box(0, 0.14, 0.34, 0.1, 0.07, 0.04, dk);
+    const y0 = 0.18;
+    // little legs over the front of the crate, bare raccoon feet
     for (const sd of [-1, 1]) {
-      hb.sphere(sd * 0.14, 0.27, 0.25, 0.065, 0xffffff); hb.sphere(sd * 0.14, 0.27, 0.3, 0.035, dk);
-      hb.box(sd * 0.3, 0.02, 0.1, 0.08, 0.2, 0.3, cream);
-      hb.cone(sd * 0.2, 0.44, -0.02, 0.13, 0.26, fur, { seg: 4 }); hb.cone(sd * 0.2, 0.45, 0.02, 0.07, 0.16, dk, { seg: 4 });
+      tb.box(sd * 0.12, y0 - 0.06, 0.2, 0.18, 0.17, 0.4, suit);
+      tb.box(sd * 0.12, y0 - 0.34, 0.36, 0.16, 0.32, 0.15, suit);
+      tb.box(sd * 0.12, y0 - 0.4, 0.42, 0.17, 0.08, 0.22, furDk);
+      for (let j = -1; j <= 1; j++) tb.box(sd * 0.12 + j * 0.05, y0 - 0.4, 0.53, 0.035, 0.04, 0.03, cream);
     }
+    // jumpsuit: orange with a navy yoke, harness straps and pouches
+    tb.add(taperGeo(0.58, 0.48, 0.54, 0.38, 0.33), plastic(suit), 0, y0, 0);
+    tb.add(taperGeo(0.53, 0.47, 0.13, 0.355, 0.33), plastic(navy), 0, y0 + 0.42, 0, 0, 1.03, 1, 1.04);
+    tb.box(0, y0 - 0.02, 0, 0.6, 0.09, 0.4, strap);
+    tb.box(0, y0 - 0.01, 0.2, 0.09, 0.07, 0.02, 0xc8ccd2);
+    for (const sd of [-1, 1]) {
+      for (const z of [0.18, -0.18]) tb.boxM(mat4(sd * 0.06, y0 + 0.3, z + Math.sign(z) * 0.01, 0, 0, sd * -0.62, 0.06, 0.55, 0.025), strap);
+      tb.box(sd * 0.2, y0 - 0.05, 0.19, 0.12, 0.13, 0.07, pouch);
+      tb.box(sd * 0.3, y0 - 0.05, 0, 0.06, 0.14, 0.14, pouch);
+    }
+    tb.box(0, y0 + 0.24, 0.17, 0.12, 0.1, 0.03, 0xc8ccd2);               // harness ring
+    blob(tb, 0, y0 + 0.56, 0.02, 0.22, 0.06, 0.19, fur);                 // furry neck
+    torso.add(tb.build({ name: 'driver-torso' }));
+    // head: big and round, the raccoon mask across the eyes, cream muzzle and cheek ruffs
+    const head = new THREE.Group(); head.position.set(0, y0 + 0.56, 0.02); torso.add(head);
+    const hb = new BrickBuilder(1);
+    blob(hb, 0, 0.3, 0, 0.36, 0.31, 0.32, fur);
+    blob(hb, 0, 0.36, -0.08, 0.34, 0.28, 0.26, 0x7e6854);
+    for (const sd of [-1, 1]) {
+      blob(hb, sd * 0.14, 0.3, 0.2, 0.18, 0.105, 0.15, mask, 0, sd * 0.3, sd * 0.22);   // mask lobes
+      blob(hb, sd * 0.26, 0.24, 0.12, 0.14, 0.09, 0.15, mask, 0, 0, sd * 0.5);
+      blob(hb, sd * 0.15, 0.43, 0.25, 0.11, 0.045, 0.06, cream, 0, 0, sd * 0.32);       // white brows, scowling
+      // eyes: white, brown iris, black pupil, a glint
+      hb.sphere(sd * 0.13, 0.31, 0.3, 0.062, 0xf6f2ea);
+      hb.sphere(sd * 0.13, 0.305, 0.334, 0.045, 0x8a4a18);
+      hb.sphere(sd * 0.13, 0.305, 0.36, 0.027, 0x0c0a08);
+      hb.sphere(sd * 0.13 + 0.018, 0.325, 0.38, 0.012, 0xffffff);
+      // cheek ruffs fanning out, with pointed tufts
+      blob(hb, sd * 0.27, 0.15, 0.13, 0.15, 0.11, 0.14, cream, 0, 0, sd * 0.4);
+      for (const [dy, a] of [[0.02, 0.3], [-0.06, 0.8]]) hb.addMatrix(cone, plastic(cream), mat4(sd * 0.36, 0.15 + dy, 0.1, 0, 0, -sd * (PI / 2 + a), 0.05, 0.1, 0.045));
+      // big round ears with pale rims and tufts
+      blob(hb, sd * 0.25, 0.6, -0.05, 0.13, 0.15, 0.06, fur, 0, 0, sd * -0.35);
+      blob(hb, sd * 0.25, 0.6, -0.01, 0.09, 0.11, 0.03, 0x3a2a22, 0, 0, sd * -0.35);
+      blob(hb, sd * 0.25, 0.6, -0.08, 0.135, 0.155, 0.04, cream, 0, 0, sd * -0.35);
+      hb.addMatrix(cone, plastic(cream), mat4(sd * 0.31, 0.72, -0.04, 0, 0, sd * -0.45, 0.04, 0.1, 0.03));
+    }
+    blob(hb, 0, 0.29, 0.24, 0.07, 0.07, 0.07, mask);                                    // mask bridge
+    blob(hb, 0, 0.45, 0.235, 0.045, 0.1, 0.05, furDk, -0.5);                                    // stripe down the forehead
+    blob(hb, 0, 0.17, 0.3, 0.15, 0.1, 0.14, cream);                                       // muzzle
+    blob(hb, 0, 0.07, 0.26, 0.11, 0.06, 0.1, cream);                                      // chin
+    blob(hb, 0, 0.21, 0.435, 0.05, 0.038, 0.035, nose);                                   // nose
+    blob(hb, 0.025, 0.105, 0.375, 0.075, 0.014, 0.03, 0x2a1410, 0, 0, 0.28);                // smirk
+    hb.addMatrix(cone, plastic(0xffffff), mat4(0.07, 0.11, 0.375, PI, 0, 0, 0.014, 0.035, 0.012));
     head.add(hb.build({ name: 'driver-head' }));
     // arms
     const arms = [];
     for (const sd of [1, -1]) {
-      const pv = new THREE.Group(); pv.position.set(sd * 0.36, y0 + 0.52, 0);
+      const pv = new THREE.Group(); pv.position.set(sd * 0.32, y0 + 0.46, 0);
       const ab = new BrickBuilder(1);
-      ab.sphere(0, 0, 0, 0.1, M.orange);
-      ab.box(0, -0.34, 0, 0.14, 0.34, 0.15, M.orange);
-      ab.sphere(0, -0.4, 0, 0.08, fur);
+      ab.sphere(0, 0, 0, 0.1, navy);
+      ab.add(taperGeo(0.13, 0.15, 0.3, 0.14), plastic(suit), 0, -0.34, 0);
+      ab.box(0, -0.36, 0, 0.14, 0.05, 0.15, navy);
+      ab.sphere(0, -0.4, 0, 0.075, furDk);
+      for (let j = -1; j <= 1; j++) ab.box(j * 0.035, -0.48, 0.03, 0.022, 0.05, 0.022, cream);
       pv.add(ab.build({ name: 'driver-arm' }));
       torso.add(pv); arms.push(pv);
     }
-    // bushy tail over the seat back
-    const tail = new THREE.Group(); tail.position.set(0, y0 + 0.1, -0.22); torso.add(tail);
+    // big striped tail curling up behind him
+    const tail = new THREE.Group(); tail.position.set(0, y0 + 0.08, -0.17); torso.add(tail);
     const tlb = new BrickBuilder(1);
-    for (let k = 0; k < 6; k++) tlb.boxM(mat4(0, 0.14 + k * 0.14, -0.1 - k * 0.12, -0.6 + k * 0.1, 0, 0, 0.26 + (k > 2 ? 0.04 : 0), 0.26, 0.26), k % 2 ? dk : fur);
+    const P = [[0, 0, 0], [0, -0.05, -0.42], [0.05, 0.45, -0.62], [0.16, 0.78, -0.42]];
+    const bez = (u, i) => { const v = 1 - u; return v * v * v * P[0][i] + 3 * v * v * u * P[1][i] + 3 * v * u * u * P[2][i] + u * u * u * P[3][i]; };
+    const N = 11;
+    for (let k = 0; k < N; k++) {
+      const u = (k + 0.5) / N, du = 0.01;
+      const x = bez(u, 0), y = bez(u, 1), z = bez(u, 2);
+      const ty = bez(u + du, 1) - bez(u - du, 1), tz = bez(u + du, 2) - bez(u - du, 2), tx = bez(u + du, 0) - bez(u - du, 0);
+      const rr = 0.09 + 0.1 * Math.sin(PI * Math.min(1, u * 1.15)) + (k === N - 1 ? 0.02 : 0);
+      blob(tlb, x, y, z, rr, 0.11, rr, (k === N - 1 || k % 2) ? mask : fur, Math.atan2(tz, ty), 0, -Math.atan2(tx, ty));
+    }
     tail.add(tlb.build({ name: 'driver-tail' }));
-    // the big gun along the arm, and its muzzle flash
+    // the big gun, longer than he is tall, and its muzzle flash
     const gun = prop(arms[1], 0, -0.4, 0, (b) => {
-      b.box(0, -0.06, 0.12, 0.12, 0.16, 0.16, dk);
-      b.boxM(mat4(0, -0.42, 0.16, 0, 0, 0, 0.3, 0.9, 0.34), 0x5a6068);
-      b.boxM(mat4(0, -0.4, 0.38, 0, 0, 0, 0.18, 0.62, 0.12), 0x3a3e46);
-      for (const sd of [-1, 1]) b.boxM(mat4(sd * 0.17, -0.3, 0.16, 0, 0, 0, 0.06, 0.4, 0.2), M.orange);
-      b.cyl(0, -1.12, 0.16, 0.11, 0.26, 0x3a3e46, { seg: 8 });
-      b.boxM(mat4(0, -0.66, 0.335, 0, 0, 0, 0.14, 0.14, 0.03), 0, { mat: glow(0x3ad0ff, 2.5) });
+      const metal = 0x4a4f58, dark = 0x2a2e34;
+      b.box(0, -0.12, 0.02, 0.09, 0.2, 0.12, dark);                                  // grip
+      b.boxM(mat4(0, -0.25, 0.22, 0, 0, 0, 0.3, 0.84, 0.28), metal);                 // receiver
+      b.boxM(mat4(0, 0.32, 0.17, 0.25, 0, 0, 0.2, 0.42, 0.22), dark);                // stock
+      b.boxM(mat4(0, -0.36, 0.4, 0, 0, 0, 0.22, 0.62, 0.1), dark);                   // top housing
+      for (const sd of [-1, 1]) {
+        b.boxM(mat4(sd * 0.155, -0.22, 0.22, 0, 0, 0, 0.02, 0.56, 0.2), M.orange);
+        b.cyl(sd * 0.17, -0.6, 0.31, 0.045, 0.34, 0, { mat: glow(0x3ad0ff, 2.2), seg: 8 });
+      }
+      for (const [x, z] of [[-0.07, 0.17], [0.07, 0.17], [0, 0.28]]) b.cyl(x, -1.36, z, 0.05, 0.74, 0x3a3e46, { seg: 8 });
+      for (const y of [-0.98, -1.4]) b.cyl(0, y, 0.21, 0.16, 0.08, y < -1.2 ? 0x6a7078 : dark, { seg: 10 });
+      b.cyl(0, -0.62, 0.5, 0.05, 0.4, dark, { seg: 8 });                             // scope
+      b.sphere(0, -0.63, 0.5, 0.045, 0, { mat: glow(0xff3020, 2) });
+      b.boxM(mat4(0, -0.68, 0.365, 0, 0, 0, 0.14, 0.16, 0.03), 0, { mat: glow(0x3ad0ff, 2.5) });
     }, 'gun');
     gun.visible = false;
-    const flash = beam(gun, -1.14, 0x6ae0ff, { r0: 0.1, r1: 0.26, flash: 0.26 });
-    const rig = { root, torso, head, armL: arms[0], armR: arms[1], armLen: 0.42, height: y0 + 0.66 + 0.7, width: 0.95, tail };
+    const flash = beam(gun, -1.42, 0x6ae0ff, { r0: 0.12, r1: 0.3, flash: 0.32 });
+    flash.g.position.z = 0.21;
+    const rig = { root, torso, head, armL: arms[0], armR: arms[1], armLen: 0.42, height: y0 + 0.56 + 0.78, width: 0.95, tail };
     rig.fx = (name, f, t) => {
       const on = name === 'cheer' || name === 'win' || name === 'use' || name === 'throwF';
       vis(gun, on);
@@ -893,24 +949,122 @@ const groot = {
     },
   },
   build() {
-    const { face } = mapMats('groot');
-    const bark = M.groot, dk = M.grootDk, leaf = 0x6ab04a, leaf2 = 0x3a8a3a;
+    const bark = 0x7a5230, dk = 0x4a2e1a, moss = 0x6f9a34, leaf = 0x6ab04a, leaf2 = 0x3a8a3a, lime = 0xa6d84a;
+    const barkS = '#7a5230', grooveS = '#4a2c16', lightS = '#9a6c42', mossS = '#6f9a34';
+    const headR = 0.25, headH = 0.62;
+    // wavy vertical bark grooves between y0 and y1, with paler ridges beside them
+    const grain = (g, x, y0, y1, wd, col = grooveS) => {
+      const m = (y0 + y1) / 2, w = 3 * S(x * 1.7);
+      strokePath(g, col, wd, [x, y0, x + w, (y0 + m) / 2, x - w * 0.5, m, x - w, (m + y1) / 2, x + w * 0.4, y1]);
+    };
+    const face = printFace('grootK', { skin: barkS, headR, headH }, (g, X, h) => {
+      for (let x = -X + 4; x < X; x += 12) {
+        const ax = abs(x);
+        if (ax > 54) { grain(g, x, 0, h, 4.5); grain(g, x + 5, 10, h - 14, 2, lightS); }
+        else if (ax > 34) { grain(g, x, 0, 36, 3.5); grain(g, x, 80, h, 3.5); }
+        else { grain(g, x, 0, 30, 3); if (ax > 4) grain(g, x, 114, h, 3); }
+      }
+      g.fillStyle = mossS;                                                          // moss at the temple
+      for (const [x, y, rr] of [[62, 18, 9], [72, 12, 7], [70, 28, 6], [-88, 40, 7]]) { g.beginPath(); g.arc(x, y, rr, 0, 7); g.fill(); }
+      for (const sd of [-1, 1]) {
+        g.fillStyle = 'rgba(34,18,8,0.65)'; g.beginPath(); g.ellipse(sd * 24, 63, 16, 13, 0, 0, 7); g.fill();   // deep sockets
+        g.fillStyle = '#6a3c16'; g.beginPath(); g.ellipse(sd * 24, 64, 9.5, 10.5, 0, 0, 7); g.fill();          // brown iris
+        eye(g, sd * 24, 64, 6.2, 7.2, '#120a04');
+        g.fillStyle = '#5a3a1e'; g.beginPath(); g.ellipse(sd * 24, 52, 14, 8, 0, 0, 7); g.fill();               // heavy, gentle lids
+        strokePath(g, '#2a1608', 3, [sd * 36, 58, sd * 24, 53, sd * 12, 58]);
+        strokePath(g, '#2a1608', 2, [sd * 34, 74, sd * 24, 78, sd * 15, 75]);
+      }
+      strokePath(g, '#3a2210', 3, [-5, 70, -9, 84, -2, 90]);                        // knotty nose
+      strokePath(g, '#3a2210', 3, [5, 70, 9, 84, 2, 90]);
+      g.fillStyle = '#2a1608';                                                      // soft, kind smile
+      g.beginPath(); g.moveTo(-22, 100); g.quadraticCurveTo(0, 114, 22, 100); g.quadraticCurveTo(0, 108, -22, 100); g.fill();
+      for (const sd of [-1, 1]) strokePath(g, '#3a2210', 2.5, [sd * 22, 100, sd * 27, 97, sd * 28, 92]);
+    });
+    const torsoBark = (back) => (g, w, h) => {
+      g.fillStyle = barkS; g.fillRect(0, 0, w, h);
+      for (let x = 4; x < w; x += 11) { grain(g, x, 0, h, 4); grain(g, x + 5, 8, h - 10, 1.8, lightS); }
+      g.strokeStyle = grooveS; g.lineWidth = 3;                                     // knots
+      for (const [x, y] of back ? [[40, 46], [92, 88]] : [[36, 92], [94, 40]]) { g.beginPath(); g.ellipse(x, y, 7, 10, 0, 0, 7); g.stroke(); }
+      g.fillStyle = mossS;
+      for (const [x, y, rr] of back ? [[86, 20, 10], [96, 30, 7], [30, 108, 8]] : [[30, 22, 9], [40, 30, 7], [24, 34, 6], [96, 104, 9], [88, 112, 6]]) { g.beginPath(); g.arc(x, y, rr, 0, 7); g.fill(); }
+    };
+    const decal = decalMat('grootK', torsoBark(false)), back = decalMat('grootBackK', torsoBark(true));
+    const leafy = (b, x, y, z, sc, j) => {
+      for (let q = 0; q < 3; q++) {
+        const a = j * 2.1 + q * 2.2;
+        blob(b, x + Math.cos(a) * 0.05 * sc, y + 0.02 * sc + q * 0.02 * sc, z + Math.sin(a) * 0.05 * sc, 0.075 * sc, 0.025 * sc, 0.05 * sc, [leaf, leaf2, lime][(((j + q) % 3) + 3) % 3], 0.5 * S(a), a, 0.4);
+      }
+    };
     const rig = hero({
-      name: 'groot', s: 1.5, wide: 0.95, deep: 0.95, headR: 0.27, headH: 0.62, face, top: bark, skin: bark, torso: bark, arms: bark, hands: dk, legs: dk,
-      hair: (hb, d, k) => {
-        const H = d.headH, r = d.headR;
-        for (let j = 0; j < 7; j++) { const a = j / 7 * 6.28; hb.boxM(mat4(Math.sin(a) * r * 0.75, H + 0.12 + (j % 2) * 0.08, Math.cos(a) * r * 0.75 - 0.05, Math.cos(a) * 0.5, 0, -Math.sin(a) * 0.5, 0.09, 0.36, 0.09), j % 2 ? dk : bark); }
-        for (let j = 0; j < 4; j++) hb.sphere(-0.3 + j * 0.2, H + 0.12 + (j % 2) * 0.12, -0.08, 0.1, j % 2 ? leaf : leaf2);
-        hb.box(0, -0.02, 0.33, 0.06, 0.25, 0.04, dk);
+      name: 'groot', s: 1.5, wide: 0.82, deep: 0.86, headR, headH, face, decal, top: bark, skin: bark, neck: dk, torso: bark, arms: bark, hands: dk, legs: dk, hips: dk,
+      hair: (hb, d) => {
+        const r = d.headR, H = d.headH;
+        blob(hb, 0, H, -0.04 * r, 0.99 * r, 0.16 * H, 0.99 * r, bark);                  // domed crown
+        for (const sd of [-1, 1]) {
+          blob(hb, sd * 0.4 * r, 0.69 * H, 0.84 * r, 0.44 * r, 0.065 * H, 0.22 * r, dk, 0, sd * 0.35, -sd * 0.16);   // brow ridge
+          rod(hb, [sd * 0.9 * r, 0.82 * H, -0.2 * r], [sd * 1.35 * r, 1.0 * H, -0.32 * r], 0.06 * r, dk, 6);          // twig spurs
+          leafy(hb, sd * 1.38 * r, 1.0 * H, -0.32 * r, r * 1.6, sd > 0 ? 1 : 4);
+        }
+        blob(hb, 0, 0.42 * H, 0.96 * r, 0.14 * r, 0.1 * H, 0.13 * r, bark);                // nose knob
+        blob(hb, 0, 0.06 * H, 0.74 * r, 0.42 * r, 0.1 * H, 0.26 * r, dk);                  // pointed chin
+        blob(hb, -0.62 * r, 1.04 * H, 0.42 * r, 0.32 * r, 0.06 * H, 0.3 * r, moss);
+        // gnarled branches growing up and back from the crown, forking into leafy sprouts
+        const branches = [[-2.2, 0.6], [-1.45, 0.72], [-0.75, 0.48], [0.7, 0.55], [1.4, 0.75], [2.15, 0.62], [PI, 0.66]];
+        branches.forEach(([a, len], j) => {
+          const p0 = [Math.sin(a) * 0.6 * r, 1.05 * H, Math.cos(a) * 0.6 * r - 0.06 * r];
+          const dir = [Math.sin(a) * 0.45, 1, Math.cos(a) * 0.45 - 0.3];
+          const n = Math.hypot(...dir), L1 = len * r;
+          const p1 = p0.map((v, i) => v + dir[i] / n * L1);
+          rod(hb, p0, p1, 0.1 * r, j % 2 ? dk : bark, 6);
+          const side = [Math.cos(a), 0, -Math.sin(a)];
+          for (const sg of [-1, 1]) {
+            if (j % 3 === 2 && sg > 0) continue;
+            const p2 = p1.map((v, i) => v + (dir[i] / n * 0.7 + side[i] * sg * 0.55) * L1 * 0.7);
+            rod(hb, p1, p2, 0.06 * r, dk, 5);
+            if ((j + (sg > 0 ? 1 : 0)) % 2) leafy(hb, p2[0], p2[1], p2[2], r * 1.7, j + sg);
+          }
+        });
       },
       extra: (b, d) => {
-        const s = d.s;
-        for (let j = 0; j < 4; j++) b.boxM(mat4(-0.21 * s + j * 0.14 * s, 0.6 * s - (j % 2) * 0.08 * s, 0.215 * s, 0, 0, 0.07 * (j % 2 ? 1 : -1), 0.045 * s, 0.55 * s, 0.04 * s), dk);
-        b.sphere(0.32 * s, 0.98 * s, 0.05, 0.1 * s, leaf); b.sphere(-0.25 * s, 0.5 * s, 0.21 * s, 0.07 * s, leaf2);
+        const s = d.s, W = d.W, D = d.D, zf = 0.23 * s * D + 0.012;
+        torsoPrint(b, d, back, true);
+        // raised root strands twisting up the trunk
+        for (const [x0, x1, x2] of [[-0.26, -0.16, -0.08], [0.24, 0.12, 0.2], [0.02, 0.06, -0.02]]) {
+          const A = [x0 * s, d.chestY + 0.02 * s, zf], B = [x1 * s, d.chestY + 0.4 * s, zf - 0.008 * s], Cc = [x2 * s, d.chestY + 0.78 * s, zf - 0.02 * s];
+          rod(b, A, B, 0.032 * s, dk, 6); rod(b, B, Cc, 0.028 * s, dk, 6);
+        }
+        for (const sd of [-1, 1]) blob(b, sd * 0.3 * s * W, 0.93 * s, 0, 0.16 * s, 0.1 * s, 0.2 * s, dk);   // gnarled shoulders
+        blob(b, 0.3 * s * W, 1.0 * s, 0.04 * s, 0.14 * s, 0.05 * s, 0.17 * s, moss);
+        blob(b, -0.1 * s, 0.86 * s, zf - 0.01, 0.09 * s, 0.07 * s, 0.03 * s, moss);
+        leafy(b, 0.36 * s * W, 1.02 * s, 0.1 * s, s * 0.9, 2);
+        for (let j = 0; j < 4; j++) rod(b, [(-0.07 + j * 0.045) * s, 0.86 * s, 0.03 * s * (j % 2)], [(-0.05 + j * 0.035) * s, 1.04 * s, 0.03 * s * (j % 2)], 0.035 * s, j % 2 ? dk : bark, 5);   // twisted neck
       },
-      arm: (ab, sd, d) => { const s = d.s; for (let j = -1; j <= 1; j++) ab.boxM(mat4(j * 0.06 * s, -0.76 * s, 0.02, 0, 0, j * 0.3, 0.04 * s, 0.14 * s, 0.05 * s), dk); },
     });
     const s = rig.dims.s;
+    // long, thin, twisting limbs with twig fingers (replacing the minifig arms)
+    for (const [arm, sd] of [[rig.armL, 1], [rig.armR, -1]]) {
+      arm.clear();
+      prop(arm, 0, 0, 0, (b) => {
+        blob(b, 0, -0.01 * s, 0, 0.13 * s, 0.12 * s, 0.14 * s, bark);
+        rod(b, [0, 0, 0], [sd * 0.01 * s, -0.34 * s, 0.01 * s], 0.075 * s, bark, 7);
+        blob(b, sd * 0.01 * s, -0.34 * s, 0.01 * s, 0.085 * s, 0.075 * s, 0.085 * s, dk);
+        rod(b, [sd * 0.01 * s, -0.34 * s, 0.01 * s], [0, -0.6 * s, 0], 0.064 * s, bark, 7);
+        for (let q = 0; q < 2; q++) {                                                 // twisting strands
+          let prev = null;
+          for (let j = 0; j <= 6; j++) {
+            const y = -0.04 * s - j * 0.09 * s, a = j * 1.1 + q * PI, rr = 0.072 * s - j * 0.002 * s;
+            const p = [Math.cos(a) * rr, y, Math.sin(a) * rr];
+            if (prev) rod(b, prev, p, 0.022 * s, dk, 5);
+            prev = p;
+          }
+        }
+        blob(b, 0, -0.63 * s, 0, 0.085 * s, 0.075 * s, 0.09 * s, dk);                 // knotty hand
+        for (let j = -1; j <= 1; j++) rod(b, [j * 0.04 * s, -0.66 * s, 0.01 * s], [j * 0.065 * s, -0.84 * s, 0.05 * s], 0.022 * s, dk, 5);
+        rod(b, [sd * -0.02 * s, -0.64 * s, 0.05 * s], [sd * -0.03 * s, -0.74 * s, 0.13 * s], 0.022 * s, dk, 5);
+        if (sd > 0) blob(b, 0.05 * s, -0.16 * s, 0.05 * s, 0.07 * s, 0.1 * s, 0.05 * s, moss);
+        else leafy(b, -0.08 * s, -0.4 * s, 0.03 * s, s * 0.7, 3);
+      }, 'driver-arm');
+    }
     const mk = (arm, sd) => {
       const g = prop(arm, sd * 0.1 * s, -0.4 * s, 0, (b) => {
         b.boxM(mat4(sd * 0.18, 0.05, 0.05, 0, 0, -sd * 0.9, 0.06, 0.38, 0.06), dk);
