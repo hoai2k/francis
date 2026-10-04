@@ -68,6 +68,8 @@ const TABLES = [
 ];
 // Dead last always gets a real comeback item: only the big ones, never a defensive dud
 const LAST = { bullet: 22, golden: 16, goldturbo: 16, mega: 12, seeker: 9, boost3: 8, rocket3: 7 };
+// the plain Brick Kart tables, before the movie / game powers join them (Simplified mode uses these)
+const BASE = TABLES.map(([u, t]) => [u, { ...t }]), BASE_LAST = { ...LAST };
 // movie abilities join the tables (see abilities.js); the ones that favour last place (odds of 4+
 // in the last band) are comeback powers and join the last-place table too
 for (const a of ABILITIES) {
@@ -77,13 +79,63 @@ for (const a of ABILITIES) {
   TABLES.forEach(([, t], band) => { if (a.odds[band] > 0) t[a.id] = a.odds[band]; });
   if (a.odds[4] >= 4) LAST[a.id] = a.odds[4];
 }
-export function rollItem(rankFrac, rand = Math.random, gapBehind = 0, trackFrom = null) {
+
+// Simplified mode: a themed track's item boxes hold mostly its own powers (and no other movie's
+// or game's), topped up with a few plain items that fill the gaps the pack leaves: a Turbo Stud
+// for everyone, a trap or shield for the leader if the pack has no defensive power, a homing
+// shot where it has few attacks, and a Triple Turbo so the back of the pack never gets just one
+// thing. Tracks with no pack use plain items only.
+const SIMPLE_EXTRAS = {
+  starwars: ['boost', 'boost3', 'trap', 'rocket'],   // Force Push, Lightsaber Spin, Hyperspace Jump
+  marvel: ['boost', 'boost3', 'shield'],             // Mjolnir, Cap's Shield, Web Shot, Infinity Snap
+  potter: ['boost', 'boost3', 'trap'],               // five spells cover attack, defence and comeback
+  jjk: ['boost', 'boost3', 'trap', 'shield'],        // all four are attacks
+  jurassic: ['boost', 'boost3', 'trap'],             // Roar, Raptor Pack, Mosasaurus Breach
+  minecraft: ['boost', 'boost3', 'rocket'],          // Creeper, Totem, Trident, Elytra Rockets, Ender Pearl
+  pokemon: ['boost', 'boost3', 'rocket'],            // Snorlax, Protect, Poké Ball, Quick Attack, Thunderbolt
+  sonic: ['boost', 'boost3', 'rocket'],              // Motobug, Lightning Shield, Homing Attack, Spin Dash, Super Sonic
+};
+const SPECIAL_SHARE = 0.75;   // how much of each band the pack's own powers take
+function simpleTable(base, from, weightOf) {
+  const sp = {}, ex = {};
+  let sS = 0, sE = 0;
+  for (const a of ABILITIES) { const w = a.from === from ? weightOf(a) : 0; if (w > 0) { sp[a.id] = w; sS += w; } }
+  for (const id of SIMPLE_EXTRAS[from] || ['boost']) if (base[id]) { ex[id] = base[id]; sE += base[id]; }
+  if (!sS) return sE ? ex : base;
+  if (!sE) return sp;
+  const t = {};
+  for (const [id, w] of Object.entries(sp)) t[id] = w / sS * SPECIAL_SHARE * 100;
+  for (const [id, w] of Object.entries(ex)) t[id] = w / sE * (1 - SPECIAL_SHARE) * 100;
+  return t;
+}
+const simpleCache = new Map();
+function simpleOdds(band, last, from) {
+  const key = `${from}:${last ? 'L' : band}`;
+  if (!simpleCache.has(key)) {
+    let t;
+    if (!from || !ABILITIES.some((a) => a.from === from)) t = last ? BASE_LAST : BASE[band][1];
+    else if (last) {
+      // last place: the pack's comeback powers (or failing that, anything it has for the back)
+      const comeback = ABILITIES.some((a) => a.from === from && a.odds[4] >= 4);
+      t = simpleTable(BASE_LAST, from, (a) => (comeback ? (a.odds[4] >= 4 ? a.odds[4] : 0) : a.odds[4]));
+    } else t = simpleTable(BASE[band][1], from, (a) => a.odds[band]);
+    simpleCache.set(key, t);
+  }
+  return simpleCache.get(key);
+}
+
+export function rollItem(rankFrac, rand = Math.random, gapBehind = 0, trackFrom = null, simple = false) {
   const last = rankFrac >= 0.999;
   // being far behind the leader counts as being further back
   rankFrac = Math.min(1, rankFrac + Math.min(0.3, Math.max(0, gapBehind) / 1500));
-  let t = last ? LAST : TABLES.find(([u]) => rankFrac <= u)[1];
-  // on a movie track, that movie's abilities turn up twice as often
-  if (trackFrom) { t = { ...t }; for (const a of ABILITIES) if (a.from === trackFrom && t[a.id]) t[a.id] *= 2; }
+  const band = TABLES.findIndex(([u]) => rankFrac <= u);
+  let t;
+  if (simple) t = simpleOdds(band, last, trackFrom);
+  else {
+    t = last ? LAST : TABLES[band][1];
+    // on a movie / game track, its own abilities turn up twice as often
+    if (trackFrom) { t = { ...t }; for (const a of ABILITIES) if (a.from === trackFrom && t[a.id]) t[a.id] *= 2; }
+  }
   let sum = 0;
   for (const w of Object.values(t)) sum += w;
   let r = rand() * sum;

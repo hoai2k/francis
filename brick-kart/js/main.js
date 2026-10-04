@@ -369,7 +369,7 @@ class Game {
           <li>Hold accelerate right as the second light comes on for a rocket start.</li>
           <li>Orange arrow pads give a boost.</li></ul></div>
       </div>
-      <h3>Power-ups (${Object.keys(ITEMS).length}) · racers further back get stronger ones · movie powers turn up on every track</h3><div class="items">${items}</div>
+      <h3>Power-ups (${Object.keys(ITEMS).length}) · racers further back get stronger ones · movie &amp; game powers turn up on every track (in Simplified mode, only on their own)</h3><div class="items">${items}</div>
       <div class="hint">${hintHTML('Back')}</div></div></div>`, {
       update: () => { for (const [, m] of this.menuEvents) if (m.back || m.ok || m.start) { this.audio.sfx('back'); back(); return; } },
       act: (a) => { if (a === 'back') back(); },

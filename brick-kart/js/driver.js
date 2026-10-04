@@ -21,6 +21,9 @@ export const UNIVERSES = [
   { id: 'potter', name: 'Harry Potter', color: '#d3a625' },
   { id: 'jjk', name: 'Jujutsu Kaisen', color: '#8a5cff' },
   { id: 'jurassic', name: 'Jurassic World', color: '#e8a33a' },
+  { id: 'minecraft', name: 'Minecraft', color: '#5fa83a' },
+  { id: 'pokemon', name: 'Pokémon', color: '#ffcb05' },
+  { id: 'sonic', name: 'Sonic the Hedgehog', color: '#1e6cff' },
 ];
 
 // each universe loads on its own so one broken file never stops the game
