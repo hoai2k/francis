@@ -2,6 +2,7 @@
 // Every figure is a scaled-up minifig (about 3.6 units tall at scale 1) made of a
 // merged body plus two arm pivots so it can be posed and animated cheaply.
 import { THREE, BrickBuilder, C, plastic, canvasTexture, mat4 } from './kit.js';
+import { vertexColorPlastic } from '../lego.js';
 
 export const M = {
   red: 0xb3121b, dkred: 0x6e0d0d, blue: 0x1f3a93, navy: 0x1a2550, gold: 0xe3b23c, silver: 0xb8bec6,
@@ -85,8 +86,66 @@ function eyesMouth(g, cx, cy, { mouth = 'smile', brow = null, lips = null, teeth
 const fill = (g, w, h, c) => { g.fillStyle = c; g.fillRect(0, 0, w, h); };
 const hex = (c) => '#' + c.toString(16).padStart(6, '0');
 
+// ---- print / sculpt helpers for the redesigned figures -----------------------------------------
+// Hawkeye, Gamora and Drax match their drivers (js/drivers/marvel.js): same prints, hair and props,
+// rebuilt here at standing-figure scale (head radius 0.4, height 0.72).
+const PI = Math.PI;
+// driver-style transform (XYZ euler, optional args, fresh matrix)
+const m4 = (x, y, z, rx = 0, ry = 0, rz = 0, sx = 1, sy = 1, sz = 1) => new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, ry, rz)), new THREE.Vector3(sx, sy, sz));
+const SPH = new THREE.SphereGeometry(1, 12, 8);
+const SPIKE = new THREE.ConeGeometry(1, 1, 5).translate(0, 0.5, 0);
+const BLADE_TIP = new THREE.ConeGeometry(0.5, 1, 4).rotateZ(PI).translate(0, -0.5, 0);
+const RODS = {}, UPV = new THREE.Vector3(0, 1, 0);
+const blob = (b, x, y, z, sx, sy, sz, c, rx = 0, ry = 0, rz = 0) => b.addMatrix(SPH, plastic(c), m4(x, y, z, rx, ry, rz, sx, sy, sz));
+function rod(b, a, c, r, color, seg = 8) {
+  const A = new THREE.Vector3(...a), dir = new THREE.Vector3(...c).sub(A), len = dir.length();
+  const geo = (RODS[seg] ||= new THREE.CylinderGeometry(1, 1, 1, seg).translate(0, 0.5, 0));
+  b.addMatrix(geo, plastic(color), new THREE.Matrix4().compose(A, new THREE.Quaternion().setFromUnitVectors(UPV, dir.normalize()), new THREE.Vector3(r, len, r)));
+}
+// draw into builder b through an offset + uniform scale (props sized like the drivers' ones)
+function scaled(b, x, y, z, k) {
+  const base = new THREE.Matrix4().makeTranslation(x, y, z).scale(new THREE.Vector3(k, k, k)), T = new THREE.Matrix4();
+  return {
+    addMatrix: (g, mat, m) => b.addMatrix(g, mat, T.multiplyMatrices(base, m)),
+    boxM: (m, c) => b.boxM(T.multiplyMatrices(base, m), c),
+    sphere: (sx, sy, sz, r, c) => b.addMatrix(SPH, plastic(c), T.multiplyMatrices(base, m4(sx, sy, sz, 0, 0, 0, r, r, r))),
+  };
+}
+// a curved blade in the Y-Z plane from (y, z); angle a: 0 = -Y, PI/2 = +Z; bends by da per segment
+function curvedBlade(b, y, z, a, da, n, L, w0, w1, t, steel, fuller, tipL = 0.2) {
+  for (let i = 0; i < n; i++) {
+    const w = w0 + (w1 - w0) * i / Math.max(1, n - 1);
+    const dy = -Math.cos(a) * L, dz = Math.sin(a) * L;
+    b.boxM(m4(0, y + dy / 2, z + dz / 2, -a, 0, 0, t, L * 1.06, w), steel);
+    if (fuller) b.boxM(m4(0, y + dy / 2 + Math.sin(a) * w * 0.14, z + dz / 2 + Math.cos(a) * w * 0.14, -a, 0, 0, t * 1.2, L * 1.06, w * 0.22), fuller);
+    y += dy; z += dz; a += da;
+  }
+  b.addMatrix(BLADE_TIP, plastic(steel), m4(0, y, z, -a, 0, 0, t, tipL, w1 * 1.02));
+}
+// face print in true proportions around the head cylinder: draw(g, X, h) gets x relative to the
+// face centre (±X = the seam at the back) and y from the top of the head (0) to the chin (h)
+function printFace(key, skin, draw) {
+  const k = 0.72 / (PI * 0.4);
+  return faceMat(key, (g, w, h) => {
+    g.fillStyle = skin; g.fillRect(0, 0, w, h);
+    g.save(); g.translate(w / 2, 0); g.scale(k, 1);
+    g.lineCap = 'round'; g.lineJoin = 'round';
+    draw(g, w / 2 / k, h);
+    g.restore();
+  });
+}
+function eye(g, x, y, rx, ry, col = '#16141a') {
+  g.fillStyle = col; g.beginPath(); g.ellipse(x, y, rx, ry, 0, 0, 7); g.fill();
+  g.fillStyle = '#fff'; g.beginPath(); g.arc(x + rx * 0.3, y - ry * 0.35, Math.max(1.6, rx * 0.32), 0, 7); g.fill();
+}
+const strokePath = (g, col, wd, pts) => {
+  g.strokeStyle = col; g.lineWidth = wd; g.beginPath(); g.moveTo(pts[0], pts[1]);
+  for (let i = 2; i < pts.length; i += 4) g.quadraticCurveTo(pts[i], pts[i + 1], pts[i + 2], pts[i + 3]);
+  g.stroke();
+};
+
 // ---- the generic big minifig ----------------------------------------------------------
-// sp: { skin, face, torso, legs, hips, boots, bootH, arms, hands, decal, belt, bulk, depth, head(b,H), extra(b), arm(b,side), headTop, handR }
+// sp: { skin, face, torso, legs, hips, boots, bootH, arms, hands, decal, belt, bulk, depth, head(b,H,hs), extra(b), arm(b,side), headTop, handR, headS }
 export function fig(sp) {
   const W = sp.bulk || 1, D = sp.depth || 1;
   const root = new THREE.Group();
@@ -102,10 +161,11 @@ export function fig(sp) {
   if (sp.decal) b.add(PLANE, sp.decal, 0, 1.43 + 0.625, 0.33 * D + 0.012, 0, 1.3 * W, 1.25, 1);
   b.cyl(0, 2.66, 0, 0.2, 0.14, sp.skin, { seg: 10 });
   const H = 2.78;
-  b.add(HEAD, sp.face, 0, H, 0, Math.PI);
-  b.cyl(0, H, 0, 0.395, 0.72, sp.headTop ?? sp.skin, { seg: 18 });
-  if (!sp.noStud) b.cyl(0, H + 0.72, 0, 0.22, 0.14, sp.headTop ?? sp.skin, { seg: 12 });
-  sp.head?.(b, H);
+  const hs = sp.headS || 1;   // head scale (1 = standard minifig head)
+  b.add(HEAD, sp.face, 0, H, 0, Math.PI, hs, hs, hs);
+  b.cyl(0, H, 0, 0.395 * hs, 0.72 * hs, sp.headTop ?? sp.skin, { seg: 18 });
+  if (!sp.noStud) b.cyl(0, H + 0.72 * hs, 0, 0.22 * hs, 0.14 * hs, sp.headTop ?? sp.skin, { seg: 12 });
+  sp.head?.(b, H, hs);
   sp.extra?.(b);
   const body = b.build({ name: sp.name || 'fig' });
   root.add(body);
@@ -292,23 +352,90 @@ export function widow() {
 }
 
 export function hawkeye() {
-  const face = faceMat('hawk', (g, w, h) => { fill(g, w, h, '#f2c9a0'); eyesMouth(g, 128, 64, { mouth: 'grim', brow: '#4a3020' }); g.fillStyle = '#4a3020'; g.fillRect(0, 0, w, 14); });
+  const hairC = 0xb08a52, suit = 0x1d1a26, purple = 0x6a32a8, dkPurple = 0x48226e, strap = 0x2e2620;
+  const skinS = '#f2c9a0', hairS = '#b08a52';
+  const face = printFace('hawk', skinS, (g, X) => {
+    // short sandy crop: hairline, sideburns and the back of the head
+    g.fillStyle = hairS;
+    g.beginPath(); g.moveTo(-X, 0); g.lineTo(X, 0); g.lineTo(X, 100); g.lineTo(78, 92); g.lineTo(70, 30);
+    g.quadraticCurveTo(30, 22, 4, 30); g.quadraticCurveTo(-30, 22, -70, 30); g.lineTo(-78, 92); g.lineTo(-X, 100); g.closePath(); g.fill();
+    for (const sd of [-1, 1]) g.fillRect(sd > 0 ? 58 : -70, 30, 12, 26);
+    for (const sd of [-1, 1]) {
+      strokePath(g, '#6a4a22', 6.5, [sd * 42, 45, sd * 26, 43, sd * 10, 50]);   // low, focused brows
+      eye(g, sd * 23, 62, 6, 7.5);
+      g.fillStyle = skinS; g.fillRect(sd * 23 - 9, 51, 18, 5);                // squint
+      strokePath(g, '#2a1a12', 2.5, [sd * 31, 57, sd * 23, 55, sd * 15, 57]);
+    }
+    strokePath(g, '#c08a64', 3, [-2, 68, 3, 78, -4, 82]);                       // nose
+    strokePath(g, '#3a2418', 4.5, [-15, 98, 2, 101, 16, 92]);                    // smirk
+    strokePath(g, '#c08a64', 2.5, [-10, 110, 0, 112, 10, 110]);                  // chin
+  });
   const decal = decalMat('hawk', (g, w, h) => {
-    fill(g, w, h, '#1f1a2a');
-    g.fillStyle = '#5b2c83'; g.beginPath(); g.moveTo(20, 0); g.lineTo(52, 0); g.lineTo(40, h); g.lineTo(26, h); g.fill();
-    g.fillRect(w - 52, 0, 30, h);
-    g.strokeStyle = '#6a6e76'; g.lineWidth = 5; g.beginPath(); g.moveTo(10, 10); g.lineTo(w - 20, h - 20); g.stroke();
+    g.fillStyle = '#1d1a26'; g.fillRect(0, 0, w, h);
+    g.fillStyle = '#6a32a8';
+    g.beginPath(); g.moveTo(0, 0); g.lineTo(w, 0); g.lineTo(w, 26); g.lineTo(64, 46); g.lineTo(0, 26); g.closePath(); g.fill();   // yoke
+    g.beginPath(); g.moveTo(12, 36); g.lineTo(30, 42); g.lineTo(36, h); g.lineTo(8, h); g.closePath(); g.fill();                 // side panels
+    g.beginPath(); g.moveTo(w - 12, 36); g.lineTo(w - 30, 42); g.lineTo(w - 36, h); g.lineTo(w - 8, h); g.closePath(); g.fill();
+    g.fillStyle = skinS; g.beginPath(); g.moveTo(50, 0); g.lineTo(78, 0); g.lineTo(64, 18); g.closePath(); g.fill();
+    g.strokeStyle = '#3a1c5c'; g.lineWidth = 3;
+    g.beginPath(); g.moveTo(0, 28); g.lineTo(64, 48); g.lineTo(w, 28); g.stroke();
+    g.strokeStyle = '#8a8e96'; g.lineWidth = 3; g.beginPath(); g.moveTo(64, 48); g.lineTo(64, h); g.stroke();   // zip
+    g.strokeStyle = '#2e2a36'; g.lineWidth = 2;
+    for (const y of [70, 92]) { g.beginPath(); g.moveTo(36, y); g.lineTo(92, y); g.stroke(); }
   });
   const f = fig({
-    name: 'hawkeye', skin: M.skin, headTop: 0x4a3020, face, torso: 0x1f1a2a, legs: M.black, boots: M.black, arms: M.skin, hands: M.black, decal, noStud: true,
-    head: (b, H) => b.sphere(0, H + 0.62, 0, 0.42, 0x4a3020, { sy: 0.35 }),
-    extra: (b) => { b.boxM(mat4(-0.25, 2.2, -0.45, 0, 0, 0.5, 0.32, 1.5, 0.32), 0x5a3a24); for (let k = 0; k < 3; k++) b.boxM(mat4(-0.62 + k * 0.08, 3.0 + k * 0.03, -0.45, 0, 0, 0.5, 0.06, 0.4, 0.2), M.purple); },
-    arm: (a, s) => { a.box(s * 0.04, -1.2, 0, 0.42, 0.5, 0.44, M.black); },
+    name: 'hawkeye', skin: M.skin, headTop: hairC, face, torso: suit, legs: suit, hips: suit, boots: M.black, bootH: 0.45, belt: 0x15131a, arms: M.skin, hands: M.black, decal, noStud: true,
+    head: (b, H) => {
+      const r = 0.4, h = 0.72;
+      blob(b, 0, H + 0.88 * h, -0.04 * r, 1.04 * r, 0.27 * h, 1.04 * r, hairC);
+      // short spiky crop, flicked up at the front
+      const m = plastic(hairC);
+      for (let j = -3; j <= 3; j++) b.addMatrix(SPIKE, m, m4(j * 0.22 * r, H + 0.96 * h, (0.62 - Math.abs(j) * 0.09) * r, 0.75, 0, -j * 0.2, 0.17 * r, 0.24 * h, 0.17 * r));
+      for (let j = -2; j <= 2; j++) b.addMatrix(SPIKE, m, m4(j * 0.3 * r, H + 1.04 * h, 0.15 * r, 0.35, 0, -j * 0.3, 0.2 * r, 0.2 * h, 0.2 * r));
+    },
+    extra: (b) => {
+      b.box(0, 1.42, 0.35, 0.2, 0.14, 0.04, M.silver);                                   // belt buckle
+      // quiver strap: right shoulder across the chest to the left hip, and across the back
+      for (const z of [0.36, -0.36]) b.boxM(m4(0.02, 2.02, z, 0, 0, 0.62, 0.15, 1.45, 0.04), strap);
+      b.boxM(m4(-0.38, 2.68, 0, 0, 0, -0.3, 0.17, 0.05, 0.76), strap);
+      b.boxM(m4(-0.18, 2.32, 0.385, 0, 0, 0.62, 0.15, 0.1, 0.03), M.silver);
+      // the quiver over the right shoulder, arrows bristling with purple fletching
+      const k = 1.5, z0 = -0.53;
+      const A = [0.33, 1.6, z0], B = [-0.33, 2.92, z0];
+      const at = (t) => [A[0] + (B[0] - A[0]) * t, A[1] + (B[1] - A[1]) * t, z0];
+      rod(b, A, B, 0.13 * k, 0x2a2434, 12);
+      for (const [t0, t1, rr, c] of [[-0.03, 0.04, 0.115, purple], [0.14, 0.2, 0.137, purple], [0.8, 0.86, 0.137, purple], [0.96, 1.02, 0.142, dkPurple]]) rod(b, at(t0), at(t1), rr * k, c, 12);
+      const ang = Math.atan2(A[0] - B[0], B[1] - A[1]);
+      for (let j = 0; j < 5; j++) {
+        const off = (j - 2) * 0.05 * k, sp = (j - 2) * 0.09, len = (0.34 + (j % 2) * 0.08) * k;
+        const base = at(0.85), dir = [-Math.sin(ang + sp), Math.cos(ang + sp)];
+        const p0 = [base[0] + off * Math.cos(ang), base[1] + off * Math.sin(ang), z0 + ((j % 3) - 1) * 0.05 * k];
+        const p1 = [p0[0] + dir[0] * len, p0[1] + dir[1] * len, p0[2]];
+        rod(b, p0, p1, 0.02 * k, 0x3a3e46, 5);
+        const q = [p0[0] + dir[0] * (len - 0.09 * k), p0[1] + dir[1] * (len - 0.09 * k), p0[2]];
+        for (const [vx, vz] of [[0.015, 0.11], [0.11, 0.015]]) b.boxM(m4(q[0], q[1], q[2], 0, 0, ang + sp, vx * k, 0.14 * k, vz * k), j === 2 ? 0xe8e8ee : purple);
+      }
+    },
+    // bare arms: suit cap sleeves with a purple band, black gauntlets, a purple guard on the bow arm
+    arm: (a, s) => {
+      const x = s * 0.04;
+      a.sphere(x, -0.04, 0, 0.245, suit, { sy: 0.85 });
+      a.box(x, -0.42, 0, 0.39, 0.4, 0.43, suit);
+      a.box(x, -0.47, 0, 0.4, 0.06, 0.44, purple);
+      a.box(x, -1.0, 0, 0.39, 0.36, 0.43, M.black);
+      if (s > 0) a.box(x, -0.98, 0.2, 0.25, 0.28, 0.06, purple);
+      else a.box(x, -0.74, 0, 0.4, 0.05, 0.44, purple);
+    },
   });
-  // bow in the left hand
-  f.bow = part(f.armL, 0.04, -1.36, 0.04, (b) => {
-    for (let k = -3; k <= 3; k++) { const a = k * 0.2; b.boxM(mat4(0, Math.sin(a) * 1.6, 0.3 + Math.cos(a) * 0.5 - 0.5, a, 0, 0, 0.12, 0.5, 0.14), M.purple); }
-    b.boxM(mat4(0, 0, -0.1, 0, 0, 0, 0.03, 2.9, 0.03), C.white);
+  // recurve bow in the left hand: limbs along the arm's Z, belly away from the archer (-Y)
+  f.bow = part(f.armL, 0.04, -1.2, 0.04, (pb) => {
+    const b = scaled(pb, 0, 0, 0, 1.5);
+    const pt = (u) => [0, 0.17 * u * u - 0.04, 0.66 * u];
+    for (let i = 0; i < 8; i++) { const u0 = -1 + i / 4, u1 = u0 + 0.25; rod(b, pt(u0), pt(u1), 0.042, Math.abs(u0 + 0.125) < 0.3 ? 0x2a2632 : purple, 6); }
+    for (const sd of [-1, 1]) { rod(b, pt(sd), [0, 0.06, sd * 0.84], 0.035, 0x2a2632, 6); b.sphere(0, 0.06, sd * 0.84, 0.04, M.silver); }
+    b.boxM(m4(0, -0.05, 0, 0, 0, 0, 0.1, 0.16, 0.36), 0x2a2632);
+    b.boxM(m4(0.06, -0.05, 0.12, 0, 0, 0, 0.03, 0.08, 0.08), purple);
+    rod(b, [0, 0.13, -0.66], [0, 0.13, 0.66], 0.014, C.white, 4);                         // string
   });
   return f;
 }
@@ -398,26 +525,194 @@ export function starlord() {
   });
   return f;
 }
+// Gamora's long ombré hair down her back: one sculpted, vertex-coloured piece (root → tip)
+let gamoraHairGeo = null;
+function gamoraHair(stops) {
+  if (gamoraHairGeo) return gamoraHairGeo;
+  const r = 0.4, H = 0.72;
+  const g = new THREE.CylinderGeometry(1, 1, 1, 22, 14), p = g.attributes.position, n = p.count;
+  const st = stops.map(([u, c]) => [u, new THREE.Color(c)]);
+  const col = new Float32Array(n * 3), c = new THREE.Color();
+  for (let i = 0; i < n; i++) {
+    const x = p.getX(i), z = p.getZ(i), u = 0.5 - p.getY(i);
+    const jag = u > 0.999 ? 0.13 * (0.5 + 0.5 * Math.cos(x * PI * 2.6)) : 0;
+    const bulge = 1 + 0.1 * Math.sin(u * PI);
+    p.setXYZ(i, x * r * (1.07 - 0.12 * u) * bulge, H * (1.02 - u * 1.9 - jag), z * r * 0.4 * bulge - r * (0.74 + 0.36 * u));
+    let k = 1; while (k < st.length - 1 && st[k][0] < u + jag * 0.8) k++;
+    const [u0, c0] = st[k - 1], [u1, c1] = st[k];
+    c.copy(c0).lerp(c1, Math.min(1, Math.max(0, (u + jag * 0.8 - u0) / (u1 - u0))));
+    col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
+  }
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  g.computeVertexNormals();
+  gamoraHairGeo = g;
+  return g;
+}
 export function gamora() {
-  const face = faceMat('gamora', (g, w, h) => {
-    fill(g, w, h, '#3d9a4a'); eyesMouth(g, 128, 64, { mouth: 'grim', brow: '#1a3a1a', lips: '#5a1a2a' });
-    g.strokeStyle = '#c8ccd4'; g.lineWidth = 2; for (const s of [-1, 1]) { g.beginPath(); g.moveTo(128 + s * 28, 60); g.lineTo(128 + s * 34, 80); g.stroke(); g.beginPath(); g.moveTo(128 + s * 22, 64); g.lineTo(128 + s * 26, 82); g.stroke(); }
-    g.fillStyle = '#3a1020'; g.fillRect(0, 0, 80, h); g.fillRect(176, 0, 80, h); g.fillRect(0, 0, w, 20);
+  const skin = 0x45a84c, skinS = '#45a84c';
+  const leather = 0x2a2026, wine = 0x5a0e24, silver = 0xd0d6de;
+  // ombré hair: near-black roots → burgundy → crimson → magenta tips
+  const hA = 0x2c0e1c, hB = 0x4e0f26, hC = 0x8c1638, hD = 0xc42656, hE = 0xe8468a;
+  const face = printFace('gamora', skinS, (g, X, h) => {
+    g.fillStyle = '#26101a';
+    g.fillRect(-X, 0, 2 * X, 22);
+    g.fillRect(-X, 0, X - 72, h); g.fillRect(72, 0, X - 72, h);
+    // side part sweeping across her right brow
+    g.beginPath(); g.moveTo(-72, 20); g.lineTo(72, 20); g.lineTo(72, 30); g.quadraticCurveTo(30, 22, 8, 30);
+    g.quadraticCurveTo(-34, 36, -72, 54); g.closePath(); g.fill();
+    for (const sd of [-1, 1]) {
+      strokePath(g, '#26101a', 5, [sd * 9, 49, sd * 22, 40, sd * 40, 46]);     // sharp arched brows
+      eye(g, sd * 23, 61, 6.5, 8.5);
+      strokePath(g, '#16141a', 3, [sd * 28, 54, sd * 36, 52, sd * 42, 48]);   // winged liner
+      // Zehoberei markings: silver ridges along the cheekbones and at the temples
+      strokePath(g, '#e8ecf2', 3, [sd * 13, 73, sd * 26, 79, sd * 40, 74]);
+      strokePath(g, '#e8ecf2', 2.5, [sd * 22, 84, sd * 32, 88, sd * 44, 82]);
+      g.fillStyle = '#e8ecf2';
+      for (let j = 0; j < 3; j++) { g.beginPath(); g.arc(sd * (46 + j * 2), 52 + j * 7, 2.2, 0, 7); g.fill(); }
+    }
+    strokePath(g, '#2a7a34', 2.5, [-4, 84, 0, 87, 4, 84]);                   // nose
+    g.fillStyle = '#6a1230';                                                   // dark lips
+    g.beginPath(); g.moveTo(-13, 98); g.quadraticCurveTo(-5, 92, 0, 95); g.quadraticCurveTo(5, 92, 13, 98);
+    g.quadraticCurveTo(0, 106, -13, 98); g.fill();
   });
-  const decal = decalMat('gamora', (g, w, h) => { fill(g, w, h, '#2a2228'); g.strokeStyle = '#5a1a2a'; g.lineWidth = 6; g.beginPath(); g.moveTo(20, 0); g.lineTo(w / 2, 60); g.lineTo(w - 20, 0); g.stroke(); g.fillStyle = '#5a1a2a'; g.fillRect(0, h - 22, w, 12); });
+  const decal = decalMat('gamora', (g, w, h) => {
+    g.fillStyle = '#2a2026'; g.fillRect(0, 0, w, h);
+    g.fillStyle = skinS; g.beginPath(); g.moveTo(48, 0); g.lineTo(80, 0); g.lineTo(64, 30); g.closePath(); g.fill();
+    g.fillStyle = '#6a1430';                                                   // wine lapels
+    for (const sd of [-1, 1]) { g.beginPath(); g.moveTo(64 + sd * 16, 0); g.lineTo(64 + sd * 34, 0); g.lineTo(64 + sd * 10, 52); g.lineTo(64, 34); g.closePath(); g.fill(); }
+    g.fillStyle = '#4e0c20'; g.beginPath(); g.moveTo(28, 64); g.lineTo(100, 64); g.lineTo(106, h); g.lineTo(22, h); g.closePath(); g.fill();   // corset
+    g.fillStyle = '#2a2026'; g.beginPath(); g.moveTo(56, 64); g.lineTo(72, 64); g.lineTo(70, h); g.lineTo(58, h); g.closePath(); g.fill();
+    g.strokeStyle = '#d0d6de'; g.lineWidth = 2;
+    for (let y = 72; y < h; y += 11) { g.beginPath(); g.moveTo(56, y); g.lineTo(72, y + 6); g.moveTo(72, y); g.lineTo(56, y + 6); g.stroke(); }
+    g.fillStyle = '#d0d6de';
+    for (const sd of [-1, 1]) for (let k = 0; k < 3; k++) { g.beginPath(); g.arc(64 + sd * (26 - k * 5), 8 + k * 13, 2.5, 0, 7); g.fill(); }
+  });
   return fig({
-    name: 'gamora', skin: M.gamora, headTop: 0x3a1020, face, torso: 0x2a2228, legs: 0x2a2228, boots: M.black, arms: 0x2a2228, hands: M.gamora, decal, noStud: true,
-    head: (b, H) => { b.sphere(0, H + 0.58, 0, 0.44, 0x3a1020, { sy: 0.45 }); b.box(0, H - 0.6, -0.25, 0.9, 1.3, 0.34, 0x3a1020); b.box(0, H - 0.9, -0.25, 0.92, 0.32, 0.36, 0xc0306a); },
-    arm: (a, s) => { if (s < 0) { a.boxM(mat4(-0.04, -1.36, 1.1, Math.PI / 2, 0, 0, 0.1, 1.9, 0.26), M.silver); a.box(-0.04, -1.48, 0.1, 0.4, 0.1, 0.12, M.gold); } },
+    name: 'gamora', skin, headTop: hA, face, torso: leather, legs: 0x221a20, hips: leather, boots: 0x16121a, bootH: 0.5, belt: wine, arms: leather, hands: skin, decal, bulk: 0.92, noStud: true,
+    head: (b, H) => {
+      const r = 0.4, h = 0.72;
+      blob(b, 0, H + 0.9 * h, -0.06 * r, 1.1 * r, 0.3 * h, 1.1 * r, hA);                         // crown
+      blob(b, -0.38 * r, H + 0.86 * h, 0.74 * r, 0.62 * r, 0.12 * h, 0.32 * r, hA, 0, 0, 0.38);  // side-swept fringe
+      for (const sd of [-1, 1]) {                                                               // curtains framing the face
+        blob(b, sd * 0.93 * r, H + 0.52 * h, -0.14 * r, 0.27 * r, 0.6 * h, 0.78 * r, hA);
+        blob(b, sd * 0.95 * r, H + 0.06 * h, -0.24 * r, 0.25 * r, 0.3 * h, 0.62 * r, hB);
+      }
+      b.bucket(vertexColorPlastic(), 0, 0).push(gamoraHair([[0, hA], [0.3, hA], [0.5, hB], [0.7, hC], [0.86, hD], [1, hE]]).clone().translate(0, H, 0));
+    },
+    extra: (b) => {
+      b.box(0, 1.42, 0.335, 0.17, 0.12, 0.04, silver);                                        // belt buckle
+      b.boxM(m4(0, 2.72, -0.3, -0.25, 0, 0, 0.74, 0.24, 0.09), leather);                      // high collar
+      for (const sd of [-1, 1]) b.boxM(m4(sd * 0.36, 2.72, -0.08, 0, sd * 0.5, sd * -0.15, 0.08, 0.24, 0.34), leather);
+    },
+    arm: (a, s) => {
+      blob(a, s * 0.06, 0.0, 0, 0.25, 0.13, 0.26, wine, 0, 0, s * -0.35);                    // pauldron
+      a.box(s * 0.04, -1.0, 0, 0.37, 0.32, 0.41, 0x420a1a);                                   // bracers
+      a.box(s * 0.04, -0.75, 0, 0.38, 0.04, 0.42, silver);
+      // Godslayer in the right hand: dark grip, gold guard with a red gem, long curved blade
+      if (s < 0) {
+        const b = scaled(a, -0.04, -1.2, 0.04, 1.4);
+        b.sphere(0, 0, -0.33, 0.055, M.gold);
+        b.boxM(m4(0, 0, -0.16, 0, 0, 0, 0.075, 0.085, 0.3), 0x1c1a20);
+        for (const z of [-0.25, -0.07]) b.boxM(m4(0, 0, z, 0, 0, 0, 0.085, 0.095, 0.03), M.gold);
+        b.boxM(m4(0, 0.02, 0.02, 0, 0, 0, 0.1, 0.42, 0.07), M.gold);
+        for (const sd of [-1, 1]) b.boxM(m4(0, sd * 0.22, 0.07, sd * -0.6, 0, 0, 0.08, 0.06, 0.14), M.gold);
+        b.sphere(0, 0.02, 0.02, 0.06, 0xc0103a);
+        curvedBlade(b, 0.02, 0.05, PI / 2, 0.05, 5, 0.24, 0.2, 0.15, 0.045, M.silver, 0x5a606a, 0.26);
+      }
+    },
   });
 }
 export function drax() {
-  const marks = (g, w, h, cx = w / 2) => { g.strokeStyle = '#a8141a'; g.lineWidth = 3; for (let k = 0; k < 5; k++) { g.beginPath(); g.moveTo(cx - 40 + k * 20, 0); g.bezierCurveTo(cx - 60 + k * 30, h * 0.4, cx - 20 + k * 10, h * 0.6, cx - 40 + k * 20, h); g.stroke(); } };
-  const face = faceMat('drax', (g, w, h) => { fill(g, w, h, '#7a8898'); marks(g, w, h); eyesMouth(g, 128, 64, { mouth: 'grim', brow: '#3a4450', eye: '#2a1a1a' }); });
-  const decal = decalMat('drax', (g, w, h) => { fill(g, w, h, '#7a8898'); g.strokeStyle = '#5a6878'; g.lineWidth = 3; g.beginPath(); g.moveTo(w / 2, 20); g.lineTo(w / 2, h); g.stroke(); marks(g, w, h); });
+  const skin = 0x4f6a62, skinS = '#4f6a62', ink = 0xb8141c, inkS = '#c4161e', shade = 'rgba(18,34,30,0.42)';
+  const pants = 0x3e2420, leather = 0x5a3424, W = 1.4, D = 1.2;
+  const face = printFace('drax', skinS, (g, X) => {
+    // tattoo lines from the crown, over the temples and cheekbones down to the jaw
+    for (const sd of [-1, 1]) {
+      strokePath(g, inkS, 6, [sd * 12, 0, sd * 22, 20, sd * 42, 30, sd * 60, 42, sd * 58, 72, sd * 56, 100, sd * 42, 124]);
+      strokePath(g, inkS, 5, [sd * 42, 30, sd * 52, 22, sd * 54, 34]);
+      strokePath(g, inkS, 6, [sd * 78, 0, sd * 86, 44, sd * 76, 74, sd * 68, 104, sd * 78, 128]);
+      strokePath(g, inkS, 6, [sd * 130, 0, sd * 142, 64, sd * 128, 128]);
+      g.fillStyle = shade; g.beginPath(); g.ellipse(sd * 22, 64, 17, 10, 0, 0, 7); g.fill();   // deep-set eyes
+      strokePath(g, '#1c2624', 10, [sd * 42, 48, sd * 26, 48, sd * 8, 58]);                     // heavy brow
+      eye(g, sd * 22, 66, 5.5, 6.5, '#140c0c');
+    }
+    strokePath(g, inkS, 6, [0, 0, 3, 16, 0, 38]);
+    for (const sd of [-1, 1]) strokePath(g, inkS, 6, [sd * (X - 2), 0, sd * (X - 6), 64, sd * (X - 2), 128]);
+    strokePath(g, '#3c544e', 4, [-9, 86, 0, 90, 9, 86]);                            // broad nose
+    strokePath(g, '#1c1a18', 5.5, [-24, 106, 0, 99, 24, 106]);                      // stern frown
+    strokePath(g, shade, 3, [-10, 114, 0, 116, 10, 114]);
+  });
+  // chest and back: muscle shading under bold red tribal lines
+  const chest = (back) => (g, w, h) => {
+    g.fillStyle = skinS; g.fillRect(0, 0, w, h);
+    g.strokeStyle = shade; g.lineWidth = 3; g.lineCap = 'round';
+    if (!back) {
+      for (const sd of [-1, 1]) { g.beginPath(); g.moveTo(64 + sd * 4, 54); g.quadraticCurveTo(64 + sd * 26, 64, 64 + sd * 50, 44); g.stroke(); }
+      g.beginPath(); g.moveTo(64, 10); g.lineTo(64, 120); g.stroke();
+      for (const y of [76, 94, 110]) { g.beginPath(); g.moveTo(50, y); g.lineTo(78, y); g.stroke(); }
+    } else {
+      g.beginPath(); g.moveTo(64, 6); g.lineTo(64, 124); g.stroke();
+      for (const sd of [-1, 1]) { g.beginPath(); g.moveTo(64 + sd * 14, 30); g.quadraticCurveTo(64 + sd * 34, 60, 64 + sd * 48, 34); g.stroke(); }
+    }
+    g.lineJoin = 'round';
+    const ln = (wd, pts) => strokePath(g, inkS, wd, pts);
+    ln(5, [64, 0, 66, 20, 64, 40]);
+    for (const sd of [-1, 1]) {
+      const x = (v) => 64 + sd * v;
+      ln(6.5, [x(6), 6, x(26), 0, x(42), 14, x(54), 30, x(46), 48]);
+      ln(4, [x(46), 48, x(34), 52, x(32), 40]);
+      ln(5, [x(10), 40, x(24), 46, x(28), 30]);
+      ln(6.5, [x(56), 4, x(62), 40, x(56), 76, x(50), 100, x(56), 128]);
+      ln(5.5, [x(8), 62, x(28), 72, x(36), 96, x(40), 112, x(30), 126]);
+      ln(3.5, [x(56), 76, x(44), 80, x(40), 92]);
+    }
+  };
+  const decal = decalMat('drax', chest(false)), back = decalMat('draxBack', chest(true));
+  // tattoo print wrapped round the upper arms
+  const armInk = decalMat('draxArm', (g, w, h) => {
+    g.fillStyle = skinS; g.fillRect(0, 0, w, h);
+    strokePath(g, inkS, 9, [40, 0, 30, 40, 58, 62, 92, 84, 84, 128]);
+    strokePath(g, inkS, 7, [44, 52, 70, 30, 96, 36, 108, 52, 92, 60]);
+    strokePath(g, inkS, 7, [72, 76, 48, 92, 30, 90, 22, 76, 34, 72]);
+    strokePath(g, inkS, 6, [96, 0, 104, 14, 118, 20]);
+  }, null, 1);
+  const ridge = (b, x, y, z, rz, len) => b.boxM(m4(x, y, z, 0, 0, rz, 0.045, len, 0.07), ink);
+  // curved fighting knife through the fist, blade out along +Z (driver proportions, scaled)
+  const knife = (b) => {
+    b.sphere(0, 0, -0.3, 0.055, M.silver);
+    b.boxM(m4(0, 0, -0.1, 0, 0, 0, 0.11, 0.09, 0.36), 0x2a1a14);
+    for (const z of [-0.22, 0.02]) b.boxM(m4(0, 0, z, 0, 0, 0, 0.12, 0.1, 0.025), leather);
+    b.boxM(m4(0, 0, 0.1, 0, 0, 0, 0.1, 0.3, 0.05), 0x8a6a3a);
+    curvedBlade(b, 0, 0.12, PI / 2 + 0.12, -0.18, 4, 0.18, 0.17, 0.12, 0.05, M.silver, 0x6a7078, 0.18);
+  };
   return fig({
-    name: 'drax', skin: M.drax, face, torso: M.drax, legs: 0x3a2a20, boots: 0x5a3a24, belt: 0x3a2a20, arms: M.drax, hands: M.drax, decal, bulk: 1.25, depth: 1.1, noStud: true,
-    arm: (a, s) => { a.box(s * 0.04, -0.6, 0.2, 0.05, 0.6, 0.03, 0xa8141a); a.boxM(mat4(s * 0.04, -1.4, 0.55, Math.PI / 2, 0, 0, 0.08, 0.9, 0.22), M.silver); },
+    name: 'drax', skin, face, torso: skin, legs: pants, hips: pants, boots: 0x2a1a14, bootH: 0.4, belt: leather, arms: skin, hands: skin, handR: 0.18, decal, bulk: W, depth: D, headS: 0.9, noStud: true,
+    head: (b, H, hs) => {
+      const r = 0.4 * hs, h = 0.72 * hs;
+      // raised tattoo ridges over the bald scalp, and ears
+      b.box(0, H + h, -0.05 * r, 0.1 * r, 0.05, 1.75 * r, ink);
+      for (const sd of [-1, 1]) b.boxM(m4(sd * 0.45 * r, H + h + 0.02, -0.05 * r, 0, sd * 0.3, 0, 0.1 * r, 0.04, 1.2 * r), ink);
+      for (const sd of [-1, 1]) b.box(sd * 0.98 * r, H + 0.36 * h, -0.02 * r, 0.14 * r, 0.24 * h, 0.26 * r, skin);
+    },
+    extra: (b) => {
+      b.add(PLANE, back, 0, 1.43 + 0.625, -(0.33 * D + 0.012), PI, 1.3 * W, 1.25, 1);         // back tattoos
+      b.cyl(0, 2.6, -0.01, 0.3, 0.26, skin, { seg: 12 });                                     // bull neck
+      for (const sd of [-1, 1]) {
+        b.boxM(m4(sd * 0.36, 2.66, -0.04, 0, 0, sd * -0.36, 0.6, 0.2, 0.56), skin);            // traps
+        ridge(b, sd * 0.36, 2.79, -0.04, PI / 2 + sd * -0.36, 0.4);
+        ridge(b, sd * 0.36, 2.67, 0.25, PI / 2 + sd * -0.36, 0.38);
+      }
+      b.box(0, 1.37, 0.43, 0.32, 0.24, 0.05, 0x8a6a3a);                                       // buckle plate
+      b.box(0, 1.43, 0.46, 0.18, 0.1, 0.03, M.silver);
+    },
+    arm: (a, s) => {
+      const x = s * 0.04;
+      a.sphere(x, -0.06, 0, 0.3, skin, { sy: 0.95 });                                        // deltoid
+      a.box(x, -0.66, 0, 0.47, 0.56, 0.5, 0, { mat: armInk });                               // tattooed biceps
+      a.box(x, -0.96, 0, 0.47, 0.24, 0.5, leather);                                          // bracer
+      a.box(x, -0.82, 0, 0.48, 0.04, 0.51, M.silver);
+      knife(scaled(a, x, -1.2, 0.04, 1.3));
+    },
   });
 }
 export function thanos() {

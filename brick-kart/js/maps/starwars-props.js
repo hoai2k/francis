@@ -35,6 +35,14 @@ const TRAP = (() => {
   g.translate(0, 0.5, 0); g.computeVertexNormals();
   return g;
 })();
+// helmet / hood shapes (as the drivers' heads): a band round the front of a head (brow
+// ridges), a flared skirt round the back and sides, the back half of a dome, a head that
+// narrows to the chin, and a robe that flares out to the hem
+const FRONTARC = new THREE.CylinderGeometry(1, 1, 1, 20, 1, false, -Math.PI * 0.4, Math.PI * 0.8).translate(0, 0.5, 0);
+const FLARE = new THREE.CylinderGeometry(1, 1.3, 1, 16, 1, false, Math.PI * 0.3, Math.PI * 1.4).translate(0, 0.5, 0);
+const HOOD = new THREE.SphereGeometry(1, 14, 6, Math.PI, Math.PI, 0, Math.PI / 2);
+const CHIN = new THREE.CylinderGeometry(1, 0.84, 1, 22).translate(0, 0.5, 0);
+const ROBE = new THREE.CylinderGeometry(0.7, 1, 1, 14).translate(0, 0.5, 0);
 export { BOX, SPH, HEMI, CYL };
 
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _e = new THREE.Euler(), _p = new THREE.Vector3(), _s = new THREE.Vector3(), _v = new THREE.Vector3();
@@ -98,6 +106,18 @@ function face(key, draw, opts = {}) {
   faces[key] = new THREE.MeshStandardMaterial({ map: tex, roughness: opts.rough ?? 0.4, metalness: opts.metal ?? 0 });
   return faces[key];
 }
+// A print drawn in world units on a head cylinder of radius R and height Hc (front centre
+// at u = 0, v = height above the bottom), like the drivers' printFace().
+function printFace(key, R, Hc, skin, draw, opts) {
+  return face(key, (g, cx, cy, w, h) => {
+    g.fillStyle = skin; g.fillRect(0, 0, w, h);
+    g.setTransform(w / (2 * Math.PI * R), 0, 0, -h / Hc, cx, h);
+    draw(g);
+    g.setTransform(1, 0, 0, 1, 0, 0);
+  }, opts);
+}
+const ell = (g, x, y, rx, ry, col) => { g.fillStyle = col; g.beginPath(); g.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2); g.fill(); };
+const poly = (g, col, pts) => { g.fillStyle = col; g.beginPath(); pts.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); g.closePath(); g.fill(); };
 const eye = (g, x, y, rx, ry, col) => { g.fillStyle = col; g.beginPath(); g.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2); g.fill(); };
 export const FACES = {
   maul: () => face('maul', (g, cx, cy, w, h) => {
@@ -120,13 +140,18 @@ export const FACES = {
     g.strokeStyle = '#122848'; g.lineWidth = 4; g.beginPath(); g.moveTo(cx - 14, cy + 22); g.lineTo(cx + 14, cy + 22); g.stroke();
     g.strokeStyle = '#8a8a8a'; g.lineWidth = 5; for (const sd of [-1, 1]) { g.beginPath(); g.moveTo(cx + sd * 36, cy + 4); g.lineTo(cx + sd * 18, cy + 20); g.stroke(); }
   }),
-  c3po: () => face('c3po', (g, cx, cy, w, h) => {
-    g.fillStyle = '#d9a520'; g.fillRect(0, 0, w, h);
-    g.fillStyle = '#a87a10'; g.fillRect(cx - 44, cy - 30, 88, 5);
-    for (const sd of [-1, 1]) { eye(g, cx + sd * 19, cy - 8, 13, 13, '#2a2010'); eye(g, cx + sd * 19, cy - 8, 8, 8, '#ffcf3a'); eye(g, cx + sd * 19, cy - 8, 3.5, 3.5, '#fff6c0'); }
-    g.fillStyle = '#3a2a08'; g.fillRect(cx - 9, cy + 18, 18, 6);
-    g.fillStyle = '#b88a18'; g.fillRect(cx - 3, cy - 2, 6, 16);
-  }, { metal: 0.6, rough: 0.3 }),
+  // C-3PO, the trooper and the Tusken share their prints with the drivers' redesigned
+  // heads (../drivers/starwars.js): drawn in world units on a head of the drivers' size.
+  c3po: () => printFace('c3po', 0.3708, 0.4867, '#dcaa2a', (g) => {
+    const Hc = 0.4867;
+    for (const sd of [-1, 1]) {
+      ell(g, sd * 0.14, Hc * 0.6, 0.095, 0.085, '#9a7012');                     // eye sockets
+      poly(g, '#a87c14', [[sd * 0.085, Hc * 0.45], [sd * 0.105, Hc * 0.45], [sd * 0.12, Hc * 0.08], [sd * 0.1, Hc * 0.08]]);   // cheek lines
+      poly(g, '#a87c14', [[sd * 0.3, Hc * 0.9], [sd * 0.32, Hc * 0.9], [sd * 0.32, Hc * 0.1], [sd * 0.3, Hc * 0.1]]);         // jaw seams
+    }
+    poly(g, '#f6d470', [[-0.016, Hc * 0.62], [0.016, Hc * 0.62], [0.02, Hc * 0.36], [-0.02, Hc * 0.36]]);   // nose
+    poly(g, '#a87c14', [[-1.3, Hc * 0.93], [1.3, Hc * 0.93], [1.3, Hc * 0.95], [-1.3, Hc * 0.95]]);         // brow seam
+  }, { metal: 0.75, rough: 0.3 }),
   vader: () => face('vader', (g, cx, cy, w, h) => {
     g.fillStyle = '#141414'; g.fillRect(0, 0, w, h);
     g.fillStyle = '#2e2e32';
@@ -135,13 +160,28 @@ export const FACES = {
     g.strokeStyle = '#141414'; g.lineWidth = 2; for (let k = -3; k <= 3; k++) { g.beginPath(); g.moveTo(cx + k * 4, cy + 12); g.lineTo(cx + k * 5, cy + 32); g.stroke(); }
     g.fillStyle = '#5a5a60'; for (const sd of [-1, 1]) g.fillRect(cx + sd * 34 - 3, cy + 6, 6, 22);
   }, { rough: 0.2 }),
-  trooper: () => face('trooper', (g, cx, cy, w, h) => {
-    g.fillStyle = '#f4f4f4'; g.fillRect(0, 0, w, h);
-    for (const sd of [-1, 1]) { g.fillStyle = '#111'; g.beginPath(); g.moveTo(cx + sd * 6, cy - 16); g.lineTo(cx + sd * 30, cy - 18); g.lineTo(cx + sd * 26, cy - 2); g.lineTo(cx + sd * 10, cy + 2); g.fill(); }
-    g.fillStyle = '#555'; g.fillRect(cx - 18, cy + 12, 36, 14);
-    g.fillStyle = '#111'; for (let k = -2; k <= 2; k++) g.fillRect(cx + k * 7 - 1.5, cy + 12, 3, 14);
-    g.strokeStyle = '#6a7a8a'; g.lineWidth = 3; for (const sd of [-1, 1]) { g.beginPath(); g.moveTo(cx + sd * 24, cy + 4); g.lineTo(cx + sd * 30, cy + 26); g.stroke(); }
-    g.fillStyle = '#4a6a9a'; for (const sd of [-1, 1]) g.fillRect(cx + sd * 44 - 4, cy - 10, 8, 30);
+  trooper: () => printFace('trooper', 0.403, 0.403, '#f4f4f4', (g) => {
+    const Hc = 0.403;
+    for (const sd of [-1, 1]) {
+      // teardrop lenses, sloping down and out
+      g.fillStyle = '#0b0b0d'; g.beginPath();
+      g.moveTo(sd * 0.025, Hc * 0.93);
+      g.lineTo(sd * 0.19, Hc * 0.9);
+      g.quadraticCurveTo(sd * 0.24, Hc * 0.86, sd * 0.22, Hc * 0.72);
+      g.quadraticCurveTo(sd * 0.19, Hc * 0.55, sd * 0.11, Hc * 0.57);
+      g.quadraticCurveTo(sd * 0.03, Hc * 0.62, sd * 0.025, Hc * 0.93);
+      g.fill();
+      poly(g, '#3c4a5a', [[sd * 0.07, Hc * 0.86], [sd * 0.15, Hc * 0.85], [sd * 0.14, Hc * 0.81], [sd * 0.07, Hc * 0.82]]);
+      // "tear" vents under the lenses and the blue side tubes
+      poly(g, '#3a3c40', [[sd * 0.17, Hc * 0.6], [sd * 0.19, Hc * 0.6], [sd * 0.225, Hc * 0.3], [sd * 0.205, Hc * 0.3]]);
+      poly(g, '#6a8ab0', [[sd * 0.26, Hc * 0.48], [sd * 0.3, Hc * 0.48], [sd * 0.31, Hc * 0.06], [sd * 0.27, Hc * 0.06]]);
+    }
+    // nose ridge and the frown round the grille
+    poly(g, '#d6d8dc', [[-0.012, Hc * 0.8], [0.012, Hc * 0.8], [0.02, Hc * 0.5], [-0.02, Hc * 0.5]]);
+    g.fillStyle = '#26282c'; g.beginPath();
+    g.moveTo(-0.23, Hc * 0.02); g.quadraticCurveTo(-0.17, Hc * 0.5, 0, Hc * 0.5); g.quadraticCurveTo(0.17, Hc * 0.5, 0.23, Hc * 0.02);
+    g.lineTo(0.18, Hc * 0.02); g.quadraticCurveTo(0.13, Hc * 0.4, 0, Hc * 0.41); g.quadraticCurveTo(-0.13, Hc * 0.4, -0.18, Hc * 0.02);
+    g.closePath(); g.fill();
   }),
   boba: () => face('boba', (g, cx, cy, w, h) => {
     g.fillStyle = '#56683e'; g.fillRect(0, 0, w, h);
@@ -157,11 +197,16 @@ export const FACES = {
     for (const sd of [-1, 1]) { eye(g, cx + sd * 15, cy - 10, 5, 4, '#1a2a4a'); }
     eye(g, cx, cy + 4, 9, 6, '#111'); g.fillStyle = '#2a1a10'; g.fillRect(cx - 12, cy + 18, 24, 5);
   }),
-  tusken: () => face('tusken', (g, cx, cy, w, h) => {
-    g.fillStyle = '#c8b08a'; g.fillRect(0, 0, w, h);
-    g.strokeStyle = '#9a8460'; g.lineWidth = 3; for (let y = 6; y < h; y += 10) { g.beginPath(); g.moveTo(0, y); g.lineTo(w, y + 4); g.stroke(); }
-    for (const sd of [-1, 1]) { eye(g, cx + sd * 18, cy - 8, 12, 12, '#6a6a6a'); eye(g, cx + sd * 18, cy - 8, 8, 8, '#111'); }
-    g.fillStyle = '#6a6a6a'; g.fillRect(cx - 9, cy + 8, 18, 22); g.fillStyle = '#222'; for (let k = 0; k < 3; k++) g.fillRect(cx - 7, cy + 12 + k * 6, 14, 2);
+  tusken: () => printFace('tusken', 0.403, 0.6084, '#c9b38e', (g) => {
+    const Hc = 0.6084, cols = ['#bca47c', '#d6c49f', '#ad936c', '#c9b38e', '#cbb690'];
+    for (let k = 0; k < 18; k++) {
+      const v = -0.12 + k * 0.042, sl = (k % 2 ? 1 : -1) * (0.05 + (k % 3) * 0.02);
+      poly(g, cols[k % 5], [[-1.3, v - sl], [1.3, v + sl], [1.3, v + sl + 0.05], [-1.3, v - sl + 0.05]]);
+      poly(g, '#8a7350', [[-1.3, v - sl], [1.3, v + sl], [1.3, v + sl + 0.007], [-1.3, v - sl + 0.007]]);
+    }
+    // soot round the goggles and the mouth
+    for (const sd of [-1, 1]) ell(g, sd * 0.17, Hc * 0.62, 0.11, 0.085, 'rgba(70,52,34,0.55)');
+    ell(g, 0, Hc * 0.27, 0.12, 0.09, 'rgba(70,52,34,0.5)');
   }),
   grogu: () => face('grogu', (g, cx, cy, w, h) => {
     g.fillStyle = '#8ab070'; g.fillRect(0, 0, w, h);
@@ -196,29 +241,104 @@ export function arm(b, s, sd, col, hand, ox = 0, oy = 0, oz = 0, pitch = 0.25, s
   rod(b, hand, ex, ey + 0.02 * s, ez, ex, ey - 0.24 * s, ez + 0.06 * s, 0.13 * s, CYL8);
   return [ex, ey - 0.12 * s, ez + 0.03 * s];
 }
+// a point a fraction t (0 = shoulder, 1 = wrist) down an arm built by arm() with the same
+// arguments, and a band (sleeve, cuff, joint gap) wrapped round it between t0 and t1
+function armPt(s, sd, ox, oy, oz, pitch, spread, t) {
+  const ex = ox + sd * spread * s, ey = oy - Math.cos(pitch) * s, ez = oz + Math.sin(pitch) * s, y1 = oy + 0.08 * s;
+  return [ox + (ex - ox) * t, y1 + (ey - y1) * t, oz + (ez - oz) * t];
+}
+function armBand(b, col, s, sd, ox, oy, oz, pitch, spread, t0, t1, grow = 1.1) {
+  rod(b, col, ...armPt(s, sd, ox, oy, oz, pitch, spread, t0), ...armPt(s, sd, ox, oy, oz, pitch, spread, t1), 0.3 * s * grow, BOX, 0.32 * s * grow);
+}
+// a point on a head of radius r, `a` radians round from the front, y above its base
+const onHead = (a, y, r) => [Math.sin(a) * r, y, Math.cos(a) * r];
+// metallic polish: swap the shared vertex-colour plastic for a shiny copy on these meshes
+let _polished = null;
+function polish(obj) {
+  obj.traverse((o) => {
+    const m = o.material;
+    if (!o.isMesh || !m || Array.isArray(m) || !m.vertexColors || m.metalness) return;
+    _polished ||= Object.assign(m.clone(), { metalness: 0.85, roughness: 0.25 });
+    o.material = _polished;
+  });
+  return obj;
+}
 function armGroup(s, sd, col, hand, pitch = 0.1, extra) {
   return group((b) => { arm(b, s, sd, col, hand, 0, 0, 0, pitch, 0.06); extra?.(b); }, 'arm');
 }
 
 // ---- characters ------------------------------------------------------------------
+// C-3PO: polished gold plating, round glowing eyes in dark rims, slanted ear discs, a stiff
+// jointed body with the wiring showing at the open waist and one silver shin.
+const P3_GOLD = 0xcc9a22, P3_HI = 0xd4a22a, P3_DARK = 0x3a3022, P3_SILVER = 0xb8bcc4;
+function c3poArm(b, s, sd) {
+  const pa = [s, sd, 0, 0, 0, 0.1, 0.06];
+  arm(b, s, sd, P3_GOLD, P3_GOLD, 0, 0, 0, 0.1, 0.06);
+  ball(b, P3_HI, sd * 0.02 * s, 0.04 * s, 0, 0.21 * s, 0.9);           // shoulder joint
+  armBand(b, P3_DARK, ...pa, 0.28, 0.32, 1.04);                       // joint gaps: shoulder, elbow, wrist
+  armBand(b, P3_DARK, ...pa, 0.61, 0.66, 1.04);
+  armBand(b, P3_DARK, ...pa, 0.96, 1.0, 1.03);
+  const p0 = armPt(...pa, 0.7), p1 = armPt(...pa, 0.93);
+  rod(b, P3_SILVER, p0[0] + sd * 0.17 * s, p0[1], p0[2], p1[0] + sd * 0.17 * s, p1[1], p1[2], 0.03 * s, CYL6);   // forearm piston
+}
+function c3poHead(b, s) {
+  const R = 0.4 * s, H = 0.62 * s, Hf = H * 0.78, rAt = (y) => R * (0.84 + 0.16 * y / Hf);
+  const rim = plastic(0x2a2214, { rough: 0.45 }), eyeGlow = glow(0xffd23a, 1.8);
+  b.add(CHIN, FACES.c3po(), 0, 0, 0, Math.PI, R, Hf, R);
+  put(b, HEMI, P3_GOLD, 0, Hf - 0.02 * R, 0, R * 1.02, R * 0.74, R * 1.02);
+  put(b, FRONTARC, P3_HI, 0, H * 0.58, 0, rAt(H * 0.58) * 1.07, H * 0.05, rAt(H * 0.58) * 1.07, -0.08);   // brow ridge
+  const ey = H * 0.47, er = rAt(ey);
+  for (const sd of [-1, 1]) {
+    const a = sd * 0.37;
+    rod(b, rim, ...onHead(a, ey, er * 0.85), ...onHead(a, ey, er * 1.06), R * 0.165);
+    rod(b, eyeGlow, ...onHead(a, ey, er * 1.0), ...onHead(a, ey, er * 1.075), R * 0.11);
+    // slanted ear discs
+    rod(b, P3_GOLD, sd * R * 0.85, ey, -R * 0.02, sd * R * 1.1, ey + R * 0.04, -R * 0.1, R * 0.26, CYL20);
+    rod(b, P3_HI, sd * R * 1.08, ey + R * 0.035, -R * 0.095, sd * R * 1.14, ey + R * 0.045, -R * 0.11, R * 0.17);
+    rod(b, P3_DARK, sd * R * 1.13, ey + R * 0.043, -R * 0.108, sd * R * 1.16, ey + R * 0.048, -R * 0.115, R * 0.06, CYL8);
+  }
+  box(b, P3_HI, 0, H * 0.36, rAt(H * 0.36), R * 0.1, H * 0.17, R * 0.12, -0.12);   // nose
+  box(b, rim, 0, H * 0.17, rAt(H * 0.17), R * 0.28, H * 0.045, R * 0.07);          // mouth slot
+}
 export function c3po(s = 2.6) {
-  const gold = metal(0xd9a520, 0.28), silver = metal(0xc0c4ca, 0.3);
   const root = new THREE.Group();
+  root.add(polish(group((b) => {
+    fig(b, s, { legs: P3_GOLD, hips: P3_GOLD, torso: P3_GOLD, neck: P3_DARK, noArms: true });
+    box(b, P3_SILVER, -0.25 * s, 0.28 * s, 0.03 * s, 0.49 * s, 0.5 * s, 0.58 * s);   // the silver shin
+    for (const sd of [-1, 1]) {
+      box(b, P3_DARK, sd * 0.25 * s, 0.56 * s, 0.03 * s, 0.5 * s, 0.06 * s, 0.59 * s);   // knee and ankle joints
+      box(b, P3_DARK, sd * 0.25 * s, 0.09 * s, 0.03 * s, 0.5 * s, 0.04 * s, 0.59 * s);
+      box(b, P3_HI, sd * 0.25 * s, 0.75 * s, 0.32 * s, 0.32 * s, 0.3 * s, 0.03 * s);    // thigh plates
+    }
+    // chest plate, collar and power socket
+    put(b, TRAP, P3_HI, 0, 1.95 * s, 0, 1.03 * s, 0.5 * s, 0.6 * s);
+    rod(b, P3_GOLD, 0, 2.43 * s, 0, 0, 2.5 * s, 0, 0.3 * s, CYL20);
+    for (const sd of [-1, 1]) box(b, P3_GOLD, sd * 0.2 * s, 2.2 * s, 0.305 * s, 0.32 * s, 0.26 * s, 0.04 * s, -0.04);
+    rod(b, P3_DARK, 0, 2.06 * s, 0.28 * s, 0, 2.06 * s, 0.33 * s, 0.07 * s);
+    rod(b, P3_SILVER, 0, 2.06 * s, 0.32 * s, 0, 2.06 * s, 0.345 * s, 0.035 * s);
+    box(b, P3_DARK, 0, 1.98 * s, 0.305 * s, 0.7 * s, 0.03 * s, 0.02 * s);
+    // the open waist: dark frame with a silver piston (the wires are matte, below)
+    box(b, P3_DARK, 0, 1.66 * s, 0, 0.92 * s, 0.56 * s, 0.57 * s);
+    rod(b, P3_SILVER, 0, 1.4 * s, 0.29 * s, 0, 1.94 * s, 0.29 * s, 0.045 * s, CYL8);
+    // pelvis band and plate
+    box(b, P3_GOLD, 0, 1.32 * s, 0, 1.1 * s, 0.18 * s, 0.58 * s);
+    box(b, P3_HI, 0, 1.24 * s, 0.3 * s, 0.4 * s, 0.26 * s, 0.04 * s);
+    // back plate and socket
+    box(b, P3_GOLD, 0, 2.15 * s, -0.3 * s, 0.66 * s, 0.4 * s, 0.04 * s, 0.04);
+    rod(b, P3_DARK, 0, 2.17 * s, -0.3 * s, 0, 2.17 * s, -0.34 * s, 0.07 * s);
+  }, 'c3po')));
+  // coloured wiring across the open waist, front and back (matte)
   root.add(group((b) => {
-    fig(b, s, { legs: gold, legR: gold, hips: gold, torso: gold, neck: 0x6a5020, noArms: true });
-    box(b, silver, -0.25 * s, 0.28 * s, 0.03 * s, 0.49 * s, 0.5 * s, 0.58 * s);
-    box(b, 0x3a3a3a, 0, 1.28 * s, 0, 0.9 * s, 0.14 * s, 0.5 * s);
-    for (const [x, c] of [[-0.2, C.red], [0, C.blue], [0.18, 0x2a2a2a]]) rod(b, c, x * s, 1.2 * s, 0.26 * s, x * s + 0.05 * s, 1.4 * s, 0.26 * s, 0.035 * s, CYL8);
-    box(b, 0xb8861a, 0, 2.0 * s, 0.24 * s, 0.5 * s, 0.3 * s, 0.1 * s);
-  }, 'c3po'));
-  const head = group((b) => {
-    b.add(HEAD, FACES.c3po(), 0, 0, 0, Math.PI, 0.4 * s, 0.62 * s, 0.4 * s);
-    ball(b, gold, 0, 0.62 * s, 0, 0.4 * s, 0.4);
-    for (const sd of [-1, 1]) rod(b, gold, sd * 0.36 * s, 0.32 * s, 0, sd * 0.46 * s, 0.32 * s, 0, 0.14 * s, CYL8);
-  }, 'c3po-head');
+    for (const [x, c, bend] of [[-0.3, 0xc82a20, 0.05], [-0.2, 0x2a5ac8, -0.04], [-0.1, 0x1a1a1a, 0.04], [0.1, 0xc82a20, -0.05], [0.2, 0x2a2a2a, 0.04], [0.3, 0x2a5ac8, -0.04]]) {
+      rod(b, c, x * s, 1.42 * s, 0.29 * s, (x + bend) * s, 1.66 * s, 0.305 * s, 0.03 * s, CYL6);
+      rod(b, c, (x + bend) * s, 1.66 * s, 0.305 * s, x * s, 1.92 * s, 0.29 * s, 0.03 * s, CYL6);
+    }
+    for (const [x, c] of [[-0.14, 0xc82a20], [0, 0x2a5ac8], [0.14, 0x1a1a1a]]) rod(b, c, x * s, 1.42 * s, -0.29 * s, (x + 0.06) * s, 1.92 * s, -0.29 * s, 0.03 * s, CYL6);
+  }, 'c3po-wires'));
+  const head = polish(group((b) => c3poHead(b, s), 'c3po-head'));
   const hp = pivot(head, 0, 2.56 * s, 0);
   root.add(hp);
-  const arms = [-1, 1].map((sd) => { const a = pivot(armGroup(s, sd, gold, gold), sd * 0.56 * s, 2.3 * s, 0); root.add(a); return a; });
+  const arms = [-1, 1].map((sd) => { const a = pivot(polish(group((b) => c3poArm(b, s, sd), 'arm')), sd * 0.56 * s, 2.3 * s, 0); root.add(a); return a; });
   root.userData.anim = (t) => {
     hp.rotation.y = Math.sin(t * 0.9) * 0.6;
     arms[0].rotation.x = -0.6 - Math.max(0, Math.sin(t * 2.2)) * 1.2;
@@ -632,11 +752,77 @@ export function vader(s = 3.2) {
   return root;
 }
 
+// Stormtrooper: domed helmet with a brow ridge, black lenses and the frowning grille, white
+// armour plates over a black undersuit, utility belt, an E-11 held at port arms.
+const TW = 0xf4f4f4, TB = 0x18181a, TG = 0x8c9198, TBL = 0x5a7896;
+function trooperHelmet(b, R, H, y0) {
+  const Hc = H * 0.62;
+  b.add(HEAD, FACES.trooper(), 0, y0, 0, Math.PI, R, Hc, R);
+  put(b, HEMI, TW, 0, y0 + Hc - 0.02 * R, -R * 0.02, R * 1.05, R * 1.0, R * 1.07);
+  put(b, FRONTARC, TW, 0, y0 + Hc - H * 0.06, 0, R * 1.1, H * 0.08, R * 1.1);   // brow ridge
+  put(b, FLARE, TW, 0, y0 - H * 0.05, 0, R * 1.02, Hc * 0.82, R * 1.02);        // flared jaw / neck guard
+  // the grille: a raised box with black slots, and two little breather tubes under it
+  box(b, 0x6a6e74, 0, y0 + Hc * 0.26, R * 0.98, R * 0.36, Hc * 0.2, R * 0.1);
+  for (let k = -2; k <= 2; k++) box(b, TB, k * R * 0.065, y0 + Hc * 0.26, R * 1.03, R * 0.03, Hc * 0.16, R * 0.03);
+  for (const sd of [-1, 1]) {
+    const p = onHead(sd * 0.2, y0 + Hc * 0.1, R * 0.9), q = onHead(sd * 0.24, y0 - Hc * 0.02, R * 1.08);
+    rod(b, TG, ...p, ...q, R * 0.055, CYL8);
+    // ear caps with a grey centre and black vents
+    rod(b, TW, sd * R * 1.0, y0 + Hc * 0.5, -R * 0.06, sd * R * 1.27, y0 + Hc * 0.5, -R * 0.06, R * 0.25);
+    rod(b, TG, sd * R * 1.26, y0 + Hc * 0.5, -R * 0.06, sd * R * 1.3, y0 + Hc * 0.5, -R * 0.06, R * 0.15);
+    for (const dz of [-0.12, 0, 0.12]) box(b, TB, sd * R * 1.31, y0 + Hc * 0.5, (dz - 0.06) * R, R * 0.02, R * 0.2, R * 0.04);
+  }
+}
 export function trooper(b, s = 1.6) {
-  fig(b, s, { legs: C.white, hips: 0x222222, torso: C.white, face: FACES.trooper(), neck: 0x222222, arms: C.white, hands: 0x222222, noStud: true, headR: 0.41, armPitch: 0.7 });
-  put(b, HEMI, C.white, 0, 2.56 * s + 0.66 * s, 0, 0.41 * s, 0.3 * s, 0.41 * s);
-  box(b, 0x222222, 0, 1.58 * s, 0.55 * s, 0.9 * s, 0.18 * s, 0.14 * s);
-  box(b, 0x222222, 0, 1.72 * s, 0.85 * s, 0.14 * s, 0.14 * s, 0.4 * s);
+  const pitch = 0.7, spread = 0.1;
+  fig(b, s, { legs: TW, hips: TB, torso: TB, neck: TB, arms: TW, hands: TB, armPitch: pitch });
+  trooperHelmet(b, 0.41 * s, 0.66 * s, 2.56 * s);
+  // legs: black knee gaps, shin plates
+  for (const sd of [-1, 1]) {
+    box(b, TB, sd * 0.25 * s, 0.52 * s, 0.03 * s, 0.48 * s, 0.06 * s, 0.57 * s);
+    box(b, 0xe4e6ea, sd * 0.25 * s, 0.27 * s, 0.32 * s, 0.3 * s, 0.32 * s, 0.03 * s);
+  }
+  // chest + back armour shell over the black undersuit
+  put(b, TRAP, TW, 0, 1.86 * s, 0, 1.08 * s, 0.6 * s, 0.6 * s);
+  box(b, 0xe4e6ea, 0, 2.13 * s, 0.31 * s, 0.6 * s, 0.4 * s, 0.03 * s, -0.04);   // raised chest plate
+  box(b, TB, 0, 2.13 * s, 0.327 * s, 0.02 * s, 0.38 * s, 0.01 * s, -0.04);
+  for (const sd of [-1, 1]) {
+    box(b, TB, sd * 0.19 * s, 1.96 * s, 0.32 * s, 0.18 * s, 0.03 * s, 0.01 * s, 0, 0, sd * 0.2);
+    box(b, TB, sd * 0.36 * s, 2.13 * s, 0.31 * s, 0.035 * s, 0.46 * s, 0.02 * s, -0.04, 0, sd * 0.12);   // chest-plate edges
+    box(b, TB, sd * 0.2 * s, 2.4 * s, 0.29 * s, 0.26 * s, 0.03 * s, 0.03 * s, 0, 0, -sd * 0.12);        // collar line
+  }
+  // ab plate with its little control buttons, dark ribs either side
+  box(b, TW, 0, 1.62 * s, 0.285 * s, 0.46 * s, 0.3 * s, 0.04 * s);
+  box(b, TG, 0, 1.64 * s, 0.306 * s, 0.26 * s, 0.15 * s, 0.01 * s);
+  for (let k = 0; k < 4; k++) box(b, k % 2 ? TBL : TB, (-0.1 + k * 0.066) * s, 1.64 * s, 0.313 * s, 0.045 * s, 0.09 * s, 0.01 * s);
+  for (const sd of [-1, 1]) for (let k = 0; k < 3; k++) box(b, 0x3a3c40, sd * 0.37 * s, (1.5 + k * 0.1) * s, 0.28 * s, 0.17 * s, 0.04 * s, 0.02 * s);
+  box(b, TW, 0, 1.6 * s, -0.29 * s, 0.82 * s, 0.32 * s, 0.05 * s);   // kidney plate
+  // utility belt: pouches, buckle, thermal detonator on the back
+  box(b, TW, 0, 1.33 * s, 0, 1.1 * s, 0.17 * s, 0.6 * s);
+  box(b, 0xc4c8cc, 0, 1.42 * s, 0, 1.11 * s, 0.03 * s, 0.61 * s);
+  box(b, TG, 0, 1.34 * s, 0.31 * s, 0.22 * s, 0.15 * s, 0.04 * s);
+  box(b, TB, 0, 1.34 * s, 0.33 * s, 0.13 * s, 0.04 * s, 0.01 * s);
+  for (const x of [-0.45, -0.28, 0.28, 0.45]) {
+    box(b, TW, x * s, 1.31 * s, 0.32 * s, 0.14 * s, 0.17 * s, 0.08 * s);
+    box(b, TG, x * s, 1.39 * s, 0.36 * s, 0.14 * s, 0.02 * s, 0.01 * s);
+  }
+  rod(b, 0xb8bcc2, -0.1 * s, 1.33 * s, -0.34 * s, -0.48 * s, 1.33 * s, -0.34 * s, 0.09 * s);
+  for (const x of [-0.18, -0.4]) rod(b, TB, x * s, 1.33 * s, -0.34 * s, (x - 0.04) * s, 1.33 * s, -0.34 * s, 0.095 * s);
+  // arms: shoulder bells, black undersuit gaps at the bell and elbow
+  for (const sd of [-1, 1]) {
+    const pa = [s, sd, sd * 0.56 * s, 2.3 * s, 0, pitch, spread];
+    ball(b, TW, sd * 0.58 * s, 2.3 * s, 0.02 * s, 0.21 * s, 0.85);
+    armBand(b, TB, ...pa, 0.3, 0.36, 1.06);
+    armBand(b, TB, ...pa, 0.62, 0.68, 1.06);
+  }
+  // E-11 blaster held across the chest, muzzle up to his left
+  const g0 = [-0.8 * s, 1.36 * s, 0.7 * s], g1 = [0.95 * s, 1.86 * s, 0.74 * s];
+  const at = (t, dy = 0, dz = 0) => [g0[0] + (g1[0] - g0[0]) * t, g0[1] + (g1[1] - g0[1]) * t + dy, g0[2] + (g1[2] - g0[2]) * t + dz];
+  rod(b, 0x2a2c30, ...at(0.08), ...at(0.62), 0.15 * s, BOX, 0.13 * s);
+  rod(b, 0x2a2c30, ...at(0.6), ...at(1.0), 0.05 * s, CYL8);
+  rod(b, 0x6a6e72, ...at(0.3, 0.11 * s), ...at(0.52, 0.11 * s), 0.06 * s, CYL8);   // scope
+  rod(b, 0x2a2c30, ...at(0.4, -0.08 * s), ...at(0.4, -0.24 * s, 0.04 * s), 0.07 * s, BOX, 0.06 * s);   // magazine
+  rod(b, 0x2a2c30, ...at(0.0), ...at(0.1), 0.06 * s, BOX, 0.1 * s);   // folded stock
 }
 
 export function boba(s = 2.4) {
@@ -677,19 +863,100 @@ export function chewie(s = 3.0) {
   return root;
 }
 
+// Tusken Raider: a bandage-wrapped head under a hooded cloak, round goggle eyes on metal
+// tubes, the spiked breath mask, layered ragged robes, crossed bandoliers and a gaffi stick.
+const TK_WRAP = 0xc9b38e, TK_WRAP2 = 0xa88f68, TK_WRAP3 = 0xdcc9a4, TK_CLOAK = 0x6e5236, TK_ROBE = 0x9a7c56, TK_LEATHER = 0x5a3e24, TK_TUNIC = 0xb79b72, TK_HAND = 0x6e5438;
+const TK_METAL = 0xa4a8ae, TK_DMETAL = 0x50545a;
+function tuskenHead(b, R, H, y0) {
+  const Hc = H * 0.9, mt = metal(TK_METAL, 0.32);
+  b.add(HEAD, FACES.tusken(), 0, y0, 0, Math.PI, R, Hc, R);
+  ball(b, TK_WRAP, 0, y0 + Hc - 0.05 * R, 0, R * 1.03, 0.62);           // wrapped crown
+  ball(b, TK_WRAP2, 0, y0 + Hc + R * 0.42, -R * 0.08, R * 0.5, 0.55);   // knot of cloth on top
+  // loose bandage bands, each a little skewed
+  for (const [y, rx, rz, c] of [[0.9, -0.14, 0.1, TK_WRAP2], [1.0, 0.12, -0.08, TK_WRAP3], [0.06, -0.1, -0.1, TK_WRAP2], [0.4, 0.2, 0.05, TK_WRAP3]]) {
+    put(b, HEAD, c, 0, y0 + H * y * 0.9, 0, R * 1.05, H * 0.065, R * 1.05, rx, 0, rz);
+  }
+  put(b, FLARE, TK_CLOAK, 0, y0 - H * 0.12, -R * 0.04, R * 1.1, H * 1.0, R * 1.1);        // hood down the back
+  put(b, HOOD, TK_CLOAK, 0, y0 + Hc * 0.95, -R * 0.08, R * 1.12, R * 0.74, R * 1.1, -0.1);
+  // round goggle eyes on metal tubes
+  const gy = y0 + Hc * 0.62;
+  for (const sd of [-1, 1]) {
+    const a = sd * 0.42;
+    rod(b, mt, ...onHead(a, gy, R * 0.8), ...onHead(a * 0.85, gy, R * 1.22), R * 0.2);
+    rod(b, TK_DMETAL, ...onHead(a * 0.85, gy, R * 1.2), ...onHead(a * 0.83, gy, R * 1.32), R * 0.245);
+    rod(b, 0x0c0c0e, ...onHead(a * 0.83, gy, R * 1.3), ...onHead(a * 0.83, gy, R * 1.335), R * 0.17);
+  }
+  box(b, mt, 0, gy, R * 1.04, R * 0.3, Hc * 0.07, R * 0.12);   // nose bridge
+  box(b, TK_DMETAL, 0, y0 + Hc * 0.45, R * 1.02, R * 0.14, Hc * 0.28, R * 0.12);
+  // breath mask with its "teeth"
+  const my = y0 + Hc * 0.27;
+  rod(b, mt, ...onHead(0, my + 0.025 * R, R * 0.85), ...onHead(0, my, R * 1.18), R * 0.23);
+  rod(b, TK_DMETAL, ...onHead(0, my, R * 1.17), ...onHead(0, my, R * 1.2), R * 0.17);
+  for (const ph of [-1.3, -0.65, 0, 0.65, 1.3]) {
+    const x = Math.sin(ph) * R * 0.17, y = my - Math.cos(ph) * R * 0.17;
+    put(b, CONE, mt, x, y - R * 0.04, R * 1.3, R * 0.05, R * 0.3, R * 0.05, Math.PI / 2 + 0.45, 0, -ph * 0.3);
+  }
+}
+// a ragged hem: cloth tatters round an ellipse (rx, rz) at height y, over the arc a0..a1
+function hem(b, col, y, rx, rz, n, sz, a0 = -Math.PI, a1 = Math.PI) {
+  for (let k = 0; k < n; k++) {
+    const a = a0 + (a1 - a0) * (k + 0.5) / n;
+    box(b, col, Math.sin(a) * rx, y - (k % 2) * sz * 0.35, Math.cos(a) * rz, sz, sz, sz * 0.3, 0, a, ((k % 3) - 1) * 0.3);
+  }
+}
+// robe sleeve, cloak over the shoulder, cloth wraps and a leather cuff on an arm() arm
+function tuskenArm(b, s, sd, ox, oy, oz, pitch, spread) {
+  const pa = [s, sd, ox, oy, oz, pitch, spread];
+  arm(b, s, sd, TK_ROBE, TK_HAND, ox, oy, oz, pitch, spread);
+  ball(b, TK_CLOAK, ox + sd * 0.02 * s, oy + 0.02 * s, oz, 0.22 * s, 0.8);
+  armBand(b, TK_ROBE, ...pa, 0.55, 0.78, 1.16);   // loose sleeve
+  for (const t of [0.8, 0.86]) armBand(b, TK_WRAP2, ...pa, t, t + 0.04, 1.04);
+  armBand(b, TK_LEATHER, ...pa, 0.92, 1.0, 1.06);
+}
 export function tusken(s = 2.4) {
   const root = new THREE.Group();
   root.add(group((b) => {
-    fig(b, s, { legs: 0xb09a7a, hips: 0x8a6a4a, torso: 0xc8b090, face: FACES.tusken(), neck: 0xc8b090, noArms: true, noStud: true, headR: 0.4 });
-    put(b, HEMI, 0xc8b090, 0, 2.56 * s + 0.66 * s, 0, 0.4 * s, 0.3 * s, 0.4 * s);
-    put(b, CONE, 0xb09a7a, 0, 0.6 * s, 0, 0.7 * s, 1.3 * s, 0.5 * s);
-    box(b, 0x6a4a2a, 0, 1.8 * s, 0.03 * s, 0.14 * s, 1.3 * s, 0.6 * s, 0, 0, 0.65);
-    arm(b, s, 1, 0xc8b090, 0xa08a6a, 0.56 * s, 2.3 * s, 0, 0.2);
+    fig(b, s, { legs: TK_ROBE, hips: TK_CLOAK, torso: TK_TUNIC, neck: TK_WRAP2, noArms: true });
+    tuskenHead(b, 0.4 * s, 0.67 * s, 2.56 * s);
+    // layered robes: a long robe to the ground, a shorter tunic skirt over it, ragged hems, feet
+    put(b, ROBE, TK_ROBE, 0, 0, 0, 0.72 * s, 1.25 * s, 0.52 * s);
+    hem(b, TK_ROBE, 0.05 * s, 0.7 * s, 0.5 * s, 11, 0.13 * s);
+    put(b, ROBE, TK_TUNIC, 0, 0.72 * s, 0, 0.78 * s, 0.62 * s, 0.56 * s);
+    hem(b, TK_TUNIC, 0.76 * s, 0.76 * s, 0.55 * s, 11, 0.12 * s);
+    for (const sd of [-1, 1]) box(b, TK_LEATHER, sd * 0.24 * s, 0.07 * s, 0.42 * s, 0.3 * s, 0.14 * s, 0.26 * s);
+    // over-robe panels down the front edges, cloak mantle with a ragged hem, cape behind
+    for (const sd of [-1, 1]) box(b, TK_ROBE, sd * 0.38 * s, 1.75 * s, 0.285 * s, 0.26 * s, 0.9 * s, 0.04 * s, -0.03);
+    put(b, TRAP, TK_CLOAK, 0, 2.06 * s, 0, 1.18 * s, 0.44 * s, 0.64 * s);
+    hem(b, TK_CLOAK, 2.06 * s, 0.56 * s, 0.33 * s, 16, 0.13 * s);
+    box(b, TK_CLOAK, 0, 1.35 * s, -0.36 * s, 1.08 * s, 1.9 * s, 0.07 * s, -0.08);
+    for (let k = 0; k < 6; k++) box(b, TK_CLOAK, (-0.45 + k * 0.18) * s, 0.4 * s - (k % 2) * 0.05 * s, -0.43 * s, 0.13 * s, 0.14 * s, 0.07 * s, -0.08, 0, ((k % 3) - 1) * 0.3);
+    // crossed bandoliers with pouches and a canteen
+    for (const sd of [-1, 1]) box(b, TK_LEATHER, 0, 1.78 * s, 0.29 * s, 0.14 * s, 1.15 * s, 0.03 * s, 0, 0, sd * 0.62);
+    for (let k = 0; k < 4; k++) {
+      const t = (-0.36 + k * 0.24) * s;
+      box(b, k === 1 ? 0x8a8e92 : 0x6a4a2a, -Math.sin(0.62) * t, 1.78 * s + Math.cos(0.62) * t, 0.31 * s, 0.11 * s, 0.12 * s, 0.05 * s, 0, 0, 0.62);
+    }
+    rod(b, 0x8a8e92, 0.3 * s, 1.58 * s, 0.28 * s, 0.3 * s, 1.58 * s, 0.37 * s, 0.11 * s);
+    // cloth sash, leather belt with a buckle and pouches, a flap of cloth hanging at the front
+    box(b, TK_WRAP2, 0, 1.33 * s, 0, 1.1 * s, 0.2 * s, 0.6 * s);
+    box(b, TK_LEATHER, 0, 1.38 * s, 0, 1.11 * s, 0.07 * s, 0.61 * s);
+    box(b, 0x8a8e92, 0, 1.38 * s, 0.31 * s, 0.12 * s, 0.11 * s, 0.03 * s);
+    for (const sd of [-1, 1]) box(b, 0x6a4a2a, sd * 0.42 * s, 1.3 * s, 0.31 * s, 0.17 * s, 0.19 * s, 0.1 * s);
+    box(b, TK_ROBE, 0.1 * s, 1.08 * s, 0.4 * s, 0.3 * s, 0.4 * s, 0.04 * s, 0.25, 0, 0.08);
+    tuskenArm(b, s, 1, 0.56 * s, 2.3 * s, 0, 0.2, 0.1);
   }, 'tusken'));
+  // the right arm swings the gaffi stick: wooden shaft, grip wraps, a metal head with its prongs
   const armR = group((b) => {
-    const [ex, ey, ez] = arm(b, s, -1, 0xc8b090, 0xa08a6a, 0, 0, 0, 0.05, 0.02);
-    rod(b, 0x7a7a7a, ex, ey - 1.2 * s, ez, ex, ey + 1.6 * s, ez, 0.08 * s, CYL8);
-    box(b, 0x7a7a7a, ex, ey + 1.6 * s, ez, 0.2 * s, 0.25 * s, 0.9 * s);
+    tuskenArm(b, s, -1, 0, 0, 0, 0.05, 0.02);
+    const [ex, ey, ez] = armPt(s, -1, 0, 0, 0, 0.05, 0.02, 1);
+    const hy = ey - 0.12 * s, top = hy + 1.6 * s;
+    rod(b, 0x6b5434, ex, hy - 1.2 * s, ez, ex, top, ez, 0.075 * s, CYL8);
+    for (const y of [0.25, 0.85]) rod(b, 0x3a2a1a, ex, hy + (y - 0.06) * s, ez, ex, hy + y * s, ez, 0.09 * s, CYL8);
+    box(b, TK_METAL, ex, hy - 1.24 * s, ez, 0.17 * s, 0.14 * s, 0.17 * s);   // pommel
+    rod(b, TK_METAL, ex, top - 0.2 * s, ez, ex, top + 0.02 * s, ez, 0.1 * s, CYL8);
+    box(b, TK_METAL, ex, top + 0.06 * s, ez, 0.14 * s, 0.14 * s, 0.95 * s);  // cross head
+    for (const sd of [-1, 1]) box(b, TK_METAL, ex, top + 0.14 * s, ez + sd * 0.48 * s, 0.11 * s, 0.32 * s, 0.13 * s, sd * 0.35);
+    put(b, CONE, TK_METAL, ex, top + 0.25 * s, ez, 0.07 * s, 0.3 * s, 0.07 * s);
   }, 'gaffi');
   const ap = pivot(armR, -0.56 * s, 2.3 * s, 0);
   root.add(ap);
