@@ -10,13 +10,16 @@ export const KART_GROUPS = [
   { id: 'heroes', name: 'Marvel & Jurassic Rides' },
   { id: 'potter', name: 'Wizarding Rides' },
   { id: 'cursed', name: 'Cursed & Fantasy Rides' },
+  { id: 'minecraft', name: 'Minecraft Rides' },
+  { id: 'pokemon', name: 'Pokémon Rides' },
+  { id: 'sonic', name: 'Sonic Rides' },
 ];
-// Packs are listed in FINISHED once reviewed; unfinished ones only load in the developer
-// views (?garage=…, ?kart=…, ?packs=all) so half-built vehicles never reach players.
+// Packs are listed in FINISHED once reviewed; unfinished ones only load in the workbench and the
+// developer views (?garage=…, ?kart=…, ?packs=all) so half-built vehicles never reach players.
 const FINISHED = ['originals', 'starwars', 'heroes', 'potter', 'cursed', 'wild'];
 const q = new URLSearchParams(location.search);
-const dev = q.has('garage') || q.has('kart') || q.has('packs');
-const PACKS = ['originals', 'wild', 'starwars', 'heroes', 'potter', 'cursed'].filter((id) => dev || FINISHED.includes(id));
+const dev = location.pathname.includes('/workbench/') || q.has('garage') || q.has('kart') || q.has('packs');
+const PACKS = ['originals', 'wild', 'starwars', 'heroes', 'potter', 'cursed', 'minecraft', 'pokemon', 'sonic'].filter((id) => dev || FINISHED.includes(id));
 // each pack loads on its own so one broken file never stops the game
 const loaded = await Promise.allSettled(PACKS.map((id) => import(`./vehicles/${id}.js`)));
 const packs = {};
@@ -36,7 +39,7 @@ const DOMAIN = {
   carpet: 'fantasy', dragon: 'fantasy', teacup: 'fantasy',
 };
 for (const [pack, list] of Object.entries(packs)) {
-  for (const k of list) k.domain ??= pack === 'originals' ? 'classic' : pack === 'starwars' || pack === 'potter' ? pack : DOMAIN[k.id] || pack;
+  for (const k of list) k.domain ??= pack === 'originals' ? 'classic' : DOMAIN[k.id] || pack;
 }
 
 // the original karts: rebuilt vehicles when that pack is finished, else the classic body styles
@@ -44,9 +47,10 @@ for (const ch of CHARACTERS) { ch.group = 'originals'; ch.domain = 'classic'; }
 const originals = packs.originals?.length ? packs.originals : CHARACTERS;
 const half = Math.ceil(originals.length / 2);
 // one list in display order: half the originals, the wild rides, the movie rides (Harry Potter
-// before Jujutsu Kaisen), the other half
+// before Jujutsu Kaisen), the video game rides, the other half
 export const KARTS = [
   ...originals.slice(0, half),
   ...(packs.wild || []), ...(packs.starwars || []), ...(packs.heroes || []), ...(packs.potter || []), ...(packs.cursed || []),
+  ...(packs.minecraft || []), ...(packs.pokemon || []), ...(packs.sonic || []),
   ...originals.slice(half),
 ];

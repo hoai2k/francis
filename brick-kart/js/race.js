@@ -115,7 +115,7 @@ export class Race {
     const humans = opts.players || [];
     const used = new Set(humans.map((p) => p.charIndex));
     // Simplified mode: CPU racers come from the simplified roster only (repeating if it's small)
-    const simple = !!opts.simple;
+    const simple = this.simple = !!opts.simple;
     const others = CHARACTERS.map((_, i) => i).filter((i) => !used.has(i));
     for (let i = others.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [others[i], others[j]] = [others[j], others[i]]; }
     const total = this.mode === 'tt' ? humans.length : Math.min(MAX_RACERS, Math.max(humans.length, opts.racers ?? MAX_RACERS));
@@ -302,10 +302,10 @@ export class Race {
           const lead = this.order.find((o) => !o.finished) || this.order[0];
           const behind = lead ? lead.raceDist - k.raceDist : 0;
           if (!k.item && k.roulette <= 0 && !k.nextItem && !(k.roulette2 > 0)) {
-            k.rouletteItem = rollItem(rf, Math.random, behind, this.movieFrom);
+            k.rouletteItem = rollItem(rf, Math.random, behind, this.movieFrom, this.simple);
             k.roulette = k.human ? 1.3 : 1.0;
           } else if (!k.nextItem && !(k.roulette2 > 0)) {
-            k.rouletteItem2 = rollItem(rf, Math.random, behind, this.movieFrom);
+            k.rouletteItem2 = rollItem(rf, Math.random, behind, this.movieFrom, this.simple);
             k.roulette2 = k.human ? 1.3 : 1.0;
           }
         }
