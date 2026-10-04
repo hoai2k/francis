@@ -21,7 +21,7 @@ const own = (x) => { x.userData.own = true; return x; };
 // ---- sleeping Snorlax ----------------------------------------------------------------------------
 // the Snorlax driver rig (its fx shows the Zzz, idle makes it breathe); its merged geometry is its own
 const SNORLAX = POKEMON.find((d) => d.id === 'snorlax');
-export function snorlaxModel(scale = 2.1) {
+export function snorlaxModel(scale = 1.85) {
   const rig = SNORLAX.build();
   rig.root.traverse((o) => { if (o.isMesh) { own(o.geometry); o.castShadow = true; } });
   const g = new THREE.Group();

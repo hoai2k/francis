@@ -61,7 +61,7 @@ function homeIn(e, aim, dt) {
 // ============================================================================================
 // Snorlax: a sleeping road block
 // ============================================================================================
-const LAX_TIME = 12, LAX_R = 3.3;
+const LAX_TIME = 12, LAX_R = 3.0;
 class Snorlax {
   constructor(k, ctx, fwd) {
     this.k = k; this.ctx = ctx; this.t = 0; this.out = 0; this.squash = 0;
