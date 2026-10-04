@@ -3,7 +3,7 @@
 // Mario Kart-style gestures: Owen's raptor "hold", Claire's flare, Grant's hat wave,
 // Malcolm's laugh, Hammond's amber cane, roars, frills and sneezes.
 import { THREE, BrickBuilder, C, plastic, seatedFig, faceMat, rbox, cached } from './kit.js';
-import { breathe, bigTheropod, smallTheropod, triceratopsDriver, pteranodonDriver, brachiosaurusDriver, RAPTORS } from './jurassic-dinos.js';
+import { breathe, bigTheropod, smallTheropod, dilophosaurusDriver, trexDriver, triceratopsDriver, pteranodonDriver, brachiosaurusDriver, RAPTORS } from './jurassic-dinos.js';
 
 const S = Math.sin, A = Math.abs, PI = Math.PI;
 const UP = -2.75;
@@ -284,7 +284,7 @@ export default [
     voice: { kind: 'beast', pitch: 0.6 }, style: { cheer: 'roar', trick: 'arms' },
     gestures: { cheer: G.roar, taunt: G.snap, win: G.roarWin },
     build: () => {
-      const rig = breathe(bigTheropod({ body: 0x7a5a3c, dark: C.brown, belly: C.dktan, eye: 0xffb020, mouth: C.dkred }), 1.3, 0.05);
+      const rig = breathe(trexDriver(), 1.3, 0.05);
       // the tail lifts with the roar
       rig.fx = (name, f, t) => { rig.tail.rotation.x = name === 'cheer' ? 0.25 * S(f * PI) : name === 'win' ? 0.15 + S(t * 4) * 0.08 : 0; };
       return rig;
@@ -306,7 +306,7 @@ export default [
     id: 'dilophosaurus', name: 'Dilophosaurus', blurb: 'Frill-shaking spitter', weight: 'light', color: 0xf2cd37,
     voice: { kind: 'beast', pitch: 1.4 }, style: { cheer: 'roar', trick: 'twist' },
     gestures: { cheer: G.spit, taunt: G.rattle, win: G.rattle },
-    build: () => breathe(smallTheropod({ kind: 'dilo', body: 0x9aa844, spot: 0x3e4a1c, belly: 0xd8d08a, crest: C.red, frill: C.yellow, eye: C.black, dark: 0x7a8a34 }), 2.2, 0.05),
+    build: () => breathe(dilophosaurusDriver(), 2.2, 0.05),
   },
   {
     id: 'spinosaurus', name: 'Spinosaurus', blurb: 'Sail-backed river king', weight: 'heavy', color: 0xc0501a,

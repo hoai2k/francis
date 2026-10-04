@@ -599,14 +599,77 @@ const nix = {
 };
 
 // ============================================================================ Chief Flo
-// Firefighter: classic fire helmet with a tall shield badge, turnout coat, hose that really sprays.
+// Fire chief: towering red fire helmet with a brass-edged brim, a long back tail and a big
+// "CHIEF 1" leather shield; tan turnout coat with lime/silver reflective bands, radio,
+// a red hose across the chest, air tank and a fire axe on the back, copper hair, freckles.
+const floStore = new Map();
+const floGeo = (k, mk) => { let g = floStore.get(k); if (!g) { g = mk(); floStore.set(k, g); } return g; };
+// a canvas-printed decal material (cut out by alpha)
+function floDecal(key, w, h, draw, side = THREE.DoubleSide) {
+  return floGeo('mat:' + key, () => {
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    const g = c.getContext('2d'); g.lineJoin = 'round'; g.lineCap = 'round'; draw(g, w, h);
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+    return new THREE.MeshStandardMaterial({ map: t, roughness: 0.38, alphaTest: 0.5, side });
+  });
+}
+// the helmet frontpiece: brass rim, black leather, "CHIEF" over a red field with a big "1"
+// (back = the plain leather back of it, seen from behind)
+function floShieldPath(g, k) {
+  g.beginPath(); g.moveTo(4 + k, 30 + k * 0.4); g.quadraticCurveTo(64, -8 + k * 1.6, 124 - k, 30 + k * 0.4);
+  g.lineTo(116 - k, 104); g.quadraticCurveTo(112 - k, 150 - k, 64, 157 - k * 1.1); g.quadraticCurveTo(16 + k, 150 - k, 12 + k, 104); g.closePath();
+}
+function floShieldMat(back = false) {
+  return floDecal(back ? 'flo-shield-back' : 'flo-shield', 128, 160, (g) => {
+    const path = (k) => floShieldPath(g, k);
+    path(0); g.fillStyle = '#e8b830'; g.fill();
+    path(8); g.fillStyle = '#141414'; g.fill();
+    if (back) return;
+    g.fillStyle = '#fff'; g.font = 'bold 25px Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText('CHIEF', 64, 40);
+    g.fillStyle = '#d81e10'; g.beginPath(); g.ellipse(64, 100, 38, 40, 0, 0, PI * 2); g.fill();
+    g.lineWidth = 5; g.strokeStyle = '#e8b830'; g.stroke();
+    g.font = 'bold 64px Arial, sans-serif'; g.lineWidth = 8; g.strokeStyle = '#141414';
+    g.strokeText('1', 64, 104); g.fillStyle = '#fff'; g.fillText('1', 64, 104);
+  }, THREE.FrontSide);
+}
+// the name across the back of the coat
+function floBackMat() {
+  return floDecal('flo-back', 256, 64, (g) => {
+    g.fillStyle = '#d8f040'; g.fillRect(0, 0, 256, 64);
+    g.fillStyle = '#e8ecf0'; g.fillRect(0, 26, 256, 12);
+    g.fillStyle = '#c01a10'; g.font = 'bold 50px Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.lineWidth = 6; g.strokeStyle = '#141414'; g.strokeText('CHIEF', 128, 35); g.fillText('CHIEF', 128, 35);
+  });
+}
+// torso width/depth at height y (seatedFig's tapered torso)
+const floAt = (d, y) => { const k = (y - d.chestY) / (0.82 * d.s); return [lerp(0.92, 0.7, k) * d.W * d.s, lerp(0.46, 0.42, k) * d.D * d.s]; };
+// a reflective band hugging the torso: lime, silver middle, lime
+function floBand(b, d, y, hgt, out = 0.03) {
+  const band = (y0, h0, o, col) => {
+    const [w0, d0] = floAt(d, y0), [w1, d1] = floAt(d, y0 + h0);
+    b.add(taperGeo(+(w0 + o).toFixed(3), +(w1 + o).toFixed(3), +h0.toFixed(3), +(d0 + o).toFixed(3), +(d1 + o).toFixed(3)), plastic(col), 0, y0, 0, 0, 1, 1, 1);
+  };
+  band(y, hgt, out, 0xd8f040);
+  band(y + hgt * 0.36, hgt * 0.28, out + 0.012, 0xe8ecf0);
+}
 function nozzle(b) {
   const BR = 0xd8a830;
   b.cyl(0, -0.05, 0, 0.07, 0.25, BR, { seg: 10 });
   b.add(frustum(0.55, 1, 10), plastic(BR), 0, 0.2, 0, 0, 0.09, 0.22, 0.09);
   b.box(0, 0.05, -0.08, 0.05, 0.14, 0.1, C.black);
-  rod(b, [0, -0.05, 0], [0, -0.3, -0.05], 0.07, 0xb02010, 8);
-  rod(b, [0, -0.3, -0.05], [0, -0.45, -0.25], 0.07, 0xb02010, 8);
+  rod(b, [0, -0.05, 0], [0, -0.3, -0.05], 0.07, 0xc01a10, 8);
+  rod(b, [0, -0.3, -0.05], [0, -0.45, -0.25], 0.07, 0xc01a10, 8);
+}
+// fire axe along +Y (handle from the origin, pick-head axe at the top)
+function floAxe(b, L) {
+  rod(b, [0, 0, 0], [0, L, 0], 0.045, 0xe8c050, 8);
+  b.cyl(0, -0.02, 0, 0.055, 0.14, C.black, { seg: 8 });
+  b.box(0, L - 0.12, 0, 0.12, 0.2, 0.09, 0xd01a0e);
+  // blade one side (silver edge), pick the other
+  geoM(b, taperGeo(0.18, 0.34, 0.26, 0.07, 0.05), plastic(0xd01a0e), 0.05, L - 0.02, 0, 0, 0, -PI / 2, 1);
+  rbox(b, 0.33, L - 0.02, 0, 0.04, 0.35, 0.055, 0, 0, 0, 0xe8eef4);
+  geoM(b, taperGeo(0.16, 0.02, 0.36, 0.07, 0.03), plastic(0xd01a0e), -0.05, L - 0.02, 0, 0, 0, PI / 2 + 0.12, 1);
 }
 const flo = {
   voice: { kind: 'human', pitch: 1.3 }, style: { cheer: 'point', win: 'wave', trick: 'arms' },
@@ -618,51 +681,126 @@ const flo = {
     use: (f, t) => ({ rx: -1.75, rz: 0.3, lx: -1.5, lz: -0.4, hx: -0.1 }),
   },
   build() {
-    const COAT = 0x262a30, STRIPE = 0xf2cd37, RED = 0xc91a09, HAIR = 0xd9601f;
+    const COAT = 0xa06c26, COAT_D = 0x6a4618, RED = 0xd01a0e, BRASS = 0xe0aa30, HAIR = 0xe25a16, GLOVE = 0x2a2a2e, HOSE = 0xc01a10;
     const rig = fig({
-      name: 'flo', s: 1.24, wide: 1.26, deep: 1.18, headR: 0.3, headH: 0.48,
-      torso: COAT, legs: COAT, arms: COAT, hands: 0xb8862b, skin: SKIN,
+      name: 'flo', s: 1.24, wide: 1.32, deep: 1.22, headR: 0.31, headH: 0.48,
+      torso: COAT, legs: COAT, arms: COAT, hands: GLOVE, skin: SKIN,
       face: face('flo', SKIN, (P) => {
-        P.eyes(17, -6, 7, 10);
-        for (const sd of [-1, 1]) { P.line([[sd * 9, -24], [sd * 26, -26]], '#7a3010', 5); P.ell(sd * 32, 10, 9, 6, '#f08a6a'); }
-        for (const [x, y] of [[-28, 4], [-22, 8], [-30, 12], [24, 6], [30, 10], [22, 12]]) P.ell(x, y, 1.8, 1.8, '#b0602a');
-        P.mouth(14, 15, 'grin');
-        P.ell(30, -16, 7, 4, 'rgba(60,60,60,0.5)');
+        const g = P.g;
+        // soot smudges first (under everything else)
+        P.ell(-34, 4, 15, 9, 'rgba(70,60,55,0.35)', 0.3); P.ell(26, -30, 12, 5, 'rgba(70,60,55,0.3)', -0.2);
+        // big determined eyes: white, dark iris, shine, lashes
+        for (const sd of [-1, 1]) {
+          P.ell(sd * 20, -4, 12, 14, '#fff');
+          P.ell(sd * 19, -2, 8.5, 11, '#1b1b1b');
+          P.ell(sd * 19 + 3, -6, 3, 3.5, '#fff');
+          g.strokeStyle = '#1b1b1b'; g.lineWidth = 3.5; g.beginPath(); g.ellipse(sd * 20, -4, 12, 14, 0, PI * 1.05, PI * 1.95); g.stroke();
+          P.line([[sd * 30, -12], [sd * 37, -17]], '#1b1b1b', 3.5);
+          // thick copper brows, low and confident
+          P.curve(sd * 8, -23, sd * 20, -31, sd * 34, -25, '#9a3a0c', 8);
+          P.ell(sd * 36, 14, 10, 7, 'rgba(240,110,90,0.75)');
+        }
+        // freckles across the nose and cheeks, a small nose
+        for (const [x, y] of [[-30, 8], [-24, 13], [-34, 15], [-14, 9], [14, 9], [24, 13], [30, 8], [34, 15]]) P.ell(x, y, 2.2, 2.2, '#b0602a');
+        P.curve(-5, 9, 0, 13, 5, 9, '#b07a10', 3);
+        // big open grin
+        g.fillStyle = '#5a0e0e'; g.beginPath(); g.moveTo(-22, 19); g.quadraticCurveTo(0, 50, 22, 19); g.quadraticCurveTo(0, 25, -22, 19); g.fill();
+        g.fillStyle = '#fff'; g.beginPath(); g.moveTo(-19, 20.5); g.quadraticCurveTo(0, 27, 19, 20.5); g.lineTo(17, 26); g.quadraticCurveTo(0, 31, -17, 26); g.closePath(); g.fill();
+        P.ell(0, 36, 9, 5, '#e05a6a');
+        P.curve(-22, 19, 0, 50, 22, 19, '#1b1b1b', 3);
       }, 0.5),
       torsoExtra: (b, d) => {
-        const s = d.s, fz = frontZ(d), bz = backZ(d);
-        for (const y of [0.25, 0.6]) {
-          b.box(0, y * s, 0, 0.93 * s * d.W, 0.1 * s, 0.48 * s * d.D, STRIPE);
-          b.box(0, y * s + 0.03 * s, 0, 0.94 * s * d.W, 0.035 * s, 0.49 * s * d.D, 0xd8dde2);
-        }
-        b.box(0, 0.1 * s, fz - 0.01, 0.06 * s, 0.9 * s, 0.04, 0x50555a);
-        // hose slung over the shoulder and across the chest
-        rbox(b, 0.02 * s, 0.55 * s, fz + 0.04, 0.09 * s, 1.05 * s, 0.08 * s, 0, 0, 0.7, 0xb02010);
-        // air tank, hose coil and the spare nozzle on the back
-        b.cyl(0.12 * s, 0.1 * s, bz - 0.17 * s, 0.15 * s, 0.75 * s, 0xf2cd37, { seg: 14 });
-        b.cyl(0.12 * s, 0.85 * s, bz - 0.17 * s, 0.07 * s, 0.1 * s, 0x50555a, { seg: 10 });
-        geoM(b, torusGeo(0.28, 18), 0xb02010, -0.13 * s, 0.45 * s, bz - 0.3 * s, 0, 0, 0, 0.24 * s);
-        // collar
-        b.cyl(0, d.neckY - 0.1 * s, 0, 0.28 * s, 0.1 * s, COAT, { seg: 14 });
+        const s = d.s, at = (y) => floAt(d, y);
+        // reflective bands round the chest and the hem
+        floBand(b, d, 0.3 * s, 0.15 * s);
+        floBand(b, d, 0.7 * s, 0.15 * s);
+        // front closure flap with black clasps
+        const fz = (y) => at(y)[1] / 2;
+        b.add(taperGeo(0.15 * s, 0.13 * s, 0.98 * s, 0.03, 0.03), plastic(COAT_D), 0, d.chestY, fz(d.chestY) + 0.005, 0, 1, 1, 1);
+        for (const y of [0.55, 0.98]) rbox(b, 0, y * s, fz(y * s) + 0.035, 0.12 * s, 0.05 * s, 0.05, 0, 0, 0, C.black);
+        // radio clipped on the left of the chest
+        b.box(0.31 * s, 0.86 * s, fz(0.9 * s) + 0.03, 0.15 * s, 0.24 * s, 0.09 * s, 0x1b1b1e);
+        b.box(0.31 * s, 1.0 * s, fz(1.0 * s) + 0.075, 0.1 * s, 0.05 * s, 0.03, 0x50555a);
+        rod(b, [0.36 * s, 1.1 * s, fz(1.1 * s) + 0.06], [0.36 * s, 1.36 * s, fz(1.1 * s) + 0.06], 0.022 * s, 0x1b1b1e, 6);
+        b.sphere(0.36 * s, 1.37 * s, fz(1.1 * s) + 0.06, 0.035 * s, 0xff3020);
+        // red hose over the right shoulder, across the chest to a brass coupling at the left hip
+        const HR = 0.062 * s, hp = [[-0.36 * s, 1.0 * s, -0.12 * s], [-0.37 * s, 1.03 * s, 0.1 * s]];
+        for (let i = 0; i <= 4; i++) { const u = i / 4, y = lerp(0.95, 0.36, u) * s; hp.push([lerp(-0.33, 0.3, u) * s, y, fz(y) + HR * 0.75]); }
+        for (let i = 0; i < hp.length - 1; i++) { rod(b, hp[i], hp[i + 1], HR, HOSE, 10); b.sphere(...hp[i + 1], HR, HOSE); }
+        const h2 = hp[hp.length - 1];
+        trod(b, h2, [h2[0] + 0.06 * s, h2[1] - 0.07 * s, h2[2]], HR * 1.3, HR * 1.3, BRASS, 10);
+        // tall stand-up collar
+        b.cyl(0, d.neckY - 0.13 * s, 0, 0.31 * s, 0.17 * s, COAT, { seg: 16 });
+        b.cyl(0, d.neckY + 0.03 * s, 0, 0.32 * s, 0.03 * s, 0xd8f040, { seg: 16 });
+        // back: name band "CHIEF", air tank with a red valve, fire axe strapped across
+        b.box(0, 0.86 * s, -fz(0.86 * s) - 0.03, 0.5 * s, 0.5 * s, 0.05, 0x2a2a30);
+        const tz = -fz(0.8 * s) - 0.2 * s;
+        b.cyl(0, 0.56 * s, tz, 0.17 * s, 0.5 * s, 0xd4d8dc, { seg: 14 });
+        geoM(b, domeGeo(), 0xd4d8dc, 0, 1.06 * s, tz, 0, 0, 0, 0.17 * s, 0.1 * s, 0.17 * s);
+        b.cyl(0, 0.78 * s, tz, 0.175 * s, 0.05 * s, RED, { seg: 14 });
+        b.cyl(0, 0.49 * s, tz, 0.13 * s, 0.08 * s, 0x50555a, { seg: 12 });
+        b.sphere(0.12 * s, 0.52 * s, tz - 0.1 * s, 0.06 * s, RED);
       },
-      arm: (ab, sd, d) => { const s = d.s; ab.cyl(0, -0.42 * s, 0, 0.15 * s, 0.07 * s, STRIPE, { seg: 10 }); ab.cyl(0, -0.52 * s, 0, 0.14 * s, 0.08 * s, 0xb8862b, { seg: 10 }); },
+      arm: (ab, sd, d) => {
+        const s = d.s, k = Math.sqrt(d.W);
+        // reflective band on the sleeve, dark cuff, black glove gauntlet
+        ab.cyl(0, -0.36 * s, 0, 0.16 * s * k * 0.9, 0.1 * s, 0xd8f040, { seg: 12 });
+        ab.cyl(0, -0.33 * s, 0, 0.165 * s * k * 0.9, 0.035 * s, 0xe8ecf0, { seg: 12 });
+        ab.cyl(0, -0.54 * s, 0, 0.15 * s * k * 0.9, 0.06 * s, COAT_D, { seg: 12 });
+        ab.add(frustum(1.25, 1, 10), plastic(GLOVE), 0, -0.6 * s, 0, 0, 0.12 * s, 0.1 * s, 0.12 * s);
+        // shoulder patch: a red maltese-ish badge on the outside of each sleeve
+        rbox(ab, sd * 0.17 * s, -0.12 * s, 0, 0.03, 0.13 * s, 0.13 * s, 0, 0, 0, RED);
+        rbox(ab, sd * 0.18 * s, -0.12 * s, 0, 0.03, 0.06 * s, 0.06 * s, PI / 4, 0, 0, BRASS);
+      },
       headExtra: (hb, d) => {
-        const r = d.headR, h = d.headH;
-        // ponytail out the back
-        hb.sphere(0, h * 0.5, -r * 1.05, 0.12, HAIR);
-        rbox(hb, 0, h * 0.08, -r * 1.25, 0.12, 0.42, 0.1, -0.35, 0, 0, HAIR);
-        // fire helmet: dome, ribs, long sloped rear brim, tall front shield
-        geoM(hb, domeGeo(), RED, 0, h * 0.78, 0, 0, 0, 0, r * 1.32, r * 1.22, r * 1.38);
-        hb.box(0, h * 0.78 + r * 1.08, -r * 0.1, 0.07, 0.07, r * 1.2, 0xa01408);
-        hb.cyl(0, h * 0.75, -r * 0.25, r * 1.5, 0.05, RED, { seg: 20, rz: r * 1.85 });
-        rbox(hb, 0, h * 0.68, -r * 1.85, r * 1.9, 0.05, r * 0.7, -0.45, 0, 0, RED);
-        rbox(hb, 0, h * 0.78 + r * 0.62, r * 1.02, 0.38, 0.44, 0.05, -0.3, 0, 0, 0xe6c05a);
-        rbox(hb, 0, h * 0.78 + r * 0.64, r * 1.07, 0.26, 0.3, 0.04, -0.3, 0, 0, C.black);
-        rbox(hb, 0, h * 0.78 + r * 0.65, r * 1.11, 0.05, 0.17, 0.04, -0.3, 0, 0, 0xe6c05a);
-        hb.sphere(0, h * 0.78 + r * 0.62 + 0.25, r * 0.95, 0.07, 0xe6c05a);
+        const r = d.headR, h = d.headH, y0 = h * 0.8;
+        // copper bob under the helmet and curls framing the face
+        hb.cyl(0, h * 0.18, -r * 0.22, r * 1.08, h * 0.66, HAIR, { seg: 16 });
+        for (const sd of [-1, 1]) {
+          hb.sphere(sd * r * 0.9, h * 0.5, r * 0.4, 0.075, HAIR, { sy: 1.9 });
+          hb.sphere(sd * r * 0.96, h * 0.25, r * 0.1, 0.085, HAIR, { sy: 1.5 });
+          hb.sphere(sd * r * 0.7, h * 0.12, -r * 0.85, 0.13, HAIR, { sy: 1.1 });
+        }
+        hb.sphere(0, h * 0.12, -r * 1.05, 0.14, HAIR, { sy: 1.1 });
+        // the helmet: a big tall dome with raised ribs
+        const DX = r * 1.34, DY = r * 1.3, DZ = r * 1.42;
+        geoM(hb, domeGeo(), RED, 0, y0, 0, 0, 0, 0, DX, DY, DZ);
+        const arc = floGeo('floArc', () => new THREE.TorusGeometry(1, 0.05, 5, 14, PI));
+        for (const k of [0, -0.5, 0.5, -0.82, 0.82]) {
+          const q = Math.sqrt(1 - k * k) * 1.02;
+          geoM(hb, arc, RED, k * DX, y0, 0, 0, PI / 2, 0, DZ * q, DY * q, 0.75);
+        }
+        hb.box(0, y0 + DY * 0.96, -DZ * 0.2, 0.08, 0.08, DZ * 1.1, 0xa01208);
+        // brim: brass-edged, short in front, long at the back, with the classic tail
+        hb.cyl(0, y0 - 0.03, -r * 0.55, r * 1.72, 0.04, BRASS, { seg: 28, rz: r * 2.15 });
+        hb.cyl(0, y0 - 0.02, -r * 0.55, r * 1.64, 0.05, RED, { seg: 28, rz: r * 2.07 });
+        rbox(hb, 0, y0 - 0.1, -r * 2.75, r * 2.2, 0.05, r * 0.85, -0.5, 0, 0, RED);
+        rbox(hb, 0, y0 - 0.128, -r * 2.78, r * 2.28, 0.04, r * 0.9, -0.5, 0, 0, BRASS);
+        // brass eagle on top of the frontpiece
+        const ey = y0 + DY * 0.95, ez = DZ * 0.6;
+        hb.sphere(0, ey, ez, 0.065, BRASS);
+        hb.sphere(0, ey + 0.08, ez + 0.03, 0.04, BRASS);
+        for (const sd of [-1, 1]) rbox(hb, sd * 0.1, ey + 0.04, ez, 0.16, 0.05, 0.04, 0, 0, sd * 0.55, BRASS);
       },
     });
-    const s = rig.dims.s;
+    const s = rig.dims.s, d = rig.dims, r = d.headR, h = d.headH;
+    // the frontpiece shield (printed decal), tilted back against the dome
+    const shield = new THREE.Mesh(floGeo('floPlane', () => new THREE.PlaneGeometry(1, 1)), floShieldMat());
+    shield.scale.set(0.46, 0.56, 1);
+    shield.position.set(0, h * 0.8 + r * 0.66, r * 1.36);
+    shield.rotation.x = -0.32;
+    rig.head.add(shield);
+    const shieldBack = new THREE.Mesh(shield.geometry, floShieldMat(true));
+    shieldBack.rotation.y = PI; shieldBack.position.z = -0.004; shield.add(shieldBack);
+    // "CHIEF" across the back of the coat, under the tank
+    const [bw, bd] = floAt(d, 0.33 * s);
+    const back = new THREE.Mesh(floGeo('floPlane', () => new THREE.PlaneGeometry(1, 1)), floBackMat());
+    back.scale.set(bw * 0.86, 0.17 * s, 1);
+    back.position.set(0, 0.375 * s, -bd / 2 - 0.038);
+    back.rotation.set(-0.025, PI, 0);
+    rig.torso.add(back);
+    // fire axe strapped diagonally across the back, head up by the left shoulder
+    prop(rig.torso, (b) => floAxe(b, 1.4), { x: -0.32 * s, y: 0.24 * s, z: -floAt(d, 0.8 * s)[1] / 2 - 0.42 * s, rz: -0.6, name: 'flo-axe' });
     const g = grip(rig.armR, s);
     const noz = prop(g, nozzle, { name: 'flo-nozzle', visible: false });
     // water jet: arcs out of the nozzle and falls (built for a 60° aim), plus splashes
@@ -682,7 +820,7 @@ const flo = {
     const fount = fxg(g, { y: 0.42 });
     const fm = new THREE.Mesh(frustum(1.6, 1, 10), fxMat(W, 0.55)); fm.scale.set(0.07, 1.6, 0.07); fount.add(fm);
     const rain = fxg(fount, { y: 1.6, visible: true }); puffs(rain, fxMat(0xd8f4ff, 0.75), 14, 0.9, 0.06, 17, { flat: 0.3 });
-    finish(rig, 1.3);
+    finish(rig, 1.35);
     rig.fx = (n, f, t) => {
       const spray = n === 'cheer' || n === 'use', ftn = n === 'win';
       vis(noz, spray || ftn || n === 'throwF');
