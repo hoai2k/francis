@@ -378,14 +378,8 @@ class Pearl {
     const tr = ctx.track, n = ctx.race.karts.length;
     const rankFrac = n > 1 ? (k.rank - 1) / (n - 1) : 1;
     this.i0 = k.loc.i ?? 0; this.lat0 = k.loc.lat ?? 0;
-    const want = this.i0 + 150 + Math.round(20 * rankFrac);
-    let land = null;
-    for (let o = 0; o < 240 && !land; o += 2) {
-      const i = tr.wrap(want + o), hw = tr.HW[i];
-      for (const l of [clamp(this.lat0 / (hw || 1), -0.45, 0.45) * hw, 0, -0.3 * hw, 0.3 * hw]) if (k.spawnOk(i, l)) { land = { i, lat: l }; break; }
-    }
-    this.land = land || { i: tr.wrap(want), lat: 0 };
-    this.dist = (this.land.i - this.i0 + tr.N) % tr.N;
+    this.land = landing(k, tr, this.i0 + 150 + Math.round(20 * rankFrac), this.i0, this.lat0);
+    this.dist = ((this.land ? this.land.i : this.i0 + 150) - this.i0 + tr.N) % tr.N;
     this.mesh = pearlModel(); ctx.scene.add(this.mesh);
     this.start = k.pos.clone().setY(k.pos.y + 2.4);
     this.pos = this.start.clone();
@@ -397,7 +391,7 @@ class Pearl {
     if (!live(k)) { fx.pop(this.pos, 0xb050ff); return false; }
     const u = Math.min(1, this.t / PEARL_T);
     // flies along the track, high in an arc, from the thrower to the landing spot
-    trackPoint(tr, this.i0 + this.dist * u, this.lat0 + (this.land.lat - this.lat0) * u, V1);
+    trackPoint(tr, this.i0 + this.dist * u, this.lat0 + ((this.land?.lat ?? this.lat0) - this.lat0) * u, V1);
     const lift = Math.sin(Math.PI * u) * 16 + 2.4 * (1 - u) + 0.4;
     if (u < 0.12) V1.lerp(this.start, 1 - u / 0.12);
     this.pos.set(V1.x, V1.y + lift, V1.z);
@@ -409,7 +403,10 @@ class Pearl {
     return false;
   }
   teleport() {
-    const ctx = this.ctx, k = this.k, race = ctx.race;
+    const ctx = this.ctx, k = this.k, race = ctx.race, tr = ctx.track;
+    // never put the kart down over a gap (glides, jumps, lava seas): re-check the spot now
+    if (this.land && !k.spawnOk(this.land.i, this.land.lat)) this.land = landing(k, tr, this.land.i, this.i0, this.lat0);
+    if (!this.land) { k.boost(1.2); ctx.fx.pop(this.pos, 0xb050ff); return; }
     const from = V2.copy(k.pos).setY(k.pos.y + 1.2);
     sparks(ctx, from, 30, PURPLE, 7, 2, 0.7);
     flash(ctx, from, 0xb050ff, 3.5, 0.35);
@@ -433,6 +430,22 @@ class Pearl {
     ctx.spawn({ update(dt) { t += dt; if (live(k) && Math.random() < 0.8) ctx.fx.spark(k.pos.x + rnd(1.4), k.pos.y + 0.4 + Math.random() * 2, k.pos.z + rnd(1.4), rnd(1), 1 + Math.random() * 2, rnd(1), PURPLE[Math.floor(Math.random() * 3)], 0.5); return t < 1.2; }, dispose() {} });
   }
   dispose() { disposeOwned(this.mesh); if (this.k.mcPearl === this) this.k.mcPearl = null; }
+}
+
+// Where a pearl may land: real road with no glide / jump gap under it or just ahead (k.spawnOk), searched
+// forward from `want` (up to half a lap), then back towards the thrower; failing that the nearest gap-free
+// sample ahead of want, or null (no safe spot: the pearl just gives a boost)
+function landing(k, tr, want, i0, lat0) {
+  const N = tr.N, ok = (i) => {
+    const hw = tr.HW[i];
+    for (const l of [clamp(lat0 / (hw || 1), -0.45, 0.45) * hw, 0, -0.3 * hw, 0.3 * hw]) if (k.spawnOk(i, l)) return { i, lat: l };
+    return null;
+  };
+  let got = null;
+  for (let o = 0; o < N / 2 && !got; o += 2) got = ok(tr.wrap(want + o));
+  for (let o = 2; want - o > i0 + 20 && !got; o += 2) got = ok(tr.wrap(want - o));
+  for (let o = 0; o < N && !got; o++) { const i = tr.wrap(want + o); if (!tr.GAP[i] && !tr.GAP[tr.wrap(i + 1)] && !tr.GAP[tr.wrap(i - 1)]) got = { i, lat: 0 }; }
+  return got;
 }
 
 // ---- AI helpers ------------------------------------------------------------------------------
