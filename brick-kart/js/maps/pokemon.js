@@ -53,22 +53,21 @@ function diglettPop(ctx, { k, latF, period = 4.6, offset = 0 }) {
   };
 }
 
-// Snorlax asleep across half the road: it stirs ("!"), a stripe flashes on the other half,
-// then it rolls over onto it. Its big belly is solid (karts slide around it).
+// Snorlax asleep in the middle of one half of the road, facing the racers: it stirs ("!"),
+// a stripe flashes on the other half, then it tumbles over onto it. Its belly is solid.
 function snorlaxNap(ctx, { k, period = 8.4, offset = 0 }) {
-  const tr = ctx.track, i = tr.kToIndex(k), yaw = tr.yawAt(i), HW = tr.HW[i], R = 2.3;
+  const tr = ctx.track, i = tr.kToIndex(k), yaw = tr.yawAt(i), HW = tr.HW[i], R = 3.0, s = 1.15;
   const lanes = [-0.5 * HW, 0.5 * HW];
-  const holder = new THREE.Group(), roll = new THREE.Group(), lie = new THREE.Group();
-  holder.rotation.y = yaw; roll.position.y = R; lie.rotation.x = -Math.PI / 2;
-  const body = P.fig(P.snorlax, 1.0, 'snorlax'); body.position.set(0, -3.0, -0.3);
-  lie.add(body); roll.add(lie); holder.add(roll); ctx.group.add(holder);
-  const zs = [0, 1, 2].map(() => { const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: P.zTexture(), transparent: true, depthWrite: false })); holder.add(s); return s; });
-  const bang = new THREE.Sprite(new THREE.SpriteMaterial({ map: P.bangTexture(), transparent: true, depthWrite: false })); bang.scale.setScalar(2.6); bang.position.set(0, 6.5, -2); holder.add(bang);
-  const warn = lanes.map((l) => roadQuad(ctx, i, l, 10, 7, 0xff6a20));
+  const holder = new THREE.Group(), roll = new THREE.Group();
+  holder.rotation.y = yaw + Math.PI; roll.position.y = R;
+  const body = P.fig(P.snorlax, s, 'snorlax'); body.position.y = -R;
+  roll.add(body); holder.add(roll); ctx.group.add(holder);
+  const zs = [0, 1, 2].map(() => { const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: P.zTexture(), transparent: true, depthWrite: false })); holder.add(sp); return sp; });
+  const bang = new THREE.Sprite(new THREE.SpriteMaterial({ map: P.bangTexture(), transparent: true, depthWrite: false })); bang.scale.setScalar(2.6); holder.add(bang);
+  const warn = lanes.map((l) => roadQuad(ctx, i, l, 8, 8, 0xff6a20));
   const f = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
-  ctx.obstacle(0, 0, 2.5, 4.5); ctx.obstacle(0, 0, 2.5, 4.5);
-  const obs = tr.obstacles.slice(-2);
-  for (const o of obs) { o.y0 = tr.at(i, 0, 0).y; o.y1 = o.y0 + 4.5; }
+  ctx.obstacle(0, 0, 2.9, 6);
+  const ob = tr.obstacles.at(-1); ob.y0 = tr.at(i, 0, 0).y; ob.y1 = ob.y0 + 6;
   let lat = lanes[0], state = 0, cycle = -1, thud = true;
   const pos = new THREE.Vector3();
   return {
@@ -77,32 +76,29 @@ function snorlaxNap(ctx, { k, period = 8.4, offset = 0 }) {
       const tt = t + offset, n = Math.floor(tt / period), ph = (tt - n * period) / period;
       const from = lanes[n % 2], to = lanes[(n + 1) % 2];
       if (n !== cycle) { cycle = n; thud = false; }
-      // 0-.58 sleep, .58-.78 stirs (warning), .78-.92 rolls over, .92-1 settles
-      let shake = 0, prev = lat;
+      // 0-.58 sleeps, .58-.78 stirs (warning), .78-.92 tumbles over, .92-1 settles
+      let shake = 0, spin = 0;
       if (ph < 0.58) { state = 0; lat = from; }
       else if (ph < 0.78) { state = 1; lat = from; shake = (ph - 0.58) / 0.2; }
-      else if (ph < 0.92) { state = 2; const u = (ph - 0.78) / 0.14; lat = from + (to - from) * u * u * (3 - 2 * u); }
+      else if (ph < 0.92) { state = 2; const u = (ph - 0.78) / 0.14, e = u * u * (3 - 2 * u); lat = from + (to - from) * e; spin = -Math.sign(to - from) * e * Math.PI * 2; }
       else { state = 0; lat = to; if (!thud) { thud = true; sfx(ctx, 'wall', pos); fxOf(ctx)?.pop(pos, 0xf2e4c0); } }
       tr.at(i, lat, 0, pos);
       holder.position.copy(pos);
-      roll.rotation.z += (lat - prev) / R;
-      roll.rotation.z = state === 0 ? Math.round(roll.rotation.z / (Math.PI * 2)) * Math.PI * 2 + Math.sin(t * 1.6) * 0.03 : roll.rotation.z;
-      roll.rotation.x = shake ? Math.sin(t * 30) * 0.05 * shake : 0;
-      roll.position.y = R + (state === 0 ? Math.sin(t * 1.6) * 0.1 : 0);
-      zs.forEach((s, m) => { const u = (t * 0.4 + m / 3) % 1; s.visible = state === 0; s.position.set(Math.sin(u * 6 + m) * 0.6, 4.5 + u * 5, -2.6 - u * 1.5); s.scale.setScalar(0.8 + u * 1.4); s.material.opacity = Math.min(1, (1 - u) * 2); });
-      bang.visible = state === 1; bang.position.y = 6.5 + Math.abs(Math.sin(t * 8)) * 0.5;
+      roll.rotation.z = spin + (shake ? Math.sin(t * 30) * 0.06 * shake : 0);
+      roll.position.y = R + (state === 2 ? Math.sin(Math.abs(spin) / 2) * 0.8 : 0);
+      body.scale.y = state === 0 ? 1 + Math.sin(t * 1.6) * 0.03 : 1;
+      zs.forEach((sp, m) => { const u = (t * 0.4 + m / 3) % 1; sp.visible = state === 0; sp.position.set(0.8 + Math.sin(u * 6 + m) * 0.6, 6.6 + u * 5, 0); sp.scale.setScalar(0.8 + u * 1.4); sp.material.opacity = Math.min(1, (1 - u) * 2); });
+      bang.visible = state === 1; bang.position.set(0, 8 + Math.abs(Math.sin(t * 8)) * 0.5, 0);
       warn.forEach((w, m) => { w.material.opacity = state === 1 && lanes[m] === to ? 0.25 + 0.3 * Math.abs(Math.sin(t * 12)) : state === 2 && lanes[m] === to ? 0.4 : 0; });
-      obs.forEach((o, m) => { o.x = pos.x + f.x * (m ? 1.6 : -1.6); o.z = pos.z + f.z * (m ? 1.6 : -1.6); });
+      ob.x = pos.x; ob.z = pos.z;
     },
     test(p) {
       if (state !== 2) return null;
       const dx = p.x - pos.x, dz = p.z - pos.z;
-      return Math.abs(dx * f.x + dz * f.z) < 4 && Math.abs(dx * f.z - dz * f.x) < 3.4 && Math.abs(p.y - pos.y) < 5 ? 'wreck' : null;
+      return Math.abs(dx * f.x + dz * f.z) < 3.4 && Math.abs(dx * f.z - dz * f.x) < 3.6 && Math.abs(p.y - pos.y) < 6 ? 'wreck' : null;
     },
     near(p, r) {
-      const dx = p.x - pos.x, dz = p.z - pos.z, a = Math.abs(dx * f.x + dz * f.z);
-      if (a > 4.5 + r) return false;
-      if (Math.abs(dx * f.z - dz * f.x) < 3 + r) return true;
+      if (Math.hypot(p.x - pos.x, p.z - pos.z) < 3.4 + r) return true;
       if (state < 1) return false;
       const q = tr.at(i, lanes[(cycle + 1) % 2], 0);
       return Math.hypot(p.x - q.x, p.z - q.z) < 4 + r;

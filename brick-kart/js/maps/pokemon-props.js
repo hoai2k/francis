@@ -156,17 +156,17 @@ export function snorlax(L) {
   const T = K.snor, Cr = K.cream;
   for (const sd of [-1, 1]) { L.sphere(sd * 0.95, 0.45, 0.6, 0.75, Cr, { sy: 0.6 }); L.sphere(sd * 0.95, 0.5, 1.2, 0.36, 0x8a6a4a, { sz: 0.3 }); }
   L.sphere(0, 2.4, 0, 2.3, T, { sz: 0.9 });
-  L.sphere(0, 2.2, 0.55, 1.9, Cr, { sx: 0.9, sy: 0.95, sz: 0.75 });
+  L.sphere(0, 2.2, 0.75, 1.9, Cr, { sx: 0.88, sy: 0.92, sz: 0.8 });
   L.sphere(0, 4.9, 0.1, 1.25, T, { sx: 1.15, sy: 0.95 });
-  L.sphere(0, 4.7, 0.6, 0.95, Cr, { sx: 1.05, sy: 0.8, sz: 0.7 });
+  L.sphere(0, 4.72, 0.72, 0.95, Cr, { sx: 1.05, sy: 0.8, sz: 0.75 });
   for (const sd of [-1, 1]) {
     L.spike(sd * 0.85, 5.6, 0, 0.35, 0.7, 0, -sd * 0.35, T);
-    L.box(sd * 0.42, 4.95, 1.27, 0.45, 0.08, 0.08, BLK);
-    L.spike(sd * 0.22, 4.36, 1.24, 0.07, 0.18, 0, 0, WHT);
+    L.box(sd * 0.42, 4.95, 1.36, 0.45, 0.08, 0.08, BLK);
+    L.spike(sd * 0.22, 4.38, 1.37, 0.07, 0.18, 0, 0, WHT);
     L.sphere(sd * 2.1, 2.9, 0.3, 0.65, T, { sx: 0.7, sy: 1.2 });
     for (let m = -1; m <= 1; m++) L.spike(sd * 2.2 + m * 0.18, 2.0, 0.6, 0.08, 0.3, Math.PI, 0, WHT);
   }
-  L.box(0, 4.45, 1.28, 0.6, 0.06, 0.06, BLK);
+  L.box(0, 4.45, 1.39, 0.6, 0.06, 0.06, BLK);
 }
 export function diglett(L) {
   L.cyl(0, 0, 0, 0.6, 1.0, K.dig, { seg: 14 }); L.sphere(0, 1.0, 0, 0.6, K.dig);

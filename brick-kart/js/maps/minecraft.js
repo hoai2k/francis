@@ -313,14 +313,14 @@ export default {
     { from: 5.4, to: 8.5, surface: 'path', shoulder: 5 },
     { from: 8.5, to: 11.2, surface: 'stone', edge: 'open', shoulder: 2.5 },
     { from: 11.2, to: 15.0, surface: 'netherrack', edge: 'open', shoulder: 4, support: 'bank' },
-    { from: 12.95, to: 13.04, gap: true },
-    { from: 13.5, to: 15.0, edge: 'wall', shoulder: 2.5 },
+    { from: 12.96, to: 13.02, gap: true },
+    { from: 13.05, to: 15.0, edge: 'wall', shoulder: 2.5 },
     { from: 15.0, to: 17.12, surface: 'netherbrick', edge: 'wall', shoulder: 1.5, support: 'pillar', width: 26 },
-    { from: 17.16, to: 18.72, gap: true },
-    { from: 18.72, to: 20.6, surface: 'sand', edge: 'open', shoulder: 6, support: 'bank' },
+    { from: 17.16, to: 18.62, gap: true },
+    { from: 18.62, to: 20.6, surface: 'sand', edge: 'open', shoulder: 6, support: 'bank' },
   ],
   items: [1.2, 3.6, 6.2, 8.8, 10.5, 12.3, 14.4, 16.3, 19.4],
-  boosts: [[2.0, 0], [4.5, 0.35], [7.3, -0.3], [9.3, 0], [11.15, 0], [13.6, 0], [15.6, -0.3], [16.85, 0], [20.1, 0.3]],
+  boosts: [[2.0, 0], [4.5, 0.35], [7.3, -0.3], [9.3, 0], [11.15, 0], [12.7, 0], [13.6, 0], [15.6, -0.3], [16.85, 0], [20.1, 0.3]],
   ramps: [12.86],
   gliders: [17.08],
   studs: [[0.6, -0.4, 8], [2.6, 0.3, 6], [4.0, 0, 8], [5.6, -0.3, 6], [6.9, 0.3, 6], [8.2, 0, 6], [9.9, 0, 8], [11.6, 0.3, 6], [14.0, -0.3, 6], [15.3, 0, 8], [18.9, 0, 6], [20.4, -0.3, 8]],
@@ -376,8 +376,7 @@ export default {
     };
 
     // ---- ground: lava sea + lava river (Nether), pond (plains), netherrack, soul sand, desert sand -------
-    const nether = (i) => inRange(tr, i, 11.25, 18.6);
-    const glide = (i) => inRange(tr, i, 17.1, 18.78);
+    const glide = (i) => inRange(tr, i, 17.1, 18.68);
     const jumpI = K(13.0);
     const river = (g, toPx, sc, w) => { g.lineWidth = w * sc; g.lineCap = 'round'; g.beginPath(); const a = tr.at(jumpI, -130, 0), c = tr.at(jumpI, 110, 0); const [x1, y1] = toPx(a.x, a.z), [x2, y2] = toPx(c.x, c.z); g.moveTo(x1, y1); g.lineTo(x2, y2); g.stroke(); };
     const LAVA = [[-210, 30, 70], [-330, 60, 60], [-220, -50, 45], [-150, 90, 40], [-320, -20, 40]];
@@ -385,7 +384,7 @@ export default {
     const POND = [[130, 150, 34], [150, 130, 24]];
     const pondShape = (g, toPx, sc, pad) => { for (const [x, z, r] of POND) disc(g, toPx, sc, x, z, r + pad); };
     const netherShape = (g, toPx, sc) => {
-      each(tr, 11.25, 18.6, 3, (i) => { const p = tr.at(i, 0, 0), f = inRange(tr, i, 18.2, 18.6) ? 0.4 : 1; disc(g, toPx, sc, p.x, p.z, edgeLat(i) + 75 * f); });
+      each(tr, 11.25, 18.5, 3, (i) => { const p = tr.at(i, 0, 0), f = inRange(tr, i, 18.1, 18.5) ? 0.4 : 1; disc(g, toPx, sc, p.x, p.z, edgeLat(i) + 75 * f); });
       for (const [x, z, r] of LAVA) disc(g, toPx, sc, x, z, r + 30);
     };
     const hole = ctx.makeMask(3000, 2048, (g, toPx, sc) => { g.fillStyle = '#fff'; g.fillRect(0, 0, 2048, 2048); g.fillStyle = g.strokeStyle = '#000'; lavaShape(g, toPx, sc, 0); pondShape(g, toPx, sc, 0); });
@@ -396,13 +395,12 @@ export default {
     scene.add(groundPlane(MC.netherrack, -0.05, 1600, 1.6, { mask: netherM, rough: 0.9 }));
     const soulM = ctx.makeMask(1600, 512, (g, toPx, sc) => { g.fillStyle = '#fff'; for (const k of [11.9, 14.2, 15.6]) { const i = K(k); for (const sd of [-1, 1]) { const p = tr.at(i, sd * (edgeLat(i) + 28), 0); disc(g, toPx, sc, p.x, p.z, 18); } } });
     scene.add(groundPlane(MC.soul, -0.03, 1600, 1.6, { mask: soulM, rough: 0.95 }));
-    const desert = (i) => inRange(tr, i, 18.75, 20.55);
-    const sandM = ctx.makeMask(1600, 1024, (g, toPx, sc) => { g.fillStyle = '#fff'; each(tr, 18.75, 20.55, 3, (i) => { const p = tr.at(i, 0, 0); disc(g, toPx, sc, p.x, p.z, edgeLat(i) + (inRange(tr, i, 20.2, 20.55) ? 30 : 65)); }); g.globalCompositeOperation = 'destination-out'; g.fillStyle = g.strokeStyle = '#000'; lavaShape(g, toPx, sc, 0); });
+    const sandM = ctx.makeMask(1600, 1024, (g, toPx, sc) => { g.fillStyle = '#fff'; each(tr, 18.65, 20.55, 3, (i) => { const p = tr.at(i, 0, 0); disc(g, toPx, sc, p.x, p.z, edgeLat(i) + (inRange(tr, i, 20.2, 20.55) ? 30 : 65)); }); g.globalCompositeOperation = 'destination-out'; g.fillStyle = g.strokeStyle = '#000'; lavaShape(g, toPx, sc, 0); });
     scene.add(groundPlane(MC.sand, -0.02, 1600, 1.6, { mask: sandM, rough: 0.9 }));
     const inNether = (x, z) => netherM.test(x, z) || !hole.test(x, z) && x < -100;
     // themed shoulders where the default grass strip would look wrong
     const shoulderStrip = (a, bk, col) => each(tr, a, bk, 2, (i) => { if (tr.GAP[i] || tr.SH[i] < 0.5) return; for (const sd of [-1, 1]) { const lat = sd * (tr.HW[i] + tr.SH[i] / 2), p = tr.at(i, lat, 0); nb.box(p.x, tr.surfaceY(i, sd * tr.HW[i]) + 0.02, p.z, tr.SH[i] + 0.1, 0.06, 2.6, col, { rot: tr.yawAt(i) }); } });
-    shoulderStrip(11.2, 15.0, 0x6a2828); shoulderStrip(18.72, 20.6, 0xcabb78); shoulderStrip(8.5, 11.2, 0x6e6e6e);
+    shoulderStrip(11.2, 15.0, 0x6a2828); shoulderStrip(18.62, 20.6, 0xcabb78); shoulderStrip(8.5, 11.2, 0x6e6e6e);
 
     // ---- sky: square sun, drifting block clouds; Nether sky when racing there -----------------------
     { const sunT = canvasTexture(64, 64, (g) => { g.fillStyle = '#fff8c0'; g.fillRect(8, 8, 48, 48); g.fillStyle = '#fffbe0'; g.fillRect(18, 18, 28, 28); });
@@ -421,7 +419,7 @@ export default {
         let i = -1;
         if (k?.loc) i = k.loc.i;
         else { const fp = race?.tv?.focus; if (fp) { scan -= dt; tr.locate(fp.x, fp.y, fp.z, scan < 0 || li < 0 ? -1 : li, loc, 40); if (scan < 0) scan = 0.5; i = li = loc.i; } }
-        const tgt = i >= 0 && inRange(tr, i, 11.28, 18.7) ? 1 : 0;
+        const tgt = i >= 0 && inRange(tr, i, 11.28, 18.66) ? 1 : 0;
         if (Math.abs(tgt - f) < 0.002 && (f === 0 || f === 1)) return;
         f += (tgt - f) * Math.min(1, dt * 2.5); if (Math.abs(tgt - f) < 0.002) f = tgt;
         const u = w.sky.material.uniforms; u.top.value.lerpColors(O.top, N.top, f); u.hor.value.lerpColors(O.hor, N.hor, f); u.bot.value.lerpColors(O.bot, N.bot, f);
@@ -630,7 +628,7 @@ export default {
       return sheet;
     };
     portal(11.27, 18);
-    const exitPortal = portal(18.76, 36, 4);
+    const exitPortal = portal(18.68, 36, 4);
     { const pm = P.portalMat(); anims.push((dt, t) => { pm.map.offset.set(Math.sin(t * 0.7) * 0.2, -t * 0.25); pm.opacity = 0.62 + Math.sin(t * 3) * 0.1; }); void exitPortal; }
 
     // ================= THE NETHER ===========================================================================
@@ -673,9 +671,9 @@ export default {
       pl(0xff6a30, tr.at(K(12.8), 0, 0).x, 16, tr.at(K(12.8), 0, 0).z, 3, 170);
       pl(0xff6a30, tr.at(K(14.5), 0, 0).x, 22, tr.at(K(14.5), 0, 0).z, 3, 170);
       // ghasts and their fireballs
-      ctx.hazard(ghast(ctx, { center: tr.at(K(12.3), -45, 0), radius: 22, height: 30, targets: [[11.8, -0.3], [12.3, 0.3], [12.6, 0], [13.5, -0.3]], period: 5.0, offset: 0 }));
+      ctx.hazard(ghast(ctx, { center: tr.at(K(12.3), -45, 0), radius: 22, height: 30, targets: [[11.8, -0.3], [12.3, 0.3], [11.5, 0], [13.5, -0.3]], period: 5.0, offset: 0 }));
       ctx.hazard(ghast(ctx, { center: tr.at(K(14.2), 50, 0), radius: 26, height: 36, targets: [[13.8, 0.3], [14.3, -0.3], [14.8, 0], [15.3, 0.3]], period: 5.4, offset: 2.0 }));
-      ctx.hazard(ghast(ctx, { center: tr.at(K(16.0), -55, 0), radius: 24, height: 44, targets: [[15.6, -0.3], [16.0, 0.3], [16.4, 0], [16.8, -0.25]], period: 4.8, offset: 3.4 }));
+      ctx.hazard(ghast(ctx, { center: tr.at(K(16.0), -55, 0), radius: 24, height: 44, targets: [[15.6, -0.3], [16.0, 0.3], [16.4, 0], [16.55, -0.25]], period: 4.8, offset: 3.4 }));
       for (let n = 0; n < 3; n++) { const gh = P.mob('ghast', 5); ctx.group.add(gh.root); const c0 = [[-120, -40], [-330, -140], [-60, -330]][n]; anims.push((dt, t) => { const a = t * 0.06 + n * 2; gh.root.position.set(c0[0] + Math.cos(a) * 50, 50 + Math.sin(t * 0.5 + n) * 5, c0[1] + Math.sin(a) * 50); gh.root.rotation.y = -a; }); }
     }
     // ---- the fortress bridge ----------------------------------------------------------------------------
