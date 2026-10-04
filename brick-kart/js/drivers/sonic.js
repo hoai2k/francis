@@ -2,8 +2,8 @@
 // sculpted eyes, quills, white gloves and chunky shoes, plus Dr. Eggman. Each has a signature
 // cheer / taunt / trick with effect parts run by rig.fx: Sonic's finger-wag and thumbs up with
 // orbiting rings, Tails' spinning twin tails, Knuckles' spiked punches, Amy's Piko Piko Hammer,
-// Shadow's Chaos Control flash, Silver's psychokinesis, Rouge's wings and jewel, Cream's Cheese,
-// Blaze's fire, Metal Sonic's overdrive, Big's fishing rod with Froggy and Eggman's shaking fist.
+// Shadow's Chaos Control flash, Blaze's fire, Metal Sonic's overdrive, Big's fishing rod with
+// Froggy and Eggman's shaking fist.
 import {
   THREE, BrickBuilder, C, plastic, S, CO, PI, abs, UP, LOOP, seg, sm, lerp, bump, vis,
   GLOVE, PEACH, EMERALDS, neon, metal, addGlow, fxg, blob, spike, ring, emerald, heartGeo, burst, flame, orbit,
@@ -180,101 +180,6 @@ function shadow() {
     if (gem.visible) gem.rotation.y = t * 3;
   };
   rig.idle = (t, dt, an, st) => { const on = !!st.boosting || !st.grounded; for (const j of jets) { vis(j, on); if (on) j.scale.setScalar(0.7 * s * (0.8 + abs(S(t * 31)) * 0.4)); } };
-  return rig;
-}
-
-// ---- Silver --------------------------------------------------------------------------------------
-const SILVER = 0xdfe5ec, PSY = 0x30f0e0;
-function silver() {
-  const rig = toon({
-    name: 'silver', body: SILVER, skin: 0xe8c9a0, iris: 0xf0b018, mouth: 'smile', cuff: 0xf2c020, shoes: 0xf4f4f4, strap: PSY, sole: 0x2a2a30,
-    eyes: { dx: 0.27, w: 0.2, h: 0.28 },
-    head: (H) => {
-      // the crown of front quills, swept up and back
-      H.quill(0, 0.55, 1.42, 1.95, 0.32, SILVER);
-      for (const sd of [-1, 1]) { H.quill(sd * 0.4, 0.5, 1.15, 1.8, 0.3, SILVER, sd * 0.6); H.quill(sd * 0.8, 0.35, 0.85, 1.6, 0.28, SILVER, sd * 1.05); H.quill(PI - sd * 0.5, -0.1, -0.4, 1.45, 0.3, SILVER, PI - sd * 0.55); }
-      H.quill(PI, 0.1, -0.2, 1.55, 0.32, SILVER);
-    },
-    torso: (b, d) => { const s = d.s; blob(b, 0, d.chestY + 0.68 * s, 0.17 * s, 0.3 * s, 0.24 * s, 0.17 * s, C.white); },
-    arm: (ab, sd, d) => blob(ab, 0, -0.62 * d.s, 0.12 * d.s, 0.07 * d.s, 0.07 * d.s, 0.03 * d.s, neon(PSY, 1.5)),
-  });
-  const s = rig.dims.s;
-  const glows = [rig.armL, rig.armR].map((a) => { const g = addGlow(a, PSY, 0.9 * s, 0, -0.72 * s, 0, 0.85); g.visible = false; return g; });
-  // psychokinesis: debris bricks float round him, outlined in cyan
-  const deb = Array.from({ length: 6 }, (_, k) => { const g = new THREE.Group(); const b = new BrickBuilder(1); b.brick(0, -0.12, 0, 2, 1, 1, [C.dkgray, C.ltgray, C.tan][k % 3], { pitch: 0.4 }); g.add(b.build({ name: 'debris', shadows: false })); addGlow(g, PSY, 0.8, 0, 0, 0, 0.5); return g; });
-  const debris = orbit(rig.root, deb, 1.5);
-  rig.fx = (n, f, t) => {
-    const on = during(n, f, ['cheer', 'win', 'use', 'throwF', 'taunt']);
-    for (const g of glows) { vis(g, on); if (on) g.scale.setScalar(0.9 * s * (0.8 + abs(S(t * 17)) * 0.35)); }
-    debris.set(n === 'cheer' || n === 'win', t, 1.6 + (n === 'cheer' ? (1 - f) * 0.6 : 0), 1.8, 0.35);
-  };
-  return rig;
-}
-
-// ---- Rouge -------------------------------------------------------------------------------------
-const ROUGE = 0xf4f4ee, SUIT = 0x1d1b24, PINK = 0xf0609e, WING = 0x3a2a4a;
-function rouge() {
-  const rig = toon({
-    name: 'rouge', s: 1.1, body: ROUGE, torso: SUIT, hips: SUIT, legs: SUIT, skin: 0xeac39a, arms: ROUGE, iris: 0x24a890, mouth: 'smirk', cuff: PINK, shoes: ROUGE, strap: PINK,
-    eyes: { dx: 0.27, w: 0.2, h: 0.28, lash: true, lid: 0x5a78d8, lidRoll: -0.1 }, ears: { inner: 0xeac39a, len: 0.95, r: 0.34, a: 0.75, p: 0.55 },
-    torso: (b, d) => { const s = d.s; b.add(heartGeo(), plastic(PINK, { rough: 0.3 }), 0, d.chestY + 0.6 * s, 0.24 * s, 0, 0.52 * s, 0.42 * s, 0.5 * s); },
-  });
-  const s = rig.dims.s;
-  // bat wings on pivots at her back
-  const wings = [-1, 1].map((sd) => {
-    const g = part(rig.torso, (b) => {
-      for (let k = 0; k < 3; k++) { const a = 0.15 + k * 0.42; blob(b, sd * S(a) * 0.42 * s, CO(a) * 0.38 * s, 0, 0.36 * s, 0.07 * s, 0.025 * s, WING, null, sd * (PI / 2 - a)); }
-      rod(b, [0, 0, 0], [sd * 0.55 * s, 0.5 * s, 0], 0.03 * s, ROUGE, 6);
-    }, 'rouge-wing', sd * 0.12 * s, 0.75 * s, -0.22 * s);
-    g.rotation.y = sd * 0.5; return g;
-  });
-  const gem = new THREE.Group(); gem.position.set(0, -0.82 * s, 0.05 * s); rig.armL.add(gem); gem.visible = false;
-  emerald(gem, 0x40c8ff, 0.2); const sp = star(gem, 0xffffff, 0.4, 13);
-  const kiss = new THREE.Mesh(heartGeo(), neon(PINK, 1.4)); kiss.visible = false; rig.root.add(kiss);
-  rig.idle = (t, dt, an, st) => {
-    const g = an.g?.name, flap = st.gliding || st.phase === 'win' || g === 'cheer' || g === 'trick';
-    for (const [i, w] of wings.entries()) { const sd = i ? 1 : -1; w.rotation.y = sd * (flap ? 0.2 + S(t * 16) * 0.55 : 0.55 + S(t * 2) * 0.05); }
-  };
-  rig.fx = (n, f, t) => {
-    vis(gem, n === 'win' || (n === 'cheer' && f < 0.5)); vis(sp, gem.visible); if (gem.visible) { gem.rotation.y = t * 2.5; pulse(sp, t, 0.6); }
-    const k = n === 'taunt' || (n === 'cheer' && f > 0.5) ? seg(n === 'taunt' ? f : (f - 0.5) * 2, 0.3, 1) : 0;
-    vis(kiss, k > 0); if (k > 0) { kiss.position.set(0.3, 1.9 + k * 0.6, 0.6 + k * 2); kiss.scale.setScalar(0.25 + k * 0.3); kiss.rotation.y = S(t * 6) * 0.4; }
-  };
-  return rig;
-}
-
-// ---- Cream & Cheese ----------------------------------------------------------------------------
-const CREAM = 0xf2d9a4, CDRESS = 0xf2782a, EARTIP = 0xc87a3a;
-function cheeseChao(size = 1) {
-  const g = new THREE.Group(), b = new BrickBuilder(1);
-  b.sphere(0, 0, 0, 0.17, 0xa8d8f2); b.sphere(0, -0.2, 0, 0.12, 0xa8d8f2);
-  rod(b, [0, 0.15, 0], [0, 0.26, 0.02], 0.02, 0xa8d8f2, 6); b.sphere(0, 0.3, 0.02, 0.06, 0xf8e040);
-  for (const sd of [-1, 1]) { b.sphere(sd * 0.06, 0.02, 0.15, 0.035, 0x141414); blob(b, sd * 0.16, -0.12, -0.08, 0.1, 0.05, 0.02, 0xf8e8a0, [sd, 0, -0.6]); blob(b, sd * 0.05, -0.12, 0.11, 0.05, 0.035, 0.03, 0xd82020); }
-  g.add(b.build({ name: 'cheese', shadows: false }));
-  g.scale.setScalar(size);
-  return g;
-}
-function cream() {
-  const rig = toon({
-    name: 'cream', s: 1.0, body: CREAM, torso: CDRESS, hips: CDRESS, legs: CDRESS, skin: 0xfbf1e0, arms: CREAM, iris: 0x8a4a1e, mouth: 'smile', shoes: CDRESS, strap: 0xf2c020,
-    eyes: { dx: 0.28, w: 0.21, h: 0.3, lash: true },
-    torso: (b, d) => { const s = d.s; blob(b, 0, d.chestY + 0.74 * s, 0.22 * s, 0.13 * s, 0.1 * s, 0.07 * s, 0x2a52d0); b.box(0, d.chestY - 0.02 * s, 0, 1.0 * s * d.W, 0.08 * s, 0.52 * s, C.white); },
-  });
-  const s = rig.dims.s, R = rig.R;
-  // long rabbit ears on pivots, so they flap when she flies
-  const ears = [-1, 1].map((sd) => {
-    const g = part(rig.head, (b) => { blob(b, 0, 0.55 * R, 0, 0.17 * R, 0.62 * R, 0.08 * R, CREAM); blob(b, 0, 1.0 * R, 0.01 * R, 0.13 * R, 0.2 * R, 0.07 * R, EARTIP); }, 'cream-ear', sd * 0.35 * R, 1.6 * R, -0.1 * R);
-    g.rotation.z = -sd * 0.2; return g;
-  });
-  const ch = cheeseChao(0.9); const cheese = new THREE.Group(); cheese.add(ch); rig.root.add(cheese);
-  rig.idle = (t, dt, an, st) => {
-    const fly = st.gliding || an.g?.name === 'trick';
-    for (const [i, e] of ears.entries()) { const sd = i ? 1 : -1; e.rotation.z = -sd * (fly ? 1.0 + S(t * 18) * 0.5 : 0.2 + S(t * 2 + i) * 0.05); e.rotation.x = fly ? 0.4 : -0.1; }
-  };
-  rig.fx = (n, f, t) => {
-    if (n === 'cheer' || n === 'win') { const a = t * 3; cheese.position.set(S(a) * 1.3, 1.7 + S(t * 9) * 0.2, CO(a) * 1.3); cheese.rotation.set(0, a + PI / 2, 0); }
-    else { cheese.position.set(0.85 * s, 1.75 * s + S(t * 3) * 0.08, 0.1); cheese.rotation.set(0, -0.3, 0); }
-  };
   return rig;
 }
 
@@ -473,32 +378,6 @@ export default [
       win: (f, t) => ({ lx: -1.25, lz: -0.75, rx: -1.25, rz: 0.75, hy: -0.25 + S(t * LOOP * 0.5) * 0.1, hx: -0.12 }),
     },
     build: shadow,
-  },
-  {
-    id: 'silver-hog', name: 'Silver', blurb: "It's no use! Psychokinesis from the future", weight: 'medium', color: SILVER,
-    voice: { kind: 'human', pitch: 1.1 }, style: { cheer: 'both', trick: 'twist' },
-    gestures: {
-      cheer: (f, t) => ({ lx: -1.8 + S(t * 6) * 0.1, rx: -1.8 - S(t * 6) * 0.1, lz: 0.5, rz: -0.5, hx: -0.15, by: 0.08 + S(t * 4) * 0.03 }),
-      win: (f, t) => ({ lx: UP, rx: UP, lz: 0.6, rz: -0.6, hx: -0.35, by: 0.1 + S(t * LOOP) * 0.04 }),
-    },
-    build: silver,
-  },
-  {
-    id: 'rouge', name: 'Rouge', blurb: 'Treasure-hunting bat and spy', weight: 'light', color: PINK,
-    voice: { kind: 'human', pitch: 1.3 }, style: { cheer: 'wave', trick: 'superman' },
-    gestures: {
-      // admires her jewel, then blows a kiss
-      cheer: (f, t) => (f < 0.5 ? { lx: -1.9, lz: -0.3, hx: -0.1, hy: 0.3, rx: -0.6, rz: 0.4 } : { rx: lerp(-2.2, -1.5, sm(seg(f, 0.6, 0.8))), rz: lerp(0.4, -0.2, sm(seg(f, 0.6, 0.8))), hz: 0.15, hy: -0.15 }),
-      taunt: (f, t) => ({ rx: lerp(-2.2, -1.5, sm(seg(f, 0.3, 0.6))), rz: lerp(0.4, -0.2, sm(seg(f, 0.3, 0.6))), hz: 0.18, hy: -0.4, ty: -0.2 }),
-      win: (f, t) => ({ lx: -1.9, lz: -0.3, rx: -0.3, rz: -0.9, hy: 0.3, hz: S(t * LOOP) * 0.08, by: 0.06 + S(t * LOOP) * 0.03 }),
-    },
-    build: rouge,
-  },
-  {
-    id: 'cream', name: 'Cream & Cheese', blurb: 'Polite little rabbit with her Chao', weight: 'light', color: CDRESS,
-    voice: { kind: 'squeak', pitch: 1.0 }, style: { cheer: 'clap', win: 'wave', trick: 'twist' },
-    gestures: { taunt: (f, t) => ({ tx: 0.4 * S(f * PI), hx: 0.3 * S(f * PI), lx: -0.3, rx: -0.3 }) },
-    build: cream,
   },
   {
     id: 'blaze-cat', name: 'Blaze', blurb: 'Pyrokinetic princess of the Sol Dimension', weight: 'medium', color: BLAZE,
