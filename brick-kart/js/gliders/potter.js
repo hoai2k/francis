@@ -32,8 +32,8 @@ const fawkes = {
     const FIRE = LIT(0xff4a08, 1.5), CORE = LIT(0xffb020, 1.7);
     const b = new BrickBuilder(0.4);
     // body, orange breast, neck and head
-    T.ell(b, 0, 1.88, 0.0, 0.42, 0.34, 0.85, 0.08, 0, 0, RED);
-    T.ell(b, 0, 1.76, 0.25, 0.32, 0.26, 0.55, 0.1, 0, 0, ORA);
+    T.ell(b, 0, 1.9, 0.0, 0.34, 0.27, 0.8, 0.08, 0, 0, RED);
+    T.ell(b, 0, 1.8, 0.25, 0.26, 0.2, 0.5, 0.1, 0, 0, ORA);
     T.ell(b, 0, 2.02, 0.72, 0.26, 0.26, 0.34, -0.3, 0, 0, RED);
     T.ell(b, 0, 2.12, 0.98, 0.25, 0.24, 0.27, 0, 0, 0, RED);
     T.cone(b, 0, 2.06, 1.3, 0.09, 0.3, 0.08, Math.PI / 2 + 0.35, 0, 0, GOLD);     // hooked beak

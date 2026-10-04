@@ -38,8 +38,8 @@ const nue = {
     const ZAP = LIT(0x5fc8ff, 1.8), ZCOL = 0x9fe6ff;
     const b = new BrickBuilder(0.4);
     // feathered body, belly, neck
-    T.ell(b, 0, 1.95, 0.0, 0.46, 0.36, 0.95, 0.06, 0, 0, N);
-    T.ell(b, 0, 1.82, 0.22, 0.36, 0.26, 0.62, 0.1, 0, 0, N2);
+    T.ell(b, 0, 1.97, 0.0, 0.37, 0.29, 0.9, 0.06, 0, 0, N);
+    T.ell(b, 0, 1.86, 0.22, 0.29, 0.2, 0.58, 0.1, 0, 0, N2);
     T.ell(b, 0, 2.08, 0.8, 0.3, 0.3, 0.38, -0.35, 0, 0, N);
     // head: dark skull, white mask with yellow eyes, hooked beak, swept horn tufts
     T.ell(b, 0, 2.2, 1.08, 0.3, 0.28, 0.32, 0, 0, 0, N);
@@ -138,7 +138,7 @@ const nue = {
 // ---- Malevolent Shrine: Sukuna's Domain Expansion roof, upswept eaves lined with fangs, red
 // pillars down to a crossbar, and cursed flames flickering on its horns ---------------------------
 const shrine = {
-  id: 'malevolentshrine', name: 'Malevolent Shrine', blurb: 'Domain Expansion overhead', colors: [0x2b2530, 0x9b1c1c],
+  id: 'malevolentshrine', name: 'Malevolent Shrine', blurb: 'Domain Expansion overhead', colors: [0x2b2530, 0x9b1c1c], scale: 0.85,
   build(kit) {
     const { THREE, BrickBuilder, C } = kit; const T = tools(kit);
     const ROOF = 0x2b2530, TILE = 0x3d3542, RED = 0x9b1c1c, DRED = 0x5e0f12, BONE = 0xe8e0c8, GOLD = 0xdcbc81;
