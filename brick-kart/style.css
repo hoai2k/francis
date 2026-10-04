@@ -72,11 +72,13 @@ h2, h3, .logo, .mbtn, .bbtn, .h-pos, .h-lap, .h-msg, .h-count, .h-title h2, .pre
 .slot.on { background: color-mix(in srgb, var(--pc) 30%, transparent); border: 2px solid var(--pc); }
 .slot b { font-family: 'Lilita One'; font-weight: 400; font-size: 16px; margin-right: 4px; }
 .slot em { display: block; font-style: normal; opacity: .85; }
-.cupgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+.cupgrid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; }
+@media (max-width: 1100px) { .cupgrid { grid-template-columns: repeat(3, 1fr); } }
 .cup { border-radius: 14px; padding: 12px; background: linear-gradient(170deg, color-mix(in srgb, var(--cc) 45%, transparent), rgba(255,255,255,.04)); box-shadow: inset 0 0 0 2px rgba(255,255,255,.12); cursor: pointer; text-align: center; transition: transform .1s; }
 .cup.focus { transform: scale(1.04); box-shadow: 0 0 0 4px var(--yellow), 0 10px 30px rgba(0,0,0,.4); }
 .cup .trophy { font-size: 54px; filter: drop-shadow(0 4px 4px rgba(0,0,0,.4)); }
 .cup .cn { font-family: 'Lilita One'; font-size: 24px; color: var(--cc); text-shadow: 0 2px 0 var(--ink); }
+@media (min-width: 1101px) and (max-width: 1500px) { .cup .cn { font-size: 20px; } }
 /* the focused cup's races */
 .cuppv { margin-top: 14px; border-radius: 14px; padding: 10px 12px 12px; background: rgba(0,0,0,.22); box-shadow: inset 0 0 0 2px rgba(255,255,255,.08); }
 .cuph { font-family: 'Lilita One'; font-size: 22px; color: var(--cc); text-shadow: 0 2px 0 var(--ink); margin-bottom: 8px; }

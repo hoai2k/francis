@@ -9,7 +9,8 @@ Play: <https://hoai2k.github.io/francis/brick-kart/>
 
 ## Modes
 
-- **Grand Prix**: pick a cup (3 maps each, 4 in the Movie Cup and JJK Run). The
+- **Grand Prix**: pick a cup (3 maps each, 4 in the Movie Cup and JJK Run; the
+  Video Game Cup has Minecraft, Pokémon and Sonic the Hedgehog). The
   focused cup shows a preview of its races in order, with a picture of each map.
   Points go 15-12-10-9-8-7-6-5-4-3-2-1, and each cup ends with an award
   ceremony.
@@ -36,7 +37,7 @@ that marks it to be removed from the game entirely; marked cards turn red with
 a REMOVE stamp, stay marked in that browser until **Reset**, and are listed in
 the export under `remove` (ids and names).
 
-## Maps (17, in 5 cups)
+## Maps (20, in 6 cups)
 
 Tracks are wide and banked, with open grass, fences, scenery right next to
 the road, and hazards to dodge. Most of them have **glider ramps**: drive onto
@@ -62,6 +63,9 @@ or the sky.
 | JJK Run | Hidden Inventory Okinawa (Season 2) | Summer at Jujutsu High, an Okinawa coast road past an aquarium, a **cliff glide over the turquoise sea**, the Star Religious Group temple, then Tengen's Tomb with its corridor of doors and the barrier tree; dodge Geto's rainbow dragon, Toji's Inverted Spear of Heaven and his storage worm |
 | JJK Run | Cursed Brick Shibuya (Season 2) | Tokyo Jujutsu High, a torii forest, the Shibuya scramble crossing at night, a **glide into Sukuna's Malevolent Shrine**, Jogo's volcano and Gojo's Unlimited Void; dodge Dismantle slashes, meteors, Hollow Purple and Rika's arm slams |
 | JJK Run | Culling Games Colony (Season 3) | The barrier-sealed Tokyo colony with Kogane's scoreboards, Hakari's pachinko **JACKPOT** gate (drive through on 7-7-7 for a huge boost), Higuruma's courtroom with slamming gavels, Kashimo's lightning, a **glide over a flooded crater** under Uro's flipped sky, Ryu's Granite Blast and Kurourushi's cockroaches in Sendai, and Sakurajima |
+| Video Game | Blocky Biome Run (Minecraft) | A plains village with villagers, the bell and an iron golem, creepers that wander onto the road and explode, skeleton archers in the birch forest, gravel and anvils falling in a ravine, minecarts crossing the mineshaft, a Nether portal into netherrack and glowstone where ghasts spit fireballs, a lava jump, the Nether fortress bridge, a **glide over the lava sea** through the return portal, and lit TNT in the desert |
+| Video Game | Kanto Brick Route (Pokémon) | Pallet Town and Professor Oak's lab, Route 1's tall grass where Diglett pop out of the road, Viridian City's Pokémon Center and Gym with a sleeping Snorlax that rolls across the road, Caterpie and Weedle in Viridian Forest, Zubat and rolling Geodude in Mt. Moon, a **glide over the sea** past Lapras with Gyarados leaping across your path, a Hyper Beam on the Cerulean shore, and a Pokémon Stadium finale with a big screen, cheering crowds and exploding Voltorb |
+| Video Game | Green Brick Zone (Sonic) | Green Hill's checkered cliffs, palms and spinning sunflowers beside a giant loop-de-loop, Motobugs and Crabmeats, a corkscrew climb over the start straight, spring jumps under Buzz Bombers, a **glide over the ocean**, Casino Night's pinball bumpers and slot machine, then Dr. Eggman's base under the Death Egg with his swinging wrecking ball and pop-up spike strips; studs are gold rings |
 
 ## Racers
 
@@ -93,6 +97,24 @@ the Jujutsu Kaisen one, and each of them casts a signature spell when they
 cheer or win (Patronuses, Fawkes, the Dark Mark, fireworks…). Every kart in
 the race (CPU ones too) gets one of them at the wheel.
 
+The **Video Game Cup** casts follow the movie casts (33 more):
+
+- **Minecraft** (12): Steve, Alex, Creeper, Zombie, Skeleton, Enderman, Villager,
+  Iron Golem, Piglin, Witch, Snow Golem and Pig, blocky pixel-skinned mobs with a
+  signature move when they cheer or win (Steve mines with his diamond pickaxe, the
+  Creeper flashes and puffs, the Enderman teleports in purple sparks, the Witch
+  throws a splash potion…).
+- **Pokémon** (12): Pikachu, Ash Ketchum, Charmander, Squirtle, Bulbasaur, Eevee,
+  Jigglypuff, Gengar, Lucario, Mewtwo, Charizard and Snorlax, each with a signature
+  move: Pikachu's sparks, Charmander's and Charizard's fire breath, Squirtle's Water
+  Gun and shades, Bulbasaur's Vine Whip, Jigglypuff's song, Gengar fading into the
+  shadows, Lucario's Aura Sphere, Mewtwo's Shadow Ball and Snorlax's Zzz.
+- **Sonic the Hedgehog** (9): Sonic, Tails, Knuckles, Amy Rose, Shadow, Blaze,
+  Metal Sonic, Big the Cat and Dr. Eggman: Sonic's finger-wag and thumbs up, Tails'
+  spinning twin tails, Knuckles' spiked punches, Amy's Piko Piko Hammer, Shadow's
+  Chaos Control flash, Blaze's fire, Metal Sonic's overdrive, Big's fishing rod
+  with Froggy and Eggman shaking his fist.
+
 - The select screen has a live 3D stage with **a preview for each player**: your
   highlighted driver sits in your highlighted kart, shows off, cheers when you
   lock them in and celebrates when you're ready. The picker list scrolls with
@@ -105,8 +127,8 @@ the race (CPU ones too) gets one of them at the wheel.
   in your browser, and starts on them next time. Stat bars show the kart's stats adjusted by the driver's weight
   class (light drivers accelerate and handle better; heavy ones are faster and
   push harder).
-- 43 karts in one grid: the first 7 originals, the Wild Rides, the movie rides,
-  then the other 6 originals. The **originals** are themed on their racers: Hard
+- 61 karts in one grid: the first 7 originals, the Wild Rides, the movie rides,
+  the video game rides, then the other 6 originals. The **originals** are themed on their racers: Hard
   Hat Hauler (loader-dumper), Comet Cruiser (moon rover), Plank Plunderer
   (paddle-wheel pirate ship), Turbo Titan
   (robot-head jet dragster), Shadow Dart (shuriken trike), Blaze Runner (fire
@@ -128,6 +150,19 @@ the race (CPU ones too) gets one of them at the wheel.
   - **Cursed & Fantasy Rides**: Ijichi's Sedan, Dharma Wheel (giant monowheel),
     Nue (flapping thunderbird), Magic Carpet, Brick Dragon (walks, breathes fire),
     Mad Teacup.
+  - **Minecraft Rides**: Minecart, Saddled Pig (chasing a carrot on a stick), Oak
+    Boat (paddles row, and flap when gliding), Horse (gallops), Strider (walks on two
+    long legs, steered with a warped fungus), TNT Minecart (the TNT flashes when you
+    boost).
+  - **Pokémon Rides**: Poké Ball Kart (the red top half tips back on boost), Rotom
+    Bike (leans and crackles with sparks), Lapras (swims on its own patch of sea,
+    flippers spread to glide), Rapidash (gallops with a flaming mane, tail and
+    hooves), Arcanine (bounds along), Koraidon (sprints, then spreads its feathered
+    head-wings to glide).
+  - **Sonic Rides**: Speed Star (Sonic's blue racer), Tornado (Tails' red biplane:
+    the propeller spins and it flies on its own wings off glider ramps), Egg Mobile
+    (Eggman's hover pod), Extreme Gear (hoverboard), Land Breaker (Knuckles' red
+    4x4), Dark Rider (Shadow's motorbike).
   - **Wild Rides**: Thunder Hog (leaning chopper), Big Stomp (monster truck),
     Tread Head (tank), Tub Thumper (bathtub), Hot Diggity (hot dog), Blast Sled
     (rocket sled on skis).
@@ -138,11 +173,18 @@ the race (CPU ones too) gets one of them at the wheel.
 - After the finish, the top three celebrate and the rest sulk. In a Grand Prix,
   the podium shows the top three drivers celebrating in 3D.
 
-## Movie powers (19)
+## Movie and game powers (34)
 
-Extra power-ups themed on the Movie Cup films come out of item boxes on **every
-track** (twice as often on their own movie's tracks, so JJK powers on every JJK Run map); racers further back get the
-big comeback ones.
+Extra power-ups themed on the Movie Cup films and the Video Game Cup games come out
+of item boxes on **every track** (twice as often on their own tracks, so JJK powers
+on every JJK Run map); racers further back get the big comeback ones.
+
+In **Simplified mode** each pack's powers only turn up on its own tracks (Hyperspace
+Jump on Tatooine Podrace, Ender Pearl on Blocky Biome Run…), and there they make up
+about three quarters of what the item boxes give, topped up with a few plain items
+for balance: Turbo Studs, Triple Turbos, and a trap, shield or Homing Rocket where
+the pack has none of its own (the list is `SIMPLE_EXTRAS` in `js/items.js`). Tracks
+without a pack (the Stud, Brick and Galaxy Cups) give plain items only.
 
 - **Star Wars**: Force Push (a Force wave that spins out karts ahead and blows
   away traps), Lightsaber Spin (a spinning double saber that spins out anyone
@@ -167,12 +209,30 @@ big comeback ones.
   incoming items), Raptor Pack (three raptors chase and pounce on karts ahead),
   Mosasaurus Breach (it leaps out of the road ahead and crashes down in a
   splash).
+- **Minecraft**: Creeper (drop it behind or toss it ahead; it hisses, flashes and
+  explodes when karts come near, spinning them out and blasting items away), Totem
+  of Undying (cancels the next hit with a green-and-gold burst and a boost), Trident
+  (homes in on the kart ahead and Channeling calls down lightning), Elytra Rockets
+  (wings spread and three firework boosts), Ender Pearl (thrown far up the track;
+  you teleport where it lands).
+- **Pokémon**: Snorlax (a sleeping Snorlax dropped behind you, or tossed ahead,
+  blocks the road; karts bounce off its belly and spin out), Protect (a green dome
+  for 6 s blocks every hit and bounces shots away), Poké Ball (homes in on the kart
+  ahead and catches it: it wobbles three times, then they burst out), Quick Attack
+  (three dashes with white speed lines that bump aside karts you touch), Thunderbolt
+  (lightning strikes every racer ahead: they spin out and shrink for a few seconds).
+- **Sonic the Hedgehog**: Motobug (drop a Badnik that patrols the road and spins out
+  whoever hits it), Lightning Shield (blocks the next hit and pulls nearby gold studs
+  to you), Homing Attack (curl into a ball, leap onto the kart ahead and bounce off
+  with a boost), Spin Dash (rev up, then blast off, spinning out anyone you ram),
+  Super Sonic (the seven Chaos Emeralds turn your kart gold: invincible and very fast
+  for 7 seconds).
 
 ## Power-ups (22)
 
 Drive through the rainbow **?** bricks to get an item. You can hold two: the one you can use now (big slot) and the next one (small slot), which moves up once you use the first.
 
-The further back you are, the better your items. The leader mostly gets defensive items, and the racers at the back get the big comeback items. Whoever is in **last place** always gets a catch-up item that speeds them up: Bullet Brick, Golden Brick, Gold Turbo, Triple Turbo, Mega Brick, a Stud Bag, or a movie power that carries them up the track (Hyperspace Jump, the Golden Snitch, the Invisibility Cloak). Never one that only hits other racers. Being far behind the leader also improves your odds.
+The further back you are, the better your items. The leader mostly gets defensive items, and the racers at the back get the big comeback items. Whoever is in **last place** always gets a catch-up item that speeds them up: Bullet Brick, Golden Brick, Gold Turbo, Triple Turbo, Mega Brick, a Stud Bag, or a movie or game power that carries them up the track (Hyperspace Jump, the Golden Snitch, the Invisibility Cloak, Ender Pearl, Elytra Rockets, Quick Attack, Spin Dash, Super Sonic). Never one that only hits other racers. Being far behind the leader also improves your odds.
 
 | Item | What it does |
 | --- | --- |
@@ -290,7 +350,7 @@ setups.
 - `js/drivers/*.js`: the driver casts per movie (`kit.js` has the seated figure builder); `js/showcase.js`: the 3D select stage, portraits and podium; `js/gallery.js`: a developer line-up view
 - `js/effects.js`, `js/audio.js`, `js/hud.js`, `js/input.js`: particles, sound, HUD and input devices
 
-For development, `?quick=<map id>` (city, meadow, pirate, candy, jungle, frost, factory, lava, space, jurassic, starwars, marvel, hogwarts, jjk-goodwill, jjk-inventory, jjk, jjk-culling) goes
+For development, `?quick=<map id>` (city, meadow, pirate, candy, jungle, frost, factory, lava, space, jurassic, starwars, marvel, hogwarts, jjk-goodwill, jjk-inventory, jjk, jjk-culling, minecraft, pokemon, sonic) goes
 straight into a race. Add `&players=2` to test split-screen, and `&driver=<driver id>`
 / `&kart=<kart id>` to pick player 1's driver and kart. `?gallery=<movie id
 | driver id | all>` lines drivers up in their karts; add `&pose=cheer` (taunt,
