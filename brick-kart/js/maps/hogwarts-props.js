@@ -54,7 +54,7 @@ const ROBE = 0x15161c;
 
 // ---- face atlas ----------------------------------------------------------------------------
 const FACES = ['harry', 'hermione', 'ron', 'hagrid', 'dumbledore', 'snape', 'mcgonagall', 'draco', 'voldemort', 'student', 'student2', 'dobby', 'luna', 'neville'];
-const SKIN = { voldemort: '#e6e2da', dobby: '#c9bda4', snape: '#eadbc8', hagrid: '#e8c2a0' };
+const SKIN = { dumbledore: '#efc3a2', voldemort: '#cfd3cb', dobby: '#c9bda4', snape: '#eadbc8', hagrid: '#e8c2a0' };
 let faceMatCache = null;
 function drawFace(g, name, W, H) {
   g.fillStyle = SKIN[name] || '#f3d2b3'; g.fillRect(0, 0, W, H);
@@ -71,11 +71,10 @@ function drawFace(g, name, W, H) {
     case 'hermione': eyes('#7a4a2a', { ry: 11 }); brows('#5a3a20', -34, 2, 5); for (const sd of [-1, 1]) line([[sd * 40, -24], [sd * 48, -30]], '#111', 3); smile(20, 24, '#a03a4a'); break;
     case 'ron': eyes('#3a7ad0'); brows('#c0501a', -34); for (let k = 0; k < 14; k++) ell((k % 7 - 3) * 12 + (k > 6 ? 4 : 0), 6 + (k > 6 ? 8 : 0), 2.2, 2.2, '#c0703a'); smile(24, 26); break;
     case 'hagrid': eyes('#1b1b1b', { rx: 6, ry: 6, y: -16 }); brows('#2a1a10', -32, 0, 9); ell(0, 2, 10, 8, '#d89a80'); g.fillStyle = '#3a2416'; g.fillRect(-90, 16, 180, 60); smile(14, 26, '#c08070'); break;
-    case 'dumbledore': eyes('#3a8ae0', { ry: 8 }); brows('#f0f0f0', -32); g.strokeStyle = '#c8a040'; g.lineWidth = 4; for (const sd of [-1, 1]) { g.beginPath(); g.arc(sd * 30, -10, 15, 0, Math.PI); g.stroke(); } line([[-15, -10], [15, -10]], '#c8a040', 3); g.fillStyle = '#eeeeee'; g.fillRect(-90, 14, 180, 60); line([[-30, 18], [0, 12], [30, 18]], '#d8d8d8', 8); break;
+    case 'dumbledore': case 'voldemort': drawHP(g, name); break;
     case 'snape': eyes('#15161c', { ry: 8 }); brows('#15161c', -30, -5); line([[0, -14], [6, 6]], '#c0a890', 3); flat(12, 28); break;
     case 'mcgonagall': eyes('#4a6a3a', { ry: 8 }); g.strokeStyle = '#3a3a3a'; g.lineWidth = 4; for (const sd of [-1, 1]) g.strokeRect(sd * 30 - 16, -24, 32, 24); brows('#6a6a6a', -36, -2, 4); flat(10, 28); line([[-18, 4], [-24, 20]], '#c8a890', 2); line([[18, 4], [24, 20]], '#c8a890', 2); break;
     case 'draco': eyes('#8a9aa8', { ry: 8 }); brows('#d8c890', -32, -3, 4); g.strokeStyle = '#4a2a2a'; g.lineWidth = 5; g.beginPath(); g.moveTo(-14, 26); g.quadraticCurveTo(6, 30, 18, 18); g.stroke(); break;
-    case 'voldemort': for (const sd of [-1, 1]) { ell(sd * 30, -12, 12, 7, '#f4f0e8'); ell(sd * 30, -12, 3, 6, '#c01010'); } for (const sd of [-1, 1]) line([[sd * 5, 0], [sd * 8, 8]], '#5a4a4a', 4); line([[-16, 26], [16, 26]], '#7a6a6a', 4); line([[-40, -50], [-20, -30]], '#b8c0c8', 2); line([[40, -46], [26, -28]], '#b8c0c8', 2); break;
     case 'student': eyes('#5a3a20'); brows('#3a2a1a', -34); smile(18, 24); break;
     case 'student2': eyes('#2a5a8a'); brows('#6a4a2a', -34, 2); smile(14, 26, '#a03a4a'); break;
     case 'dobby': for (const sd of [-1, 1]) { ell(sd * 30, -14, 22, 20, '#fff'); ell(sd * 30, -12, 15, 15, '#3aa04a'); ell(sd * 30, -12, 7, 7, '#111'); ell(sd * 26, -18, 4, 4, '#fff'); } line([[0, -2], [4, 14]], '#9a8a74', 5); smile(12, 30, '#5a3a2a'); break;
@@ -84,11 +83,83 @@ function drawFace(g, name, W, H) {
   }
   g.restore();
 }
+// Dumbledore and Voldemort match their redesigned drivers (../drivers/potter.js): same face
+// prints, in the same "round" coordinates (x ±110 = visible front, y ±64).
+function drawHP(g, name) {
+  const PI = Math.PI;
+  const ell = (x, y, rx, ry, col, rot = 0) => { g.fillStyle = col; g.beginPath(); g.ellipse(x, y, rx, ry, rot, 0, PI * 2); g.fill(); };
+  const line = (pts, col, w) => { g.strokeStyle = col; g.lineWidth = w; g.lineCap = g.lineJoin = 'round'; g.beginPath(); pts.forEach(([x, y], k) => (k ? g.lineTo(x, y) : g.moveTo(x, y))); g.stroke(); };
+  const poly = (pts, col) => { g.fillStyle = col; g.beginPath(); pts.forEach(([x, y], k) => (k ? g.lineTo(x, y) : g.moveTo(x, y))); g.closePath(); g.fill(); };
+  if (name === 'dumbledore') {
+    // wrinkles, rosy cheeks, twinkling blue eyes, bushy white brows
+    for (const y of [-40, -47]) line([[-22, y], [22, y]], 'rgba(160,96,70,0.45)', 2);
+    for (const s of [-1, 1]) { line([[s * 40, -10], [s * 48, -14]], 'rgba(160,96,70,0.5)', 2); line([[s * 40, -4], [s * 48, -2]], 'rgba(160,96,70,0.5)', 2); ell(s * 38, 12, 9, 6, 'rgba(225,110,110,0.45)'); }
+    for (const s of [-1, 1]) { ell(s * 24, -9, 8, 6.5, '#ffffff'); ell(s * 24, -9, 5, 5.5, '#2f6fd0'); ell(s * 24, -9, 2.4, 2.8, '#0a1a3a'); ell(s * 22, -11, 1.6, 1.6, '#fff'); }
+    line([[-34, -14], [-14, -15]], '#7a4a3a', 2.5); line([[34, -14], [14, -15]], '#7a4a3a', 2.5);
+    for (const s of [-1, 1]) { line([[s * 10, -24], [s * 26, -28], [s * 42, -21]], '#f4f4f6', 9); line([[s * 34, -25], [s * 46, -18]], '#d8d8dc', 4); }
+    // half-moon spectacles (flat top, low on the nose)
+    for (const s of [-1, 1]) {
+      g.fillStyle = 'rgba(210,235,255,0.35)'; g.beginPath(); g.arc(s * 24, -5, 15, 0, PI); g.closePath(); g.fill();
+      g.strokeStyle = '#c8962a'; g.lineWidth = 4; g.stroke();
+      line([[s * 39, -5], [s * 68, -10]], '#c8962a', 3);
+    }
+    line([[-9, -4], [9, -4]], '#c8962a', 3);
+    // beard and moustache roots (the 3D beard sits on top)
+    poly([[-70, 14], [-40, 8], [-8, 18], [8, 18], [40, 8], [70, 14], [70, 64], [-70, 64]], '#eceef2');
+  } else {
+    // sunken eye sockets, red slit eyes, snake-slit nose, thin bloodless lips, temple veins
+    for (const s of [-1, 1]) {
+      ell(s * 24, -7, 19, 13, 'rgba(110,110,140,0.35)');
+      ell(s * 40, 24, 10, 16, 'rgba(120,120,140,0.1)');
+      ell(s * 24, -7, 11, 6.5, '#e01818', s * 0.2);
+      ell(s * 24, -7, 1.8, 5.6, '#160000');
+      ell(s * 27, -9, 1.6, 1.4, 'rgba(255,220,220,0.9)');
+      line([[s * 12, -10], [s * 24, -15], [s * 36, -10]], '#3a2a34', 3);
+      line([[s * 10, -22], [s * 38, -26]], 'rgba(120,120,150,0.45)', 3);
+    }
+    poly([[-10, -2], [10, -2], [6, 14], [-6, 14]], 'rgba(150,150,160,0.25)');
+    for (const s of [-1, 1]) line([[s * 3, 6], [s * 8, 13]], '#4a2a34', 3.5);
+    line([[-20, 28], [-8, 26], [8, 26], [20, 29]], '#7a6a78', 3.5);
+    line([[-8, 30], [8, 30]], 'rgba(120,100,120,0.4)', 2);
+    line([[-46, -46], [-38, -34], [-42, -22], [-36, -12]], 'rgba(90,120,170,0.6)', 2);
+    line([[48, -42], [40, -28], [44, -16]], 'rgba(90,120,170,0.6)', 2);
+    line([[-6, -56], [-2, -44], [-8, -34]], 'rgba(90,120,170,0.35)', 2);
+  }
+}
+// printed robe fronts (the drivers' 128 x 160 torso decals), stored in the spare atlas tiles
+const ROBES = ['dumbledore', 'voldemort'];
+function drawRobe(g, name) {
+  const poly = (pts, col) => { g.fillStyle = col; g.beginPath(); pts.forEach(([x, y], k) => (k ? g.lineTo(x, y) : g.moveTo(x, y))); g.closePath(); g.fill(); };
+  const line = (pts, col, w) => { g.strokeStyle = col; g.lineWidth = w; g.lineCap = 'round'; g.beginPath(); pts.forEach(([x, y], k) => (k ? g.lineTo(x, y) : g.moveTo(x, y))); g.stroke(); };
+  const dot = (x, y, r, col) => { g.fillStyle = col; g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill(); };
+  const rect = (x, y, w, h, col) => { g.fillStyle = col; g.fillRect(x, y, w, h); };
+  if (name === 'dumbledore') {
+    // plum outer robe open over a midnight under-robe sewn with silver stars, gold lapels and belt, gold moons
+    rect(0, 0, 128, 160, '#5c1f74');
+    poly([[26, 0], [102, 0], [84, 160], [44, 160]], '#2c2160');
+    for (const [x, y] of [[46, 30], [80, 52], [56, 78], [74, 100], [52, 140], [78, 146], [64, 120]]) poly([[x, y - 6], [x + 2, y - 2], [x + 6, y], [x + 2, y + 2], [x, y + 6], [x - 2, y + 2], [x - 6, y], [x - 2, y - 2]], '#d8dcf0');
+    for (const sd of [-1, 1]) {
+      const xa = 64 + sd * 38, xb = 64 + sd * 20, mx = 64 + sd * 50;
+      line([[xa, 0], [xb, 160]], '#e2b444', 9); line([[xa + sd * 5, 0], [xb + sd * 5, 160]], '#8a5a18', 2);
+      dot(mx, 40, 8, '#e8c25a'); dot(mx + sd * 4, 37, 7, '#5c1f74');
+      dot(mx - sd * 2, 92, 4, '#e8c25a'); dot(mx + sd * 2, 132, 5, '#e8c25a'); dot(mx + sd * 6, 132, 4, '#5c1f74');
+    }
+    rect(30, 116, 68, 11, '#e2b444'); rect(57, 113, 14, 17, '#b8862a'); rect(61, 117, 6, 9, '#e2b444');
+  } else {
+    // layered, wrapped black robes: a deep V over a dark grey under-robe, fold lines
+    rect(0, 0, 128, 160, '#121216');
+    poly([[40, 0], [88, 0], [64, 62]], '#2a2a32');
+    line([[40, 0], [64, 62], [88, 0]], '#3a3a46', 3);
+    poly([[18, 0], [40, 0], [64, 62], [70, 160], [56, 160]], '#18181e');
+    for (const [a, b2] of [[[26, 30], [46, 160]], [[100, 30], [84, 160]], [[14, 60], [28, 160]], [[114, 60], [104, 160]], [[64, 70], [66, 160]]]) line([a, b2], 'rgba(70,72,86,0.9)', 3);
+  }
+}
 function faceAtlas() {
   if (faceMatCache) return faceMatCache;
   const c = document.createElement('canvas'); c.width = 1024; c.height = 512;
   const g = c.getContext('2d');
   FACES.forEach((n, k) => { g.save(); g.translate((k % 4) * 256, Math.floor(k / 4) * 128); g.beginPath(); g.rect(0, 0, 256, 128); g.clip(); drawFace(g, n, 256, 128); g.restore(); });
+  ROBES.forEach((n, j) => { const k = FACES.length + j; g.save(); g.translate((k % 4) * 256, Math.floor(k / 4) * 128); g.scale(2, 0.8); drawRobe(g, n); g.restore(); });
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
   faceMatCache = new THREE.MeshStandardMaterial({ map: t, roughness: 0.4, emissive: 0xffffff, emissiveMap: t, emissiveIntensity: 0.3 });
   return faceMatCache;
@@ -107,6 +178,16 @@ function faceGeo(name) {
   });
 }
 export function head(b, name, x, y, z, r, h, rot = Math.PI) { b.add(faceGeo(name), faceAtlas(), x, y, z, rot, r, h, r); }
+// printed robe front: a plane over the torso and robe panels (front at z 0.35 * s), from the atlas
+function robeFront(b, name, s) {
+  const geo = G('robe' + name, () => {
+    const k = FACES.length + ROBES.indexOf(name), u0 = (k % 4) / 4, v0 = 1 - (Math.floor(k / 4) + 1) / 4;
+    const g = new THREE.PlaneGeometry(1, 1).translate(0, 0.5, 0), uv = g.attributes.uv;
+    for (let i = 0; i < uv.count; i++) uv.setXY(i, u0 + (0.004 + uv.getX(i) * 0.992) * 0.25, v0 + (0.004 + uv.getY(i) * 0.992) * 0.25);
+    return g;
+  });
+  b.add(geo, faceAtlas(), 0, 1.5 * s, 0.356 * s, 0, 1.14 * s, 1.3 * s, 1);
+}
 
 // ---- humanoid (minifig proportions, ~3.9 * s tall); local +Z is the front ------------
 // o: { s, face, skinHex, torso, legs, shoes, hips, arms, hands, robe, hair(b,s,top), extra(b,s), itemL/itemR(a,s), headR, wide, collar }
@@ -192,14 +273,158 @@ export function mcgonagall(s) {
   return humanoid({ s, face: 'mcgonagall', torso: 0x1a4a2a, legs: 0x1a4a2a, robe: 0x123a20, collar: 0x1a4a2a, hair: (b, s, top) => { cap(b, s, top, 0x5a5a5a, 0.3); witchHat(b, s, top, 0x123a20, 1.6); }, itemR: wand(0x3a2a1a),
     extra: (b, s) => { b.add(taperGeo(1.5, 1.2, 1.3, 0.9), plastic(0x123a20), 0, 0, 0, 0, s, s, s); } });
 }
-export function dumbledore(s) {
-  const P = 0x5a2a8a;
-  return humanoid({ s, face: 'dumbledore', torso: P, legs: P, robe: 0x4a1f78, collar: P, hands: 0xf3d2b3,
-    hair: (b, s, top) => { cap(b, s, top, 0xeeeeee, 0.3); for (const sd of [-1, 1]) b.box(sd * 0.38 * s, top - 1.3 * s, -0.05 * s, 0.18 * s, 1.3 * s, 0.6 * s, 0xeeeeee); witchHat(b, s, top, P, 1.9, 0xc8a040); },
-    extra: (b, s) => { b.add(taperGeo(1.6, 1.2, 1.3, 1.0), plastic(0x4a1f78), 0, 0, 0, 0, s, s, s); b.add(taperGeo(0.3, 0.8, 1.9, 0.2), plastic(0xeeeeee), 0, 1.2 * s, 0.36 * s, 0, s, s, s); for (let k = 0; k < 6; k++) b.sphere(Math.cos(k * 2.4) * 0.5 * s, (0.6 + (k % 3) * 0.5) * s, 0.5 * s, 0.07 * s, 0xf2cd37, { matOpts: { emissive: 0xc8a040, emissiveIntensity: 1 } }); },
-    itemR: wand(0x8a8070, 0xe8f4ff) });
+// ---- Dumbledore / Voldemort: ports of the redesigned drivers to the standing figure ----------------
+// local modelling helpers: rods and truncated cones between points, curved shells hugging the head
+// cylinder (front arc ±th), tubes through points (rods + ball joints), discs facing +Z, 8-point stars
+const YV = new THREE.Vector3(0, 1, 0);
+function between(b, geo, a, c, r, col) {
+  const A = new THREE.Vector3(...a), dir = new THREE.Vector3(...c).sub(A), len = dir.length();
+  b.addMatrix(geo, typeof col === 'number' ? plastic(col) : col, new THREE.Matrix4().compose(A, new THREE.Quaternion().setFromUnitVectors(YV, dir.normalize()), new THREE.Vector3(r, len, r)));
 }
-export function voldemort(s) { return humanoid({ s, face: 'voldemort', skinHex: 0xe6e2da, torso: 0x15161c, legs: 0x15161c, robe: 0x101116, collar: 0x15161c, hands: 0xe6e2da, headR: 0.42, extra: (b, s) => { b.add(taperGeo(1.6, 1.2, 1.3, 1.0), plastic(0x101116), 0, 0, 0, 0, s, s, s); }, itemR: wand(0xe8e0d0, 0x40ff60) }); }
+const rod = (b, a, c, r, col, n = 8) => between(b, G('rod' + n, () => new THREE.CylinderGeometry(1, 1, 1, n).translate(0, 0.5, 0)), a, c, r, col);
+function frust(b, a, c, ra, rb, col, n = 16) {
+  const k = Math.round((rb / ra) * 20) / 20;
+  between(b, G(`frust${k}|${n}`, () => new THREE.CylinderGeometry(k, 1, 1, n).translate(0, 0.5, 0)), a, c, ra, col);
+}
+function shell(b, x, y0, z, r0, r1, h, th, col, rotY = 0) {
+  const k = Math.round((r1 / r0) * 20) / 20, t = Math.round(th * 20) / 20;
+  b.add(G(`shell${k}|${t}`, () => new THREE.CylinderGeometry(k, 1, 1, 14, 1, false, -t, t * 2).translate(0, 0.5, 0)), plastic(col), x, y0, z, rotY, r0, h, r0);
+}
+function tube(b, pts, rad, col) {
+  const n = pts.length - 1;
+  pts.forEach((p, i) => { const r = rad(i / n); b.sphere(p[0], p[1], p[2], r, col(i)); if (i < n) rod(b, p, pts[i + 1], r, col(i)); });
+}
+const disc = (b, x, y, z, r, t, col) => b.addMatrix(G('disc16', () => new THREE.CylinderGeometry(1, 1, 1, 16)), plastic(col), mat4(x, y, z, Math.PI / 2, 0, 0, r, t, r));
+const star = (b, x, y, z, sz, col, ry = 0) => { for (const q of [0, Math.PI / 4]) rbox(b, x, y, z, sz, sz, sz * 0.35, 0, ry, q, col); };
+const lerp = (a, c, k) => a + (c - a) * k;
+
+// Albus Dumbledore: lap-length silver beard with a gold tie, half-moon glasses, crooked starry plum
+// hat with a gold band, plum robes with gold trim and moons over a starry midnight under-robe, the Elder Wand
+const DB = { ROBE: 0x5c1f74, HAT: 0x4a1862, INNER: 0x2c2160, GOLD: 0xe2b444, BEARD: 0xeceef2, HAIR: 0xdfe1e6, SKIN: 0xefc3a2, STAR: 0xd8dcf0, MOON: 0xf2d470 };
+export function dumbledore(s) {
+  const { ROBE: R, HAT, INNER, GOLD, BEARD, HAIR, SKIN: SK, STAR, MOON } = DB;
+  // wide wizard's sleeves with a gold cuff
+  const cuff = (a, s) => a.add(taperGeo(0.65, 0.63, 0.08, 0.63), plastic(GOLD), 0, -1.22 * s, 0, 0, s, s, s);
+  // the Elder Wand: grey-brown elder with knobbly nodes, held through the fist (tip at z ~0.95 * s)
+  const elder = (a, s) => {
+    cuff(a, s);
+    const A = [0, -1.24 * s, -0.3 * s], T = [0, -1.48 * s, 0.98 * s], at = (u) => A.map((v, i) => lerp(v, T[i], u));
+    rod(a, A, T, 0.045 * s, 0x6e6152, 6);
+    rod(a, A, at(0.3), 0.07 * s, 0x5a4c3e, 8);
+    a.sphere(...A, 0.08 * s, 0x5a4c3e);
+    for (let k = 1; k <= 5; k++) a.sphere(...at(0.3 + k * 0.12), 0.06 * s, 0x6e6152, { sy: 0.75 });
+    a.sphere(...T, 0.08 * s, 0xe8f4ff, { matOpts: { emissive: 0xe8f4ff, emissiveIntensity: 2.6 } });
+  };
+  return humanoid({ s, face: 'dumbledore', skinHex: SK, torso: R, legs: 0x3e1450, robe: R, collar: R, hands: SK, itemR: elder, itemL: cuff,
+    hair: (b, s, top) => {
+      const r = 0.43 * s, h = 0.74 * s, Y = top - h;
+      // long silver hair: back curtain to mid-back, strands, side locks to the shoulders, cap round the back
+      b.add(taperGeo(1.2, 2.0, 1.55, 0.5, 0.85), plastic(HAIR), 0, Y - h * 1.15, -r * 0.6, 0, r, h, r);
+      for (const x of [-0.45, 0, 0.45]) rbox(b, x * r, Y - h * 0.45, -r * 1.02 - Math.abs(x) * 0.02, r * 0.06, h * 1.2, r * 0.05, 0.12, 0, x * 0.25, 0xc8cad2);
+      for (const sd of [-1, 1]) { b.sphere(sd * r * 0.98, Y + h * 0.35, -r * 0.05, r * 0.3, HAIR, { sy: 2.4 }); b.sphere(sd * r * 0.95, Y - h * 0.35, -r * 0.3, r * 0.34, HAIR, { sy: 2.6 }); }
+      shell(b, 0, Y + h * 0.1, 0, r * 1.06, r * 1.08, h * 0.8, 1.9, HAIR, Math.PI);
+      // beard over the jaw (continues down the chest in extra), drooping moustache, crooked nose
+      shell(b, 0, Y - h * 0.3, 0, r * 0.96, r * 1.13, h * 0.68, 1.35, BEARD);
+      for (const sd of [-1, 1]) rbox(b, sd * r * 0.3, Y + h * 0.36, r * 1.08, r * 0.62, h * 0.11, r * 0.18, 0, sd * 0.35, -sd * 0.45, BEARD);
+      rod(b, [0, Y + h * 0.58, r * 0.95], [r * 0.03, Y + h * 0.5, r * 1.12], r * 0.08, SK);
+      rod(b, [r * 0.03, Y + h * 0.5, r * 1.12], [-r * 0.03, Y + h * 0.42, r * 1.24], r * 0.085, SK);
+      b.sphere(-r * 0.03, Y + h * 0.42, r * 1.22, r * 0.1, SK);
+      // tall plum hat with a drooping, crooked tip, gold band, gold stars and a moon
+      const y0 = Y + h * 0.86, H = h * 1.12, hy = (q) => y0 + (q - 0.86) * H;
+      b.cyl(0, y0, 0, r * 1.8, 0.05 * s, HAT, { seg: 22 });
+      b.cyl(0, y0 + 0.04 * s, 0, r * 1.16, h * 0.13, GOLD, { seg: 18 });
+      const P0 = [0, y0, 0], P1 = [0, hy(1.55), -r * 0.12], P2 = [r * 0.05, hy(2.05), -r * 0.42], P3 = [r * 0.1, hy(2.35), -r * 0.95], P4 = [r * 0.15, hy(2.32), -r * 1.5];
+      frust(b, P0, P1, r * 1.12, r * 0.74, HAT); b.sphere(...P1, r * 0.74, HAT);
+      frust(b, P1, P2, r * 0.74, r * 0.46, HAT); b.sphere(...P2, r * 0.46, HAT);
+      frust(b, P2, P3, r * 0.46, r * 0.24, HAT); b.sphere(...P3, r * 0.24, HAT);
+      frust(b, P3, P4, r * 0.24, r * 0.02, HAT);
+      for (const [a, yy, rr, zo, sz] of [[0.55, 1.12, 0.98, 0, 0.14], [-1.0, 1.3, 0.88, -0.08, 0.11], [2.2, 1.2, 0.95, 0, 0.12], [-2.4, 1.5, 0.8, -0.1, 0.1], [0.25, 1.78, 0.62, -0.25, 0.1], [1.4, 1.62, 0.7, -0.15, 0.09]]) {
+        star(b, Math.sin(a) * r * rr, hy(yy), Math.cos(a) * r * rr + zo * r, r * sz, GOLD, a);
+      }
+      frust(b, [-r * 0.32, hy(1.3), r * 0.7], [-r * 0.32, hy(1.3), r * 0.82], r * 0.17, r * 0.17, MOON);
+      frust(b, [-r * 0.24, hy(1.33), r * 0.72], [-r * 0.24, hy(1.33), r * 0.85], r * 0.14, r * 0.14, HAT);
+    },
+    extra: (b, s) => {
+      robeFront(b, 'dumbledore', s);
+      // floor-length plum robe with a gold hem, open at the front over the starry midnight under-robe
+      b.add(taperGeo(1.6, 1.2, 1.3, 1.0), plastic(R), 0, 0, 0, 0, s, s, s);
+      b.add(taperGeo(1.64, 1.59, 0.1, 1.04), plastic(GOLD), 0, 0, 0, 0, s, s, s);
+      b.add(taperGeo(0.66, 0.46, 1.3, 0.04), plastic(INNER), 0, 0, 0.5 * s, 0, s, s, s);
+      for (const sd of [-1, 1]) beam(b, sd * 0.34 * s, 0, 0.52 * s, sd * 0.24 * s, 1.3 * s, 0.52 * s, 0.07 * s, GOLD);
+      for (const [x, y] of [[-0.12, 0.3], [0.1, 0.62], [-0.05, 0.95], [0.14, 0.18], [0.02, 0.42]]) star(b, x * s, y * s, 0.525 * s, 0.07 * s, STAR);
+      // gold crescent moons and stars on the plum, front and back
+      for (const z of [1, -1]) for (const sd of [-1, 1]) {
+        const x = sd * 0.56 * s, zz = z * 0.5 * s;
+        disc(b, x, 0.85 * s, zz, 0.13 * s, 0.03 * s, MOON); disc(b, x + sd * 0.06 * s, 0.89 * s, zz + z * 0.008 * s, 0.11 * s, 0.03 * s, R);
+        star(b, x - sd * 0.08 * s, 0.42 * s, zz + z * 0.012 * s, 0.08 * s, GOLD);
+      }
+      // the long beard down to the lap, tied with a gold band near the end; silver strands
+      b.add(taperGeo(0.16, 0.74, 1.5, 0.14, 0.26), plastic(BEARD), 0, 1.46 * s, 0.4 * s, 0, s, s, s);
+      b.add(taperGeo(0.03, 0.17, 0.2, 0.08, 0.14), plastic(BEARD), 0, 1.24 * s, 0.4 * s, 0, s, s, s);
+      b.box(0, 1.4 * s, 0.4 * s, 0.22 * s, 0.08 * s, 0.18 * s, GOLD);
+      for (const x of [-0.09, 0.09]) rbox(b, x * s, 2.2 * s, 0.52 * s, 0.03 * s, 1.2 * s, 0.03 * s, 0.07, 0, -x * 1.2, 0xd6d9e0);
+    },
+  });
+}
+// Lord Voldemort: pale, bald and domed, red slit eyes, snake-slit nose; Nagini coiled on his shoulders;
+// layered black robes with a flared collar and a ragged cape; the bone-white wand with a hooked handle
+const VD = { PALE: 0xcfd3cb, BLK: 0x121216, UNDER: 0x1a1a20, FOLD: 0x24242c, SN: 0x56663e, SN2: 0x2f3a24, BELLY: 0xa8a676, BONE: 0xeee6d0 };
+export function voldemort(s) {
+  const { PALE, BLK, UNDER, FOLD, SN, SN2, BELLY, BONE } = VD;
+  // long sleeves draping below the wrist
+  const sleeve = (a, s) => { rbox(a, 0, -1.3 * s, -0.24 * s, 0.5 * s, 0.4 * s, 0.06 * s, 0.3, 0, 0, BLK); a.add(taperGeo(0.64, 0.62, 0.05, 0.62), plastic(FOLD), 0, -1.22 * s, 0, 0, s, s, s); };
+  const wandR = (a, s) => {
+    sleeve(a, s);
+    const A = [0, -1.24 * s, -0.22 * s], T = [0, -1.48 * s, 0.98 * s], at = (u) => A.map((v, i) => lerp(v, T[i], u));
+    rod(a, A, T, 0.04 * s, BONE, 6);
+    rod(a, A, at(0.28), 0.06 * s, 0xd8ccb0, 8);
+    rod(a, A, [0, -1.12 * s, -0.36 * s], 0.055 * s, 0xd8ccb0, 6);       // claw-like hooked pommel
+    rod(a, [0, -1.12 * s, -0.36 * s], [0, -1.2 * s, -0.46 * s], 0.045 * s, 0xd8ccb0, 6);
+    for (let k = 1; k <= 3; k++) a.sphere(...at(0.3 + k * 0.16), 0.06 * s, BONE, { sy: 0.8 });
+    a.sphere(...T, 0.075 * s, 0x40ff60, { matOpts: { emissive: 0x40ff60, emissiveIntensity: 2.6 } });
+  };
+  return humanoid({ s, face: 'voldemort', skinHex: PALE, torso: BLK, legs: BLK, robe: BLK, collar: BLK, hands: PALE, headR: 0.42, itemR: wandR, itemL: sleeve,
+    // bald, domed skull
+    hair: (b, s, top) => b.sphere(0, top, 0, 0.42 * s, PALE, { sy: 0.55 }),
+    extra: (b, s) => {
+      robeFront(b, 'voldemort', s);
+      // under-robe to the floor; outer robe panels open at the front, ending in ragged points
+      b.add(taperGeo(1.6, 1.2, 1.3, 1.0), plastic(UNDER), 0, 0, 0, 0, s, s, s);
+      for (const sd of [-1, 1]) {
+        b.add(taperGeo(0.62, 0.5, 1.12, 0.06), plastic(BLK), sd * 0.42 * s, 0.3 * s, 0.52 * s, 0, s, s, s);
+        b.add(taperGeo(0.16, 0.1, 1.12, 0.05), plastic(BLK), sd * 0.82 * s, 0.3 * s, 0, 0, s, s, s * 9);
+        for (let k = 0; k < 3; k++) rbox(b, sd * (0.22 + k * 0.2) * s, 0.3 * s, 0.52 * s, 0.15 * s, 0.15 * s, 0.05 * s, 0, 0, Math.PI / 4, BLK);
+        beam(b, sd * 0.12 * s, 0.25 * s, 0.56 * s, sd * 0.2 * s, 1.42 * s, 0.56 * s, 0.035 * s, FOLD);
+        beam(b, sd * 0.5 * s, 0.32 * s, 0.56 * s, sd * 0.44 * s, 1.3 * s, 0.56 * s, 0.03 * s, FOLD);
+      }
+      // ragged cape from the shoulders, flaring out behind
+      b.addMatrix(taperGeo(1.9, 1.1, 2.6, 0.07), plastic(BLK), mat4(0, 0.3 * s, -0.6 * s, 0.07, 0, 0, s, s, s));
+      for (let k = 0; k < 7; k++) rbox(b, (-0.81 + k * 0.27) * s, 0.3 * s, (-0.6 - 0.002 * k) * s, 0.2 * s, 0.2 * s, 0.06 * s, 0.07, 0, Math.PI / 4, BLK);
+      // tall flared collar standing up behind the head, lined in dark grey
+      b.addMatrix(taperGeo(0.9, 1.45, 0.75, 0.1), plastic(BLK), mat4(0, 2.68 * s, -0.42 * s, -0.25, 0, 0, s, s, s));
+      b.addMatrix(taperGeo(0.84, 1.36, 0.7, 0.04), plastic(FOLD), mat4(0, 2.7 * s, -0.36 * s, -0.25, 0, 0, s, s, s));
+      for (const sd of [-1, 1]) {
+        rbox(b, sd * 0.5 * s, 2.98 * s, -0.12 * s, 0.07 * s, 0.55 * s, 0.5 * s, 0, sd * 0.35, -sd * 0.3, BLK);
+        rbox(b, sd * 0.46 * s, 2.96 * s, -0.1 * s, 0.03 * s, 0.42 * s, 0.4 * s, 0, sd * 0.35, -sd * 0.3, FOLD);
+      }
+      // Nagini coiled round his shoulders: tail down his right side, head reared over his left shoulder
+      const pts = [];
+      for (let k = 0; k <= 4; k++) { const u = k / 4; pts.push([lerp(-0.18, -0.5, u) * s, lerp(1.7, 2.72, u) * s, lerp(0.44, 0.42, u) * s]); }
+      const N = 22;
+      for (let k = 1; k <= N; k++) { const th = lerp(-0.85, -2 * Math.PI + 0.85, k / N); pts.push([Math.sin(th) * 0.64 * s, (2.82 + 0.14 * Math.abs(Math.sin(th))) * s, Math.cos(th) * 0.5 * s]); }
+      pts.push([0.62 * s, 3.08 * s, 0.48 * s], [0.66 * s, 3.22 * s, 0.6 * s]);
+      tube(b, pts, (u) => (0.035 + 0.08 * Math.min(1, u * 2.2) - 0.02 * Math.min(1, Math.max(0, (u - 0.85) / 0.15))) * s, (i) => (i % 3 === 0 ? SN2 : SN));
+      // head: flat diamond skull, pale jaw, yellow eyes, forked tongue
+      const hx = 0.66 * s, hy = 3.24 * s, hz = 0.66 * s;
+      b.sphere(hx, hy, hz, 0.13 * s, SN, { sy: 0.55 });
+      b.sphere(hx, hy - 0.01 * s, hz + 0.11 * s, 0.1 * s, SN, { sy: 0.5 });
+      b.sphere(hx, hy - 0.03 * s, hz + 0.05 * s, 0.11 * s, BELLY, { sy: 0.4 });
+      for (const sd of [-1, 1]) b.sphere(hx + sd * 0.09 * s, hy + 0.03 * s, hz + 0.08 * s, 0.028 * s, 0xf0d020);
+      rod(b, [hx, hy - 0.02 * s, hz + 0.19 * s], [hx, hy - 0.025 * s, hz + 0.3 * s], 0.01 * s, 0xc01818, 4);
+      for (const sd of [-1, 1]) rod(b, [hx, hy - 0.025 * s, hz + 0.3 * s], [hx + sd * 0.03 * s, hy - 0.03 * s, hz + 0.36 * s], 0.008 * s, 0xc01818, 4);
+    },
+  });
+}
 export function hagrid(s) {
   const COAT = 0x5a3a24, HAIR = 0x2a1a10;
   return humanoid({ s, face: 'hagrid', skinHex: 0xe8c2a0, torso: COAT, legs: 0x3a2a1a, arms: COAT, hands: 0xe8c2a0, wide: 1.45, headR: 0.5, collar: false, shoes: 0x2a1a10,
