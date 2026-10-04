@@ -54,7 +54,7 @@ const ROBE = 0x15161c;
 
 // ---- face atlas ----------------------------------------------------------------------------
 const FACES = ['harry', 'hermione', 'ron', 'hagrid', 'dumbledore', 'snape', 'mcgonagall', 'draco', 'voldemort', 'student', 'student2', 'dobby', 'luna', 'neville'];
-const SKIN = { dumbledore: '#efc3a2', voldemort: '#cfd3cb', dobby: '#c9bda4', snape: '#eadbc8', hagrid: '#e8c2a0' };
+const SKIN = { dumbledore: '#efc3a2', voldemort: '#cfd3cb', dobby: '#c9bda4', snape: '#eadbc8', hagrid: '#ecb592' };
 let faceMatCache = null;
 function drawFace(g, name, W, H) {
   g.fillStyle = SKIN[name] || '#f3d2b3'; g.fillRect(0, 0, W, H);
@@ -70,7 +70,15 @@ function drawFace(g, name, W, H) {
     case 'harry': eyes('#2a9a3a'); roundGlasses(); brows('#1b1b1b', -38); line([[-6, -62], [4, -52], [-4, -48], [6, -38]], '#b03030', 4); smile(18, 24); break;
     case 'hermione': eyes('#7a4a2a', { ry: 11 }); brows('#5a3a20', -34, 2, 5); for (const sd of [-1, 1]) line([[sd * 40, -24], [sd * 48, -30]], '#111', 3); smile(20, 24, '#a03a4a'); break;
     case 'ron': eyes('#3a7ad0'); brows('#c0501a', -34); for (let k = 0; k < 14; k++) ell((k % 7 - 3) * 12 + (k > 6 ? 4 : 0), 6 + (k > 6 ? 8 : 0), 2.2, 2.2, '#c0703a'); smile(24, 26); break;
-    case 'hagrid': eyes('#1b1b1b', { rx: 6, ry: 6, y: -16 }); brows('#2a1a10', -32, 0, 9); ell(0, 2, 10, 8, '#d89a80'); g.fillStyle = '#3a2416'; g.fillRect(-90, 16, 180, 60); smile(14, 26, '#c08070'); break;
+    case 'hagrid':   // (same print as the Hagrid driver) beard + hairline roots, rosy cheeks, kind crinkly glinting black eyes
+      g.fillStyle = '#2a1a0f'; g.fillRect(-230, 18, 460, 60); g.fillRect(-230, -70, 460, 26);
+      for (const sd of [-1, 1]) ell(sd * 38, 12, 9, 6, 'rgba(232,110,96,0.55)');
+      for (const sd of [-1, 1]) {
+        ell(sd * 23, -13, 8.5, 10, '#120b06'); ell(sd * 23 + 3, -17, 2.6, 2.6, '#fff'); ell(sd * 23 - 3, -9, 1.4, 1.4, '#fff');
+        g.strokeStyle = 'rgba(150,70,50,0.55)'; g.lineWidth = 2.5; g.lineCap = 'round'; g.beginPath(); g.arc(sd * 23, -14, 13, 0.2 * Math.PI, 0.8 * Math.PI); g.stroke();
+        line([[sd * 37, -16], [sd * 46, -20]], 'rgba(150,70,50,0.6)', 2.5); line([[sd * 37, -10], [sd * 46, -8]], 'rgba(150,70,50,0.6)', 2.5);
+      }
+      break;
     case 'dumbledore': case 'voldemort': drawHP(g, name); break;
     case 'snape': eyes('#15161c', { ry: 8 }); brows('#15161c', -30, -5); line([[0, -14], [6, 6]], '#c0a890', 3); flat(12, 28); break;
     case 'mcgonagall': eyes('#4a6a3a', { ry: 8 }); g.strokeStyle = '#3a3a3a'; g.lineWidth = 4; for (const sd of [-1, 1]) g.strokeRect(sd * 30 - 16, -24, 32, 24); brows('#6a6a6a', -36, -2, 4); flat(10, 28); line([[-18, 4], [-24, 20]], '#c8a890', 2); line([[18, 4], [24, 20]], '#c8a890', 2); break;
@@ -190,7 +198,7 @@ function robeFront(b, name, s) {
 }
 
 // ---- humanoid (minifig proportions, ~3.9 * s tall); local +Z is the front ------------
-// o: { s, face, skinHex, torso, legs, shoes, hips, arms, hands, robe, hair(b,s,top), extra(b,s), itemL/itemR(a,s), headR, wide, collar }
+// o: { s, face, skinHex, torso, legs, shoes, hips, arms, hands, robe, hair(b,s,top), extra(b,s), itemL/itemR(a,s), arm(a,sd,s), headR, headH, wide, collar }
 export function humanoid(o) {
   const s = o.s, wide = o.wide ?? 1;
   const root = new THREE.Group();
@@ -212,7 +220,7 @@ export function humanoid(o) {
   if (o.collar !== false) b.cyl(0, 2.78 * s, 0, 0.36 * s, 0.22 * s, o.collar ?? o.torso, { seg: 12 });
   if (o.scarf) for (let k = 0; k < 2; k++) b.cyl(0, (2.72 + k * 0.14) * s, 0, (0.46 - k * 0.04) * s, 0.14 * s, o.scarf[k], { seg: 12 });
   b.cyl(0, 2.86 * s, 0, 0.2 * s, 0.14 * s, skin, { seg: 10 });
-  const hr = o.headR ?? 0.43, hh = 0.74;
+  const hr = o.headR ?? 0.43, hh = o.headH ?? 0.74;
   if (o.face) head(b, o.face, 0, 2.98 * s, 0, hr * s, hh * s); else b.cyl(0, 2.98 * s, 0, hr * s, hh * s, skin, { seg: 16 });
   const top = (2.98 + hh) * s;
   o.hair?.(b, s, top);
@@ -226,6 +234,7 @@ export function humanoid(o) {
     a.add(taperGeo(0.36, 0.42, 1.12, 0.44), plastic(o.arms ?? o.robe ?? o.torso), 0, -1.12 * s, 0, 0, s * wide, s, s);
     if (o.robe !== undefined) a.add(taperGeo(0.62, 0.44, 0.5, 0.6), plastic(o.robe), 0, -1.2 * s, 0, 0, s * wide, s, s);
     a.cyl(0, -1.42 * s, 0, 0.19 * s, 0.34 * s, o.hands ?? skin, { seg: 10 });
+    o.arm?.(a, sd, s);
     (sd < 0 ? o.itemR : o.itemL)?.(a, s);
     pv.add(a.build({ name: 'fig-arm' }));
     pv.rotation.z = sd * 0.1;
@@ -425,11 +434,148 @@ export function voldemort(s) {
     },
   });
 }
+// ---- Rubeus Hagrid: a port of the redesigned driver (../drivers/potter.js) ----------------------------
+// The driver is modelled in a seated rig's units (scale 1.7, wide 1.3, deep 1.25, head r 0.527 h 0.85).
+// Its parts are drawn here through affine "frames" that map the rig's head, torso and arms onto this
+// humanoid's, so the track figure wears the same design (still one merged mesh per builder).
+const _xm = new THREE.Matrix4();
+// a view of builder b that transforms every part by M first
+function xf(b, M) { const o = Object.create(b); o.addMatrix = (geo, mat, m) => b.addMatrix(geo, mat, _xm.multiplyMatrices(M, m)); return o; }
+const sxf = (x, y, z, sx, sy, sz) => new THREE.Matrix4().makeTranslation(x, y, z).multiply(new THREE.Matrix4().makeScale(sx, sy, sz));
+const _e = new THREE.Euler(), _q = new THREE.Quaternion(), _v = new THREE.Vector3(), _w = new THREE.Vector3();
+// XYZ-order transform and rotated box, as in the drivers' kit
+const m4 = (x, y, z, rx = 0, ry = 0, rz = 0, sx = 1, sy = 1, sz = 1) => new THREE.Matrix4().compose(_v.set(x, y, z), _q.setFromEuler(_e.set(rx, ry, rz)), _w.set(sx, sy, sz));
+const dbox = (b, x, y, z, sx, sy, sz, rx, ry, rz, color, opts) => b.boxM(m4(x, y, z, rx, ry, rz, sx, sy, sz), color, opts);
+// head frame: a rig head (radius dr, height dh, base at 0) onto this humanoid's head (base at top - hh * s)
+const headXf = (b, s, top, dr, dh, hr, hh) => xf(b, sxf(0, top - hh * s, 0, (hr * s) / dr, (hh * s) / dh, (hr * s) / dr));
+// torso / arm frames for a rig of scale ds, wide W, deep D onto humanoid({ s, wide: w }) with torso half-depth dz * s
+function frames(s, w, ds, W, D, dz = 0.32) {
+  const kx = (1.14 * w * s) / (0.92 * W * ds), ky = (1.3 * s) / (0.82 * ds), kz = (dz * s) / (0.21 * D * ds), aw = Math.sqrt(W);
+  return {
+    torso: sxf(0, 1.56 * s - 0.18 * ds * ky, 0, kx, ky, kz),
+    arm: sxf(0, 0, 0, (0.42 * w * s) / (0.26 * aw * ds), (1.12 * s) / (0.52 * ds), (0.44 * s) / (0.26 * aw * ds)),
+  };
+}
+// an ellipsoid turned rx/ry/rz (radii sx/sy/sz) and a cone from base a to tip c — the shaggy mane,
+// beard, bulging pockets and wild strands are built from these
+const hgSph = () => G('hgSph', () => new THREE.SphereGeometry(1, 18, 12));
+function hgBlob(b, x, y, z, sx, sy, sz, mat, rx = 0, ry = 0, rz = 0) { b.addMatrix(hgSph(), typeof mat === 'number' ? plastic(mat) : mat, m4(x, y, z, rx, ry, rz, sx, sy, sz)); }
+function hgSpike(b, a, c, r, mat) { between(b, coneGeo(), a, c, r, mat); }
+// a solid wedge of a (tapered) cylinder facing +Z over ±th: the beard under the face
+function hgShell(b, y0, r0, r1, h, th, mat) {
+  const k = Math.round((r1 / r0) * 20) / 20, t = Math.round(th * 20) / 20;
+  b.add(G(`hgShell${k}|${t}`, () => new THREE.CylinderGeometry(k, 1, 1, 18, 1, false, -t, t * 2).translate(0, 0.5, 0)), mat, 0, y0, 0, 0, r0, h, r0);
+}
+const HG = { HAIR: 0x1e1209, HAIR2: 0x28180c, COAT: 0x5c3a20, COAT2: 0x452c16, POCK: 0x6e4a2c, FLAP: 0x3e2614, BELT: 0x261a10, BRASS: 0xcaa040, SKN: 0xecb592, ROSY: 0xe9806e, NOSE: 0xdf9b7b, PINK: 0xf478b4, VEST: 0x7a3c1e, LEGS: 0x33241a, BOOT: 0x24170e };
+// head (rig units: r 0.527, h 0.85, base at 0): one big wild near-black matte mane and beard round a small face window
+function hagridHead(b, r, h, HM, HM2) {
+  const S = Math.sin, { NOSE, ROSY } = HG;
+  hgBlob(b, 0, h * 0.56, -r * 0.25, r * 1.42, h * 0.92, r * 1.15, HM);
+  hgBlob(b, 0, h * 1.0, -r * 0.06, r * 1.2, h * 0.42, r * 1.12, HM);
+  for (let k = 0; k < 7; k++) {
+    const a = -1.35 + (k / 6) * 2.7;
+    hgBlob(b, S(a) * r * 1.12, h * 0.78 + Math.cos(a) * h * 0.6, -r * 0.18 - (k % 2) * r * 0.12, r * 0.44, h * 0.3, r * 0.62, k % 2 ? HM2 : HM, 0, 0, -a * 0.6);
+  }
+  for (const x of [-0.72, -0.36, 0, 0.36, 0.72]) hgBlob(b, x * r, h * 0.92, Math.sqrt(1 - x * x) * r * 0.86, r * 0.3, h * 0.13, r * 0.24, HM, 0, x * 0.9, 0);
+  for (const sd of [-1, 1]) {
+    hgBlob(b, sd * r * 0.97, h * 0.42, r * 0.1, r * 0.42, h * 0.6, r * 0.62, HM);
+    hgBlob(b, sd * r * 1.25, h * 0.2, -r * 0.3, r * 0.42, h * 0.5, r * 0.62, HM2);
+  }
+  // ragged bangs hanging over the hairline
+  for (const [x, l] of [[-0.62, 0.14], [-0.3, 0.1], [0.05, 0.13], [0.36, 0.09], [0.64, 0.14]]) {
+    const z = Math.sqrt(1 - x * x) * r * 1.0;
+    hgSpike(b, [x * r, h * 0.9, z], [x * r * 1.1, h * (0.86 - l), z + r * 0.06], r * 0.13, HM);
+  }
+  // wild strands sticking out all round
+  for (let k = 0; k < 13; k++) {
+    const a = -1.5 + (k / 12) * 3.0, bk = (k % 3) * 0.3;
+    const bx = S(a) * r * 1.1, by = h * 0.85 + Math.cos(a) * h * 0.55, bz = -r * (0.15 + bk);
+    const L = r * (0.32 + (k % 2) * 0.16);
+    hgSpike(b, [bx, by, bz], [bx + S(a) * L, by + Math.cos(a) * L * 0.9, bz - L * 0.25], r * 0.15, k % 2 ? HM : HM2);
+  }
+  // the beard: a wedge under the face that billows out over the chest
+  hgShell(b, -h * 0.2, r * 1.2, r * 1.06, h * 0.64, 1.75, HM);
+  hgBlob(b, 0, -h * 0.2, r * 0.42, r * 1.08, h * 0.52, r * 0.88, HM);
+  hgBlob(b, 0, -h * 0.55, r * 0.62, r * 0.75, h * 0.42, r * 0.6, HM);
+  for (const [x, y, z, k] of [[-0.6, 0.18, 1.0, 0], [0.55, 0.12, 1.02, 1], [-0.25, -0.1, 1.2, 1], [0.3, -0.25, 1.14, 0], [0, 0.08, 1.2, 0], [-0.5, -0.4, 0.98, 1], [0.48, -0.5, 0.95, 1]]) {
+    hgBlob(b, x * r, y * h, z * r * 0.97, r * 0.3, h * 0.15, r * 0.15, k ? HM2 : HM, 0, x * 0.8, 0);
+  }
+  for (const x of [-0.32, 0, 0.32]) hgSpike(b, [x * r, -h * 0.75, r * 0.62], [x * r * 1.3, -h * 1.02, r * 0.66], r * 0.2, HM);
+  // drooping moustache over a little smile
+  hgBlob(b, 0, h * 0.34, r * 1.08, r * 0.17, h * 0.05, r * 0.06, 0x8a3428);
+  for (const sd of [-1, 1]) hgBlob(b, sd * r * 0.2, h * 0.41, r * 1.05, r * 0.3, h * 0.08, r * 0.16, HM2, 0, sd * 0.3, -sd * 0.2);
+  // big round nose, rosy cheeks sitting on the beard, bushy brows
+  hgBlob(b, 0, h * 0.53, r * 1.0, r * 0.24, h * 0.15, r * 0.22, NOSE);
+  hgBlob(b, 0, h * 0.63, r * 0.96, r * 0.08, h * 0.08, r * 0.08, NOSE);
+  for (const sd of [-1, 1]) {
+    const a = sd * 0.55, b2 = sd * 0.33;
+    hgBlob(b, S(a) * r * 0.97, h * 0.5, Math.cos(a) * r * 0.97, r * 0.17, h * 0.1, r * 0.09, ROSY, 0, a, 0);
+    hgBlob(b, S(b2) * r * 1.0, h * 0.745, Math.cos(b2) * r * 1.0, r * 0.25, h * 0.065, r * 0.09, HM, 0, b2, -sd * 0.18);
+  }
+}
+// torso (rig units; d = { s, W, D }): beard down the chest, lapels, rusty waistcoat, belt and brass buckle,
+// six bulging pockets with flaps and brass buttons, side pockets
+function hagridTorso(b, d, HM, HM2) {
+  const s = d.s, W = d.W, D = d.D, { COAT2, POCK, FLAP, BELT, BRASS, VEST } = HG;
+  const F = (y) => (0.23 - 0.02 * ((y / s - 0.18) / 0.82)) * s * D;   // front of the torso at height y
+  // the rusty waistcoat in the gap of the coat (the driver's printed front), with dark buttons
+  b.add(taperGeo(0.2, 0.3, 0.8, 0.02), plastic(VEST), 0, 0.18 * s, F(0.5 * s) + 0.004 * s, 0, s * W, s, s);
+  for (let y = 0.3; y < 0.7; y += 0.12) b.sphere(0, y * s, F(y * s) + 0.016 * s, 0.024 * s, 0x2a1a10, { sy: 0.8 });
+  // beard spilling down the chest
+  hgBlob(b, 0, 0.7 * s, F(0.7 * s) - 0.02 * s, 0.3 * s, 0.24 * s, 0.13 * s, HM);
+  hgBlob(b, 0, 0.47 * s, F(0.47 * s), 0.19 * s, 0.15 * s, 0.1 * s, HM);
+  for (const [x, y] of [[-0.16, 0.62], [0.17, 0.66], [0.06, 0.52], [-0.08, 0.76]]) hgBlob(b, x * s, y * s, F(y * s) + 0.07 * s, 0.1 * s, 0.07 * s, 0.05 * s, HM2);
+  for (const x of [-0.1, 0, 0.1]) hgSpike(b, [x * s, 0.44 * s, F(0.44 * s) + 0.04 * s], [x * 1.3 * s, 0.32 * s, F(0.32 * s) + 0.06 * s], 0.055 * s, x ? HM2 : HM);
+  // wide coat lapels
+  for (const sd of [-1, 1]) dbox(b, sd * 0.24 * s, 0.68 * s, F(0.68 * s) + 0.01 * s, 0.13 * s, 0.6 * s, 0.04 * s, 0, 0, sd * 0.2, COAT2);
+  // belt with a brass buckle
+  b.box(0, 0.2 * s, 0, 0.92 * s * W + 0.02, 0.1 * s, 0.47 * s * D + 0.02, BELT);
+  b.box(0, 0.19 * s, F(0.2 * s) + 0.005, 0.15 * s, 0.12 * s, 0.03 * s, BRASS);
+  b.box(0, 0.215 * s, F(0.2 * s) + 0.02, 0.08 * s, 0.05 * s, 0.02 * s, BELT);
+  // lots of bulging pockets with flaps
+  for (const sd of [-1, 1]) {
+    for (const [x, y, w, hh] of [[0.36, 0.42, 0.13, 0.11], [0.37, 0.72, 0.1, 0.08]]) {
+      const z = F(y * s);
+      hgBlob(b, sd * x * s, y * s, z, w * s, hh * s, 0.06 * s, POCK);
+      dbox(b, sd * x * s, (y + hh * 0.75) * s, z + 0.03 * s, w * 2.05 * s, hh * 0.55 * s, 0.05 * s, 0.2, 0, 0, FLAP);
+      b.sphere(sd * x * s, (y + hh * 0.55) * s, z + 0.065 * s, 0.025 * s, BRASS);
+    }
+    hgBlob(b, sd * 0.5 * s * W, 0.42 * s, 0.02 * s, 0.07 * s, 0.12 * s, 0.13 * s, POCK);   // side pockets
+  }
+}
+// arms (rig units): turned-back coat cuffs and huge hands
+function hagridArm(ab, sd, d) {
+  const s = d.s, w = Math.sqrt(d.W);
+  ab.add(taperGeo(0.3, 0.29, 0.11, 0.31), plastic(HG.COAT2), 0, -0.55 * s, 0, 0, s * w, s, s * w);
+  ab.sphere(0, -0.67 * s, 0.01 * s, 0.135 * s, HG.SKN, { sy: 1.05 });
+  ab.sphere(-sd * 0.09 * s, -0.6 * s, 0.07 * s, 0.06 * s, HG.SKN);
+}
+// Rubeus Hagrid: huge and broad, shaggy black mane and beard round a small kind face, dark moleskin coat
+// with lapels and bulging pockets over a rusty waistcoat, belt with a brass buckle, the pink umbrella
 export function hagrid(s) {
-  const COAT = 0x5a3a24, HAIR = 0x2a1a10;
-  return humanoid({ s, face: 'hagrid', skinHex: 0xe8c2a0, torso: COAT, legs: 0x3a2a1a, arms: COAT, hands: 0xe8c2a0, wide: 1.45, headR: 0.5, collar: false, shoes: 0x2a1a10,
-    hair: (b, s, top) => { b.cyl(0, top - 0.3 * s, 0, 0.56 * s, 0.44 * s, HAIR, { seg: 14 }); for (let k = 0; k < 12; k++) { const a = Math.PI * 0.5 + (k / 11) * Math.PI; b.sphere(Math.cos(a) * 0.52 * s, top - (0.5 + (k % 3) * 0.3) * s, Math.sin(a) * 0.48 * s, 0.24 * s, HAIR); } b.add(taperGeo(1.0, 0.9, 0.9, 0.5), plastic(HAIR), 0, top - 1.35 * s, 0.24 * s, 0, s, s, s); b.sphere(0, top - 1.4 * s, 0.4 * s, 0.4 * s, HAIR, { sy: 1.2 }); },
-    extra: (b, s) => { b.add(taperGeo(2.0, 1.6, 2.6, 1.1), plastic(COAT), 0, 0.3 * s, 0, 0, s, s, s); for (let k = 0; k < 4; k++) b.box(0.5 * s, (1.0 + k * 0.4) * s, 0.56 * s, 0.14 * s, 0.14 * s, 0.05 * s, 0xc8a040); b.box(0, 1.2 * s, 0, 1.75 * s, 0.24 * s, 1.05 * s, 0x2a1a10); },
+  const { COAT, COAT2, LEGS, BOOT, SKN, PINK, HAIR, HAIR2 } = HG, w = 1.5, HR = 0.5, HH = 0.8, DZ = 0.42;
+  const ds = 1.7, d = { s: ds, W: 1.3, D: 1.25 }, Fr = frames(s, w, ds, d.W, d.D, DZ);
+  const HM = plastic(HAIR, { rough: 0.72 }), HM2 = plastic(HAIR2, { rough: 0.72 });
+  return humanoid({ s, face: 'hagrid', skinHex: SKN, torso: COAT, legs: LEGS, hips: COAT, arms: COAT, hands: SKN, wide: w, headR: HR, headH: HH, collar: false, shoes: BOOT,
+    hair: (b, s, top) => hagridHead(headXf(b, s, top, 0.31 * ds, 0.5 * ds, HR, HH), 0.31 * ds, 0.5 * ds, HM, HM2),
+    extra: (b, s) => {
+      // a deep barrel of a coat over the torso, and its long skirt down past the knees, split at the front
+      b.add(taperGeo(1.14 * w, 0.86 * w, 1.3, DZ * 2), plastic(COAT), 0, 1.56 * s, 0, 0, s, s, s);
+      b.add(taperGeo(1.95, 1.74, 1.18, 1.12, 1.0), plastic(COAT), 0, 0.42 * s, -0.02 * s, 0, s, s, s);
+      b.add(taperGeo(1.99, 1.96, 0.1, 1.16), plastic(COAT2), 0, 0.42 * s, -0.02 * s, 0, s, s, s);
+      rbox(b, 0, 1.01 * s, 0.512 * s, 0.07 * s, 1.18 * s, 0.04 * s, -0.05, 0, 0, 0x2e1c0e);
+      hagridTorso(xf(b, Fr.torso), d, HM, HM2);
+    },
+    arm: (a, sd) => hagridArm(xf(a, Fr.arm), sd, d),
+    // the pink umbrella (a broken wand hidden inside) hanging forward from his right fist; its tip glows faintly
+    itemR: (a, s) => {
+      const k = 1.27 * s, u = xf(a, new THREE.Matrix4().makeTranslation(0, -1.42 * s, 0.02 * s).multiply(new THREE.Matrix4().makeRotationX(-0.5)).multiply(new THREE.Matrix4().makeScale(k, k, k)));
+      rod(u, [0, 0.05, 0], [0, -0.95, 0], 0.018, 0x7a5a3a, 6);
+      u.add(taperGeo(0.05, 0.17, 0.58, 0.17), plastic(PINK), 0, -0.86, 0, 0, 1, 1, 1);
+      u.cyl(0, -0.55, 0, 0.07, 0.04, 0xd85a98, { seg: 10 });
+      rod(u, [0, 0.05, 0], [0, 0.13, 0.09], 0.024, 0x7a5a3a, 6);
+      u.sphere(0, -0.96, 0, 0.026, 0xff70c0, { matOpts: { emissive: 0xff70c0, emissiveIntensity: 2.4 } });
+    },
   });
 }
 // Dobby: small house-elf in a pillowcase with huge ears

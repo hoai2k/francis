@@ -50,9 +50,9 @@ export function glow(color, size, opacity = 0.9) { const s = new THREE.Sprite(gl
 export const neon = (color, k = 2) => plastic(color, { emissive: color, emissiveIntensity: k });
 
 // ---- face atlas ----------------------------------------------------------------------------
-const FACES = ['gojo', 'gojoEyes', 'yuji', 'sukuna', 'mahito', 'megumi', 'nobara', 'todo', 'nanami', 'geto', 'yuta', 'maki', 'jogo', 'cursed', 'rika', 'cursed2', 'mahoraga'];
+const FACES = ['gojo', 'gojoEyes', 'yuji', 'sukuna', 'mahito', 'megumi', 'nobara', 'todo', 'nanami', 'geto', 'yuta', 'maki', 'jogo', 'cursed', 'rika', 'cursed2', 'mahoraga', 'sukunaTrue'];
 const ROWS = Math.ceil(FACES.length / 4);
-const SKIN = { gojo: '#f7e2cf', gojoEyes: '#f7e2cf', sukuna: '#f3d6bf', mahito: '#e4dcd6', jogo: '#c9c6bd', cursed: '#b9a9c4', cursed2: '#a9b9a4', rika: '#ebe6dc', todo: '#c68a58', nanami: '#f0cda8', mahoraga: '#ece8e0' };
+const SKIN = { gojo: '#f7e2cf', gojoEyes: '#f7e2cf', sukuna: '#f3d6bf', sukunaTrue: '#f3d6bf', mahito: '#e4dcd6', jogo: '#c9c6bd', cursed: '#b9a9c4', cursed2: '#a9b9a4', rika: '#ebe6dc', todo: '#c68a58', nanami: '#f0cda8', mahoraga: '#ece8e0' };
 let faceMatCache = null;
 function drawFace(g, name, W, H) {
   const skin = SKIN[name] || '#f3d2b3';
@@ -88,6 +88,43 @@ function drawFace(g, name, W, H) {
       eyes('#d01a1a', { ry: 9, rx: 10 }); for (const sd of [-1, 1]) { ell(sd * 34, 8, 7, 5, '#fff'); ell(sd * 34, 8, 4, 4, '#b01010'); }
       for (const sd of [-1, 1]) { line([[sd * 14, -28], [sd * 50, -30]], '#111', 5); line([[sd * 46, 18], [sd * 64, 18]], '#111', 4); line([[sd * 46, 25], [sd * 64, 25]], '#111', 4); }
       line([[0, -52], [0, -40]], '#111', 5); grin(28, 24); break;
+    case 'sukunaTrue': {   // (same print as the Sukuna driver) four red slit-pupil eyes under angry lids, black markings, toothy smirk
+      const poly = (pts, col) => { g.fillStyle = col; g.beginPath(); pts.forEach(([x, y], k) => (k ? g.lineTo(x, y) : g.moveTo(x, y))); g.closePath(); g.fill(); };
+      const eye = (x, y, w, hh, sd) => {
+        g.save();
+        g.beginPath(); g.moveTo(x - sd * w, y); g.quadraticCurveTo(x, y - hh * 1.5, x + sd * w, y - hh * 0.7); g.quadraticCurveTo(x + sd * w * 0.2, y + hh * 1.3, x - sd * w, y); g.closePath();
+        g.fillStyle = '#fffaf2'; g.fill(); g.clip();
+        ell(x + sd * 1, y - hh * 0.15, hh * 1.0, hh * 1.0, '#d0161c');
+        ell(x + sd * 1, y - hh * 0.15, hh * 0.28, hh * 0.85, '#120406');
+        ell(x - sd * 3, y - hh * 0.55, hh * 0.25, hh * 0.25, '#fff');
+        g.restore();
+        line([[x - sd * (w + 2), y + 1], [x, y - hh * 1.05], [x + sd * (w + 4), y - hh * 1.0]], '#141216', Math.max(3, hh * 0.55));
+      };
+      for (const sd of [-1, 1]) {
+        eye(sd * 30, -15, 17, 10, sd);
+        eye(sd * 33, 8, 13, 7.5, sd);
+        poly([[sd * 10, -24], [sd * 52, -38], [sd * 54, -30], [sd * 14, -18]], '#141216');   // angry brows
+        line([[sd * 52, 10], [sd * 76, 7]], '#141216', 5);   // two bands across each cheek
+        line([[sd * 52, 20], [sd * 74, 18]], '#141216', 5);
+      }
+      line([[-22, -44], [-8, -40], [8, -40], [22, -44]], '#141216', 4);   // the forehead mark
+      line([[0, -52], [0, -40]], '#141216', 4);
+      line([[2, -4], [6, 12], [0, 15]], '#b98a74', 3);   // nose
+      // a wide, cocky, sharp-toothed grin (his left corner higher)
+      const q = (a, c, b, k) => [(1 - k) * (1 - k) * a[0] + 2 * (1 - k) * k * c[0] + k * k * b[0], (1 - k) * (1 - k) * a[1] + 2 * (1 - k) * k * c[1] + k * k * b[1]];
+      const L = [-36, 28], R = [38, 20], TOP = [0, 38], BOT = [6, 64];
+      g.fillStyle = '#3a080c'; g.beginPath(); g.moveTo(...L); g.quadraticCurveTo(...TOP, ...R); g.quadraticCurveTo(...BOT, ...L); g.fill();
+      g.fillStyle = '#fbf6ea';
+      for (let k = 0; k < 8; k++) {
+        const a = q(L, TOP, R, 0.06 + k * 0.115), b = q(L, TOP, R, 0.06 + (k + 1) * 0.115), m = q(L, TOP, R, 0.06 + (k + 0.5) * 0.115);
+        const len = k === 0 || k === 7 ? 11 : 7;
+        g.beginPath(); g.moveTo(...a); g.lineTo(...b); g.lineTo(m[0], m[1] + len); g.closePath(); g.fill();
+        const c = q(L, BOT, R, 0.1 + k * 0.1), e = q(L, BOT, R, 0.1 + (k + 1) * 0.1), n = q(L, BOT, R, 0.1 + (k + 0.5) * 0.1);
+        g.beginPath(); g.moveTo(...c); g.lineTo(...e); g.lineTo(n[0], n[1] - (k === 0 || k === 7 ? 9 : 6)); g.closePath(); g.fill();
+      }
+      line([L, [L[0] - 4, L[1] - 3]], '#5a1a1a', 3); line([R, [R[0] + 5, R[1] - 6]], '#5a1a1a', 3);   // smirk creases
+      break;
+    }
     case 'mahito':
       eyes('#8a9ab8', { dx: 30 }); ell(30, -11, 10, 11, '#4a6aa0'); ell(30, -10, 4, 5, '#111');
       line([[-70, -50], [-10, 0], [60, 40]], '#5a3a4a', 3); for (let k = 0; k < 7; k++) { const x = -64 + k * 19, y = -45 + k * 13; line([[x - 5, y + 6], [x + 5, y - 6]], '#5a3a4a', 3); }
@@ -307,6 +344,32 @@ function cleaver(b) {
   const dots = [[0.24, 0.05], [0.36, -0.05], [0.46, 0.06], [0.58, -0.04], [0.68, 0.05], [0.8, -0.05], [0.9, 0.04], [0.52, 0], [0.31, -0.07]];
   for (const sd of [-1, 1]) for (const [y, z] of dots) blob(b, sd * 0.036, y, z, 0.006, 0.026, 0.026, DOT);
 }
+// Ryomen Sukuna (true form): spiky salmon hair swept up and back (the driver's, rig head r 0.428, h 0.69).
+// Driver-scale hair helpers as in drivers/jjk-kit.js (r = head radius, h = head height, base at y 0).
+function dCap(b, r, h, col, lo = 0.8, k = 1.08) { b.cyl(0, h * lo, 0, r * k, h * (1 - lo) + 0.03, col, { seg: 16 }); b.sphere(0, h + 0.02, 0, r * k, col, { sy: 0.3 }); }
+function dBack(b, r, h, col, lo = 0.25, hi = 0.9) { b.cyl(0, h * lo, -r * 0.3, r * 1.07, h * (hi - lo), col, { seg: 16 }); }
+function dSpikes(b, r, h, col, n, len, tilt, { y = 0.95, ring = 0.75, rad = 0.22, seed = 3, top = true, rnd = 0.35, back: bk = 0 } = {}) {
+  let sd = seed;
+  const rand = () => ((sd = (sd * 16807) % 2147483647) / 2147483647);
+  for (let k = 0; k < n; k++) {
+    const a = (k / n) * PI * 2 + 0.2, sa = Math.sin(a), ca = Math.cos(a), rr = k % 2 ? ring : ring * 0.6;
+    spike(b, sa * rr * r, h * y, ca * rr * r - bk * r, rad * r * 2, len * (1 + (rand() - 0.5) * rnd), ca * tilt - bk * 0.6, -sa * tilt, col);
+  }
+  if (top) spike(b, 0, h * y, -bk * r, rad * r * 2.4, len * 1.15, -bk * 0.6, 0, col);
+}
+function dFringe(b, r, h, col, n, len, ang = 1.9, { y = 0.92, spread = 0.5, rad = 0.17 } = {}) {
+  for (let k = 0; k < n; k++) { const u = n === 1 ? 0 : (k / (n - 1) - 0.5) * 2; spike(b, u * spread * r, h * y, r * 0.55, rad * r * 2, len, ang, -u * 0.25, col); }
+}
+function sukunaHair(b, r, h) {
+  const HAIR = 0xf08c96, HAIR2 = 0xdc6f80;
+  dBack(b, r, h, HAIR, 0.3, 0.92); dCap(b, r, h, HAIR, 0.86);
+  b.sphere(0, h * 0.95, -r * 0.1, r * 1.0, HAIR, { sy: 0.42 });
+  dSpikes(b, r, h, HAIR, 12, 0.4, 0.85, { seed: 17, back: 0.45, ring: 0.85, rnd: 0.5 });
+  dSpikes(b, r, h, HAIR2, 7, 0.3, 1.35, { seed: 5, back: 0.7, ring: 0.95, top: false });
+  dSpikes(b, r, h * 0.62, HAIR2, 6, 0.24, 1.7, { seed: 23, back: 0.9, ring: 0.9, top: false });   // the nape
+  dFringe(b, r, h, HAIR, 4, 0.3, 0.45, { spread: 0.75, y: 0.9, rad: 0.2 });
+  dFringe(b, r, h, HAIR2, 5, 0.12, 2.5, { spread: 0.85, y: 0.9, rad: 0.15 });   // short locks over the hairline
+}
 // hair helpers ---------------------------------------------------------------------------
 function spikyHair(b, s, top, col, n, len, spread = 0.5, rnd = 0.3) {
   b.cyl(0, top - 0.24 * s, 0, 0.47 * s, 0.36 * s, col, { seg: 14 });
@@ -322,7 +385,8 @@ export const hair = {
   gojo: (b, s, top) => { spikyHair(b, s, top, C.white, 12, 0.7, 0.75, 0.3); for (let k = -2; k <= 2; k++) spike(b, k * 0.14 * s, top - 0.1 * s, 0.34 * s, 0.14 * s, 0.55 * s, 1.9, k * 0.12, C.white); },
   yuji: (b, s, top) => { b.box(0, top - 0.44 * s, -0.2 * s, 0.9 * s, 0.3 * s, 0.5 * s, 0x3a2a2a); spikyHair(b, s, top, 0xf28a9c, 10, 0.4, 0.6, 0.15); spike(b, 0, top - 0.05 * s, 0.3 * s, 0.2 * s, 0.4 * s, 1.5, 0, 0xf28a9c); },
   megumi: (b, s, top) => { spikyHair(b, s, top, 0x15161c, 14, 0.7, 0.95, 0.4); },
-  sukuna: (b, s, top) => { spikyHair(b, s, top, 0xf28a9c, 10, 0.55, 1.2, 0.2); },
+  sukuna: (b, s, top) => { spikyHair(b, s, top, 0xf28a9c, 10, 0.55, 1.2, 0.2); },   // Yuji's hair with Sukuna in control (sukunaYuji)
+  sukunaTrue: (b, s, top) => sukunaHair(headXf(b, s, top, 0.4278, 0.69), 0.4278, 0.69),
   nobara: (b, s, top) => { const col = 0xa8562a; b.cyl(0, top - 0.3 * s, 0, 0.5 * s, 0.42 * s, col, { seg: 14 }); for (const sd of [-1, 1]) b.box(sd * 0.36 * s, top - 0.78 * s, -0.08 * s, 0.22 * s, 0.6 * s, 0.7 * s, col); b.box(0, top - 0.7 * s, -0.3 * s, 0.9 * s, 0.6 * s, 0.24 * s, col); b.box(0.12 * s, top - 0.2 * s, 0.34 * s, 0.6 * s, 0.14 * s, 0.14 * s, col); },
   mahito: (b, s, top) => { const cols = [0x8a9ab0, 0x5a6a80, 0xa8b4c4]; b.cyl(0, top - 0.3 * s, 0, 0.5 * s, 0.44 * s, cols[0], { seg: 14 }); for (const sd of [-1, 1]) { b.box(sd * 0.36 * s, top - 1.3 * s, -0.1 * s, 0.22 * s, 1.2 * s, 0.6 * s, cols[1]); b.box(sd * 0.3 * s, top - 0.6 * s, 0.1 * s, 0.2 * s, 0.4 * s, 0.4 * s, cols[2]); } b.box(0, top - 1.3 * s, -0.36 * s, 0.9 * s, 1.2 * s, 0.24 * s, cols[0]); b.box(-0.05 * s, top - 0.25 * s, 0.34 * s, 0.7 * s, 0.2 * s, 0.14 * s, cols[2]); },
   todo: (b, s, top) => todoHair(headXf(b, s, top, 0.406, 0.725), 0.406, 0.725),
@@ -426,14 +490,13 @@ export function mahito(s) {
   return humanoid({ s, face: 'mahito', skinHex: 0xe4dcd6, torso: 0x2a2a34, legs: 0x3a3a48, arms: 0xe4dcd6, hands: 0xe4dcd6, hair: hair.mahito, collar: 0x2a2a34,
     extra: (b, s) => { for (const [x, y, c] of [[-0.25, 2.2, 0x4a4a5a], [0.3, 1.8, 0x5a4a5a], [0.0, 2.5, 0x3a4a5a]]) b.box(x * s, y * s, 0.32 * s, 0.26 * s, 0.26 * s, 0.04 * s, c); for (const sd of [-1, 1]) b.box(sd * 0.56 * s, 2.4 * s, 0, 0.44 * s, 0.35 * s, 0.5 * s, 0x2a2a34); } });
 }
-// Sukuna true form: four arms, kimono, markings
+// Sukuna true form: four arms, kimono, markings; four-eyed face and swept-back hair as his driver
 export function sukuna(s) {
-  const f = humanoid({ s, face: 'sukuna', skinHex: 0xf3d6bf, torso: 0xf2eee4, legs: 0xf2eee4, arms: 0xf3d6bf, hands: 0xf3d6bf, hair: hair.sukuna, wide: 1.15, collar: false,
+  const f = humanoid({ s, face: 'sukunaTrue', skinHex: 0xf3d6bf, torso: 0xf2eee4, legs: 0xf2eee4, arms: 0xf3d6bf, hands: 0xf3d6bf, hair: hair.sukunaTrue, wide: 1.15, collar: false,
     extra: (b, s) => {
       b.add(taperGeo(1.9, 1.24, 1.4, 1.1), plastic(0xf2eee4), 0, 0, 0, 0, s, s, s);
       b.box(0, 1.36 * s, 0, 1.36 * s, 0.26 * s, 0.76 * s, 0x1b1b1b);
       rbox(b, 0.18 * s, 2.2 * s, 0.33 * s, 0.12 * s, 1.1 * s, 0.04 * s, 0, 0, 0.45, 0x1b1b1b); rbox(b, -0.18 * s, 2.2 * s, 0.33 * s, 0.12 * s, 1.1 * s, 0.04 * s, 0, 0, -0.45, 0x1b1b1b);
-      for (const sd of [-1, 1]) { b.sphere(sd * 0.3 * s, 3.2 * s, 0.34 * s, 0.07 * s, 0xff2020, { matOpts: { emissive: 0xff2020, emissiveIntensity: 2 } }); }
     },
   });
   // lower pair of arms
@@ -552,22 +615,88 @@ export function transfigured(v = 0) {
   return b.build({ name: 'transfigured' });
 }
 
-// Panda (~4.2 * s tall)
+// Panda (~4.8 * s tall to the ears): a port of the redesigned driver (drivers/jjk.js), stood up. The driver's
+// head, barrel body and arms are drawn in its rig units (scale 1.42, wide 1.62, deep 1.35, hips at y 0) and
+// mapped onto the figure uniformly (one rig unit = 1.42 * s); his short heavy legs are added under the hips.
+const pdSph = () => G('pdSph', () => new THREE.SphereGeometry(1, 22, 16));
+function pdBlob(b, x, y, z, sx, sy, sz, color, rx = 0, ry = 0, rz = 0) { b.addMatrix(pdSph(), typeof color === 'number' ? plastic(color) : color, m4(x, y, z, rx, ry, rz, sx, sy, sz)); }
 export function panda(s) {
+  const BK = 0x161616, WH = 0xf6f6f2, JK = 0x1a1e2e, JK2 = 0x2a3048, PAD = 0x3a3434;
+  const JKM = plastic(JK, { rough: 0.62 }), BKM = plastic(BK, { rough: 0.5 });
+  const ds = 1.42, W = 1.62, D = 1.35, K = 1.42 * s, LEG = 0.53 * ds;   // rig unit -> figure; the hips stand LEG above the ground
   const root = new THREE.Group();
-  const b = new BrickBuilder(1);
-  for (const sd of [-1, 1]) b.box(sd * 0.45 * s, 0, 0, 0.7 * s, 1.1 * s, 0.8 * s, 0x1b1b1b);
-  b.sphere(0, 2.0 * s, 0, 1.15 * s, C.white, { sy: 1.05 });
-  b.box(0, 2.3 * s, 0, 2.1 * s, 0.6 * s, 1.3 * s, 0x1b1b1b);
-  b.sphere(0, 3.7 * s, 0, 0.95 * s, C.white, { sy: 0.9 });
-  for (const sd of [-1, 1]) { b.sphere(sd * 0.7 * s, 4.5 * s, -0.1 * s, 0.34 * s, 0x1b1b1b); b.sphere(sd * 0.36 * s, 3.85 * s, 0.72 * s, 0.26 * s, 0x1b1b1b, { sy: 1.3 }); b.sphere(sd * 0.36 * s, 3.9 * s, 0.9 * s, 0.08 * s, C.white); }
-  b.sphere(0, 3.45 * s, 0.9 * s, 0.14 * s, 0x1b1b1b);
-  root.add(b.build({ name: 'panda' }));
+  const b0 = new BrickBuilder(1);
+  const b = xf(b0, sxf(0, LEG * K, 0, K, K, K));   // body, in rig units
+  const S = ds;
+  // ---- head (rig head frame: base at the neck, 1.45 above the hips): a big smooth round white head
+  const hb = xf(b0, sxf(0, (LEG + 1.02 * S) * K, 0, K, K, K));
+  const HC = [0, 0.5, 0], HR = [0.63, 0.55, 0.58];
+  const on = (a, e, k = 1) => [HC[0] + HR[0] * Math.sin(a) * Math.cos(e) * k, HC[1] + HR[1] * Math.sin(e) * k, HC[2] + HR[2] * Math.cos(a) * Math.cos(e) * k];
+  pdBlob(hb, ...HC, ...HR, WH);
+  for (const sd of [-1, 1]) pdBlob(hb, sd * 0.43, 0.95, -0.06, 0.2, 0.2, 0.13, BK);   // round black ears
+  // droopy teardrop eye patches with small glinting eyes
+  for (const sd of [-1, 1]) {
+    const a = sd * 0.43, e = 0.12;
+    pdBlob(hb, ...on(a, e, 0.98), 0.115, 0.16, 0.08, BK, -e, a, sd * 0.5);
+    pdBlob(hb, ...on(a + sd * 0.075, e - 0.1, 0.975), 0.12, 0.115, 0.08, BK, -(e - 0.1), a + sd * 0.075, 0);
+    pdBlob(hb, ...on(a - sd * 0.03, e + 0.04, 1.11), 0.046, 0.052, 0.025, WH, -e, a, 0);
+    pdBlob(hb, ...on(a - sd * 0.035, e + 0.035, 1.15), 0.03, 0.036, 0.016, BK, -e, a, 0);
+    pdBlob(hb, ...on(a - sd * 0.06, e + 0.08, 1.17), 0.011, 0.011, 0.006, WH, -e, a, 0);
+  }
+  // raised white muzzle, black nose and a little smile
+  pdBlob(hb, 0, 0.35, 0.42, 0.27, 0.19, 0.24, WH);
+  pdBlob(hb, 0, 0.44, 0.63, 0.09, 0.055, 0.06, BK);
+  dbox(hb, 0, 0.37, 0.654, 0.022, 0.07, 0.02, 0.08, 0, 0, BK);
+  for (const sd of [-1, 1]) dbox(hb, sd * 0.045, 0.32, 0.65, 0.08, 0.022, 0.02, 0.15, sd * 0.25, sd * 0.4, BK);
+  // ---- body: hips, the jacket torso and neck (as the seated rig), then the driver's barrel
+  b.box(0, -0.12 * S, 0, 0.9 * S * W, 0.3 * S, 0.46 * S * D, BK);
+  b.add(taperGeo(0.92 * W, 0.7 * W, 0.82, 0.46 * D, 0.42 * D), plastic(JK), 0, 0.18 * S, 0, 0, S, S, S);
+  b.cyl(0, 0.94 * S, 0, 0.13 * S, 0.14 * S, WH, { seg: 10 });
+  const BC = [0, 0.5 * S, -0.02 * S], BR = [0.6 * S, 0.56 * S, 0.4 * S * D];
+  const bz = (x, y) => BC[2] + BR[2] * Math.sqrt(Math.max(0, 1 - (x / BR[0]) ** 2 - ((y - BC[1]) / BR[1]) ** 2));
+  pdBlob(b, ...BC, ...BR, JKM);
+  // very broad, rounded shoulders sloping down from the neck (a big slouched bear)
+  for (const sd of [-1, 1]) {
+    pdBlob(b, sd * 0.36 * S, 0.9 * S, -0.03 * S, 0.36 * S, 0.22 * S, 0.36 * S * D, JKM, 0, 0, -sd * 0.42);
+    pdBlob(b, sd * 0.42 * S, 0.7 * S, -0.04 * S, 0.4 * S, 0.2 * S, 0.36 * S * D, JKM, 0, 0, -sd * 0.38);
+  }
+  // the open jacket over a huge round white belly, black fur band across the chest
+  pdBlob(b, 0, 0.78 * S, bz(0, 0.78 * S) - 0.1 * S, 0.32 * S, 0.13 * S, 0.12 * S, BKM);
+  pdBlob(b, 0, 0.4 * S, bz(0, 0.4 * S) - 0.17 * S, 0.4 * S, 0.42 * S, 0.26 * S, WH);
+  for (const sd of [-1, 1]) {
+    // rolled jacket edges framing the belly, gold buttons on one side
+    const pts = [];
+    for (let k = 0; k < 6; k++) { const y = (0.8 - k * 0.13) * S, x = sd * (0.24 + k * 0.03) * S; pts.push([x, y, bz(x, y) + 0.005 * S]); }
+    pts.forEach((p, k) => { b.sphere(...p, 0.045 * S, JK2); if (k) rod(b, pts[k - 1], p, 0.045 * S, JK2, 10); });
+    if (sd > 0) for (let k = 0; k < 4; k++) { const y = (0.74 - k * 0.15) * S, x = (0.31 + k * 0.03) * S; b.sphere(x, y, bz(x, y) + 0.02 * S, 0.038 * S, GOLD, { sy: 0.7 }); }
+  }
+  // the high stand collar with a gold button at the throat
+  b.cyl(0, 0.86 * S, 0, 0.3 * S, 0.2 * S, JK, { seg: 18 });
+  b.cyl(0, 1.05 * S, 0, 0.305 * S, 0.025 * S, JK2, { seg: 18 });
+  b.sphere(0, 0.95 * S, 0.3 * S, 0.04 * S, GOLD);
+  // thick black haunches, heavy thighs and short legs on big round feet, a little white tail
+  pdBlob(b, 0, -0.08 * S, -0.04 * S, 0.56 * S * W / 1.55, 0.24 * S, 0.32 * S * D, BKM);
+  for (const sd of [-1, 1]) {
+    pdBlob(b, sd * 0.3 * S, -0.16 * S, 0.04 * S, 0.3 * S, 0.34 * S, 0.33 * S, BKM);
+    pdBlob(b, sd * 0.3 * S, -0.38 * S, 0.03 * S, 0.24 * S, 0.2 * S, 0.25 * S, BKM);
+    pdBlob(b, sd * 0.3 * S, -0.46 * S, 0.1 * S, 0.22 * S, 0.08 * S, 0.29 * S, BKM);
+    pdBlob(b, sd * 0.3 * S, -0.49 * S, 0.33 * S, 0.1 * S, 0.035 * S, 0.06 * S, PAD);
+  }
+  pdBlob(b, 0, 0.0, -0.36 * S * D, 0.1 * S, 0.09 * S, 0.07 * S, WH);
+  root.add(b0.build({ name: 'panda' }));
+  // ---- thick heavy arms in the jacket sleeves, turned cuffs and big round black paws; set out on the
+  // low sloping shoulders, clear of the barrel chest
   const arms = [];
   for (const sd of [-1, 1]) {
-    const pv = new THREE.Group(); pv.position.set(sd * 1.1 * s, 2.7 * s, 0);
-    const a = new BrickBuilder(1); a.sphere(0, -0.6 * s, 0, 0.45 * s, 0x1b1b1b, { sy: 1.8 }); pv.add(a.build({ name: 'panda-arm' }));
-    pv.rotation.z = sd * 0.35; root.add(pv); arms.push(pv);
+    const pv = new THREE.Group(); pv.position.set(sd * (0.43 * W + 0.06) * S * K, (LEG + 0.78 * S) * K, 0);
+    const a0 = new BrickBuilder(1), ab = xf(a0, sxf(0, 0, 0, K, K, K));
+    pdBlob(ab, 0, -0.07 * S, 0, 0.23 * S, 0.22 * S, 0.22 * S, JKM);
+    pdBlob(ab, 0, -0.34 * S, 0.005 * S, 0.205 * S, 0.32 * S, 0.2 * S, JKM);
+    ab.cyl(0, -0.62 * S, 0.01 * S, 0.185 * S, 0.07 * S, JK2, { seg: 14 });
+    pdBlob(ab, 0, -0.75 * S, 0.02 * S, 0.2 * S, 0.19 * S, 0.2 * S, BKM);
+    pdBlob(ab, 0, -0.78 * S, 0.17 * S, 0.08 * S, 0.065 * S, 0.04 * S, PAD);
+    pv.add(a0.build({ name: 'panda-arm' }));
+    pv.rotation.z = sd * 0.22; root.add(pv); arms.push(pv);
   }
   return { root, armR: arms[0], armL: arms[1] };
 }
