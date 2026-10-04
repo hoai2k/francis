@@ -15,8 +15,10 @@ import space from './maps/space.js';
 const MOVIE_IDS = ['jurassic', 'starwars', 'marvel', 'hogwarts'];
 // JJK Run: one map per Jujutsu Kaisen season, in story order
 const JJK_IDS = ['jjk-goodwill', 'jjk-inventory', 'jjk', 'jjk-culling'];
-// Video Game Cup: Minecraft, Pokémon and Sonic the Hedgehog
-const GAME_IDS = ['minecraft', 'pokemon', 'sonic'];
+// Video Game Cup: Minecraft, Pokémon and Sonic the Hedgehog (only in developer test races,
+// ?quick=…, until they're finished)
+const GAMES_READY = false;
+const GAME_IDS = GAMES_READY || new URLSearchParams(location.search).has('quick') ? ['minecraft', 'pokemon', 'sonic'] : [];
 async function loadMaps(ids) {
   return (await Promise.allSettled(ids.map((id) => import(`./maps/${id}.js`))))
     .map((r, i) => {
@@ -32,7 +34,7 @@ const [movie, jjk, games] = await Promise.all([loadMaps(MOVIE_IDS), loadMaps(JJK
 export const TRACKS = [city, meadow, pirate, candy, jungle, frost, factory, lava, space, ...movie, ...jjk, ...games];
 // which movie's / game's abilities (js/abilities/<from>.js) belong to a map: they turn up twice as
 // often there, and in Simplified mode only there
-export const MAP_FROM = { jurassic: 'jurassic', starwars: 'starwars', marvel: 'marvel', hogwarts: 'potter', ...Object.fromEntries(JJK_IDS.map((id) => [id, 'jjk'])), ...Object.fromEntries(GAME_IDS.map((id) => [id, id])) };
+export const MAP_FROM = { jurassic: 'jurassic', starwars: 'starwars', marvel: 'marvel', hogwarts: 'potter', ...Object.fromEntries(JJK_IDS.map((id) => [id, 'jjk'])), ...Object.fromEntries(['minecraft', 'pokemon', 'sonic'].map((id) => [id, id])) };
 
 export const CUPS = [
   { id: 'stud', name: 'Stud Cup', color: '#f2cd37', tracks: ['city', 'meadow', 'pirate'] },

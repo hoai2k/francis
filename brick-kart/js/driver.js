@@ -26,6 +26,12 @@ export const UNIVERSES = [
   { id: 'sonic', name: 'Sonic the Hedgehog', color: '#1e6cff' },
 ];
 
+// Casts still being built only load in the workbench and the developer views (?gallery=…,
+// ?quick=…, ?packs=all), so they can be reviewed before they reach the select screen.
+const PREVIEW = ['minecraft', 'pokemon', 'sonic'];
+const q = new URLSearchParams(location.search);
+const dev = location.pathname.includes('/workbench/') || ['gallery', 'garage', 'quick', 'packs'].some((k) => q.has(k));
+for (let i = UNIVERSES.length - 1; i >= 0; i--) if (!dev && PREVIEW.includes(UNIVERSES[i].id)) UNIVERSES.splice(i, 1);
 // each universe loads on its own so one broken file never stops the game
 const loaded = await Promise.allSettled(UNIVERSES.map((u) => import(`./drivers/${u.id}.js`)));
 export const DRIVERS = [];
