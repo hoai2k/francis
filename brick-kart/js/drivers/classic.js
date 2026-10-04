@@ -11,10 +11,12 @@ const BLURB = {
   kara: 'Armoured tank, lance up', rex: 'Top speed, beep boop', nix: 'Drift master, then poof',
   flo: 'Hoses down the pack', wendel: 'Speedy spellcaster', pepper: 'Hot pan, quick hands',
   cassie: 'Tough rider, quick lasso', bjorn: 'Unstoppable. Very loud.', regina: 'Royal speed, royal wave',
-  sam: 'Tricky drifter, kickflips', zorp: 'Out of this world', max: 'Wrapped for speed', dina: 'Big bite, tiny arms',
+  zorp: 'Out of this world', max: 'Wrapped for speed',
 };
 
-export default CHARACTERS.map((ch) => {
+// only the racers that have a driver build (Skater Sam and Dino Dina were retired as
+// drivers; their karts stay)
+export default CHARACTERS.filter((ch) => DEFS[ch.id]).map((ch) => {
   const def = DEFS[ch.id];
   const w = ch.stats.weight;
   return {

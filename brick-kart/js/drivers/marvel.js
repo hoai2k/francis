@@ -1,7 +1,7 @@
 // Marvel drivers. Faces, torso prints and colours come from the
 // "Avengers Brick Assemble" map figures; each driver has a signature cheer/win with
 // effect parts (webs, repulsors, Mjolnir lightning, mandalas, Infinity snap…) run by rig.fx.
-import { THREE, BrickBuilder, C, plastic, rod, simpleFace, taperGeo } from './kit.js';
+import { THREE, BrickBuilder, C, plastic, rod, taperGeo } from './kit.js';
 import {
   M, S, PI, UP, ease, bump, seg, vis, shot, mapMats, faceMat, decalMat, shieldMesh, mandalaMat,
   fxMat, glow, hero, prop, beam, gems, spellDisc, mat4,
@@ -201,37 +201,6 @@ const hulk = {
   },
 };
 
-// ---------------------------------------------------------------------------- Black Widow
-const widow = {
-  id: 'widow', name: 'Black Widow', blurb: 'Super-spy with stingers', weight: 'light', color: 0xd01a1a,
-  voice: { kind: 'human', pitch: 1.35 }, style: { cheer: 'both', win: 'wave', trick: 'twist' },
-  gestures: {
-    // crossed batons, then an electric X-strike
-    cheer: (f, t) => (f < 0.4
-      ? { lx: -1.75, rx: -1.75, lz: -0.6, rz: 0.6, hx: 0.1, tx: 0.08 }
-      : { lx: -2.3, rx: -2.3, lz: 1.0, rz: -1.0, hx: -0.25, hz: S(t * 7) * 0.12, by: abs(S(t * 10)) * 0.05 }),
-    win: (f, t) => ({ rx: UP, rz: -0.3, lx: -1.3, lz: 1.1, hz: S(t * 4) * 0.2, hy: S(t * 2) * 0.4, hx: -0.15, ty: S(t * 2) * 0.12 }),
-  },
-  build() {
-    const { face, decal } = mapMats('widow');
-    const hairC = 0xb8401a;
-    const rig = hero({
-      name: 'widow', face, decal, top: hairC, skin: M.skin, torso: M.black, arms: M.black, hands: M.black, legs: M.black,
-      hair: (hb, d, k, v) => { hb.sphere(0, 0.6 * v, 0, 0.44 * k, hairC, { sy: 0.5 }); hb.box(0, -0.28 * v, -0.2 * k, 0.9 * k, 0.95 * v, 0.46 * k, hairC); for (const sd of [-1, 1]) hb.sphere(sd * 0.36 * k, -0.2 * v, -0.08 * k, 0.17 * k, hairC); },
-      arm: (ab, sd, d) => ab.box(0, -0.47 * d.s, 0, 0.25 * d.s, 0.07 * d.s, 0.28 * d.s, M.gold),
-    });
-    const s = rig.dims.s;
-    const mk = (arm) => { const g = prop(arm, 0, HAND * s, 0, (b) => { b.box(0, -0.04, 0, 0.1, 0.08, 0.1, 0x3a3e46); b.boxM(mat4(0, 0, 0, 0, 0, 0, 0.06, 0.06, 0.95), 0, { mat: glow(0x5ac8ff, 2.6) }); }); g.visible = false; return g; };
-    const bL = mk(rig.armL), bR = mk(rig.armR);
-    rig.fx = (name, f, t) => {
-      const on = name === 'cheer' || name === 'win' || name === 'use' || name === 'taunt';
-      vis(bL, on); vis(bR, on);
-      if (on) { const spin = name === 'cheer' && f < 0.4 ? 0.6 : t * 16; bL.rotation.y = spin; bR.rotation.y = -spin; }
-    };
-    return rig;
-  },
-};
-
 // ---------------------------------------------------------------------------- Hawkeye
 const hawkeye = {
   id: 'hawkeye', name: 'Hawkeye', blurb: 'Never misses a shot', weight: 'medium', color: 0x5b2c83,
@@ -358,79 +327,6 @@ const strange = {
       const face = name === 'win' ? 0 : PI / 2;   // arms spread: discs face forward; arms forward: discs face out of the palms
       if (l > 0.02) { mL.g.scale.setScalar(l); mL.m.rotation.set(face, 0, t * 2.2); }
       if (r > 0.02) { mR.g.scale.setScalar(r); mR.m.rotation.set(face, 0, -t * 2.2); }
-    };
-    return rig;
-  },
-};
-
-// ---------------------------------------------------------------------------- Scarlet Witch
-function wandaMats() {
-  const face = faceMat('mv-wanda', (g, w, h) => {
-    g.fillStyle = '#f2c9a0'; g.fillRect(0, 0, w, h);
-    simpleFace(g, { mouth: 'smirk', brows: true, y: 64 });
-    g.fillStyle = '#b0303a'; g.fillRect(118, 86, 20, 3);
-    g.fillStyle = '#7a2a1a'; g.fillRect(0, 0, 78, h); g.fillRect(178, 0, 78, h); g.fillRect(0, 0, w, 24);
-    g.beginPath(); g.moveTo(78, 24); g.quadraticCurveTo(100, 40, 108, 24); g.fill(); g.beginPath(); g.moveTo(178, 24); g.quadraticCurveTo(156, 40, 148, 24); g.fill();
-    g.fillStyle = '#c01020'; g.beginPath(); g.moveTo(96, 26); g.lineTo(128, 30); g.lineTo(160, 26); g.lineTo(150, 36); g.lineTo(128, 40); g.lineTo(106, 36); g.closePath(); g.fill();
-  });
-  const decal = decalMat('mv-wanda', (g, w, h) => {
-    g.fillStyle = '#7a0f1a'; g.fillRect(0, 0, w, h);
-    g.fillStyle = '#2a0a10'; g.beginPath(); g.moveTo(34, 30); g.lineTo(94, 30); g.lineTo(86, h); g.lineTo(42, h); g.closePath(); g.fill();
-    g.strokeStyle = '#c01020'; g.lineWidth = 3; for (let y = 44; y < h - 10; y += 14) { g.beginPath(); g.moveTo(52, y); g.lineTo(76, y + 8); g.moveTo(76, y); g.lineTo(52, y + 8); g.stroke(); }
-    g.fillStyle = '#c01020'; g.beginPath(); g.moveTo(20, 0); g.lineTo(w / 2, 34); g.lineTo(w - 20, 0); g.lineTo(w - 34, 0); g.lineTo(w / 2, 22); g.lineTo(34, 0); g.fill();
-    g.fillStyle = '#3a0a10'; g.fillRect(0, h - 22, w, 12);
-  });
-  return { face, decal };
-}
-let hexM = null;
-const hexMat = () => (hexM ||= new THREE.MeshBasicMaterial({ color: 0xff1238, transparent: true, opacity: 0.8, depthWrite: false, toneMapped: false }));
-const wanda = {
-  id: 'wanda', name: 'Scarlet Witch', blurb: 'Chaos magic on wheels', weight: 'light', color: 0xff1a3a,
-  voice: { kind: 'human', pitch: 1.3 }, style: { cheer: 'both', win: 'both', trick: 'twist' },
-  gestures: {
-    // hex bolts from both hands
-    cheer: (f, t) => (f < 0.6
-      ? { lx: -1.85, rx: -1.85, lz: 0.35, rz: -0.35, hx: -0.1, hz: 0.15, tx: -0.05, by: 0.04 }
-      : { lx: -2.5, rx: -2.5, lz: 0.55, rz: -0.55, hx: -0.3, hz: S(t * 5) * 0.15, by: 0.08 }),
-    win: (f, t) => ({ lx: -0.9 + S(t * 3) * 0.2, rx: -0.9 - S(t * 3) * 0.2, lz: 1.0, rz: -1.0, hx: -0.2, hz: S(t * 2) * 0.12, by: 0.12 + S(t * 2.5) * 0.05 }),
-    use: (f) => ({ rx: -1.8, rz: -0.25, hx: -0.1 }),
-  },
-  build() {
-    const { face, decal } = wandaMats();
-    const hairC = 0x7a2a1a, red = 0xa01020;
-    const rig = hero({
-      name: 'wanda', face, decal, top: hairC, skin: M.skin, torso: 0x7a0f1a, arms: 0x7a0f1a, hands: 0x3a0a10, legs: 0x2a0a10,
-      hair: (hb, d, k, v) => {
-        hb.sphere(0, 0.6 * v, 0, 0.44 * k, hairC, { sy: 0.5 });
-        hb.box(0, -0.5 * v, -0.2 * k, 0.92 * k, 1.15 * v, 0.46 * k, hairC);
-        for (const sd of [-1, 1]) { hb.sphere(sd * 0.36 * k, -0.25 * v, -0.06 * k, 0.17 * k, hairC, { sy: 1.6 }); hb.boxM(mat4(sd * 0.15 * k, 0.8 * v, 0.33 * k, -0.35, 0, sd * 0.5, 0.07 * k, 0.32 * v, 0.06 * k), red); }
-        hb.box(0, 0.68 * v, 0.35 * k, 0.24 * k, 0.07 * v, 0.06 * k, red);
-      },
-      extra: (b, d) => {
-        const s = d.s;
-        b.boxM(mat4(0, 0.5 * s, -0.24 * s * d.D - 0.03, 0.08, 0, 0, 0.9 * s, 0.9 * s, 0.06), red);
-        b.box(0, 0.88 * s, -0.16 * s, 0.75 * s, 0.14 * s, 0.24 * s, red);
-      },
-      arm: (ab, sd, d) => ab.box(0, -0.5 * d.s, 0, 0.25 * d.s, 0.08 * d.s, 0.28 * d.s, red),
-    });
-    const s = rig.dims.s;
-    const mk = (arm) => {
-      const g = prop(arm, 0, TIP * s - 0.08, 0, (b) => {
-        const m = hexMat();
-        const tor = new THREE.TorusGeometry(0.22, 0.04, 6, 16);
-        b.addMatrix(tor, m, mat4(0, 0, 0, PI / 2, 0, 0));
-        b.addMatrix(tor, m, mat4(0, -0.12, 0, PI / 2 + 0.5, 0.4, 0, 0.7, 0.7, 0.7));
-        for (let k = 0; k < 4; k++) { const a = k * PI / 2; b.sphere(Math.cos(a) * 0.32, -0.05 - k * 0.05, Math.sin(a) * 0.32, 0.075, 0, { mat: m }); }
-        tor.dispose();
-      }, 'hex');
-      g.visible = false; return g;
-    };
-    const hL = mk(rig.armL), hR = mk(rig.armR);
-    rig.fx = (name, f, t) => {
-      const l = name === 'cheer' || name === 'win', r = l || name === 'use' || name === 'throwF';
-      vis(hL, l); vis(hR, r);
-      if (l) { hL.rotation.y = t * 6; hL.scale.setScalar(0.9 + S(t * 13) * 0.15); }
-      if (r) { hR.rotation.y = -t * 6; hR.scale.setScalar(0.9 + S(t * 11) * 0.15); }
     };
     return rig;
   },
@@ -832,42 +728,8 @@ const thanos = {
   },
 };
 
-// ---------------------------------------------------------------------------- Ultron
-const ultron = {
-  id: 'ultron', name: 'Ultron', blurb: 'No strings on me', weight: 'medium', color: 0xff3a1a,
-  voice: { kind: 'robot', pitch: 0.8 }, style: { cheer: 'point', win: 'both', trick: 'superman' },
-  gestures: {
-    // twin red blasts
-    cheer: (f) => {
-      const r = shot(f, 0.12, 0.5), l = shot(f, 0.45, 0.85);
-      return { rx: -1.7 + r * 0.25, rz: 0.06, lx: -1.7 + l * 0.25, lz: -0.06, hz: 0.2, hx: -0.1, tx: -0.05 };
-    },
-    // "there are no strings on me"
-    win: (f, t) => ({ lx: -0.35 + S(t * 1.5) * 0.15, rx: -0.35 - S(t * 1.5) * 0.15, lz: 1.4, rz: -1.4, hz: 0.25 + S(t * 1.5) * 0.1, hx: -0.15, by: 0.1 + S(t * 2) * 0.05 }),
-    use: (f) => ({ rx: -1.7, rz: 0.06, hz: 0.15 }),
-  },
-  build() {
-    const { face, decal } = mapMats('ultron');
-    const rig = hero({
-      name: 'ultron', face, decal, top: 0xa8aeb6, skin: 0xa8aeb6, torso: 0xa8aeb6, arms: 0xa8aeb6, hands: 0x6a7078, legs: 0x8a9098,
-      hair: (hb, d, k, v) => { for (let j = -2; j <= 2; j++) hb.boxM(mat4(j * 0.14 * k, d.headH + 0.04, -0.1 * k, -0.5, 0, j * 0.2, 0.08 * k, 0.32 * v, 0.08 * k), 0x8a9098); },
-      arm: (ab, sd, d) => { ab.box(0, -0.3 * d.s, 0, 0.26 * d.s, 0.05 * d.s, 0.29 * d.s, 0x6a7078); ab.sphere(0, -0.02 * d.s, 0, 0.15 * d.s, 0x8a9098); },
-    });
-    const s = rig.dims.s;
-    const bR = beam(rig.armR, TIP * s, 0xff3a1a, { r0: 0.05, r1: 0.14, flash: 0.18 });
-    const bL = beam(rig.armL, TIP * s, 0xff3a1a, { r0: 0.05, r1: 0.14, flash: 0.18 });
-    rig.fx = (name, f, t) => {
-      let r = 0, l = 0;
-      if (name === 'cheer') { r = shot(f, 0.12, 0.5) * 5; l = shot(f, 0.45, 0.85) * 5; }
-      else if (name === 'use' || name === 'throwF') r = shot(f, 0.25, 0.95) * 5;
-      bR.set(r, 1 + S(t * 43) * 0.3); bL.set(l, 1 + S(t * 43) * 0.3);
-    };
-    return rig;
-  },
-};
-
 export default [
-  spiderman, ironman, captain, thor, hulk, widow, hawkeye, panther, strange, wanda, antman,
+  spiderman, ironman, captain, thor, hulk, hawkeye, panther, strange, antman,
   starlord, gamora, drax, rocket, groot,
-  loki, thanos, ultron,
+  loki, thanos,
 ];

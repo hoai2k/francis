@@ -120,85 +120,6 @@ function megumi() {
   return rig;
 }
 
-// ---- Nobara Kugisaki ----------------------------------------------------------------------
-function nobara() {
-  const HAIR = 0xa8562a;
-  const rig = jfig({
-    name: 'nobara', face: 'nobara', torso: NAVY, legs: NAVY, arms: NAVY, skin: SKIN,
-    hair: (b, r, h) => {
-      cap(b, r, h, HAIR, 0.8); back(b, r, h, HAIR, 0.1, 0.9);
-      for (const sd of [-1, 1]) b.box(sd * r * 0.98, h * 0.12, -r * 0.15, r * 0.26, h * 0.72, r * 0.95, HAIR);
-      rbox(b, r * 0.15, h * 0.86, r * 0.7, r * 1.3, h * 0.13, r * 0.5, 0.3, 0, -0.25, HAIR);
-    },
-    torsoExtra: uniform(GOLD),
-  });
-  const hy = handY(rig);
-  const ham = fxg(rig.armR, 0, hy, 0);
-  const hb = new BrickBuilder(1);
-  hb.box(0, -0.5, 0, 0.06, 0.62, 0.06, C.rbrown);
-  hb.box(0, -0.6, 0.04, 0.14, 0.14, 0.38, C.dkgray);
-  rbox(hb, 0, -0.5, -0.2, 0.05, 0.05, 0.16, -0.5, 0, 0, C.dkgray);
-  ham.add(hb.build({ name: 'hammer' }));
-  ham.scale.setScalar(1.4);
-  // Hairpin: glowing nails driven forward
-  const nails = fxg(rig.root, 0.35, 1.1, 0.85);
-  const nb = new BrickBuilder(1);
-  for (const k of [-1, 0, 1]) {
-    nb.boxM(mat4(k * 0.13, abs(k) * -0.05, 0, 0, 0, 0, 0.035, 0.035, 0.32), 0, { mat: neon(0x6ad8ff, 2.4) });
-    nb.boxM(mat4(k * 0.13, abs(k) * -0.05, -0.16, 0, 0, 0, 0.08, 0.08, 0.03), 0, { mat: neon(0x6ad8ff, 2.4) });
-  }
-  nails.add(nb.build({ name: 'nails' }));
-  addGlow(nails, 0x4ac8ff, 1.2, 0, 0, -0.1, 0.8);
-  nails.scale.setScalar(1.3);
-  const burst = fxg(rig.root, 0.35, 1.1, 0.8); addGlow(burst, 0x8ae0ff, 1.3);
-  rig.fx = (n, f, t) => {
-    const ch = n === 'cheer', win = n === 'win';
-    vis(ham, ch || win);
-    const p = ch ? (f % 0.5) / 0.5 : -1;
-    const fly = (ch && p > 0.6) || win;
-    vis(nails, fly);
-    if (fly) {
-      if (win) { nails.position.set(0.35, 1.55 + S(t * 3) * 0.05, 0.55); nails.rotation.set(-PI / 2, 0, t * 4); nails.scale.setScalar(1.3); }
-      else { const k = seg(p, 0.6, 1); nails.position.set(0.35, 1.1 + k * 0.1, 0.85 + k * 1.5); nails.rotation.set(0, 0, k * 3); nails.scale.setScalar(1.3 - k * 0.4); }
-    }
-    const bon = ch && p > 0.56 && p < 0.8;
-    vis(burst, bon);
-    if (bon) burst.scale.setScalar(bump(p, 0.56, 0.8) * 1.2);
-  };
-  return rig;
-}
-
-// ---- Maki Zenin ---------------------------------------------------------------------------
-function maki() {
-  const HAIR = 0x24453a;
-  const rig = jfig({
-    name: 'maki', face: 'maki', torso: NAVY, legs: NAVY, arms: NAVY, skin: SKIN,
-    hair: (b, r, h) => {
-      cap(b, r, h, HAIR, 0.82); back(b, r, h, HAIR, 0.45, 0.9);
-      b.sphere(0, h * 0.85, -r * 1.0, r * 0.3, HAIR);
-      rbox(b, 0, h * 0.5, -r * 1.25, r * 0.42, h * 0.8, r * 0.4, 0.45, 0, 0, HAIR);
-      fringe(b, r, h, HAIR, 3, 0.22, 2.1, { spread: 0.55 });
-    },
-    torsoExtra: (b, d) => { uniform(GOLD)(b, d); const s = d.s; b.box(0, 0.08 * s, 0, 0.9 * s, 0.1 * s, 0.48 * s, 0x3a2a1a); },
-  });
-  // a cursed-tool polearm she spins overhead
-  const pole = fxg(rig.armR, 0, handY(rig), 0);
-  const spin = new THREE.Group(); pole.add(spin);
-  const pb = new BrickBuilder(1);
-  pb.boxM(mat4(0, 0, 0, 0, 0, 0, 2.1, 0.055, 0.055), C.rbrown);
-  pb.boxM(mat4(1.2, 0, 0, 0, 0, 0, 0.36, 0.04, 0.13), 0xdfe6ee);
-  pb.boxM(mat4(1.03, 0, 0, 0, 0, 0, 0.05, 0.12, 0.16), GOLD);
-  pb.boxM(mat4(-1.07, 0, 0, 0, 0, 0, 0.06, 0.08, 0.08), GOLD);
-  spin.add(pb.build({ name: 'polearm' }));
-  const blur = ringMesh(pole, 0xcfe8ff, 1.15, 0.012, 1.4); blur.rotation.x = PI / 2;
-  rig.fx = (n, f, t) => {
-    const on = n === 'cheer' || n === 'win';
-    vis(pole, on);
-    if (on) spin.rotation.y = t * 16;
-  };
-  return rig;
-}
-
 // ---- Panda --------------------------------------------------------------------------------
 function panda() {
   const BK = 0x1b1b1b, WH = 0xf4f4f4;
@@ -311,50 +232,6 @@ function nanami() {
       ratio.scale.x = ch ? sm(seg(f, 0.28, 0.42)) : 1;
       mark.scale.setScalar(0.5 + abs(S(t * 9)) * (ch ? bump(f, 0.36, 0.7) * 1.2 + 0.2 : 0.4));
     }
-  };
-  return rig;
-}
-
-// ---- Yuta Okkotsu ---------------------------------------------------------------------------
-function yuta() {
-  const rig = jfig({
-    name: 'yuta', face: 'yuta', torso: WHITE, legs: WHITE, arms: WHITE, skin: SKIN,
-    hair: (b, r, h) => { back(b, r, h, INK, 0.4, 0.9); cap(b, r, h, INK, 0.82); spikes(b, r, h, INK, 9, 0.22, 1.1, { seed: 21, rnd: 0.5 }); fringe(b, r, h, INK, 4, 0.3, 2.25, { spread: 0.65 }); },
-    torsoExtra: (b, d) => {
-      uniform(C.ltgray, WHITE)(b, d);
-      const s = d.s;
-      rbox(b, -0.1 * s, 0.75 * s, -0.27 * s, 0.1 * s, 1.15 * s, 0.1 * s, 0, 0, -0.5, C.black);
-      rbox(b, 0.02 * s, 0.55 * s, 0.22 * s, 0.05 * s, 0.95 * s, 0.03 * s, 0, 0, 0.62, C.black);
-    },
-  });
-  const kat = fxg(rig.armR, 0, handY(rig), 0);
-  const kb = new BrickBuilder(1);
-  kb.box(0, -0.045, 0.74, 0.035, 0.09, 1.05, 0xdfe6ee, { matOpts: { metal: 0.7, rough: 0.2 } });
-  kb.box(0, -0.09, 0.2, 0.16, 0.18, 0.04, GOLD);
-  kb.box(0, -0.04, 0.05, 0.06, 0.08, 0.3, C.black);
-  kat.add(kb.build({ name: 'katana' }));
-  // Rika's giant hand rising behind the kart
-  const rika = fxg(rig.root, -1.0, -1, -1.4);
-  const RW = 0xebe6dc, RD = 0x2a2430;
-  const hb = new BrickBuilder(1);
-  hb.add(taperGeo(0.42, 0.52, 1.3, 0.42), plastic(RW), 0, -1.3, 0);
-  hb.box(0, 0, 0, 0.64, 0.52, 0.38, RW);
-  for (let k = 0; k < 4; k++) {
-    const x = -0.23 + k * 0.155, l = k === 1 || k === 2 ? 0.44 : 0.36;
-    hb.box(x, 0.5, 0.02, 0.13, l, 0.15, RW);
-    spike(hb, x, 0.5 + l, 0.04, 0.06, 0.2, 0.35, 0, RD);
-  }
-  rbox(hb, 0.38, 0.28, 0.06, 0.13, 0.36, 0.15, 0, 0, -0.7, RW);
-  hb.cyl(-0.08, -0.3, 0.2, 0.09, 0.06, GOLD, { seg: 8 });
-  rika.add(hb.build({ name: 'rika-hand' }));
-  addGlow(rika, 0xd040ff, 2.2, 0, 0.2, -0.2, 0.5);
-  rika.scale.setScalar(1.6);
-  rig.fx = (n, f, t) => {
-    const ch = n === 'cheer', win = n === 'win';
-    vis(kat, ch || win);
-    const rise = ch ? sm(seg(f, 0.05, 0.35)) * (1 - sm(seg(f, 0.82, 1))) : win ? 1 : 0;
-    vis(rika, rise > 0.01);
-    if (rise > 0.01) { rika.position.y = lerp(-2.6, 0.75, rise); rika.rotation.set(0.15, 0.4, -0.1 + S(t * 5) * 0.18); }
   };
   return rig;
 }
@@ -724,27 +601,6 @@ export default [
     build: megumi,
   },
   {
-    id: 'nobara', name: 'Nobara Kugisaki', blurb: 'Hammer, nails, Resonance', weight: 'light', color: 0xe07a3a,
-    voice: { kind: 'human', pitch: 1.4 }, style: { cheer: 'fist', trick: 'arms' },
-    gestures: {
-      cheer: (f, t) => {
-        const p = (f % 0.5) / 0.5, raise = sm(seg(p, 0, 0.45)), hit = sm(seg(p, 0.48, 0.6));
-        return { rx: lerp(lerp(-1.0, -2.9, raise), -0.85, hit), rz: -0.12, lx: -1.4, lz: -0.2, tx: hit * 0.15, hx: -0.1, ty: -0.15, by: hit * 0.03 };
-      },
-      win: (f, t) => ({ rx: up + S(t * LOOP * 2) * 0.3, rz: -0.2, lx: 0.15, lz: 0.55, hz: 0.15, hx: -0.15, by: abs(S(t * LOOP * 2)) * 0.05 }),
-    },
-    build: nobara,
-  },
-  {
-    id: 'maki', name: 'Maki Zenin', blurb: 'Cursed-tool polearm ace', weight: 'light', color: 0x3a8a5a,
-    voice: { kind: 'human', pitch: 1.3 }, style: { cheer: 'fist', trick: 'twist' },
-    gestures: {
-      cheer: (f, t) => ({ rx: -3.0, rz: -0.15, lx: -0.7, lz: 0.9, hx: -0.3, by: abs(S(t * 12)) * 0.05, ty: S(t * 6) * 0.15 }),
-      win: (f, t) => ({ rx: -3.0, rz: -0.15, lx: up + S(t * LOOP * 2) * 0.3, lz: 0.3, hx: -0.3, by: abs(S(t * LOOP * 2)) * 0.05 }),
-    },
-    build: maki,
-  },
-  {
     id: 'panda', name: 'Panda', blurb: 'Gorilla Core drummer', weight: 'heavy', color: 0xf4f4f4,
     voice: { kind: 'beast', pitch: 1.1 }, style: { cheer: 'both', trick: 'arms' },
     gestures: {
@@ -773,15 +629,6 @@ export default [
       win: (f, t) => ({ rx: -2.85 + S(t * LOOP) * 0.1, rz: -0.25, lx: -1.55, lz: -0.55 + S(t * LOOP * 2) * 0.1, hz: -0.1, hx: -0.1 }),
     },
     build: nanami,
-  },
-  {
-    id: 'yuta', name: 'Yuta Okkotsu', blurb: 'Rika, lend me your power', weight: 'medium', color: 0xd040ff,
-    voice: { kind: 'human', pitch: 1.05 }, style: { cheer: 'fist', trick: 'superman' },
-    gestures: {
-      cheer: (f, t) => ({ rx: -2.85 + S(t * 10) * 0.05, rz: -0.25, lx: -1.2, lz: 0.3, hx: -0.25, hy: f > 0.35 ? -0.5 : 0 }),
-      win: (f, t) => ({ rx: -2.6 + S(t * LOOP * 2) * 0.25, rz: -0.3, lx: -0.5, lz: 0.5, hx: -0.15, by: abs(S(t * LOOP * 2)) * 0.04 }),
-    },
-    build: yuta,
   },
   {
     id: 'toji', name: 'Toji Fushiguro', blurb: 'The Sorcerer Killer', weight: 'medium', color: 0x5a5a6a,

@@ -65,10 +65,10 @@ or the sky.
 
 ## Racers
 
-The 16 original Brick Kart racers are drivers like the movie casts below, each
-with a matching original kart: Brick Bob, Astro Ava, Cap'n Redbeard, Sir Kara, Robo-Rex, Ninja Nix,
+There are 16 original Brick Kart karts, and 14 of their racers are drivers like
+the movie casts below: Brick Bob, Astro Ava, Cap'n Redbeard, Sir Kara, Robo-Rex, Ninja Nix,
 Chief Flo, Wizard Wendel, Chef Pepper, Cowgirl Cassie, Viking Bjorn, Queen
-Regina, Skater Sam, Zorp the Alien, Mummy Max and Dino Dina.
+Regina, Zorp the Alien and Mummy Max (Skater Sam's and Dino Dina's karts stay).
 
 ### Drivers and karts
 
@@ -82,12 +82,12 @@ no grid: the preview fills the screen and you flip through drivers with ◀ ▶ 
 tapping **Lock in**. The **Back**
 button steps back one stage (ready → kart → driver → menu), coming back from the
 cup or map screen keeps everyone locked in, and each player slot remembers the
-driver and kart it last looked at. The original 16 Brick Kart racers are also drivers, listed after the
+driver and kart it last looked at. The 14 original Brick Kart drivers are listed after the
 movie casts, and the classic karts come after the newer vehicles. The drivers are brick-built movie characters from
-the Movie Cup: 19 from Marvel, 16 from Star Wars, 16 from Harry Potter, 16 from
-Jujutsu Kaisen and 16 from Jurassic World (83 in all). The Harry Potter cast
-(Harry, Hermione, Ron, Dumbledore, Hagrid, Snape, McGonagall, Voldemort, Draco,
-Neville, Luna, Ginny, Sirius, Dobby, Bellatrix and Fred) is listed just above
+the Movie Cup: 16 from Marvel, 16 from Star Wars, 14 from Harry Potter, 13 from
+Jujutsu Kaisen and 14 from Jurassic World (73 in all). The Harry Potter cast
+(Harry, Hermione, Ron, Dumbledore, Hagrid, Snape, Voldemort, Draco,
+Neville, Ginny, Sirius, Dobby, Bellatrix and Fred) is listed just above
 the Jujutsu Kaisen one, and each of them casts a signature spell when they
 cheer or win (Patronuses, Fawkes, the Dark Mark, fireworks…). Every kart in
 the race (CPU ones too) gets one of them at the wheel.

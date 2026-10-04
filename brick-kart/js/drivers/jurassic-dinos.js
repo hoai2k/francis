@@ -297,65 +297,6 @@ export function triceratopsDriver() {
 }
 
 // ---------------------------------------------------------------------------------
-// Stegosaurus: back plates, small head, thagomizer tail that swings on a cheer
-// ---------------------------------------------------------------------------------
-export function stegosaurusDriver() {
-  const c = { body: 0x6f7a4a, belly: 0xb8b48a, plateA: C.orange, plateB: 0xc0501a, spike: 0xefe6cf, dark: 0x4e5634 };
-  const root = new THREE.Group(), torso = pv(root, 0, 0, 0);
-  torso.add(prt((L) => {
-    haunches(L, c.body, 0.42, 0.52);
-    L.box(0, 0.66, -0.05, 1.3, 1.12, 1.05, c.body, { rx: 0.1 });
-    L.box(0, 1.1, 0.06, 1.04, 0.52, 0.9, c.body, { rx: 0.3 });
-    L.box(0, 0.66, 0.5, 0.98, 0.95, 0.1, c.belly, { rx: 0.1 });
-    L.box(0, 1.32, 0.38, 0.46, 0.42, 0.55, c.body, { rx: -0.3 });
-    // back plates up the spine, alternating sides (diamonds)
-    const pl = [[0.3, 0.4], [0.55, 0.55], [0.82, 0.66], [1.1, 0.66], [1.36, 0.55], [1.58, 0.4]];
-    pl.forEach(([y, h], i) => {
-      const sd = i % 2 ? 1 : -1, zs = -0.55 + Math.max(0, y - 0.9) * 0.5;
-      L.box(sd * 0.1, y + h * 0.3, zs - h * 0.4, 0.07, h * 0.82, h * 0.82, i % 3 ? c.plateA : c.plateB, { rx: PI / 4 - 0.25, rz: sd * 0.12 });
-    });
-    for (const sd of [-1, 1]) for (const [y, z] of [[0.55, -0.15], [0.85, -0.3], [0.35, -0.35]]) L.box(sd * 0.655, y, z, 0.03, 0.14, 0.18, c.dark);
-  }, 'stego-torso'));
-  const head = pv(torso, 0, 1.42, 0.62);
-  head.add(prt((L) => {
-    L.box(0, 0.06, 0.12, 0.38, 0.34, 0.46, c.body);
-    L.box(0, 0.0, 0.42, 0.28, 0.24, 0.24, c.body);
-    L.box(0, 0.02, 0.56, 0.2, 0.18, 0.08, c.dark);
-    for (const sd of [-1, 1]) { L.box(sd * 0.192, 0.14, 0.18, 0.03, 0.09, 0.11, 0xffb020); L.box(sd * 0.2, 0.14, 0.19, 0.02, 0.07, 0.04, C.black); }
-    L.box(0, 0.28, 0.0, 0.07, 0.18, 0.18, c.plateB, { rx: PI / 4 });
-  }, 'stego-head'));
-  const jaw = pv(head, 0, -0.1, 0.08);
-  jaw.add(prt((L) => { L.box(0, -0.04, 0.24, 0.26, 0.08, 0.38, c.belly); }, 'stego-jaw'));
-  const arms = [];
-  for (const sd of [1, -1]) {
-    const a = pv(torso, sd * 0.56, 1.0, 0.3);
-    a.add(prt((L) => {
-      L.box(0, -0.18, 0, 0.22, 0.42, 0.24, c.body);
-      L.box(0, -0.42, 0.03, 0.2, 0.18, 0.22, c.body);
-      for (const x of [-0.06, 0.06]) L.box(x, -0.53, 0.08, 0.06, 0.06, 0.06, c.spike);
-    }, 'stego-leg'));
-    arms.push(a);
-  }
-  const tail = pv(torso, 0, 0.62, -0.5);
-  tail.rotation.y = TAIL_YAW;
-  tail.add(prt((L) => {
-    const segs = tailPart(L, c.body, 0.6, 1.55, c.dark, { rise: 0.14 });
-    for (const [y, z, w, a] of segs.slice(0, 2)) L.box(0, y + w * 0.6, z, 0.06, 0.24, 0.24, c.plateA, { rx: PI / 4 + a });
-    const [y, z, , a] = segs[3];
-    for (const sd of [-1, 1]) for (const dz of [0.1, -0.15]) L.box(sd * 0.16, y + 0.12, z + dz, 0.05, 0.05, 0.42, c.spike, { ry: sd * 1.25, rx: a - 0.55 });
-  }, 'stego-tail'));
-  // the thagomizer swing: called from fx after the animator has set the tail sway
-  const fx = (name, f, t) => {
-    if (name === 'cheer' || name === 'win') {
-      const ph = name === 'cheer' ? f * PI * 2 : t * 4;
-      tail.rotation.y += -0.5 + S(ph) * 0.9;
-      tail.rotation.x = 0.35 * Math.abs(S(ph * 0.5 + (name === 'cheer' ? 0 : 0.3)));
-    } else tail.rotation.x = 0;
-  };
-  return { root, torso, head, jaw, jawOpen: 0.6, tail, armL: arms[0], armR: arms[1], armLen: 0.52, height: 2.1, width: 1.35, fx };
-}
-
-// ---------------------------------------------------------------------------------
 // Pteranodon: wings are the arms (membrane trails behind them), long beak and crest
 // ---------------------------------------------------------------------------------
 export function pteranodonDriver() {
@@ -444,60 +385,6 @@ export function brachiosaurusDriver() {
     if (spray.visible) { const g = 0.4 + s * 1.6; spray.scale.set(g, g, 0.5 + s * 2.4); spray.position.z = 0.8 + s * 0.3; }
   };
   return { root, torso, head, jaw, jawOpen: 0.6, tail, armL: arms[0], armR: arms[1], armLen: 0.66, height: 2.88, width: 1.55, fx };
-}
-
-// ---------------------------------------------------------------------------------
-// Parasaurolophus: duck bill and swept-back crest; honks rings of sound
-// ---------------------------------------------------------------------------------
-export function parasaurolophusDriver() {
-  const c = { body: 0x6b7a3a, belly: 0xc8c08a, stripe: 0x3e4a22, crest: 0xd0602a, bill: 0xa89a6a };
-  const root = new THREE.Group(), torso = pv(root, 0, 0, 0);
-  torso.add(prt((L) => {
-    haunches(L, c.body, 0.33, 0.42);
-    L.box(0, 0.6, 0, 1.0, 0.95, 0.85, c.body, { rx: 0.18 });
-    L.box(0, 1.04, 0.12, 0.84, 0.45, 0.74, c.body, { rx: 0.35 });
-    L.box(0, 0.64, 0.44, 0.74, 0.8, 0.06, c.belly, { rx: 0.18 });
-    L.box(0, 1.32, 0.3, 0.4, 0.6, 0.4, c.body, { rx: 0.35 });
-    for (const sd of [-1, 1]) for (const z of [-0.25, 0, 0.25]) L.box(sd * 0.502, 0.68, z - 0.05, 0.03, 0.62, 0.08, c.stripe, { rx: 0.18 });
-  }, 'para-torso'));
-  const head = pv(torso, 0, 1.62, 0.44);
-  head.add(prt((L) => {
-    L.box(0, 0.06, 0.1, 0.36, 0.34, 0.44, c.body);
-    L.box(0, -0.02, 0.44, 0.32, 0.18, 0.36, c.bill);
-    L.box(0, 0.44, -0.3, 0.13, 0.15, 0.95, c.crest, { rx: 0.62 });
-    L.box(0, 0.2, 0.0, 0.16, 0.12, 0.3, c.crest, { rx: 0.62 });
-    for (const sd of [-1, 1]) { L.box(sd * 0.182, 0.14, 0.14, 0.02, 0.08, 0.09, 0xffb020); L.box(sd * 0.188, 0.14, 0.15, 0.015, 0.07, 0.035, C.black); }
-  }, 'para-head'));
-  const jaw = pv(head, 0, -0.1, 0.12);
-  jaw.add(prt((L) => { L.box(0, -0.03, 0.26, 0.3, 0.07, 0.4, c.bill); }, 'para-jaw'));
-  // honk: two glowing sound rings travelling out of the bill
-  const rings = [];
-  const ringGeo = new THREE.TorusGeometry(0.16, 0.025, 6, 18);
-  const ringMat = new THREE.MeshStandardMaterial({ color: 0xfff2a0, emissive: 0xffd040, emissiveIntensity: 1.2, transparent: true, opacity: 0.75 });
-  const ringRoot = pv(head, 0, 0.0, 0.62);
-  for (let i = 0; i < 2; i++) { const m = new THREE.Mesh(ringGeo, ringMat); m.visible = false; ringRoot.add(m); rings.push(m); }
-  const arms = [];
-  for (const sd of [1, -1]) {
-    const a = pv(torso, sd * 0.45, 1.04, 0.3);
-    a.add(prt((L) => {
-      L.box(0, -0.18, 0, 0.16, 0.38, 0.16, c.body);
-      L.box(0, -0.43, 0.03, 0.13, 0.2, 0.13, c.body);
-      L.box(0, -0.56, 0.05, 0.15, 0.07, 0.16, c.stripe);
-    }, 'para-arm'));
-    arms.push(a);
-  }
-  const tail = pv(torso, 0, 0.64, -0.38);
-  tail.rotation.y = TAIL_YAW;
-  tail.add(prt((L) => { tailPart(L, c.body, 0.55, 1.8, c.stripe, { rise: 0.16 }); }, 'para-tail'));
-  const fx = (name, f, t) => {
-    const on = name === 'cheer' ? (f > 0.15 && f < 0.92) : name === 'win';
-    for (let i = 0; i < 2; i++) {
-      const r = rings[i];
-      r.visible = on;
-      if (on) { const p = (t * 1.6 + i * 0.5) % 1; r.position.z = p * 1.4; r.scale.setScalar(0.6 + p * 2.2); }
-    }
-  };
-  return { root, torso, head, jaw, jawOpen: 0.6, tail, armL: arms[0], armR: arms[1], armLen: 0.58, height: 2.35, width: 1.1, fx };
 }
 
 // a slow snort: the jaw parts a little in time with the breathing (after the animator's pose)

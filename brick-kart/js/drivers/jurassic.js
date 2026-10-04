@@ -1,9 +1,9 @@
 // Jurassic World drivers: the park's humans as seated minifigs and a
 // herd of brick dinosaurs (builders in ./jurassic-dinos.js), each with signature
 // Mario Kart-style gestures: Owen's raptor "hold", Claire's flare, Grant's hat wave,
-// Malcolm's laugh, Hammond's amber cane, roars, frills, sneezes, honks and tail swings.
+// Malcolm's laugh, Hammond's amber cane, roars, frills and sneezes.
 import { THREE, BrickBuilder, C, plastic, seatedFig, faceMat, rbox, cached } from './kit.js';
-import { breathe, bigTheropod, smallTheropod, triceratopsDriver, stegosaurusDriver, pteranodonDriver, brachiosaurusDriver, parasaurolophusDriver, RAPTORS } from './jurassic-dinos.js';
+import { breathe, bigTheropod, smallTheropod, triceratopsDriver, pteranodonDriver, brachiosaurusDriver, RAPTORS } from './jurassic-dinos.js';
 
 const S = Math.sin, A = Math.abs, PI = Math.PI;
 const UP = -2.75;
@@ -230,8 +230,6 @@ const G = {
   headbutt: (f, t) => { const p = Math.max(0, S(f * PI * 3)); return { tx: 0.3 * p, hx: 0.35 * p - 0.1, jaw: 0.5, by: p * 0.04, lx: -1.3 - p * 0.4, rx: -1.3 - p * 0.4 }; },
   stomp: (f, t) => ({ lx: -1.5 + S(t * 8) * 0.55, rx: -1.5 - S(t * 8) * 0.55, hx: -0.2 + S(t * 8) * 0.15, jaw: 0.5 + S(t * 4) * 0.4, by: A(S(t * 8)) * 0.05 }),
   hornShake: (f, t, rig, a) => ({ hy: a.tauntSide * 0.8 + S(t * 12) * 0.35, ty: a.tauntSide * 0.25, hx: 0.1, jaw: 0.4 }),
-  // Stegosaurus: twist into the thagomizer swing (tail motion in its fx)
-  tailSwing: (f, t) => ({ ty: S(f * PI * 2) * -0.4, tz: S(f * PI * 2) * 0.08, hx: -0.15, jaw: 0.6, hy: S(f * PI * 2) * 0.5 }),
   // Pteranodon: wing flaps and a screech
   flap: (f, t) => ({ lx: -1.2 + S(t * 14) * 0.45, rx: -1.2 + S(t * 14) * 0.45, lz: 1.35 + S(t * 14) * 0.4, rz: -1.35 - S(t * 14) * 0.4, hx: -0.45, jaw: 0.8 + S(t * 20) * 0.2, by: 0.08 + S(t * 14) * 0.05 }),
   flapWin: (f, t) => ({ lx: -1.2 + S(t * 9) * 0.45, rx: -1.2 + S(t * 9) * 0.45, lz: 1.35 + S(t * 9) * 0.45, rz: -1.35 - S(t * 9) * 0.45, hx: -0.3, jaw: A(S(t * 4)) * 0.8, by: 0.06 + S(t * 9) * 0.05 }),
@@ -240,8 +238,6 @@ const G = {
     ? { hx: -0.22 * (f / 0.42), tx: -0.12 * (f / 0.42), jaw: 0.3 * (f / 0.42), lx: -1.0, rx: -1.0 }
     : { hx: 0.28 - (f - 0.42) * 0.3, tx: 0.12, jaw: 0.8, by: 0.04 * S((f - 0.42) * 30), lx: -1.0, rx: -1.0 }),
   neckSway: (f, t) => ({ hy: S(t * 2.4) * 0.45, hz: S(t * 2.4) * 0.12, jaw: 0.3 + A(S(t * 2.4)) * 0.3, lx: -1.4 + S(t * 4.8) * 0.3, rx: -1.4 - S(t * 4.8) * 0.3, by: A(S(t * 4.8)) * 0.03 }),
-  // Parasaurolophus: head up, honk!
-  honk: (f, t) => ({ hx: -0.5, jaw: 0.35 + A(S(t * 6)) * 0.5, tx: -0.1, lx: -1.8, rx: -1.8, lz: 0.3 + A(S(t * 12)) * 0.3, rz: -0.3 - A(S(t * 12)) * 0.3, by: A(S(t * 6)) * 0.04 }),
 };
 
 const raptorRig = (c) => () => breathe(smallTheropod(c), 2.6, 0.06);
@@ -325,22 +321,10 @@ export default [
     build: triceratopsDriver,
   },
   {
-    id: 'stegosaurus', name: 'Stegosaurus', blurb: 'Thagomizer tail swinger', weight: 'medium', color: 0xfe8a18,
-    voice: { kind: 'beast', pitch: 0.9 }, style: { cheer: 'roar', trick: 'twist' },
-    gestures: { cheer: G.tailSwing, win: G.tailSwing },
-    build: stegosaurusDriver,
-  },
-  {
     id: 'brachiosaurus', name: 'Brachiosaurus', blurb: 'Gentle giant (sneezes)', weight: 'heavy', color: 0x6f8660,
     voice: { kind: 'beast', pitch: 0.55 }, style: { cheer: 'roar', trick: 'arms' },
     gestures: { cheer: G.sneeze, win: G.neckSway },
     build: brachiosaurusDriver,
-  },
-  {
-    id: 'parasaurolophus', name: 'Parasaurolophus', blurb: 'Honk-crested cruiser', weight: 'medium', color: 0xd0602a,
-    voice: { kind: 'beast', pitch: 1.05 }, style: { cheer: 'roar', trick: 'arms' },
-    gestures: { cheer: G.honk, win: G.honk },
-    build: parasaurolophusDriver,
   },
   {
     id: 'pteranodon', name: 'Pteranodon', blurb: 'Swoops from the Aviary', weight: 'light', color: 0xa07a50,
