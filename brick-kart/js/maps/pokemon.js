@@ -561,9 +561,8 @@ export default {
       for (const sd of [-1, 1]) { const p = tr.at(i, sd * (w + 1), 0); b.box(p.x, 0, p.z, 2, 26, 2, 0x5a5e62, { rot: yaw }); }
       b.box(c.x, 15, c.z, 2 * w + 4, 1.4, 2.4, 0x5a5e62, { rot: yaw }); b.box(c.x, 15.6, c.z, 30, 15, 1.6, 0x1a1a1e, { rot: yaw });
       const tex = P.screenTexture();
-      const scr = new THREE.Mesh(new THREE.PlaneGeometry(28, 14), new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide }));
-      scr.position.set(c.x - Math.sin(yaw) * 0.85, 23.1, c.z - Math.cos(yaw) * 0.85); scr.rotation.y = yaw + Math.PI; ctx.group.add(scr);
-      const back = scr.clone(); back.position.set(c.x + Math.sin(yaw) * 0.85, 23.1, c.z + Math.cos(yaw) * 0.85); back.rotation.y = yaw; ctx.group.add(back);
+      const sm = new THREE.MeshBasicMaterial({ map: tex }), sg = new THREE.PlaneGeometry(28, 14);
+      for (const sd of [-1, 1]) { const m = new THREE.Mesh(sg, sm); m.position.set(c.x + Math.sin(yaw) * 0.85 * sd, 23.1, c.z + Math.cos(yaw) * 0.85 * sd); m.rotation.y = sd < 0 ? yaw + Math.PI : yaw; ctx.group.add(m); }
       anims.push((dt, t) => { const f = Math.floor(t / 3) % 4; tex.offset.set((f % 2) * 0.5, f < 2 ? 0.5 : 0); }); }
     for (const [k, lf, off] of [[19.3, -0.35, 0], [19.55, 0.3, 1.7], [20.0, -0.1, 3.4], [20.15, 0.45, 2.4]]) ctx.hazard(voltorbMine(ctx, { k, latF: lf, period: 5.2, offset: off }));
     // Charizard circling above the stadium, a Pikachu balloon
