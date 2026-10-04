@@ -65,10 +65,11 @@ or the sky.
 
 ## Racers
 
-There are 16 original Brick Kart karts, and 14 of their racers are drivers like
-the movie casts below: Brick Bob, Astro Ava, Cap'n Redbeard, Sir Kara, Robo-Rex, Ninja Nix,
-Chief Flo, Wizard Wendel, Chef Pepper, Cowgirl Cassie, Viking Bjorn, Queen
-Regina, Zorp the Alien and Mummy Max (Skater Sam's and Dino Dina's karts stay).
+The original Brick Kart racers come as 14 drivers like the movie casts below
+(Brick Bob, Astro Ava, Cap'n Redbeard, Sir Kara, Robo-Rex, Ninja Nix, Chief Flo,
+Wizard Wendel, Chef Pepper, Cowgirl Cassie, Viking Bjorn, Queen Regina, Zorp the
+Alien and Mummy Max) and 13 original karts (Skater Sam and Dino Dina are karts
+only; Sir Kara, Wizard Wendel and Chef Pepper are drivers only).
 
 ### Drivers and karts
 
@@ -104,12 +105,12 @@ the race (CPU ones too) gets one of them at the wheel.
   in your browser, and starts on them next time. Stat bars show the kart's stats adjusted by the driver's weight
   class (light drivers accelerate and handle better; heavy ones are faster and
   push harder).
-- 46 karts in one grid: the first 8 originals, the Wild Rides, the movie rides,
-  then the other 8 originals. The **originals** are themed on their racers: Hard
+- 43 karts in one grid: the first 7 originals, the Wild Rides, the movie rides,
+  then the other 6 originals. The **originals** are themed on their racers: Hard
   Hat Hauler (loader-dumper), Comet Cruiser (moon rover), Plank Plunderer
-  (paddle-wheel pirate ship), Iron Bastion (castle on rolling logs), Turbo Titan
+  (paddle-wheel pirate ship), Turbo Titan
   (robot-head jet dragster), Shadow Dart (shuriken trike), Blaze Runner (fire
-  engine), Spell Streak (flying broomstick), Hot Wok (wok cart), Dust Devil
+  engine), Dust Devil
   (covered wagon), Long Hammer (Viking longship on runners), Royal Coach
   (pumpkin coach), Skate Spark (giant skateboard), Saucer Buggy (flying saucer
   with a beamed-up cow), Tomb Rover (scarab walker), Fossil Flyer (T. rex
