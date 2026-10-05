@@ -386,6 +386,12 @@ function finishCharacterKart(ch, rig, root, body, b) {
 // seat frame; a typical figure is ~2.0 tall and 1.3 wide, big ones up to 2.9 and 2.0) so cockpits,
 // domes and roll cages can fit whoever drives, and kit.sprung = the group holding body + driver
 // (lean or pitch it in fx for bikes and wheelies; hover bob moves its y).
+// Sizing vibe: a big character must read as big in a small vehicle and a small one as small in a
+// big one. Fit only what has to fit (seat width, a canopy or roll hoop that clears the head) and
+// clamp it, so the vehicle stays about its own size (today the most any vehicle grows from the
+// smallest driver to the biggest is ~30%, against 2.3x in driver height). Never scale the driver,
+// and never raise a small one just to fill the cockpit: a booster seat (rig.booster) only appears
+// when the driver couldn't otherwise see out (see fitBooster).
 export function emptyRig() {
   return { root: new THREE.Group(), height: 1.8, width: 1.2, shoulder: new THREE.Vector3(0.56, 1.2, 0), armLen: 0.86, def: {} };
 }

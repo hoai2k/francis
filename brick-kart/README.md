@@ -378,6 +378,10 @@ setups.
 - `js/driver.js`: movie-character drivers: the seated rig contract, weight classes and the gesture animator
 - `js/gliders.js`, `js/gliders/*.js`: the glider list and the glider packs (the glider contract is at the top of `js/gliders.js`)
 - `js/vehicles.js`, `js/vehicles/*.js`: the kart list and the vehicle packs (the vehicle contract is documented above `buildVehicle` in `js/characters.js`)
+  - Sizing: big characters should read as big in a small vehicle and small ones as small in a big
+    one. Vehicles only fit what must fit (seat width, head clearance under a canopy or roll hoop),
+    within clamps; drivers are never scaled, and Rocket only gets his booster crate where he
+    couldn't see out without it.
 - `js/drivers/*.js`: the driver casts per movie (`kit.js` has the seated figure builder); `js/showcase.js`: the 3D select stage, portraits and podium; `js/gallery.js`: a developer line-up view
 - `js/effects.js`, `js/audio.js`, `js/hud.js`, `js/input.js`: particles, sound, HUD and input devices
 
