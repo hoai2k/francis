@@ -70,7 +70,7 @@ const angry = face([
   'wwwkkkkkkwww', 'wwwkrrrrkwww', 'wwwkrrrrkwww', 'wwwkkkkkkwww'], { w: W, k: K, g: Gy, r: R });
 const tent = face(rows(['wwww', 3], ['llll']), { w: W, l: L });
 const ghast = {
-  id: 'mc-ghast', name: 'Ghast', blurb: 'A Nether ghast, too sleepy to shoot', colors: [W, Gy], scale: 0.7,   // smaller, so it doesn't hide the road
+  id: 'mc-ghast', name: 'Ghast', blurb: 'A Nether ghast, too sleepy to shoot', colors: [W, Gy], scale: 1.3, lift: 2.2,   // a huge ghast floating high overhead on a leash
   build() {
     const calm = skin('mcg-ghast', { front: sleepy, all: side });
     const mad = skin('mcg-ghast-mad', { front: angry, all: side });

@@ -400,12 +400,21 @@ function buildVehicle(def, rig, gdef = null) {
     spin.castShadow = true; g.add(spin); body.add(g);
     wheels.push({ g, spin, front: !!w.front, r: w.r });
   }
-  // glider (shared design) above the driver or at the vehicle's mount
-  const { glider } = addWheelsAndGlider(def, new THREE.Group(), rig, null, true, gdef);
+  // glider (shared design) above the driver or at the vehicle's mount, sized to the vehicle:
+  // wide vehicles and big drivers get a bigger glider (fit), and it clears the vehicle's top
+  body.updateMatrixWorld(true);
+  const all = new THREE.Box3().setFromObject(body), own = new THREE.Box3().setFromObject(v.mesh);
+  for (const o of v.parts || []) own.union(new THREE.Box3().setFromObject(o));
+  const fit = gliderFit(all.max.x - all.min.x);
+  const { glider } = addWheelsAndGlider(def, new THREE.Group(), rig, null, true, gdef, fit);
   // glider: [x, y, z] fixes the mount; { x?, z? } just shifts it and keeps the height that suits the driver
   glider.position.y += seat.y - SEAT.y;
   if (Array.isArray(v.glider)) glider.position.set(...v.glider);
-  else if (v.glider) { glider.position.x += v.glider.x || 0; glider.position.z = v.glider.z ?? glider.position.z; }
+  else {
+    if (v.glider) { glider.position.x += v.glider.x || 0; glider.position.z = v.glider.z ?? glider.position.z; }
+    // the canopy (about 1.3 x fit above the hands) must clear the vehicle's own top
+    if (isFinite(own.max.y)) glider.position.y = Math.max(glider.position.y, own.max.y - 1.3 * fit + 0.25);
+  }
   up.add(glider);
   let t = Math.random() * 10;
   const fs = { speed01: 0, steer: 0, boosting: false, gliding: false, grounded: true, t: 0 };   // reused every frame
@@ -427,11 +436,15 @@ function wheelSpotFor(rig) {
   return new THREE.Vector3(0, s.y - Math.cos(R) * L, s.z + Math.sin(R) * L);
 }
 
-function addWheelsAndGlider(ch, body, rig = null, st = null, gliderOnly = false, gdef = null) {
+// glider size for a vehicle this wide (a typical kart is ~3 wide): bikes get a smaller wing,
+// broad vehicles a bigger one, within limits so it never swamps the screen
+export const gliderFit = (width) => Math.max(0.82, Math.min(1.45, (width || 3) / 3));
+
+function addWheelsAndGlider(ch, body, rig = null, st = null, gliderOnly = false, gdef = null, fit = 1) {
   const k = ch.kart ?? C.red, a = ch.accent ?? C.black;
   // wheels: rear pair share one axle mesh; front wheels steer individually
   const wheels = [];
-  if (gliderOnly) return { wheels, glider: makeGlider(k, a, rig, gdef) };
+  if (gliderOnly) return { wheels, glider: makeGlider(k, a, rig, gdef, fit) };
   const mkWheel = (x, y, z, r, w, front, xs) => {
     const g = new THREE.Group();
     g.position.set(x, y, z);
@@ -457,9 +470,10 @@ function addWheelsAndGlider(ch, body, rig = null, st = null, gliderOnly = false,
 }
 
 // glider: the chosen design (gliders.js) on its mount above the driver, shown while gliding
-function makeGlider(k, a, rig, gdef) {
+function makeGlider(k, a, rig, gdef, fit = 1) {
   const glider = new THREE.Group();
   glider.name = 'glider';
+  glider.userData.fit = fit;
   buildGlider(gdef, glider, k, a);
   glider.position.set(0, 1.2, -0.7);
   // a tall driver holds the glider bar above their head

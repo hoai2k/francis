@@ -11,8 +11,11 @@
 // so keep the design centred on x = 0.
 //   mesh   static parts (usually one BrickBuilder.build())
 //   parts  extra Object3Ds animated by fx
-//   scale  shrinks (or grows) the whole design about the hand grip, e.g. for bulky ones that would
-//          hide the road from the chase camera
+//   scale  shrinks (or grows) the whole design about the hand grip
+//   lift   floats the design this far above the hands on two tether ropes (huge things like the
+//          hot-air balloon and the ghast hang well overhead instead of right on the driver)
+// The game also sizes every glider to its vehicle (group.userData.fit, set before buildGlider): wide
+// vehicles and big drivers get a bigger glider, so the canopy also sits further above them.
 //   fx(s, dt)  per-frame hook while it's out; s = { t, open, steer, speed01 } (flap wings, spin rotors…):
 //              t = seconds since it opened (restarts every glide), open = how far it has unfolded (0..1)
 // kit = { THREE, BrickBuilder, C, plastic, limb, k, a, mast(b, top?, color?) } where k / a are the
@@ -82,12 +85,25 @@ export function buildGlider(def, group, k = C.red, a = C.black) {
   for (const o of [...group.children]) group.remove(o);
   let out;
   try { out = (def || KART_WING).build({ ...GKIT, k, a }) || {}; } catch (e) { console.error('glider failed', def?.id, e); out = KART_WING.build({ ...GKIT, k, a }); }
-  // everything hangs off an inner group, so `scale` works without touching the parts fx animates
+  // everything hangs off inner groups, so `fit`, `scale` and `lift` work without touching the
+  // parts fx animates: holder = the vehicle fit, inner = the design's own scale, lifted on tethers
+  const holder = new THREE.Group();
+  holder.scale.setScalar(group.userData.fit || 1);
   const inner = new THREE.Group();
   inner.scale.setScalar(def?.scale || 1);
+  const lift = def?.lift || 0;
+  inner.position.y = lift;
   inner.add(out.mesh);
   for (const o of out.parts || []) inner.add(o);
-  group.add(inner);
+  holder.add(inner);
+  if (lift) {
+    // two ropes from the hands up to the design's grip, and a bar to hold
+    const tb = new BrickBuilder(0.4);
+    for (const sd of [-1, 1]) limb(tb, new THREE.Vector3(sd * 0.2, 0, 0), new THREE.Vector3(sd * 0.08, lift + 0.02, 0), 0.03, C.tan);
+    limb(tb, new THREE.Vector3(-0.32, 0, 0), new THREE.Vector3(0.32, 0, 0), 0.06, C.dkgray);
+    holder.add(tb.build({ name: 'tether' }));
+  }
+  group.add(holder);
   group.userData.fx = out.fx || null;
   group.userData.gliderId = (def || KART_WING).id;
   return out.fx || null;

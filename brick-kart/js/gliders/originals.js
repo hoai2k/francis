@@ -173,7 +173,7 @@ export default [
 
   // ---- a little striped hot-air balloon, burner flickering under it ---------------------------
   {
-    id: 'balloon', name: 'Hot-Air Balloon', blurb: 'Up, up and a bit sideways', colors: [C.red, C.yellow], scale: 0.72,   // smaller, so it doesn't hide the road
+    id: 'balloon', name: 'Hot-Air Balloon', blurb: 'Up, up and a bit sideways', colors: [C.red, C.yellow], scale: 1.35, lift: 2.4,   // a big balloon floating high overhead
     build() {
       const b = new BrickBuilder(0.4);
       grip(b, C.rbrown, 0.45);
