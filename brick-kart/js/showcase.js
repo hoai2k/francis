@@ -131,8 +131,8 @@ function trimBelow(mesh, frame, cut) {
 // A driver on their own feet (the select screen's driver step). Rigs are built seated: a minifig's
 // hips and thighs are part of its torso model, sticking forward. Those triangles are deleted from
 // the torso (so nothing can poke out however the torso leans in a gesture) and standing hips, legs
-// and feet are added in its leg colour. Creatures that aren't minifigs (dinosaurs, droids…) sit on
-// a brick pedestal instead.
+// and feet are added in its leg colour. A rig can bring its own standing legs (rig.standLegs);
+// other creatures that aren't minifigs (dinosaurs, droids…) sit on a brick pedestal instead.
 function standDriver(rig) {
   const root = new THREE.Group(), mats = [];
   const d = rig.dims;
@@ -152,6 +152,12 @@ function standDriver(rig) {
       add(0.42 * s * W, 0.14 * s, 0.6 * s, sd * 0.22 * s * W, 0.07 * s, 0.07 * s);    // feet
     }
     rig.root.position.y = L;
+  } else if (rig.standLegs) {
+    // a non-minifig rig with its own standing legs (Rocket): hide its seat and seated legs
+    const st = rig.standLegs;
+    for (const o of st.hide) o.visible = false;
+    rig.root.add(st.build());
+    rig.root.position.y = st.lift;
   } else {
     // a stack of bricks to sit on
     const w = Math.max(1, rig.width || 1.2);
