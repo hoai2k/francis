@@ -342,6 +342,11 @@ you drop some.
   space drop you into a respawn.
 - **Falling off**: the crane puts you back on a safe stretch of road. If you fall again right away, it puts you further ahead next time.
 - Sound mutes when you switch to another tab or window.
+- **Full screen on phones** (the same approach as Widow's Bay): on Android and iPad
+  the first tap in landscape goes full screen (so does tapping the title). iPhone
+  Safari can't go full screen, so in the menus a swipe up tucks Safari's bars away
+  (a hint says so while they're showing); during a race nothing scrolls. **Add to
+  Home Screen** opens Brick Kart full screen in landscape, with its own icon.
 - **Touch steering**: drag a finger left / right anywhere on the screen (it steers
   from where you touched down), and/or tilt the phone. Options on touch devices:
   - **Touch steering**: Tilt + drag (while a finger is down, dragging steers and tilt
@@ -556,6 +561,7 @@ slow to drive several players).
 - `js/effects.js`, `js/audio.js`, `js/hud.js`, `js/input.js`: particles, sound, HUD and input devices
 - `js/online/`: online play, loaded only from the Online menu: `online.js` (lobby, room flow, select hooks, results, host duties), `session.js` (the relay connection: identities, presence, clock sync, reconnecting, host migration), `netrace.js` (race sync: puppets, interpolation, item events, CPU takeover), `names.js` (names, saved names, the on-screen keyboard), `lineup.js` (the line-up while loading), `proto.js` (protocol constants, validation, kart-state encoding, seeded random)
 - `js/vendor/mini-rooms.js`: the mini-rooms relay client, copied verbatim from the `mini` repository's `multiplayer/client/mini-rooms.js`
+- `js/chrome.js`: getting the browser's bars out of the way on phones (fullscreen, iPhone Safari's swipe-up, home-screen app)
 
 For development, `?quick=<map id>` (city, meadow, pirate, candy, jungle, frost, factory, lava, space, jurassic, starwars, marvel, hogwarts, jjk-goodwill, jjk-inventory, jjk, jjk-culling, minecraft, pokemon, sonic) goes
 straight into a race. Add `&players=2` to test split-screen, and `&driver=<driver id>`
