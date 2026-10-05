@@ -168,6 +168,40 @@ function wheelGeo(r, w, capCol, xs) {
 // Seat point for a movie-character driver (see driver.js): hips sit here.
 export const SEAT = new THREE.Vector3(0, 0.62, -0.38);
 
+// Drivers too small to see out of some vehicles (Rocket) bring a booster seat: rig.booster =
+// { obj, lift, eye } (eye = a point between the eyes, seat frame, sitting on the booster). It is
+// only used when the vehicle hides the road from the eyes without it: every sightline from the
+// lowered eyes, forward and a little down, hits the vehicle's solid (non-glass) parts. Otherwise the
+// booster goes and the driver sits `lift` lower. Returns the seat point to use.
+const sightRay = new THREE.Raycaster();
+// the character kart's dashboard as a solid box, for fitBooster (built before the kart mesh is)
+let dashMesh = null;
+const dashProbe = () => dashMesh ||= new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.42, 0.35).translate(0, 0.62 + 0.21, 0.75), new THREE.MeshBasicMaterial());
+function fitBooster(rig, seat, parent, parts) {
+  const bs = rig.booster;
+  if (!bs) return seat;
+  const low = seat.clone(); low.y -= bs.lift;
+  parent.updateMatrixWorld(true);
+  const eye = parent.localToWorld(bs.eye.clone().add(low));
+  const fwd = parent.localToWorld(new THREE.Vector3(0, -0.12, 1).add(low)).sub(parent.localToWorld(low.clone())).normalize();
+  sightRay.far = 3;
+  const solid = (h) => {
+    const m = Array.isArray(h.object.material) ? h.object.material[h.face?.materialIndex ?? 0] : h.object.material;
+    return !(m && m.transparent && m.opacity < 0.85);
+  };
+  const meshes = [];
+  for (const p of parts) p.traverse((o) => { if (o.isMesh && o.visible) meshes.push(o); });
+  // he can see if any sightline is clear: straight ahead, or past either side of a mount's neck
+  let blocked = true;
+  for (const dx of [0, -0.14, 0.14, -0.32, 0.32]) {
+    sightRay.set(eye.clone().add(new THREE.Vector3(dx, 0, 0)), fwd);
+    if (!sightRay.intersectObjects(meshes, false).some(solid)) { blocked = false; break; }
+  }
+  if (blocked) return seat;
+  bs.obj.removeFromParent();
+  return low;
+}
+
 // Builds the kart + driver. Local forward is +Z. With a driver rig
 // the minifig is replaced by the rig, seated in a deeper tub behind a turning wheel.
 // glider = a glider definition (gliders.js); the default Brick Wing when left out.
@@ -273,8 +307,10 @@ function finishCharacterKart(ch, rig, root, body, b) {
   b.box(0, 0.5, -1.05, wx * 2, 0.6 + Math.min(0.5, H * 0.12), 0.18, k);
   b.box(0, 0.5, 0.55, wx * 2, 0.5, 0.18, k);
   b.box(0, 0.42, -0.25, wx * 2, 0.12, 1.7, C.dkgray);
+  // a small driver sits on a booster only if the dashboard would hide the road
+  const seat = rig.booster ? fitBooster(rig, SEAT, new THREE.Group(), [dashProbe()]) : SEAT;
   // dashboard + column up to the wheel
-  const ws = wheelSpotFor(rig).add(SEAT);
+  const ws = wheelSpotFor(rig).add(seat);
   b.box(0, 0.62, 0.75, 1.3, 0.42, 0.35, C.dkgray);
   limb(b, new THREE.Vector3(0, 0.8, 0.8), new THREE.Vector3(0, ws.y - 0.05, ws.z + 0.05), 0.045, C.black);
   // body style extras
@@ -323,7 +359,7 @@ function finishCharacterKart(ch, rig, root, body, b) {
   swheel.add(swb.build({ name: 'swheel' }));
   up.add(swheel);
   // the driver
-  rig.root.position.copy(SEAT);
+  rig.root.position.copy(seat);
   up.add(rig.root);
   const head = new THREE.Group();   // the driver animator turns the real head
   const { wheels, glider: gl } = addWheelsAndGlider(ch, body, rig, st, false, glider);
@@ -364,7 +400,8 @@ function buildVehicle(def, rig, gdef = null) {
   const a = def.accent ?? C.black;
   up.add(v.mesh);
   for (const o of v.parts || []) up.add(o);
-  const seat = v.seat ? new THREE.Vector3(...v.seat) : SEAT.clone();
+  let seat = v.seat ? new THREE.Vector3(...v.seat) : SEAT.clone();
+  seat = fitBooster(rig, seat, up, [v.mesh, ...(v.parts || [])].filter(Boolean));
   rig.root.position.copy(seat);
   up.add(rig.root);
   // steering control at the driver's hands

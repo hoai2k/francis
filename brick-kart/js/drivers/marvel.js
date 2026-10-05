@@ -1592,22 +1592,40 @@ const rocket = {
     const suit = M.orange, navy = 0x24366a, strap = 0x4a3424, pouch = 0x86704a;
     const cone = cached('rkCone', () => new THREE.ConeGeometry(1, 1, 7).translate(0, 0.5, 0));
     const root = new THREE.Group(); root.name = 'rocket';
-    // he sits up on an ammo crate to see over the wheel
+    // an ammo crate to sit up on, only when the vehicle's front would hide his eyes (the vehicle
+    // builder decides: see rig.booster in characters.js); without it he sits BOOST lower
+    const BOOST = 0.18;
     const bb = new BrickBuilder(1);
     bb.box(0, -0.42, -0.04, 0.78, 0.6, 0.72, 0x56603f);
     for (const y of [-0.42, 0.1]) bb.box(0, y, -0.04, 0.8, 0.08, 0.74, 0x3a4230);
     for (let j = 0; j < 4; j++) bb.boxM(mat4(-0.27 + j * 0.18, -0.17, 0.325, 0, 0, 0.6, 0.06, 0.3, 0.02), 0xe8b020);
-    root.add(bb.build({ name: 'driver-booster' }));
+    const booster = bb.build({ name: 'driver-booster' });
+    root.add(booster);
     const torso = new THREE.Group(); root.add(torso);
     const tb = new BrickBuilder(1);
     const y0 = 0.18;
-    // little legs over the front of the crate, bare raccoon feet
+    // little seated legs over the front of the seat, bare raccoon feet
+    const lb = new BrickBuilder(1);
     for (const sd of [-1, 1]) {
-      tb.box(sd * 0.12, y0 - 0.06, 0.2, 0.18, 0.17, 0.4, suit);
-      tb.box(sd * 0.12, y0 - 0.34, 0.36, 0.16, 0.32, 0.15, suit);
-      tb.box(sd * 0.12, y0 - 0.4, 0.42, 0.17, 0.08, 0.22, furDk);
-      for (let j = -1; j <= 1; j++) tb.box(sd * 0.12 + j * 0.05, y0 - 0.4, 0.53, 0.035, 0.04, 0.03, cream);
+      lb.box(sd * 0.12, y0 - 0.06, 0.2, 0.18, 0.17, 0.4, suit);
+      lb.box(sd * 0.12, y0 - 0.34, 0.36, 0.16, 0.32, 0.15, suit);
+      lb.box(sd * 0.12, y0 - 0.4, 0.42, 0.17, 0.08, 0.22, furDk);
+      for (let j = -1; j <= 1; j++) lb.box(sd * 0.12 + j * 0.05, y0 - 0.4, 0.53, 0.035, 0.04, 0.03, cream);
     }
+    const legs = lb.build({ name: 'driver-legs' });
+    torso.add(legs);
+    // standing on his own short legs (select screen): feet at -STAND in the rig frame
+    const STAND = 0.5;
+    const standLegs = () => {
+      const sb = new BrickBuilder(1);
+      for (const sd of [-1, 1]) {
+        sb.box(sd * 0.12, y0 - 0.06 - 0.05, 0.02, 0.18, 0.17, 0.2, suit);                            // thigh under the hip
+        sb.box(sd * 0.12, (y0 - 0.15 - STAND + 0.07) / 2, 0.02, 0.16, y0 - 0.15 + STAND - 0.07, 0.16, suit);
+        sb.box(sd * 0.12, -STAND + 0.04, 0.07, 0.17, 0.08, 0.26, furDk);                               // feet
+        for (let j = -1; j <= 1; j++) sb.box(sd * 0.12 + j * 0.05, -STAND + 0.04, 0.21, 0.035, 0.04, 0.03, cream);
+      }
+      return sb.build({ name: 'driver-standlegs' });
+    };
     // jumpsuit: orange with a navy yoke, harness straps and pouches
     tb.add(taperGeo(0.58, 0.48, 0.54, 0.38, 0.33), plastic(suit), 0, y0, 0);
     tb.add(taperGeo(0.53, 0.47, 0.13, 0.355, 0.33), plastic(navy), 0, y0 + 0.42, 0, 0, 1.03, 1, 1.04);
@@ -1699,7 +1717,9 @@ const rocket = {
     gun.visible = false;
     const flash = beam(gun, -1.42, 0x6ae0ff, { r0: 0.12, r1: 0.3, flash: 0.32 });
     flash.g.position.z = 0.21;
-    const rig = { root, torso, head, armL: arms[0], armR: arms[1], armLen: 0.42, height: y0 + 0.56 + 0.78, width: 0.95, tail };
+    const rig = { root, torso, head, armL: arms[0], armR: arms[1], armLen: 0.42, height: y0 + 0.56 + 0.78, width: 0.95, tail,
+      booster: { obj: booster, lift: BOOST, eye: new THREE.Vector3(0, y0 + 0.56 + 0.31, 0.36) },
+      standLegs: { lift: STAND, hide: [booster, legs], build: standLegs } };
     rig.fx = (name, f, t) => {
       const on = name === 'cheer' || name === 'win' || name === 'use' || name === 'throwF';
       vis(gun, on);
