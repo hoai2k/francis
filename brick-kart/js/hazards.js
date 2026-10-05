@@ -14,12 +14,13 @@ export function mover(ctx, { mesh, path, speed = 10, loop = true, oneWay = false
   let total = 0;
   const n = loop && !oneWay ? pts.length : pts.length - 1;
   for (let i = 0; i < n; i++) { const a = pts[i], b = pts[(i + 1) % pts.length]; const L = a.distanceTo(b); seg.push([a, b, L, total]); total += L; }
-  let d = offset * total;
+  const d0 = offset * total;
   const pos = new THREE.Vector3();
   const h = {
     pos, radius,
+    // where it is depends only on the hazard clock t, so every online player sees it in the same place
     update(dt, t) {
-      d += speed * dt;
+      const d = d0 + speed * t;
       let s = loop || oneWay ? ((d % total) + total) % total : total - Math.abs(((d % (2 * total)) + 2 * total) % (2 * total) - total);
       const forward = loop || oneWay || Math.floor(d / total) % 2 === 0;
       // one-way movers pop in/out at the ends
@@ -150,9 +151,10 @@ export function spinner(ctx, { center, length = 10, speed = 1.2, balls = 6, colo
   }
   g.add(arm);
   ctx.group.add(g);
-  let ang = Math.random() * 6;
+  const ang0 = Math.random() * 6;   // (the world is built from a shared seed online)
+  let ang = ang0;
   return {
-    update(dt) { ang += speed * dt; arm.rotation.y = ang; },
+    update(dt, t) { ang = ang0 + speed * t; arm.rotation.y = ang; },
     test(p) {
       const dx = p.x - center.x, dz = p.z - center.z;
       if (Math.abs(p.y - center.y - height) > 2.2) return null;
@@ -172,26 +174,31 @@ export function cannon(ctx, { from, targets, period = 3.5, offset = 0, color = C
   ball.castShadow = true;
   const marker = new THREE.Mesh(new THREE.RingGeometry(2.4, 3.2, 24).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xff2020, transparent: true, opacity: 0.8, depthWrite: false }));
   ctx.group.add(ball, marker);
-  let t0 = -offset, target = new THREE.Vector3(), flying = false, boom = 0;
-  const FLIGHT = 1.8;
-  const pick = () => {
-    const [k, latF] = targets[Math.floor(Math.random() * targets.length)];
-    const i = tr.kToIndex(k) + Math.floor((Math.random() - 0.5) * 20);
-    tr.at(i, (latF + (Math.random() - 0.5) * 0.6) * tr.HW[tr.wrap(i)], 0.1, target);
+  const target = new THREE.Vector3();
+  let flying = false, boom = 0, shot = -1, landed = -1;
+  const FLIGHT = 1.8, salt = Math.floor(Math.random() * 1e6);
+  // shot n's landing spot comes from a hash of n, and shots fire on a fixed beat of the hazard
+  // clock (the first one period after the start): the same on every online player's screen
+  const rnd = (n, j) => { let x = Math.imul((n * 4 + j) ^ salt, 2654435761) >>> 0; x ^= x >>> 15; x = Math.imul(x, 2246822519) >>> 0; x ^= x >>> 13; return (x >>> 0) / 4294967296; };
+  const pick = (n) => {
+    const [k, latF] = targets[Math.floor(rnd(n, 0) * targets.length)];
+    const i = tr.kToIndex(k) + Math.floor((rnd(n, 1) - 0.5) * 20);
+    tr.at(i, (latF + (rnd(n, 2) - 0.5) * 0.6) * tr.HW[tr.wrap(i)], 0.1, target);
   };
   return {
     update(dt, t) {
-      boom = Math.max(0, boom - dt);
-      if (!flying && t - t0 > period) { t0 = t; flying = true; pick(); }
+      const c = t + offset - period;
+      const n = c < 0 ? -1 : Math.floor(c / period), u = c - n * period;
+      flying = n >= 0 && u < FLIGHT;
+      boom = n >= 0 && u >= FLIGHT && u < FLIGHT + 0.25 ? FLIGHT + 0.25 - u : 0;
+      if (n >= 0 && n !== shot) { shot = n; pick(n); }
+      if (boom > 0 && landed !== n) {
+        landed = n;
+        ctx.world.race?.fx.explosion(target);
+        ctx.world.race?.audio.sfx('cannon', target);
+      }
       if (flying) {
-        const f = (t - t0) / FLIGHT;
-        if (f >= 1) {
-          flying = false; boom = 0.25;
-          ctx.world.race?.fx.explosion(target);
-          ctx.world.race?.audio.sfx('cannon', target);
-          ball.visible = false; marker.visible = false;
-          return;
-        }
+        const f = u / FLIGHT;
         ball.visible = true; marker.visible = true;
         ball.position.lerpVectors(from, target, f);
         ball.position.y += Math.sin(f * Math.PI) * 45;
@@ -214,10 +221,13 @@ export class Hazards {
     this.cool = new Map();
   }
   update(dt) {
-    this.t += dt;
+    // online races drive the hazard clock from the shared race clock (this.clock), so moving
+    // hazards are in the same place on every screen
+    // (hazards that integrate dt then advance by exactly the clock's step too)
+    if (this.clock) { const t = this.clock(); dt = Math.max(0, Math.min(0.25, t - this.t)); this.t = t; } else this.t += dt;
     for (const h of this.list) h.update(dt, this.t);
     for (const k of this.race.karts) {
-      if (k.respawn > 0) continue;
+      if (k.respawn > 0 || k.remote) continue;   // a remote kart's own screen tests it
       const c = (this.cool.get(k) || 0) - dt;
       this.cool.set(k, c);
       if (c > 0) continue;

@@ -99,6 +99,12 @@ export class Kart {
     this.aura.position.y = 1; this.aura.visible = false;
     m.root.add(this.aura);
     this.hidden = 0;
+    // Online play (js/online/): a `remote` kart is a puppet drawn from another browser's
+    // updates. Its owner decides everything that happens to it, so hits and shoves do nothing
+    // here, and it is never stepped by the physics below. gest / gestN record this kart's latest
+    // gesture so an owned kart can publish it.
+    this.remote = false;
+    this.gest = ''; this.gestN = 0;
   }
 
   place(i, lat) {
@@ -135,7 +141,7 @@ export class Kart {
   // dead); the rest knocks it sideways and slides off over a moment. Callers divide impulses by
   // weight, so heavy karts barely move and light ones get thrown about.
   shove(dvx, dvz, spin = 0) {
-    if (this.respawn > 0 || this.bulletTime > 0) return;
+    if (this.remote || this.respawn > 0 || this.bulletTime > 0) return;
     const fx = Math.sin(this.moveYaw), fz = Math.cos(this.moveYaw);
     const along = dvx * fx + dvz * fz;
     if (along < 0) this.speed = this.speed > 0 ? Math.max(this.speed * 0.55, this.speed + along) : this.speed + along * 0.5;
@@ -153,6 +159,7 @@ export class Kart {
 
   // --- hits ----------------------------------------------------------------
   shieldBlocks() {
+    if (this.remote) return false;   // a puppet's shield is its owner's to pop
     if (this.shieldTime > 0) {
       this.shieldTime = 0; this.bubble.visible = false;
       this.race.fx.pop(this.pos, 0x66ccff);
@@ -162,7 +169,7 @@ export class Kart {
     return false;
   }
   hit(kind, by = null) {
-    if (this.invincible || this.finishedCoast) return false;
+    if (this.remote || this.invincible || this.finishedCoast) return false;
     if (this.shieldBlocks()) return false;
     this.cancelDrift();
     if (this.megaTime > 0) {
@@ -680,10 +687,15 @@ export class Kart {
   }
 
   // a character gesture plus a voice line
+  // (a remote puppet only plays the gestures its owner sends: see playNetGesture)
   emote(name, voice = name) {
-    if (!this.anim) return;
+    if (!this.anim || this.remote) return;
     if (!this.anim.play(name)) return;
+    this.gest = name + ':' + (voice || ''); this.gestN = (this.gestN + 1) & 1023;
     this.race.voice?.(this, voice);
+  }
+  playNetGesture(name, voice) {
+    if (this.anim?.play(name)) this.race.voice?.(this, voice || null);
   }
 
   dispose() { this.race.scene.remove(this.model.root); }

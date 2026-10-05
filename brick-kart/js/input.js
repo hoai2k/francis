@@ -122,7 +122,8 @@ export class Input {
       const L = this.layout(dev);
       held = { up: this.kHeld(L.up) || this.kEdge(L.up), down: this.kHeld(L.down) || this.kEdge(L.down), left: this.kHeld(L.left) || this.kEdge(L.left), right: this.kHeld(L.right) || this.kEdge(L.right) };
       m.ok = this.kEdge(L.ok); m.back = this.kEdge(L.back);
-      m.start = this.kEdge(['Enter', 'NumpadEnter']) && dev !== 'kb2' ? true : dev === 'kb2' && this.kEdge(['Enter']);
+      // (with a 2nd keyboard player, Enter is theirs: it isn't also player 1's Start)
+      m.start = dev === 'kb2' ? this.kEdge(['Enter']) : !this.split && this.kEdge(['Enter', 'NumpadEnter']);
       m.x = this.kEdge(['Tab']);
     } else if (dev.startsWith('pad')) {
       const s = this.padNow.get(dev);

@@ -240,6 +240,9 @@ export class Items {
     this.tmp = new THREE.Vector3();
     this.loc = {};
     this.ents = [];   // movie-ability entities (see abilities.js)
+    // online play: the id of the item use being carried out right now (js/online/netrace.js sets
+    // it), stamped on the projectiles and traps it makes so a hit can name them on every screen
+    this.netId = null;
     this.ctx = this.abilityCtx();
   }
 
@@ -333,7 +336,7 @@ export class Items {
     const my = order.indexOf(k);
     const target = my > 0 ? order[my - 1] : null;
     const p = k.pos.clone().add(k.forward().multiplyScalar(3)).setY(k.pos.y + 1);
-    this.proj.push({ type: 'rocket', mesh, pos: p, yaw: k.yaw, owner: k, target, life: 14, si: k.loc.i, speed: Math.max(58, k.speed + 20), safe: 0.4 });
+    this.proj.push({ type: 'rocket', mesh, pos: p, yaw: k.yaw, owner: k, target, life: 14, si: k.loc.i, speed: Math.max(58, k.speed + 20), safe: 0.4, nid: this.netId });
   }
   fireCannon(k, back, type = 'cannon') {
     const mesh = type === 'ice' ? cannonMesh(0x9ae0ff, 0xffffff, true) : cannonMesh();
@@ -341,25 +344,25 @@ export class Items {
     const yaw = back ? k.yaw + Math.PI : k.yaw;
     const f = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
     const p = k.pos.clone().addScaledVector(f, 3.2).setY(k.pos.y + 0.9);
-    this.proj.push({ type, mesh, pos: p, yaw, owner: k, life: 9, si: k.loc.i, speed: back ? 40 : Math.max(52, k.speed + 18), safe: 0.35, bounces: 0, vy: 0 });
+    this.proj.push({ type, mesh, pos: p, yaw, owner: k, life: 9, si: k.loc.i, speed: back ? 40 : Math.max(52, k.speed + 18), safe: 0.35, bounces: 0, vy: 0, nid: this.netId });
   }
   fireSeeker(k) {
     const mesh = seekerMesh();
     this.scene.add(mesh);
     const p = k.pos.clone().setY(k.pos.y + 4);
-    this.proj.push({ type: 'seeker', mesh, pos: p, yaw: k.yaw, owner: k, life: 25, si: k.loc.i, speed: 95, safe: 1.5, diving: false });
+    this.proj.push({ type: 'seeker', mesh, pos: p, yaw: k.yaw, owner: k, life: 25, si: k.loc.i, speed: 95, safe: 1.5, diving: false, nid: this.netId });
   }
   fireBoomerang(k) {
     const mesh = boomerangMesh();
     this.scene.add(mesh);
     const p = k.pos.clone().add(k.forward().multiplyScalar(3)).setY(k.pos.y + 1.2);
-    this.proj.push({ type: 'boomerang', mesh, pos: p, yaw: k.yaw, owner: k, life: 4, si: k.loc.i, speed: Math.max(55, k.speed + 20), safe: 0.6, t: 0, hitSet: new Set() });
+    this.proj.push({ type: 'boomerang', mesh, pos: p, yaw: k.yaw, owner: k, life: 4, si: k.loc.i, speed: Math.max(55, k.speed + 20), safe: 0.6, t: 0, hitSet: new Set(), nid: this.netId });
   }
   dropTrap(k, forward, kind = 'bricks') {
     const mesh = kind === 'puddle' ? puddleMesh() : kind === 'fakebox' ? fakeBoxMesh() : kind === 'bomb' ? bombMesh() : trapMesh();
     this.scene.add(mesh);
     const f = k.forward();
-    const t = { kind, mesh, pos: k.pos.clone().addScaledVector(f, forward ? 3 : -3.6), vel: null, si: k.loc.i, owner: k, safe: 0.5, air: false, life: kind === 'puddle' ? 25 : kind === 'bomb' ? 99 : 1e9, fuse: kind === 'bomb' ? 2.2 : 0 };
+    const t = { kind, mesh, pos: k.pos.clone().addScaledVector(f, forward ? 3 : -3.6), vel: null, si: k.loc.i, owner: k, safe: 0.5, air: false, life: kind === 'puddle' ? 25 : kind === 'bomb' ? 99 : 1e9, fuse: kind === 'bomb' ? 2.2 : 0, nid: this.netId };
     if (forward) { t.vel = f.clone().multiplyScalar(k.speed + (kind === 'bomb' ? 26 : 22)).setY(kind === 'bomb' ? 14 : 12); t.air = true; t.pos.y += 1; }
     mesh.position.copy(t.pos);
     this.traps.push(t);
@@ -414,7 +417,25 @@ export class Items {
   }
 
   hitKart(k, p, kind) {
-    if (k.hit(kind, p.owner)) this.race.onProjectileHit?.(p.owner, k, p.type);
+    if (k.hit(kind, p.owner)) { this.race.onProjectileHit?.(p.owner, k, p.type); this.race.net?.onHit(k, p); }
+  }
+  // online: another screen says this projectile or trap hit its kart; take it away here too
+  removeByNetId(nid) {
+    if (!nid) return false;
+    for (let n = this.proj.length - 1; n >= 0; n--) {
+      const p = this.proj[n];
+      if (p.nid !== nid || p.type === 'boomerang') continue;
+      this.race.fx.explosion(p.pos); this.scene.remove(p.mesh); this.proj.splice(n, 1);
+      return true;
+    }
+    for (const t of this.traps) {
+      if (t.nid !== nid || t.kind === 'puddle') continue;
+      this.race.fx.debris(t.pos, t.kind === 'fakebox' ? [0xff6ab0, 0xffffff] : [C.red, C.yellow, C.blue, C.green], 6, 0.7);
+      if (t.kind === 'fakebox' || t.kind === 'bomb') this.race.fx.explosion(t.pos);
+      this.removeTrap(t);
+      return true;
+    }
+    return false;
   }
 
   update(dt) {
@@ -509,6 +530,9 @@ export class Items {
           if (k === p.owner && p.safe > 0) continue;
           if (k.respawn > 0) continue;
           if (k.pos.distanceToSquared(p.pos) < (2.4 * k.megaScale) ** 2 && Math.abs(k.pos.y + 0.8 - p.pos.y) < 2.5 * k.megaScale) {
+            // online: a remote kart's owner decides whether it was hit; here the shot just bursts
+            // on it (the spin, if any, arrives with the owner's next update)
+            if (k.remote) { if (p.type === 'boomerang' || k.invincible) continue; this.race.fx.explosion(p.pos); dead = true; break; }
             if (p.type === 'boomerang') {
               if (k === p.owner || p.hitSet.has(k)) continue;
               p.hitSet.add(k); this.hitKart(k, p, 'spin'); continue;
@@ -555,13 +579,14 @@ export class Items {
       const r = t.kind === 'puddle' ? 3.4 : t.kind === 'fakebox' ? 2.2 : t.kind === 'bomb' ? 2.2 : 1.9;
       for (const k of karts) {
         if (k === t.owner && t.safe > 0) continue;
-        if (k.respawn > 0 || (!k.grounded && k.pos.y > t.pos.y + 1.5)) continue;
+        // online: traps go off for remote karts on their owner's screen (who then says so)
+        if (k.remote || k.respawn > 0 || (!k.grounded && k.pos.y > t.pos.y + 1.5)) continue;
         if (k.pos.distanceToSquared(t.pos) < (r + (k.megaScale - 1) * 2) ** 2) {
           if (t.kind === 'bomb') { this.explode(t.pos, 8, t.owner); this.removeTrap(t); break; }
           // mega karts and bullets squash traps
-          if (k.megaTime > 0 || k.bulletTime > 0 || k.goldenTime > 0) { if (t.kind !== 'puddle') { this.race.fx.debris(t.pos, [C.red, C.yellow, C.blue], 6); this.removeTrap(t); } break; }
+          if (k.megaTime > 0 || k.bulletTime > 0 || k.goldenTime > 0) { if (t.kind !== 'puddle') { this.race.fx.debris(t.pos, [C.red, C.yellow, C.blue], 6); this.removeTrap(t); this.race.net?.onHit(k, t); } break; }
           if (t.kind === 'puddle') { if (k.invuln <= 0 && k.hit('spin', t.owner)) this.race.onProjectileHit?.(t.owner, k, 'puddle'); continue; }
-          if (k.hit(t.kind === 'fakebox' ? 'wreck' : 'spin', t.owner)) this.race.onProjectileHit?.(t.owner, k, t.kind);
+          if (k.hit(t.kind === 'fakebox' ? 'wreck' : 'spin', t.owner)) { this.race.onProjectileHit?.(t.owner, k, t.kind); this.race.net?.onHit(k, t); }
           this.race.fx.debris(t.pos, t.kind === 'fakebox' ? [0xff6ab0, 0xffffff] : [C.red, C.yellow, C.blue, C.green], 6, 0.7);
           if (t.kind === 'fakebox') this.race.fx.explosion(t.pos);
           this.removeTrap(t);

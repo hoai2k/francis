@@ -488,6 +488,7 @@ export class Showcase {
     if (!w || !h) return;
     if (this.canvas.width !== w || this.canvas.height !== h) this.r.setSize(w, h, false);
     this.animate(dt);
+    if (window.__bkNoRender) return;   // (?norender: automated tests)
     if (!this.cells) {
       this.frame(w / h, 0, this.fit, this.fitY);
       this.r.render(this.scene, this.cam);

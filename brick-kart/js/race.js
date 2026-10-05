@@ -22,7 +22,7 @@ const THROWS = new Set(['rocket', 'rocket3', 'cannon', 'cannon3', 'ice', 'boomer
 const TRAPS = new Set(['trap', 'puddle', 'fakebox']);
 
 
-class ChaseCam {
+export class ChaseCam {
   constructor() {
     this.cam = new THREE.PerspectiveCamera(72, 1, 0.1, 3000);
     this.yaw = 0; this.pos = new THREE.Vector3(); this.look = new THREE.Vector3();
@@ -110,6 +110,11 @@ export class Race {
     this.started = false;
     this.time = 0;
     this.results = [];
+    // online play (js/online/netrace.js): set by the online layer right after construction. It
+    // drives the clock, the remote karts (opts.grid entries with remote: true are puppets) and
+    // passes item uses and hits on. null for every offline race.
+    this.net = null;
+    this.spec = null;   // online spectator: { chase, kart } follows someone else's kart
 
     // roster & grid
     const humans = opts.players || [];
@@ -172,6 +177,9 @@ export class Race {
       const ch = this.useChars ? (KARTS[g.kartIndex] || CHARACTERS[g.charIndex] || KARTS[0]) : CHARACTERS[g.charIndex];
       const k = new Kart(this, ch, n, g.player, drv, GLIDERS[g.gliderIndex] || null);
       k.driverIndex = drv ? DRIVERS.indexOf(drv) : -1;
+      k.remote = !!g.remote;
+      k.netName = g.name || null;       // online: the player's name (null for CPU racers)
+      k.netHuman = !!g.netHuman;        // online: a person drives it (here or on another screen)
       const row = n;
       const i = this.track.wrap(Math.round(-7 - row * 3.4));
       const lat = (n % 2 ? 1 : -1) * this.track.HW[i] * 0.4;
@@ -184,11 +192,12 @@ export class Race {
         const cc = new ChaseCam();
         this.cams.push({ chase: cc, kart: k, player: g.player });
         k.engine = this.audio.engine();
-      } else {
+      } else if (!k.remote) {
         this.drivers.set(k, new AIDriver(k, this, opts.difficulty || 'normal'));
       }
     });
     this.order = [...this.karts];
+    this.cams.sort((a, b) => a.player.id - b.player.id);   // split-screen cells in player order
     this.tv = new TVCam();
     this.state = this.mode === 'attract' ? 'race' : 'intro';
     this.introT = 0;
@@ -218,16 +227,24 @@ export class Race {
     dt = Math.min(dt, 0.1);
     const tr = this.track;
     // intro flyover
+    const net = this.net;
     if (this.state === 'intro') {
-      this.introT += dt;
-      const anyOk = this.game.menuEvents.some(([, m]) => m.ok || m.start) || this.input.touch.edge?.size;
-      if (this.introT > 4.2 || (anyOk && this.introT > 0.4)) { this.state = 'countdown'; this.hud?.hideTitle(); }
+      if (net) {
+        // online: the flyover and countdown run on the shared clock (nobody can skip them)
+        const left = net.countdownLeft();
+        this.introT = Math.max(0, net.introLen - (left - 3.6));
+        if (left <= 3.6) { this.state = 'countdown'; this.hud?.hideTitle(); }
+      } else {
+        this.introT += dt;
+        const anyOk = this.game.menuEvents.some(([, m]) => m.ok || m.start) || this.input.touch.edge?.size;
+        if (this.introT > 4.2 || (anyOk && this.introT > 0.4)) { this.state = 'countdown'; this.hud?.hideTitle(); }
+      }
     } else if (this.state === 'countdown') {
-      this.countdown -= dt;
+      if (net) this.countdown = net.countdownLeft(); else this.countdown -= dt;
       const n = Math.ceil(this.countdown);
       if (n < this.lastCount && n >= 1 && n <= 3) { this.lastCount = n; this.audio.sfx('count'); tr.setStartLights(4 - n, false); this.hud?.count(n); }
       if (this.countdown <= 0) {
-        this.state = 'race'; this.started = true; this.time = 0;
+        this.state = 'race'; this.started = true; this.time = net ? net.raceTime() : 0;
         this.game.input?.calibrateTilt?.();   // tilt steering: however the phone is held at GO is straight ahead
         tr.setStartLights(4, true);
         this.audio.sfx('go');
@@ -237,19 +254,22 @@ export class Race {
           if (k.human) {
             if (k.gasHold > 0.3 && k.gasHold < 1.7) k.boost(1.1);
             else if (k.gasHold >= 2.4) { k.spinTime = 0.6; }
-          } else if (Math.random() < this.drivers.get(k).d.skill * 0.8) k.boost(0.8 + Math.random() * 0.4);
+          } else if (!k.remote && Math.random() < (this.drivers.get(k)?.d.skill ?? 0.5) * 0.8) k.boost(0.8 + Math.random() * 0.4);
         }
       }
     }
-    if (this.started) this.time += dt;
+    if (this.started) this.time = net ? net.raceTime() : this.time + dt;
 
     // controls
-    const humanLead = this.cams.length ? Math.max(...this.cams.map((c) => c.kart.raceDist)) : null;
+    let humanLead = this.cams.length ? Math.max(...this.cams.map((c) => c.kart.raceDist)) : null;
+    if (net) for (const k of this.karts) if (k.netHuman && (humanLead === null || k.raceDist > humanLead)) humanLead = k.raceDist;
     for (const k of this.karts) {
+      if (k.remote) continue;   // online puppets: net.update() below poses them
       let ctl;
       if (k.human && !k.finished) {
         ctl = this.input.race(k.player.device, k.player.autoGas);
         if (ctl.pause && this.state !== 'intro') { this.game.pause(k.player); }
+        if (this.inputBlocked) ctl = { ...ctl, throttle: k.player.autoGas ? 1 : 0, brake: 0, steer: 0, drift: false, driftPressed: false, itemPressed: false, look: false };
         k.lookBack = ctl.look;
         if (this.state === 'countdown') {
           if (ctl.throttle > 0.5) { if (k.gasHold < 0) k.gasHold = this.countdown; } else k.gasHold = -1;
@@ -265,7 +285,7 @@ export class Race {
       if (!this.started) { ctl = { ...ctl, throttle: 0, brake: 0, steer: 0, driftPressed: false, itemPressed: false }; }
       if (ctl.itemPressed && k.item && k.roulette <= 0 && !k.stunned && this.started) {
         const it = k.item;
-        this.items.use(k);
+        if (net) net.use(k, () => this.items.use(k)); else this.items.use(k);
         if (k.anim) {
           const back = ctl.back || (TRAPS.has(it) && !ctl.aimFwd);
           const ab = ABILITY[it];
@@ -294,6 +314,9 @@ export class Race {
       }
     }
 
+    // online: pose the remote karts for this frame and carry out other players' item uses
+    net?.update(dt);
+
     // pickups: item boxes, studs, boost pads, ramps
     const n = this.karts.length;
     for (const k of this.karts) {
@@ -303,6 +326,7 @@ export class Race {
         if (Math.abs(b.pos.x - k.pos.x) < 2.6 && Math.abs(b.pos.z - k.pos.z) < 2.6 && Math.abs(b.pos.y - k.pos.y - 1) < 2.6) {
           b.active = false; b.timer = 2.2;
           this.fx.itemBoxBreak(b.pos);
+          if (k.remote) continue;   // a remote kart's own screen rolls its item
           if (k.human) this.audio.sfx('box');
           const rf = n > 1 ? (k.rank - 1) / (n - 1) : 0;
           const lead = this.order.find((o) => !o.finished) || this.order[0];
@@ -320,11 +344,13 @@ export class Race {
         if (!s.active) continue;
         if (Math.abs(s.pos.x - k.pos.x) < 2 && Math.abs(s.pos.z - k.pos.z) < 2 && Math.abs(s.pos.y - k.pos.y - 1) < 2) {
           s.active = false; s.timer = 9;
+          if (k.remote) { this.fx.studPickup(s.pos); continue; }
           k.studs = Math.min(10, k.studs + 1);
           this.fx.studPickup(s.pos);
           if (k.human) this.audio.sfx('stud');
         }
       }
+      if (k.remote) continue;   // (pads, ramps and obstacles: the owner's screen)
       if (k.grounded) {
         for (const bp of tr.boosts) {
           const di = Math.abs(((k.loc.i - bp.i + tr.N + tr.N / 2) % tr.N) - tr.N / 2);
@@ -366,6 +392,10 @@ export class Race {
     for (let a = 0; a < n; a++) for (let b = a + 1; b < n; b++) {
       const A = this.karts[a], B = this.karts[b];
       if (A.respawn > 0 || B.respawn > 0 || A.ghostTime > 0 || B.ghostTime > 0) continue;
+      // online: two remote karts bump on their own screens; a remote kart (which can't be moved
+      // here) pushes a local one gently out of the way
+      const mixed = A.remote || B.remote;
+      if (A.remote && B.remote) continue;
       const dx = B.pos.x - A.pos.x, dz = B.pos.z - A.pos.z;
       const d2 = dx * dx + dz * dz;
       const reach = 1.35 * (A.megaScale + B.megaScale) + (A.bulletTime > 0 || B.bulletTime > 0 ? 1.5 : 0);
@@ -384,7 +414,8 @@ export class Race {
       if (B.megaTime > 0 && A.megaTime <= 0) { fling(A, B, -1, 'spin'); continue; }
       const over = reach - d;
       const mA = A.weight, mB = B.weight;
-      const wa = mB / (mA + mB), wb = 1 - wa;
+      let wa = mB / (mA + mB), wb = 1 - wa;
+      if (mixed) { wa = A.remote ? 0 : 1; wb = 1 - wa; }
       A.pos.x -= nx * over * wa; A.pos.z -= nz * over * wa;
       B.pos.x += nx * over * wb; B.pos.z += nz * over * wb;
       if (A.goldenTime > 0 && B.goldenTime <= 0) { fling(B, A, 1, 'spin'); continue; }
@@ -394,7 +425,7 @@ export class Race {
       let j = 0;
       if (close > 0) {
         // restitution 0.4, and any real contact is felt (a minimum push)
-        j = (close > 0.5 ? Math.max(1.4 * close, 3) : 1.4 * close) * (mA * mB / (mA + mB));
+        j = (close > 0.5 ? Math.max(1.4 * close, 3) : 1.4 * close) * (mA * mB / (mA + mB)) * (mixed ? 0.6 : 1);
         A.shove(-nx * j / mA, -nz * j / mA);
         B.shove(nx * j / mB, nz * j / mB);
       }
@@ -434,7 +465,7 @@ export class Race {
 
     // laps & finishing
     for (const k of this.karts) {
-      if (k.finished || !this.started) continue;
+      if (k.finished || !this.started || k.remote) continue;   // (remote karts: their owner says)
       if (k.lap > k.lapSeen) {
         k.lapSeen = k.lap;
         if (k.lap >= 2) { k.lapTimes.push(this.time - k.lapStart); }
@@ -459,7 +490,8 @@ export class Race {
         }
       }
     }
-    if (this.mode !== 'attract' && this.doneTimer < 0 && this.cams.length && this.cams.every((c) => c.kart.finished)) this.doneTimer = 3.2;
+    // (online, the host ends the race for everyone: see netrace.js)
+    if (this.mode !== 'attract' && !net && this.doneTimer < 0 && this.cams.length && this.cams.every((c) => c.kart.finished)) this.doneTimer = 3.2;
     if (this.doneTimer > 0) {
       this.doneTimer -= dt;
       if (this.doneTimer <= 0) this.finish();
@@ -471,12 +503,14 @@ export class Race {
       const k = c.kart;
       k.engine?.set(Math.min(1.3, Math.abs(k.speed) / k.topSpeed), k.boosting, !k.finished && k.respawn <= 0, 1 / Math.sqrt(this.cams.length));
     }
-    if (this.mode === 'attract' || this.cams.length === 3) this.tv.update(dt, this);
+    if (this.mode === 'attract' || this.cams.length === 3 || (!this.cams.length && !this.spec)) this.tv.update(dt, this);
+    if (this.spec) this.spec.chase.update(dt, this.spec.kart);
     if (this.state === 'intro') this.updateIntroCam();
-    const focus = this.cams[0]?.kart.pos || this.tv.focus || this.karts[0].pos;
+    const focus = this.cams[0]?.kart.pos || this.spec?.kart.pos || this.tv.focus || this.karts[0].pos;
     this.audio.listener = focus;
     this.world.update(dt, focus);
     this.hud?.update(dt);
+    net?.post(dt);   // online: publish this screen's karts
   }
 
   updateIntroCam() {
@@ -492,7 +526,10 @@ export class Race {
   finish() {
     if (this.finishedCalled) return;
     this.finishedCalled = true;
-    // unfinished karts: estimate finish times from remaining distance
+    this.onDone?.(this.results_());
+  }
+  // final order: unfinished karts get finish times estimated from the distance left
+  results_() {
     const rest = this.order.filter((k) => !k.finished);
     for (const k of rest) {
       const remain = (this.laps + 1) * this.track.N - k.raceDist;
@@ -500,7 +537,7 @@ export class Race {
       k.finished = true; k.estimated = true;
     }
     const all = [...this.karts].sort((a, b) => a.finishTime - b.finishTime);
-    this.onDone?.(all.map((k, i) => ({ place: i + 1, kart: k, charIndex: CHARACTERS.indexOf(k.ch), kartIndex: KARTS.indexOf(k.ch), driverIndex: k.driverIndex, player: k.player, time: k.finishTime, laps: k.lapTimes, estimated: !!k.estimated })));
+    return all.map((k, i) => ({ place: i + 1, kart: k, charIndex: CHARACTERS.indexOf(k.ch), kartIndex: KARTS.indexOf(k.ch), driverIndex: k.driverIndex, player: k.player, time: k.finishTime, laps: k.lapTimes, estimated: !!k.estimated }));
   }
 
   viewports(W, H) {
@@ -511,7 +548,17 @@ export class Race {
   render(renderer) {
     const size = renderer.getSize(V);
     const W = size.x, H = size.y;
-    if (this.mode === 'attract' || !this.cams.length) {
+    if (this.spec && this.state !== 'intro') {
+      // online spectator: a chase camera behind the followed kart
+      const cam = this.spec.chase.cam;
+      renderer.setScissorTest(false);
+      renderer.setViewport(0, 0, W, H);
+      if (Math.abs(cam.aspect - W / H) > 0.001) { cam.aspect = W / H; cam.updateProjectionMatrix(); }
+      this.world.aimSun(this.spec.kart.pos);
+      renderer.render(this.scene, cam);
+      return;
+    }
+    if (this.mode === 'attract' || (!this.cams.length && this.state !== 'intro')) {
       renderer.setScissorTest(false);
       renderer.setViewport(0, 0, W, H);
       this.tv.cam.aspect = W / H; this.tv.cam.updateProjectionMatrix();
@@ -572,6 +619,7 @@ export class Race {
   // (driver gesture effects, gliders, shield bubbles, auras…), so nothing stalls the
   // frame mid-race the first time it appears.
   warmup(renderer) {
+    if (window.__bkNoRender) return;   // (?norender: automated tests draw nothing)
     // movie abilities can hand over sample meshes so their materials compile now too
     const samples = [];
     for (const a of ABILITIES) {
@@ -589,6 +637,7 @@ export class Race {
   }
 
   dispose() {
+    this.net?.dispose();
     for (const c of this.cams) c.kart.engine?.stop();
     this.items.dispose();
     this.hud?.dispose();

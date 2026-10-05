@@ -17,6 +17,9 @@ Play: <https://hoai2k.github.io/francis/brick-kart/>
 - **Quick Race**: one race on any map, always with **12 racers** (you plus CPU racers).
 - **Time Trial**: race alone with 3 Turbo Studs. Your best time on each map is
   saved in your browser.
+- **Online** (in progress, enable with `?online=1`): race friends on other
+  screens, up to 12 people in a race, with everyone on each screen able to join
+  in (see [Online](#online) below).
 - **Racer select**: player 1 is already in, using whatever controller (or
   keyboard/touch) you used in the menus; more players press A to join.
 - **Options**: engine class (50/100/150/200cc), CPU difficulty, laps, **Legoized** (brick-built props, on by default; off shows the original smooth props for comparison), **Simplified mode**, auto-accelerate, music and sound
@@ -370,6 +373,164 @@ grid. Browsers expose a limited number of controllers (Chrome lists up to
 four), so eight players may need a mix of controllers and the two keyboard
 setups.
 
+## Online
+
+> **In progress — off by default.** Online play is switched on with **`?online=1`** in the
+> address (or `ONLINE_ENABLED` at the top of `js/main.js`). Without it the Online menu item isn't
+> shown and none of the online code (`js/online/`, `js/vendor/`) is loaded; the hooks it adds to
+> the race, karts, items and hazards are idle. **What exists:** everything described below.
+> **Tested** (automated, headless, against a local relay): lobby listing / host / join, the room
+> panel and bubbles, names (remembered, default, duplicates told apart, the on-screen keyboard),
+> two local players on one screen plus another screen, the line-up, a synchronized start (all
+> screens within one frame), remote kart smoothness, item uses and victim-decided hits, a guest
+> leaving (kart becomes a CPU), joining mid-race (watching, then racing the next one), host
+> migration mid-race, a guest's reconnect, the relay dying mid-race (finishes offline), an
+> unreachable relay, malformed messages, and the production relay's lobby. **Left:** a real
+> multi-device session over the production relay (this environment can't open WebSockets to it),
+> testing on real phones and gamepads, and tuning with real network latency.
+
+Main menu → **Online**. Race friends anywhere: up to **12 people** in a race, and
+each screen can bring its own local players (split screen, extra controllers, a
+2nd keyboard, exactly like local multiplayer), so 3 people round one TV and 2 at
+another screen race together naturally. Races are always 12 karts: CPU racers
+fill the rest. Rooms are open to anyone who sees them (it's a game for friends).
+
+- **Host a race** opens a room ("<your name>'s race") that appears in everyone's
+  list of **open races** (with how many screens are in it). Pick one to **join**.
+  Everything works with a controller, the keyboard, a mouse or touch.
+- **Select screen**: as offline, plus a **room panel** listing every person in
+  the room: their driver portrait, name, a little colour tag per screen (with
+  P1/P2… when a screen has several players), a 👑 on the host, and what they're
+  doing (choosing a name / driver / kart / glider, ready ✓, loading, racing,
+  watching, reconnecting…). Bubbles pop up as people join, leave and lock in.
+  Drivers someone else has locked in are taken.
+- **Names**: each player first picks the name they race under: **Default**
+  (made from their driver: "Thor"; "Thor (Red Five)" if someone else in the room
+  is also Thor; "… 2" if they also share the kart), one of the **names saved on
+  this device**, or **+ New name…** (an on-screen keyboard you can use with a
+  controller, or type with a real keyboard / the phone's keyboard; up to 16
+  characters; it's saved for next time). X (Tab) on a saved name forgets it. The
+  highlight starts on what that player slot (P1, P2…) used last time, so just
+  pressing A all the way through keeps it.
+- **Starting**: when everyone is ready the host picks a map (guests see "Host is
+  picking a map…"). The host can press **Race!** twice to start without
+  someone who's still choosing (they watch that race). Then everyone sees the
+  **line-up**: every player's driver in their kart with their name over it and a
+  spinner that turns into a tick as each screen finishes loading the track.
+  When all have loaded (or after 30 s) the host sets the start time and every
+  screen runs the flyover and countdown on the shared clock, so GO is at the
+  same moment everywhere.
+- **During the race**: names float over other people's karts (on split screen
+  your own name shows on the other players' views only), and a standings list
+  with names sits at the right. Esc / Start opens a menu with Resume and
+  **Leave room**; the race doesn't stop for anyone. Item boxes, studs and
+  boost pads are your own screen's.
+- **After the race**: results with everyone's names; the host picks **Next
+  race** (same racers, straight to the map choice) or **Change racers** (back to
+  the select screen). Grand Prix cups are offline only.
+- **Joining late**: joining while a race is running lets you **watch** it (◀︎ ▶︎
+  switches whom you follow); you're in the next one.
+- **Leaving and trouble**: if someone leaves, a bubble says so and their kart
+  carries on as a CPU, so the field stays at 12. A player whose connection drops
+  briefly is shown as "reconnecting…" and their kart keeps going; they re-join
+  the same room automatically within a few seconds without anyone noticing. If
+  the **host** leaves, the relay closes the room, so the game moves everyone to a
+  new one by itself: the next player in join order becomes host, the race (or
+  select screen) carries on, and that player's screen takes over the CPU karts.
+  If the online server can't be reached, the Online screen says so with
+  **Retry**; if it goes away mid-race, the race finishes offline with every
+  other kart as a CPU. Local play never depends on any of this: the online
+  code and the relay client are only loaded when you open Online.
+
+### How it works
+
+Online play uses **mini-rooms**, the small relay from the
+[`mini`](https://github.com/hoai2k/mini) repository (`MULTIPLAYER.md` there)
+running on Cloudflare Workers at `https://mini-rooms.hoai2k.workers.dev`
+(pages on localhost use `http://localhost:8787`, i.e. `wrangler dev`, and
+`?rooms=<url>` overrides). The relay only passes messages around: a room is a
+group of up to 16 connections ("screens" here; the game allows 12 and caps
+people at 12), each with a **presence** (its latest state, which replaces the
+last) and **topics** (one-off broadcasts). `js/vendor/mini-rooms.js` is a
+verbatim copy of its browser client; `js/online/session.js` loads it on demand.
+
+Who owns what:
+
+- **Each screen** simulates its own players' karts (physics, item rolls, hits
+  on them) and publishes their state 15 times a second.
+- **The host** also simulates the CPU karts (and the karts of anyone who left)
+  and publishes them in the same message, and owns the room state: phase, join
+  order, race setup and seed, start time, results.
+- **Everything else is a puppet**: other screens' karts are drawn from those
+  updates with **snapshot interpolation** on a shared race clock, about 100-150
+  ms behind real time (adaptive: it follows how late and how irregular updates
+  arrive), **dead reckoning** if updates are late (straight on for 0.3 s, then
+  along the track for up to 3 s), and **smoothed corrections** (a snap only for
+  respawns and big jumps). Wheels, drift sparks, gliders, boost flames, shields,
+  spins and the driver's cheers and taunts all come from the update.
+- **Shared clock**: guests ping the host a few times when they join and every
+  few seconds after (topics `ping` / `pong`) and keep the sample with the
+  shortest round trip; corrections are eased in. The countdown, race time,
+  kart update times and **hazards** (moving traffic, crushers, cannons… their
+  positions are functions of this clock) all use it. The track and its scenery
+  are built from the host's seed, so they match everywhere.
+- **Items**: a use goes to everyone (event `u`) with the user's position and
+  heading, a random seed and the standings at that moment; every screen spawns
+  the same shot from the puppet as it's drawn (the event is held until the
+  puppet's own time reaches it), so homing shots and "the racer ahead" powers
+  pick the same target. **Only a kart's own screen decides that it was hit**,
+  and says so (event `h`) so the shot or trap disappears everywhere; the spin
+  or wreck shows through that kart's updates.
+- **Host migration**: the relay closes a room when its host leaves. The host's
+  presence always carries the join order, so every screen agrees on the next
+  host, who opens the successor room `<room id>-g<n>`; the others join it
+  (retrying, and the next in line takes over if the first never shows up).
+  The new host keeps the old host's clock running and takes over the CPU karts
+  from where they are.
+
+| Presence (one message per screen) | Meaning |
+| --- | --- |
+| `v`, `u`, `n`, `h` | protocol version (1), the screen's id (stable across reconnects), player 1's name, host flag |
+| `s` | stage: `sel` / `rdy` / `load` / `race` / `spec` / `res` |
+| `pl` | the screen's players: `[slot, name, custom name?, driver id, kart id, glider id, step]` |
+| `ld`, `ri` | the race id it has loaded / is publishing karts for |
+| `ks` | racing: each owned kart's state (23 numbers: time, position, heading, velocity, steer, drift, flags for glide / boost / shield / golden / mega / bullet / ghost / frozen / finished / respawning, spin and wreck timers, race distance, item, gesture, finish time, studs) |
+| `R` (host) | room state: generation, phase, join order, select round, race setup (every second), start time, karts the host drives, results |
+
+| Topic | Sent by | Meaning |
+| --- | --- | --- |
+| `ping` / `pong` | guests / host | clock sync (`pong` names the guest it answers) |
+| `ev` | anyone | a batch of race events for one race id: `u` item use (kart, time, item, pose, track position, back/forward, seed, shot id, standings) and `h` hit (victim kart, time, shot id) |
+
+Everything received is validated (types, ranges, finite numbers, known ids) and
+anything unknown is ignored; names and titles are escaped before they reach the
+page.
+
+**Budget.** The relay runs on Cloudflare's free plan: 100,000 requests a day,
+where each message a screen *sends* counts 1/20 of a request (receiving is
+free). A racing screen sends 15 messages a second (whatever its number of local
+players, plus a ping every 6 s), about 2,700 requests an hour, so the allowance
+is roughly **37 screen-hours of racing a day**: about 60 three-minute races with
+12 screens, or 200 with 4. Menus cost almost nothing (messages only on changes,
+plus one every 15 s). The **lobby list** is fetched every 4 s while the Online
+screen is open, and each fetch is a whole request (900 an hour per screen), so
+don't leave it open for hours. Running out only makes the relay refuse
+connections until the next day; it never costs money.
+
+**Limitations.** The relay can't be changed from here, so: a host leaving costs
+everyone about half a second to a second without updates (other karts carry on
+along the track, then ease back); a screen in a background tab stops sending
+(browsers pause hidden tabs), and if that's the host its CPU karts freeze for
+the others until it's back; there's no protection against cheating (it's for
+friends); and a few effects are only approximately the same on every screen: the
+Ghost Brick's choice of whom to rob, Star Wars map hazards that pick random lanes,
+and particles. Ability powers that affect "karts nearby" use positions as each
+screen sees them.
+
+For development and tests, `?debug` exposes the online state as `window.__net`,
+and `?norender` skips drawing the 3D views (headless software rendering is too
+slow to drive several players).
+
 ## Code layout
 
 - `js/main.js`: game shell, menus, Grand Prix flow, results and podium
@@ -393,6 +554,8 @@ setups.
     couldn't see out without it.
 - `js/drivers/*.js`: the driver casts per movie (`kit.js` has the seated figure builder); `js/showcase.js`: the 3D select stage, portraits and podium; `js/gallery.js`: a developer line-up view
 - `js/effects.js`, `js/audio.js`, `js/hud.js`, `js/input.js`: particles, sound, HUD and input devices
+- `js/online/`: online play, loaded only from the Online menu: `online.js` (lobby, room flow, select hooks, results, host duties), `session.js` (the relay connection: identities, presence, clock sync, reconnecting, host migration), `netrace.js` (race sync: puppets, interpolation, item events, CPU takeover), `names.js` (names, saved names, the on-screen keyboard), `lineup.js` (the line-up while loading), `proto.js` (protocol constants, validation, kart-state encoding, seeded random)
+- `js/vendor/mini-rooms.js`: the mini-rooms relay client, copied verbatim from the `mini` repository's `multiplayer/client/mini-rooms.js`
 
 For development, `?quick=<map id>` (city, meadow, pirate, candy, jungle, frost, factory, lava, space, jurassic, starwars, marvel, hogwarts, jjk-goodwill, jjk-inventory, jjk, jjk-culling, minecraft, pokemon, sonic) goes
 straight into a race. Add `&players=2` to test split-screen, and `&driver=<driver id>`
