@@ -201,7 +201,9 @@ export class Input {
       d.axis = Math.abs(v) < 0.06 ? 0 : v;
       draw();
     });
-    const end = (e) => { if (t.drag && t.drag.id === e.pointerId) { t.drag = null; draw(); } };
+    // letting go hands steering back to the tilt, re-centred on how the phone is held right now
+    // (so the kart doesn't jerk to wherever the phone drifted while the finger was steering)
+    const end = (e) => { if (t.drag && t.drag.id === e.pointerId) { t.drag = null; draw(); this.recentreTilt(); } };
     zone.addEventListener('pointerup', end); zone.addEventListener('pointercancel', end); zone.addEventListener('lostpointercapture', end);
     zone.addEventListener('contextmenu', (e) => e.preventDefault());
     // iOS only allows motion sensors after a tap: ask on the first one
@@ -211,12 +213,17 @@ export class Input {
 
   // Tilt steering. Two styles, like mobile racers offer:
   //  'wheel': rotate the phone like a steering wheel (Asphalt, F1 Mobile, Mario Kart Tour's gyro
-  //           handling). Read from gravity along the screen's left-right axis, so it works with
-  //           the phone held upright or flat.
+  //           handling). At calibration the direction of gravity within the screen's plane is
+  //           "down" for however the phone is held (portrait, either landscape); the wheel angle is
+  //           how far gravity has turned from there. That needs neither the screen-orientation API
+  //           (unreliable across browsers) nor gravity's sign (iOS and Android disagree), which made
+  //           tilt reversed on some phones.
   //  'turn':  turn the phone left/right as if pointing it. Read from the gyroscope (rotation
   //           around the vertical), integrated into an angle that slowly re-centres.
-  // Either way the grip at calibration (each race's GO) is straight ahead. tiltCfg.full is the
-  // angle for full lock; tiltCfg.invert flips it for phones that report the other way round.
+  // Either way the grip at calibration (each race's GO, and whenever a drag-steer finger lifts) is
+  // straight ahead. tiltCfg.full is the angle for full lock; there's a dead zone, a gentle curve
+  // so small tilts make small corrections, and smoothing against hand shake. tiltCfg.invert flips
+  // it if someone prefers it the other way. While a finger is drag-steering, tilt is ignored.
   enableTilt() {
     if (this.tiltOn) return;
     const start = () => {
@@ -239,7 +246,7 @@ export class Input {
           this.yaw = (this.yaw + rate * dt) * Math.exp(-0.15 * dt);   // slow re-centre against drift
         }
         if (!this.tiltSign) this.calibrateTilt();
-        this.updateTilt();
+        this.updateTilt(dt || 1 / 60);
       });
       addEventListener('orientationchange', () => setTimeout(() => this.calibrateTilt(), 400));
     };
@@ -259,10 +266,16 @@ export class Input {
     const ang = ((screen.orientation?.angle ?? window.orientation ?? 0) + 360) % 360;
     return ang === 90 ? g.x : ang === 270 ? -g.x : ang === 180 ? -g.y : g.y;
   }
-  // wheel angle in degrees (+ = turned right) for the current gravity reading
+  // wheel angle in degrees (+ = turned right) for the current gravity reading: the turn of
+  // gravity's direction within the screen plane since calibration. Clockwise as you look at the
+  // screen = right. Flipping gravity's sign flips both readings, so the angle doesn't care which
+  // convention the browser uses.
   wheelAngle() {
-    const g = this.grav, L = Math.hypot(g.x, g.y, g.z) || 1;
-    return -Math.asin(Math.max(-1, Math.min(1, this.screenX(g) * this.tiltSign / L))) * 180 / Math.PI;
+    const g = this.grav, a = this.axis0;
+    if (!a) return 0;
+    const along = g.x * a.x + g.y * a.y, across = g.x * a.y - g.y * a.x;
+    if (Math.hypot(along, across) < 1.2) return this._lastWheel ?? 0;   // phone flat: hold the last angle
+    return (this._lastWheel = -Math.atan2(across, along) * 180 / Math.PI);
   }
   // the current grip becomes "straight ahead" (called at the start of each race too)
   calibrateTilt() {
@@ -273,17 +286,34 @@ export class Input {
     // (the "up" vector, Android's)
     const zs = Math.abs(g.z) > 3 ? Math.sign(g.z) : Math.sign(this.screenY(g)) || 1;
     this.tiltSign = zs;
-    this.wheel0 = this.wheelAngle();
+    // the wheel's reference: gravity's direction within the screen plane right now (or, if the
+    // phone is nearly flat, the screen's own "down" from the orientation API)
+    const h = Math.hypot(g.x, g.y);
+    if (h > 2.5) this.axis0 = { x: g.x / h, y: g.y / h };
+    else {
+      const ang = ((screen.orientation?.angle ?? window.orientation ?? 0) + 360) % 360;
+      const dn = ang === 90 ? { x: -1, y: 0 } : ang === 270 ? { x: 1, y: 0 } : ang === 180 ? { x: 0, y: 1 } : { x: 0, y: -1 };   // screen-down in device axes ("up" convention); -zs turns it into the raw reading for screen-up
+      this.axis0 = { x: dn.x * -zs, y: dn.y * -zs };
+    }
+    this._lastWheel = 0;
+    this.wheel0 = 0;
     this.yaw = 0;
+    this.touch.tilt = 0;
   }
-  updateTilt() {
+  // re-centre on the current grip (after a drag-steer finger lifts)
+  recentreTilt() { if (this.tiltOn && this.grav?.n && this.steerMode !== 'drag') this.calibrateTilt(); }
+  updateTilt(dt = 1 / 60) {
     const t = this.touch, c = this.tiltCfg || {};
     if (!this.tiltSign) { t.tilt = 0; return; }
+    // a finger drag-steering owns the steering: tilt is ignored until it lifts (then re-centres)
+    if (t.drag) { t.tilt = 0; return; }
     const deg = c.style === 'turn' ? -this.yaw : this.wheelAngle() - this.wheel0;
-    const full = c.full || 24, dead = Math.min(4, full * 0.15);
-    let v = Math.abs(deg) < dead ? 0 : Math.sign(deg) * Math.min(1, (Math.abs(deg) - dead) / (full - dead));
+    const full = c.full || 32, dead = Math.min(6, full * 0.18);
+    let v = Math.abs(deg) < dead ? 0 : Math.min(1, (Math.abs(deg) - dead) / (full - dead));
+    v = Math.sign(deg) * Math.pow(v, 1.5);   // gentle near the centre, full lock still reachable
     if (c.invert) v = -v;
-    t.tilt = v;
+    // smooth out hand shake (about a 0.08 s lag)
+    t.tilt += (v - t.tilt) * Math.min(1, dt * 12);
   }
 }
 

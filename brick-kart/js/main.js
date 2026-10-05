@@ -43,6 +43,9 @@ class Game {
     // at most 12 karts per race (players included)
     if ('racers' in this.settings) { delete this.settings.racers; save(SKEY, this.settings); }   // races always have 12 karts
     // characters are always on now: drop the old toggle
+    // tilt steering was reworked (it read reversed on some phones): drop an old "Invert tilt"
+    // workaround once so the new default is right
+    if (!this.settings.tiltV2) { this.settings.tiltInvert = false; this.settings.tiltV2 = true; save(SKEY, this.settings); }
     if ('useChars' in this.settings || 'charsDefault' in this.settings) { delete this.settings.useChars; delete this.settings.charsDefault; save(SKEY, this.settings); }
     this.best = load(TKEY, {});
     // each player slot's last picks, by id: { chars: { 0: { driver, kart } } }
@@ -317,9 +320,9 @@ class Game {
 
   // touch steering settings -> the input layer (full lock angle per style and sensitivity)
   applyTilt() {
-    const s = this.settings, FULL = { wheel: { low: 32, med: 24, high: 16 }, turn: { low: 45, med: 30, high: 20 } };
+    const s = this.settings, FULL = { wheel: { low: 45, med: 32, high: 22 }, turn: { low: 55, med: 40, high: 28 } };
     this.input.steerMode = s.touchSteer || 'both';
-    this.input.tiltCfg = { style: s.tiltStyle === 'turn' ? 'turn' : 'wheel', full: (FULL[s.tiltStyle] || FULL.wheel)[s.tiltSens] || 24, invert: !!s.tiltInvert };
+    this.input.tiltCfg = { style: s.tiltStyle === 'turn' ? 'turn' : 'wheel', full: (FULL[s.tiltStyle] || FULL.wheel)[s.tiltSens] || 32, invert: !!s.tiltInvert };
     if (this.input.steerMode !== 'drag' && this.input.tiltOn) this.input.calibrateTilt();
   }
 

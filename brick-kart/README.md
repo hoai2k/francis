@@ -341,15 +341,19 @@ you drop some.
 - Sound mutes when you switch to another tab or window.
 - **Touch steering**: drag a finger left / right anywhere on the screen (it steers
   from where you touched down), and/or tilt the phone. Options on touch devices:
-  - **Touch steering**: Tilt + drag (dragging takes over while a finger is down),
+  - **Touch steering**: Tilt + drag (while a finger is down, dragging steers and tilt
+    is ignored; when it lifts, the phone's current angle becomes straight ahead),
     Drag only (motion sensors off) or Tilt only.
   - **Tilt style**: **Wheel** rotates the phone like a steering wheel, the way most
     mobile racers do it (Asphalt, F1 Mobile, Mario Kart Tour's gyro handling); it
     works with the phone upright or flat. **Turn (gyro)** turns the phone left /
     right as if pointing it, read from the gyroscope and slowly re-centring.
-  - **Tilt sensitivity** (how far you tilt for full lock) and **Invert tilt**.
-  However you hold the phone when the race says GO is straight ahead. iPhones ask
-  for motion access on the first tap.
+  - **Tilt sensitivity** (how far you tilt for full lock: about 45° / 32° / 22°) and
+    **Invert tilt**. A small dead zone, a gentle curve near the centre and a little
+    smoothing keep it steady; tipping the phone towards or away from you doesn't steer.
+  However you hold the phone when the race says GO is straight ahead (portrait or
+  either landscape, on iPhone and Android alike). iPhones ask for motion access on
+  the first tap.
 - Tapping outside a popup menu (Options, How to Play, Pause) closes it.
 
 ## Multiplayer (1–8 players, split-screen)
