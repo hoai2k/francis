@@ -16,6 +16,7 @@ import { ABILITY } from './abilities.js';
 import { Showcase, driverPortrait } from './showcase.js';
 import { ICONS, ITEMS } from './items.js';
 import { setDetail } from './decor.js';
+import { createChrome, requestFullscreen, exitFullscreen, fullscreenElement } from './chrome.js';
 import { fmt } from './hud.js';
 
 // arrows: chevrons drawn as SVG (◀ ▶ text gets turned into emoji boxes on iOS; text arrows carry U+FE0E)
@@ -76,6 +77,9 @@ class Game {
     this.paused = false;
     addEventListener('resize', () => this.resize());
     this.resize();
+    // browser bars: fullscreen on the first tap in landscape where possible; on iPhone Safari a
+    // swipe up in the menus tucks the bars away (see chrome.js)
+    this.chrome = createChrome({ touch: isTouchDevice(), isPlaying: () => !!this.race && this.race.mode !== 'attract' && !this.paused, hintEl: document.getElementById('bars-hint') });
     const unlock = (e) => {
       this.audio.unlock();
       // pressing Start/Enter/tap on the title screen goes fullscreen (needs a real key press or tap)
@@ -275,19 +279,11 @@ class Game {
   }
 
   // ---- screens ------------------------------------------------------------------------
-  enterFullscreen() {
-    const el = document.documentElement;
-    if (document.fullscreenElement || document.webkitFullscreenElement) return;
-    const req = el.requestFullscreen || el.webkitRequestFullscreen;
-    if (!req) return;
-    try {
-      const p = req.call(el, { navigationUI: 'hide' });
-      p?.then?.(() => screen.orientation?.lock?.('landscape').catch(() => {})).catch(() => {});
-    } catch { /* not allowed here */ }
-  }
+  enterFullscreen() { requestFullscreen(); }
   toggleFullscreen() {
-    if (document.fullscreenElement || document.webkitFullscreenElement) (document.exitFullscreen || document.webkitExitFullscreen)?.call(document);
-    else this.enterFullscreen();
+    // iPhone Safari can't go fullscreen: point at the ways it can lose its bars
+    if (this.chrome?.scrollTrick) { this.chrome.flashHint(); return; }
+    if (fullscreenElement()) exitFullscreen(); else requestFullscreen();
   }
 
   showTitle() {
@@ -296,7 +292,8 @@ class Game {
     this.setScreen(`<div class="screen title"><div class="logo">${logoHTML()}</div>
       <div class="tagline">A brick-built kart racer · ${TRACKS.length} maps · 16 racers + ${DRIVERS.length} movie drivers · gliders · 1–8 players</div>
       <button class="press" data-act="start">PRESS <b>START</b> · <b>ENTER</b> · <b>TAP</b></button>
-      <div class="pads-note">🎮 Controllers supported — plug in up to 4 for split-screen</div></div>`, {
+      <div class="pads-note">🎮 Controllers supported — plug in up to 4 for split-screen</div>
+      ${isTouchDevice() && !this.chrome.standalone && !this.chrome.scrollTrick ? '<div class="pads-note">📱 Tip: Add to Home Screen to play full screen</div>' : ''}</div>`, {
       update: () => { if (this.menuEvents.some(([, m]) => m.ok || m.start)) { this.enterFullscreen(); this.onTitle = false; this.audio.sfx('select'); this.showMain(); } },
       act: () => { this.enterFullscreen(); this.onTitle = false; this.audio.sfx('select'); this.showMain(); },
     });
@@ -350,7 +347,7 @@ class Game {
         { label: 'Auto-accelerate', value: () => (s.autoGas ? 'On' : 'Off'), left: () => { s.autoGas = !s.autoGas; save(SKEY, s); }, right: () => { s.autoGas = !s.autoGas; save(SKEY, s); } },
         { label: 'Music', value: () => Math.round(s.music * 10) + '/10', left: () => vol('music', -1), right: () => vol('music', 1) },
         { label: 'Sound FX', value: () => Math.round(s.sfx * 10) + '/10', left: () => vol('sfx', -1), right: () => vol('sfx', 1) },
-        { label: 'Fullscreen', value: () => (document.fullscreenElement || document.webkitFullscreenElement ? 'On' : 'Off'), left: () => this.toggleFullscreen(), right: () => this.toggleFullscreen() },
+        { label: 'Fullscreen', value: () => (this.chrome.standalone || fullscreenElement() ? 'On' : this.chrome.scrollTrick ? 'Swipe up' : 'Off'), left: () => this.toggleFullscreen(), right: () => this.toggleFullscreen() },
         { label: 'Graphics', value: () => (s.quality === 'high' ? 'High' : 'Fast'), left: () => { cyc('quality', ['high', 'low'], 1); this.applyQuality(); }, right: () => { cyc('quality', ['high', 'low'], 1); this.applyQuality(); } },
         { label: 'Done', action: back },
       ],

@@ -339,6 +339,11 @@ you drop some.
   space drop you into a respawn.
 - **Falling off**: the crane puts you back on a safe stretch of road. If you fall again right away, it puts you further ahead next time.
 - Sound mutes when you switch to another tab or window.
+- **Full screen on phones** (the same approach as Widow's Bay): on Android and iPad
+  the first tap in landscape goes full screen (so does tapping the title). iPhone
+  Safari can't go full screen, so in the menus a swipe up tucks Safari's bars away
+  (a hint says so while they're showing); during a race nothing scrolls. **Add to
+  Home Screen** opens Brick Kart full screen in landscape, with its own icon.
 - **Touch steering**: drag a finger left / right anywhere on the screen (it steers
   from where you touched down), and/or tilt the phone. Options on touch devices:
   - **Touch steering**: Tilt + drag (while a finger is down, dragging steers and tilt
@@ -393,6 +398,7 @@ setups.
     couldn't see out without it.
 - `js/drivers/*.js`: the driver casts per movie (`kit.js` has the seated figure builder); `js/showcase.js`: the 3D select stage, portraits and podium; `js/gallery.js`: a developer line-up view
 - `js/effects.js`, `js/audio.js`, `js/hud.js`, `js/input.js`: particles, sound, HUD and input devices
+- `js/chrome.js`: getting the browser's bars out of the way on phones (fullscreen, iPhone Safari's swipe-up, home-screen app)
 
 For development, `?quick=<map id>` (city, meadow, pirate, candy, jungle, frost, factory, lava, space, jurassic, starwars, marvel, hogwarts, jjk-goodwill, jjk-inventory, jjk, jjk-culling, minecraft, pokemon, sonic) goes
 straight into a race. Add `&players=2` to test split-screen, and `&driver=<driver id>`
