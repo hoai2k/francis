@@ -394,7 +394,9 @@ export class Items {
     const others = this.race.order.filter((o) => o !== k && (o.item || o.nextItem));
     const ahead = others.filter((o) => o.rank < k.rank);
     const pool = ahead.length ? ahead : others;
-    const v = pool[Math.floor(Math.random() * pool.length)];
+    // (online: every screen robs whoever the user's screen picked, see netrace.js)
+    const v = this.netVictim !== undefined ? this.netVictim : pool[Math.floor(Math.random() * pool.length)];
+    this.lastVictim = v || null;
     if (v) {
       if (v.nextItem) { k._stolen = v.nextItem; v.nextItem = null; }
       else { k._stolen = v.item; v.item = null; v.itemCount = 0; }

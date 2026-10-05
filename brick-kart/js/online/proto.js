@@ -92,6 +92,7 @@ export function encodeKart(k, t, out) {
 }
 
 // Parse a received kart state into `s` (a preallocated snapshot). false if it's not usable.
+// items / gestures: Sets of the known item ids and gesture names.
 export function decodeKart(a, s, items, gestures) {
   if (!Array.isArray(a) || a.length < STATE_LEN) return false;
   const t = a[1], x = a[2], y = a[3], z = a[4];
@@ -104,7 +105,7 @@ export function decodeKart(a, s, items, gestures) {
   s.flags = int(a[11], 0, 65535); s.dl = int(a[12], -3, 3);
   s.spin = num(a[13], 0, 2); s.hid = num(a[14], 0, 2); s.inv = num(a[15], 0, 10);
   s.rd = num(a[16], -1e5, 1e6);
-  s.item = typeof a[17] === 'string' && items[a[17]] ? a[17] : null;
+  s.item = typeof a[17] === 'string' && items.has(a[17]) ? a[17] : null;
   const g = typeof a[18] === 'string' ? a[18].split(':') : null;
   s.gest = g && gestures.has(g[0]) ? g[0] : null;
   s.gvoice = g && /^[a-z]{1,12}$/i.test(g[1] || '') ? g[1] : null;

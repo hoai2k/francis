@@ -349,7 +349,7 @@ export class NetRace {
       } catch (e) { console.error('online event', e); }
     }
   }
-  // ['u', i, t, item, x, y, z, yaw, speed, trackIndex, back, aimFwd, seed, id, order]
+  // ['u', i, t, item, x, y, z, yaw, speed, trackIndex, back, aimFwd, seed, id, order, robbed kart (-1 none)]
   execUse(p, e) {
     const k = p.k, race = this.race, it = e[3];
     if (!k.remote || typeof it !== 'string' || !ITEMS[it]) return;
@@ -370,8 +370,9 @@ export class NetRace {
     const prev = race.order;
     if (order) race.order = order;
     race.items.netId = str(e[13], 24) || null;
+    if (it === 'ghost' && Number.isInteger(e[15])) race.items.netVictim = e[15] >= 0 && e[15] < race.karts.length ? race.karts[e[15]] : null;
     try { withSeed(int(e[12], 0, 4294967295), () => race.items.use(k)); } catch (err) { console.error('remote item use failed', it, err); } finally {
-      race.order = prev; race.items.netId = null;
+      race.order = prev; race.items.netId = null; race.items.netVictim = undefined;
       k.pos.copy(p.disp); k.yaw = p.dispYaw; k.ctl = p.ctl;
     }
   }
@@ -383,8 +384,9 @@ export class NetRace {
     const race = this.race, it = k.item;
     const seed = (Math.random() * 4294967295) >>> 0, id = `${k.idx}.${++this.seq}`;
     const ev = ['u', k.idx, r3(race.time), it, r2(k.pos.x), r2(k.pos.y), r2(k.pos.z), r3(k.yaw), r2(k.speed), k.loc.i | 0, k.ctl.back ? 1 : 0, k.ctl.aimFwd ? 1 : 0, seed, id, race.order.map((o) => o.idx)];
-    race.items.netId = id;
+    race.items.netId = id; race.items.lastVictim = null;
     try { withSeed(seed, fn); } finally { race.items.netId = null; }
+    ev.push(race.items.lastVictim ? race.items.lastVictim.idx : -1);   // (whom a Ghost Brick robbed)
     this.out.push(ev);
   }
   // one of our karts was hit by a shot or trap: everyone else removes it

@@ -505,7 +505,7 @@ Who owns what:
 | Topic | Sent by | Meaning |
 | --- | --- | --- |
 | `ping` / `pong` | guests / host | clock sync (`pong` names the guest it answers) |
-| `ev` | anyone | a batch of race events for one race id: `u` item use (kart, time, item, pose, track position, back/forward, seed, shot id, standings) and `h` hit (victim kart, time, shot id) |
+| `ev` | anyone | a batch of race events for one race id: `u` item use (kart, time, item, pose, track position, back/forward, seed, shot id, standings, whom a Ghost Brick robbed) and `h` hit (victim kart, time, shot id) |
 
 Everything received is validated (types, ranges, finite numbers, known ids) and
 anything unknown is ignored; names and titles are escaped before they reach the
@@ -527,9 +527,8 @@ everyone about half a second to a second without updates (other karts carry on
 along the track, then ease back); a screen in a background tab stops sending
 (browsers pause hidden tabs), and if that's the host its CPU karts freeze for
 the others until it's back; there's no protection against cheating (it's for
-friends); and a few effects are only approximately the same on every screen: the
-Ghost Brick's choice of whom to rob, Star Wars map hazards that pick random lanes,
-and particles. Ability powers that affect "karts nearby" use positions as each
+friends); and a few effects are only approximately the same on every screen:
+Star Wars map hazards that pick random lanes, and particles. Ability powers that affect "karts nearby" use positions as each
 screen sees them.
 
 For development and tests, `?debug` exposes the online state as `window.__net`,
