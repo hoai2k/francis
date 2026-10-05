@@ -88,8 +88,12 @@ the kart, press **▲ / ▼** (or tap **Kart** / **Glider**) to switch to choosi
 kart flying under its open glider, seen from further back so the whole wing shows;
 ◀ ▶ then flips through gliders, and ▲ / ▼ again switches back to the kart. Every player
 does this at their own pace, so nobody waits for anyone else. On phones there's
-no grid: the preview fills the screen and you flip through drivers with ◀ ▶ too
-tapping **Lock in**. The **Back**
+no grid: the preview fills the screen and you flip through drivers with ◀ ▶ too,
+tapping **Lock in**. On a touch screen you can also swipe the preview left / right
+to flip through drivers, karts and gliders, and swipe up / down to switch between the
+kart and the glider. Wherever the figures stand, the camera frames them in the part of
+the preview no text or button covers. Phones are single-player (the whole screen
+is one big preview and fits without scrolling); tablets and computers take up to 8. The **Back**
 button steps back one stage (ready → kart → driver → menu), coming back from the
 cup or map screen keeps everyone locked in, and each player slot remembers the
 driver, kart and glider it last looked at. The 14 original Brick Kart drivers are listed after the
@@ -350,7 +354,8 @@ you drop some.
 
 ## Multiplayer (1–8 players, split-screen)
 
-Player 1 is already in on the select screen. Each other player presses **A** on
+Player 1 is already in on the select screen (on a phone it stays single-player:
+other controllers can't join and races have no split screen). Each other player presses **A** on
 their own controller to join (one empty "Press A to join" slot is shown at a
 time, up to 8 players). Two people can also share one keyboard: once the first
 keyboard player has joined, the second presses **Right Shift**. Then player 1

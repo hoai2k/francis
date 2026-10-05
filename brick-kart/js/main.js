@@ -28,6 +28,8 @@ const POINTS = [15, 12, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 0, 0, 0];
 const CC = { 50: 0.8, 100: 0.92, 150: 1.06, 200: 1.22 };
 const SKEY = 'brickkart.settings.v1', TKEY = 'brickkart.tt.v1', PKEY = 'brickkart.picks.v1';
 const MOBILE = isTouchDevice() && Math.min(screen.width, screen.height) < 820;
+// a phone (not a tablet): too small to share, so the select screen and races are single-player
+const isPhone = () => isTouchDevice() && Math.min(screen.width, screen.height) < 600;
 
 function load(key, def) { try { return { ...def, ...JSON.parse(localStorage.getItem(key) || '{}') }; } catch { return { ...def }; } }
 function save(key, v) { try { localStorage.setItem(key, JSON.stringify(v)); } catch { /* storage unavailable */ } }
@@ -387,7 +389,9 @@ class Game {
   // resume: coming back from the cup / map screen, everyone is still locked in
   showSelect(mode, resume = false) {
     this.mode = mode;
-    const max = mode === 'tt' ? 1 : MAX_PLAYERS;
+    // phones are single-player (extra controllers can't join); tablets and up take up to 8
+    const phone = isPhone();
+    const max = mode === 'tt' || phone ? 1 : MAX_PLAYERS;
     // phase: 'driver' (choosing) -> 'kart' (driver locked, choosing a kart, or with up / down a
     // glider: p.sub = 'kart' | 'glider') -> 'done'
     const players = [];
@@ -410,7 +414,7 @@ class Game {
         <div class="dcard" data-i="${i}" style="--dc:${hex(d.color ?? 0xffffff)}"><img alt="" data-d="${i}"><span>${esc(d.name)}</span><div class="tags"></div></div>`).join('');
     }
     const titles = { gp: 'Grand Prix', race: 'Quick Race', tt: 'Time Trial' };
-    this.setScreen(`<div class="screen select chars${simple ? ' simple' : ''}"><div class="panel wide xl"><h2>${titles[mode]} · Choose your racer</h2>
+    this.setScreen(`<div class="screen select chars${simple ? ' simple' : ''}${phone ? ' phone' : ''}"><div class="panel wide xl"><h2>${titles[mode]} · Choose your racer</h2>
       <div class="joinbar"></div>
       <div class="csel">
         <div class="stage"><canvas class="pv"></canvas><div class="pvcells"></div></div>
@@ -423,9 +427,19 @@ class Game {
     const picksEl = ui.querySelector('.picks'), gridEl = ui.querySelector('.dgrid');
     // one preview per player, each drawn into its own cell of the stage
     const stageEl = ui.querySelector('.stage'), cellsEl = ui.querySelector('.pvcells'), canvas = ui.querySelector('canvas.pv');
+    // each cell's rect on the canvas, and the rects of its text and buttons (layout boxes, so their
+    // animations don't count): the camera keeps the kart or driver clear of them
+    const OVERLAYS = '.pvstep, .pvinfo, .karr, .kok, .ksw, .pvfollow';
     const cellRects = () => {
       const b = canvas.getBoundingClientRect();
-      return [...cellsEl.children].map((c) => { const r = c.getBoundingClientRect(); return { x: r.left - b.left, y: r.top - b.top, w: r.width, h: r.height }; });
+      return [...cellsEl.children].map((c) => {
+        const r = c.getBoundingClientRect(), avoid = [];
+        for (const e of c.querySelectorAll(OVERLAYS)) {
+          if (!e.offsetWidth || e.offsetParent !== c) continue;
+          avoid.push([e.offsetLeft - 4, e.offsetTop - 4, e.offsetLeft + e.offsetWidth + 4, e.offsetTop + e.offsetHeight + 4]);
+        }
+        return { x: r.left - b.left, y: r.top - b.top, w: r.width, h: r.height, avoid };
+      });
     };
     const show = new Showcase(canvas, { cam: [5.6, 3.6, 8.4], look: [0, 1.25, 0], spin: 0.4, cells: cellRects });
     this.cleanup = () => show.dispose();
@@ -493,7 +507,7 @@ class Game {
     const cellHtml = (p, d, ch, following, standing) => {
       const kartStep = p && p.phase !== 'driver', glideStep = kartStep && p.sub === 'glider';
       const gl = GLIDERS[p?.gcur ?? 0];
-      const who = p ? `<i style="background:${p.color}">P${p.id + 1}</i> ` : '';
+      const who = p && !phone ? `<i style="background:${p.color}">P${p.id + 1}</i> ` : '';
       const kn = allowedK.indexOf(p?.kcur) + 1, dn = allowedD.indexOf(p?.dcur) + 1, gn = allowedG.indexOf(p?.gcur) + 1;
       const tag = !p ? 'Press <b>A</b> / <b>Enter</b> or tap a driver'
         : p.phase === 'driver' ? `${who}pick a <b>driver</b><em class="dnum">${dn} / ${allowedD.length}</em>`
@@ -582,9 +596,14 @@ class Game {
       ui.querySelector('.joinbar').innerHTML = html;
       const ready = players.length && players.every((p) => p.phase === 'done');
       ui.querySelector('.go').classList.toggle('ready', !!ready);
-      ui.querySelector('.hint2').innerHTML = ready ? 'All set! Press <b>A</b> / <b>Start</b> / <b>Enter</b> to race'
+      const swipe = players.length === 1 && players[0].device === 'touch';
+      ui.querySelector('.hint2').innerHTML = swipe ? (ready ? 'All set! Tap <b>Race!</b>'
+        : players[0].phase === 'kart' ? 'Swipe <b>◀︎ ▶︎</b> to change · <b>▲ ▼</b> kart / glider' : 'Swipe <b>◀︎ ▶︎</b> to change driver')
+        : ready ? 'All set! Press <b>A</b> / <b>Start</b> / <b>Enter</b> to race'
         : players.some((p) => p.phase === 'kart') ? '<b>◀︎ ▶︎</b> change · <b>▲ ▼</b> kart / glider · <b>A</b> lock it in · <b>B</b> back'
-        : (mode !== 'tt' ? 'More players: press <b>A</b> on another controller · 2nd keyboard: <b>Right Shift</b>' : 'Time Trial is solo: beat your best time');
+        : mode === 'tt' ? 'Time Trial is solo: beat your best time'
+        : phone ? '<b>◀︎ ▶︎</b> change driver · <b>A</b> lock it in'
+        : 'More players: press <b>A</b> on another controller · 2nd keyboard: <b>Right Shift</b>';
       refreshStage(cheerP);
       follow();
     };
@@ -682,7 +701,36 @@ class Game {
       this.audio.sfx('click');
       show.slide(i, dir, () => { p.sub = to; p.swDir = dir; p.swAt = performance.now(); refresh(); show.setGlide(i, to === 'glider'); });
     };
+    // a touch player who has tapped or swiped keeps player 1 (a controller can't take it over)
+    const touched = () => { for (const q of players) if (q.device === 'touch') q.acted = true; };
     const lockKart = (p) => { p.phase = 'done'; this.audio.sfx('select'); refresh(); show.play(players.indexOf(p), 'win'); this.audio.voice(DRIVERS[p.dcur].voice, 'win', 0.9); };
+    // touch: swipe a preview sideways for the previous / next driver, kart or glider (like ◀︎ ▶︎), and
+    // up or down to flip between choosing the kart and the glider (like ▲ ▼). Swipes don't start on
+    // its buttons, so taps on them still work.
+    let swipe0 = null;
+    stageEl.addEventListener('pointerdown', (e) => {
+      if (e.pointerType === 'mouse' || e.target.closest('button')) return;
+      const b = canvas.getBoundingClientRect(), x = e.clientX - b.left, y = e.clientY - b.top;
+      const i = cellRects().findIndex((c) => x >= c.x && x < c.x + c.w && y >= c.y && y < c.y + c.h);
+      swipe0 = players[i] ? { id: e.pointerId, x: e.clientX, y: e.clientY, p: players[i] } : null;
+    });
+    stageEl.addEventListener('pointermove', (e) => {
+      const s = swipe0;
+      if (!s || e.pointerId !== s.id) return;
+      const dx = e.clientX - s.x, dy = e.clientY - s.y, ax = Math.abs(dx), ay = Math.abs(dy);
+      if (Math.max(ax, ay) < 40) return;
+      swipe0 = null;   // one step per swipe
+      const p = s.p;
+      if (!players.includes(p)) return;
+      touched();
+      if (ax > ay * 1.2) {
+        const dir = dx < 0 ? 1 : -1;   // swipe left: the next one
+        if (p.phase === 'driver') stepDriver(p, dir); else if (p.phase === 'kart') stepKart(p, dir);
+      } else if (ay > ax * 1.2 && p.phase === 'kart') switchSub(p, dy < 0 ? 1 : -1);   // the view follows the finger
+    });
+    const endSwipe = (e) => { if (swipe0?.id === e.pointerId) swipe0 = null; };
+    stageEl.addEventListener('pointerup', endSwipe);
+    stageEl.addEventListener('pointercancel', endSwipe);
     this.screen = {
       update: (dt) => {
         fillImgs(3);
@@ -690,7 +738,7 @@ class Game {
         layoutPicks();
         layoutCells();
         show.update(dt);
-        if (mode !== 'tt' && players.some((p) => p.device === 'kb') && !players.some((p) => p.device === 'kb2') && this.input.edge && KB2_JOIN.some((k) => this.input.edge.has(k))) {
+        if (players.length < max && players.some((p) => p.device === 'kb') && !players.some((p) => p.device === 'kb2') && this.input.edge && KB2_JOIN.some((k) => this.input.edge.has(k))) {
           this.input.split = true; join('kb2');
         }
         for (const [dev, m] of this.menuEvents) {
@@ -729,11 +777,13 @@ class Game {
       click: (i) => {
         let p = players.find((q) => q.device === 'touch' || q.device === 'kb') || players[0];
         if (!p) p = join(isTouchDevice() ? 'touch' : 'kb');
+        touched();
         if (!p || taken(p).has(i)) return;
         p.dcur = i; p.phase = 'driver';
         lockDriver(p);
       },
       act: (a) => {
+        touched();
         // the Back button steps back one stage for the mouse / touch player: ready -> kart -> driver -> menu
         if (a === 'back') {
           const p = players.find((q) => q.device === 'touch' || q.device === 'kb') || players[0];
@@ -864,6 +914,7 @@ class Game {
       this.race?.dispose();
       const s = this.settings;
       setDetail(s.quality, s.lego !== false);   // Fast graphics: lighter scenery; Legoized: brick-built props
+      if (isPhone()) this.players = this.players.slice(0, 1);   // no split screen on a phone
       this.race = new Race(this, { ...opts, players: this.players, simple: !!s.simple, cc: CC[s.cc] || 0.92, difficulty: s.difficulty, racers: 12, laps: opts.mode === 'tt' ? 3 : s.laps, bestTime: opts.mode === 'tt' ? this.best[opts.def.id] : 0 });
       this.race.world.sun.shadow.mapSize.set(this.shadowSize, this.shadowSize);
       this.race.onDone = (res) => this.onRaceDone(res);

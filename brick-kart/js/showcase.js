@@ -217,6 +217,29 @@ function standPose(it, n, t, dt, face) {
   m.root.position.y = (it.y || 0) + y;
 }
 
+// The clear rectangles of a W x H cell around the rects in `avoid` ([x0, y0, x1, y1]): for every band
+// between two edges, each gap left free across it (keeping `pad` from the cell's border).
+function freeRects(W, H, avoid, pad = 10) {
+  const ys = [pad, H - pad];
+  for (const o of avoid) for (const y of [o[1], o[3]]) if (y > pad && y < H - pad) ys.push(y);
+  ys.sort((a, b) => a - b);
+  const out = [];
+  for (let i = 0; i < ys.length; i++) {
+    for (let j = i + 1; j < ys.length; j++) {
+      const t = ys[i], b = ys[j];
+      if (b - t < 24) continue;
+      const block = avoid.filter((o) => o[1] < b && o[3] > t).sort((p, q) => p[0] - q[0]);
+      let x = pad;
+      for (const o of [...block, [W - pad, 0, Infinity, 0]]) {
+        const x1 = Math.min(o[0], W - pad);
+        if (x1 - x >= 24) out.push([x, t, x1, b]);
+        x = Math.max(x, o[2]);
+      }
+    }
+  }
+  return out;
+}
+
 // ---- live stage ------------------------------------------------------------------------------
 // items: [{ ch, driver, x, z, ry, phase }]
 // With a `cells` option (a function returning one { x, y, w, h } rect per item, in canvas CSS pixels)
@@ -229,6 +252,7 @@ export class Showcase {
     this.r = newRenderer(canvas.clientWidth || 400, canvas.clientHeight || 300, canvas);
     this.scene = stage(this.r);
     this.cam = new THREE.PerspectiveCamera(fov, 1, 0.1, 100);
+    this.fov = fov;
     this.camBase = new THREE.Vector3(...cam); this.lookAt = new THREE.Vector3(...look);
     this.cam.position.copy(this.camBase); this.cam.lookAt(this.lookAt);
     this.spin = spin;
@@ -252,7 +276,7 @@ export class Showcase {
     const it = { ...o, m, ox, anim: rig ? new DriverAnim(rig) : null, nextIdle: 2 + Math.random() * 2 };
     if (this.cells) { it.plate = this.newPlate(); it.plate.position.x = ox; this.scene.add(it.plate); }
     it.glide = false;
-    if (o.glide) this.setGlide(i, true, it); else this.measure(it);
+    if (o.glide && !m.standing && m.glider) this.setGlide(i, true, it); else this.measure(it);
     return it;
   }
   drop(it) {
@@ -288,10 +312,17 @@ export class Showcase {
   }
   // frame a lone kart by its real size (big vehicles pull the camera back)
   measure(it) {
-    // measure visible parts only (the folded glider and hidden effects don't count)
+    // measure visible parts only (the folded glider and hidden effects don't count), at rest: a
+    // standing driver upright and unturned (the box is turned to face the camera below, so it stays
+    // snug), a kart on the ground
     const root = it.m.root, box = new THREE.Box3(), tmp = new THREE.Box3();
+    const rot = root.rotation.clone(), py = root.position.y;
+    if (it.m.standing) root.rotation.set(0, 0, 0);
+    root.position.y = it.y || 0;
     root.updateMatrixWorld(true);
     root.traverseVisible((o) => { if (o.isMesh && o.geometry) { o.geometry.computeBoundingBox?.(); tmp.copy(o.geometry.boundingBox).applyMatrix4(o.matrixWorld); box.union(tmp); } });
+    root.rotation.copy(rot); root.position.y = py;
+    root.updateMatrixWorld(true);
     const sph = box.getBoundingSphere(new THREE.Sphere());
     // the open glider view stands further back so the whole wing shows
     if (it.glide) {
@@ -302,7 +333,27 @@ export class Showcase {
       it.fit = Math.max(0.9, Math.min(1.7, sph.radius / 3.3));
       it.fitY = Math.max(0.9, Math.min(2.2, sph.center.y));
     }
+    // cell mode: the points the camera keeps in view (fitted into the part of the cell no text covers)
+    const pts = [], { min, max } = box;
+    if (it.m.standing) {
+      // the figure plus room for a hop; tiny ones are framed as if a minifig tall, so they stay small
+      const top = Math.max(max.y + 0.3, min.y + 2.9), o = root.position, a = this.face();
+      for (const x of [min.x, max.x]) for (const y of [min.y, top]) for (const z of [min.z, max.z]) {
+        pts.push(new THREE.Vector3(x - o.x, y, z - o.z).applyAxisAngle(THREE.Object3D.DEFAULT_UP, a).add(new THREE.Vector3(o.x, 0, o.z)));
+      }
+    } else {
+      // karts turn on the turntable: frame the cylinder they sweep (gliders also bob up and down)
+      const cx = root.position.x, cz = root.position.z;
+      let r = 1.9;
+      for (const x of [min.x, max.x]) for (const z of [min.z, max.z]) r = Math.max(r, Math.hypot(x - cx, z - cz));
+      const y0 = it.glide ? min.y + 0.55 : min.y, y1 = it.glide ? max.y + 0.85 : max.y;
+      for (let k = 0; k < 16; k++) { const a = k / 16 * Math.PI * 2; for (const y of [y0, y1]) pts.push(new THREE.Vector3(cx + Math.cos(a) * r, y, cz + Math.sin(a) * r)); }
+    }
+    it.pts = pts;
+    it.camS = null;   // the camera jumps to the new framing
   }
+  // the direction standing drivers face: towards the camera
+  face() { return Math.atan2(this.camBase.x - this.lookAt.x, this.camBase.z - this.lookAt.z); }
   set(items, { plate = true } = {}) {
     for (const it of this.items) this.drop(it);
     const single = plate && !this.cells;
@@ -324,7 +375,7 @@ export class Showcase {
   standMove(i, name, dur = 0.95) { const it = this.items[i]; if (it?.m.standing) { it.standSt ||= { next: 2, last: '' }; it.standSt.mv = { name, t: 0, dur }; } }
   setPhase(i, phase) { const it = this.items[i]; if (it) it.phase = phase; }
   animate(dt) {
-    const face = Math.atan2(this.camBase.x - this.lookAt.x, this.camBase.z - this.lookAt.z);
+    const face = this.face();
     this.items.forEach((it, n) => {
       // standing drivers face the camera and show off (standPose); karts turn on the turntable
       if (!it.m.standing && this.spin) it.m.root.rotation.y += dt * this.spin;
@@ -351,6 +402,7 @@ export class Showcase {
   }
   // aim the camera at a point for a view of the given aspect; fit/fitY frame a single kart
   frame(aspect, ox, fit, fitY) {
+    this.cam.clearViewOffset(); this.cam.fov = this.fov;
     this.cam.aspect = aspect; this.cam.updateProjectionMatrix();
     // narrow (portrait) stages pull the camera back so the whole kart fits
     const back = Math.max(1, 1.15 / aspect) * (fit || 1);
@@ -362,6 +414,73 @@ export class Showcase {
     this._d.copy(this.camBase).sub(this.lookAt);
     this.cam.position.copy(look).addScaledVector(this._d, back);
     this.cam.lookAt(look);
+  }
+  // Cell mode with overlays: c.avoid lists the rects ([x0, y0, x1, y1], cell pixels) covered by
+  // text and buttons. Pick the clear rectangle the item fits biggest in, then aim the camera (along
+  // the usual direction) so the item's points fill that rectangle: the distance is solved for, and
+  // the projection's centre is shifted (a view offset) to the rectangle's centre.
+  fitCell(it, c, dt) {
+    const W = c.w, H = c.h, cam = this.cam;
+    const fpx = (H / 2) / Math.tan(this.fov * Math.PI / 360);   // focal length in pixels
+    const back = (this._back ||= new THREE.Vector3()).copy(this.camBase).sub(this.lookAt).normalize();
+    const fwd = (this._fwd ||= new THREE.Vector3()).copy(back).negate();
+    const right = (this._right ||= new THREE.Vector3()).crossVectors(fwd, cam.up).normalize();
+    const up = (this._up ||= new THREE.Vector3()).crossVectors(right, fwd);
+    // the points relative to their bounding box centre, in camera axes
+    const lo = (this._lo ||= new THREE.Vector3()).set(Infinity, Infinity, Infinity), hi = (this._hi ||= new THREE.Vector3()).set(-Infinity, -Infinity, -Infinity);
+    for (const p of it.pts) { lo.min(p); hi.max(p); }
+    const T = (this._T ||= new THREE.Vector3()).addVectors(lo, hi).multiplyScalar(0.5);
+    const v = this._v ||= new THREE.Vector3(), A = [], B = [], C = [];
+    for (const p of it.pts) { v.subVectors(p, T); A.push(v.dot(right)); B.push(v.dot(fwd)); C.push(v.dot(up)); }
+    const proj = (D) => {
+      let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+      for (let k = 0; k < A.length; k++) { const z = B[k] + D, x = fpx * A[k] / z, y = fpx * C[k] / z; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+      return [x0, x1, y0, y1];
+    };
+    // the item's on-screen proportions (seen from far away) choose the clear rectangle
+    const far = proj(1000), fw = far[1] - far[0], fh = far[3] - far[2];
+    let best = null, bs = -Infinity;
+    for (const r of freeRects(W, H, c.avoid)) {
+      const w = r[2] - r[0], h = r[3] - r[1], cxr = (r[0] + r[2]) / 2;
+      const s = Math.min(w / fw, h / fh) * (1 - 0.25 * Math.abs(cxr - W / 2) / W);   // a little bias to the middle
+      if (s > bs) { bs = s; best = r; }
+    }
+    if (!best) best = [0, 0, W, H];
+    const rw = best[2] - best[0], rh = best[3] - best[1];
+    // a standing driver doesn't fill a big cell edge to edge (on a tablet they'd tower over it)
+    const fw2 = it.m.standing ? Math.min(rw, W * 0.8) : rw, fh2 = it.m.standing ? Math.min(rh, H * 0.7) : rh;
+    // closest distance at which it fits (bigger D, smaller on screen)
+    let dLo = 0.3 - Math.min(...B), dHi = dLo + 400;
+    for (let n = 0; n < 32; n++) {
+      const D = (dLo + dHi) / 2, b = proj(D);
+      if (b[1] - b[0] <= fw2 && b[3] - b[2] <= fh2) dHi = D; else dLo = D;
+    }
+    const D = dHi, b = proj(D);
+    // up and down, leave a little more room above than below
+    const gap = rh - (b[3] - b[2]);
+    const ppy = best[3] - gap * 0.4 + b[2];   // screen y grows down: the lowest point sits gap*0.4 above the bottom
+    // across: as near the middle of the cell as it goes without touching any text (else the
+    // middle of the clear rectangle)
+    const bw = b[1] - b[0], y0 = ppy - b[3], y1 = ppy - b[2];
+    const xr = (best[0] + best[2] - bw) / 2, xc = Math.max(10, Math.min(W - 10 - bw, (W - bw) / 2));
+    let x = xr;
+    for (let n = 0; n <= 8; n++) {
+      const xt = xc + (xr - xc) * n / 8;
+      if (!c.avoid.some((o) => o[0] < xt + bw && o[2] > xt && o[1] < y1 && o[3] > y0)) { x = xt; break; }
+    }
+    const ppx = x - b[0];
+    // ease towards the new framing (it jumps when the item is rebuilt)
+    const k = it.camS ? 1 - Math.exp(-dt * 12) : 1;
+    const s = it.camS ||= { D, T: T.clone(), ppx, ppy };
+    s.D += (D - s.D) * k; s.T.lerp(T, k); s.ppx += (ppx - s.ppx) * k; s.ppy += (ppy - s.ppy) * k;
+    cam.position.copy(s.T).addScaledVector(back, s.D);
+    cam.lookAt(s.T);
+    // a projection centred on (ppx, ppy): the cell is a window into a bigger view centred there
+    const fullW = 2 * Math.max(s.ppx, W - s.ppx, 1), fullH = 2 * Math.max(s.ppy, H - s.ppy, 1);
+    cam.aspect = fullW / fullH;
+    cam.fov = 2 * Math.atan(fullH / 2 / fpx) * 180 / Math.PI;
+    cam.setViewOffset(fullW, fullH, fullW / 2 - s.ppx, fullH / 2 - s.ppy, W, H);
+    cam.updateProjectionMatrix();
   }
   update(dt) {
     this.t += dt;
@@ -397,7 +516,7 @@ export class Showcase {
       }
       this.r.setViewport(c.x, y + off * c.h, c.w, c.h);
       this.r.setScissor(c.x, y, c.w, c.h);
-      this.frame(c.w / c.h, it.ox, it.fit, it.fitY);
+      if (c.avoid && it.pts) this.fitCell(it, c, dt); else this.frame(c.w / c.h, it.ox, it.fit, it.fitY);
       this.r.render(this.scene, this.cam);
     });
     this.r.setScissorTest(false);
