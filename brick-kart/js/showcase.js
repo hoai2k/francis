@@ -497,6 +497,15 @@ export class Showcase {
   }
   update(dt) {
     this.t += dt;
+    // the kart <-> glider slide runs on even when a cell isn't drawn (too small, a hidden canvas, or ?norender),
+    // so the swap it carries always happens
+    for (const it of this.items) {
+      const sf = it?.slideFx;
+      if (!sf) continue;
+      sf.t += dt;
+      if (sf.t >= 0.2 && sf.mid) { const m = sf.mid; sf.mid = null; m(); }
+      if (sf.t >= 0.4) it.slideFx = null;
+    }
     const w = this.canvas.clientWidth, h = this.canvas.clientHeight;
     if (!w || !h) return;
     if (this.canvas.width !== w || this.canvas.height !== h) this.r.setSize(w, h, false);
@@ -519,14 +528,9 @@ export class Showcase {
       let off = 0;
       const sf = it.slideFx;
       if (sf) {
-        sf.t += dt;
         const D = 0.2;
         if (sf.t < D) { const u = sf.t / D; off = sf.dir * u * u; }
-        else {
-          if (sf.mid) { const m = sf.mid; sf.mid = null; m(); }
-          const u = Math.min(1, (sf.t - D) / D); off = -sf.dir * (1 - u) * (1 - u);
-          if (u >= 1) it.slideFx = null;
-        }
+        else { const u = Math.min(1, (sf.t - D) / D); off = -sf.dir * (1 - u) * (1 - u); }
       }
       this.r.setViewport(c.x, y + off * c.h, c.w, c.h);
       this.r.setScissor(c.x, y, c.w, c.h);

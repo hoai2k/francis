@@ -525,7 +525,7 @@ export class Online {
       },
       goLabel: (players) => (this.isHost ? 'Race! ▶︎' : players.length && players.every((p) => p.phase === 'done') ? 'Ready ✓' : 'Ready'),
       go: (players) => {
-        if (!players.length || !players.every((p) => p.phase === 'done')) { this.game.audio.sfx('wrong'); this.bubble('Lock in your driver and kart first'); return; }
+        if (!players.length || !players.every((p) => p.phase === 'done')) { this.game.audio.sfx('wrong'); this.bubble('Lock in your driver, kart and glider first'); return; }
         if (!this.isHost) { this.bubble(this.R?.ph === 'trk' ? 'The host is picking a map…' : 'Waiting for the host to start'); return; }
         const notReady = this.humans().filter((h) => !h.me && h.ph !== 'r');
         const t = performance.now();
