@@ -5,7 +5,7 @@
 // - the host also simulates the CPU karts (and the karts of players who left) and publishes them
 //   in the same presence message
 // - every other kart is a puppet (kart.remote = true): drawn from those updates with snapshot
-//   interpolation on the shared race clock (an adaptive ~100-150 ms behind), dead reckoning when
+//   interpolation on the shared race clock (adaptive per sender, 0.09-0.6 s behind), dead reckoning when
 //   updates are late (straight on for 0.3 s, then along the track for up to 3 s) and smoothed
 //   corrections (a snap only for big jumps such as respawns)
 // - item uses go to everyone as events with the user's pose, a random seed and the standings at
@@ -270,6 +270,10 @@ export class NetRace {
     }
     if (a < 0) { Object.assign(out, buf[b]); out.extra = 0; return; }   // older than anything we have
     const A = buf[a], B = buf[b], f = (rt - A.t) / Math.max(1e-4, B.t - A.t);
+    // a teleport between the two (a respawn: gone at the fall, then placed back on the track) isn't
+    // a path: hold the earlier one (hidden while gone) and jump once when the later one is due
+    const tdx = B.x - A.x, tdy = B.y - A.y, tdz = B.z - A.z, reach = SNAP + (Math.abs(A.spd) + Math.abs(B.spd) + 10) * (B.t - A.t);
+    if (A.flags & F.GONE || tdx * tdx + tdy * tdy + tdz * tdz > reach * reach) { Object.assign(out, A); out.extra = 0; return; }
     Object.assign(out, f < 0.5 ? A : B);
     out.extra = 0;
     out.x = A.x + (B.x - A.x) * f; out.y = A.y + (B.y - A.y) * f; out.z = A.z + (B.z - A.z) * f;
@@ -292,7 +296,9 @@ export class NetRace {
     const px = p.disp.x + s.vx * dt, pz = p.disp.z + s.vz * dt;
     const ex = px - s.x, ez = pz - s.z, ey = p.disp.y - s.y;
     let snapped = false;
-    if (!p.init || gone || ex * ex + ez * ez + ey * ey > SNAP * SNAP) {
+    // (a fast kart that was dead-reckoned through a stall can be a few metres out: ease that in too)
+    const lim = Math.max(SNAP, 0.35 * Math.hypot(s.vx, s.vz));
+    if (!p.init || gone || ex * ex + ez * ez + ey * ey > lim * lim) {
       if (p.init && !gone) this.stats.snaps++;
       p.disp.set(s.x, s.y, s.z); p.dispYaw = s.yaw; p.init = true; snapped = true;
     } else {

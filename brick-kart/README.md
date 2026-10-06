@@ -546,7 +546,7 @@ connections until the next day; it never costs money.
 everyone about half a second to a second without updates (other karts carry on
 along the track, then ease back). The start is on a clock shared through the
 relay, so GO lands within about a quarter of the relay round trip on every
-screen (0-80 ms in tests); each screen times its own race from its own GO.
+screen (0-120 ms in tests); each screen times its own race from its own GO.
 There's no protection against cheating (it's for friends). Particles, and
 ability powers that affect "karts nearby", use positions as each screen sees
 them. Two rooms can have the same default name ("Brick Kart's race").
