@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#0b0a14">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Hogwarts Adventure</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700&family=Cinzel:wght@500;700&family=EB+Garamond:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="./style.css">
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+<canvas id="gl"></canvas>
+<canvas id="draw-layer" class="hidden"></canvas>
+<div id="hud" class="hidden"></div>
+<div id="fade"></div>
+<div id="screens"></div>
+<div id="touch" class="hidden"></div>
+<div id="toasts" aria-live="polite"></div>
+<div id="loading">
+  <div class="load-inner">
+    <div class="crest-spin">✦</div>
+    <h1 class="logo">Hogwarts<span>Adventure</span></h1>
+    <div class="load-bar"><div id="load-fill"></div></div>
+    <div id="load-text">Polishing wands…</div>
+  </div>
+</div>
+<noscript><p class="noscript">Hogwarts Adventure needs JavaScript and a WebGL2 capable browser.</p></noscript>
+<script type="module" src="./js/main.js"></script>
+</body>
+</html>
