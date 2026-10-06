@@ -17,6 +17,7 @@ import { Story } from './story.js';
 import { loadSettings, loadSave, newSave, writeSave } from './save.js';
 import { openMainMenu, openPause, openSpellbook, openJournal, menuBackdrop } from './menus.js';
 import { nextFrame } from './util.js';
+import { initFullscreen } from './fullscreen.js';
 
 class Emitter {
   constructor() { this.h = {}; }
@@ -33,6 +34,7 @@ async function boot() {
   const Q = QUALITY[q];
   setTextureSize(q === 'low' ? 256 : 512);
   G.events = new Emitter();
+  initFullscreen();
   const ui = (G.ui = new UI());
   const step = async (text, f) => { ui.setLoading(text, f); await nextFrame(); };
   await step('Waking the portraits…', 0.02);

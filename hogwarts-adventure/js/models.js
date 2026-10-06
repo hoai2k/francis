@@ -176,61 +176,37 @@ export function makeWizard(o = {}) {
   }
   const head = grp(neck, 0, 0.175, 0);
   head.scale.setScalar(1.08); // slightly larger heads read better at game distance
-  const skull = mesh(new THREE.SphereGeometry(0.125, 32, 24), skin, 0, 0.005, -0.005, head);
-  skull.scale.set(0.92, 1.04, 0.98);
-  // jaw, chin and cheeks give the face shape
-  const jaw = mesh(new THREE.SphereGeometry(0.088, 20, 14), skin, 0, -0.058, 0.03, head);
-  jaw.scale.set(0.96, 0.78, 0.96);
-  mesh(new THREE.SphereGeometry(0.03, 12, 10), skin, 0, -0.1, 0.075, head).scale.set(1.1, 0.8, 0.9);
-  const blush = std(new THREE.Color(o.skin || SKIN_TONES[1]).lerp(new THREE.Color('#e07060'), 0.1).getStyle(), { roughness: 0.65 });
-  for (const s of [-1, 1]) mesh(new THREE.SphereGeometry(0.032, 12, 10), blush, s * 0.058, -0.03, 0.082, head).scale.set(1, 0.8, 0.6);
+  // one smooth, slightly egg-shaped head (narrower towards the chin)
+  const skullG = new THREE.SphereGeometry(0.125, 32, 24);
+  { const pa = skullG.attributes.position; for (let i = 0; i < pa.count; i++) { const y = pa.getY(i); const k = y < 0 ? 1 + y * 1.1 : 1; pa.setX(i, pa.getX(i) * k); pa.setZ(i, pa.getZ(i) * (y < 0 ? 1 + y * 0.5 : 1)); } skullG.computeVertexNormals(); }
+  const skull = mesh(skullG, skin, 0, 0.0, 0.0, head);
+  skull.scale.set(0.95, 1.06, 0.98);
   // ears
   for (const s of [-1, 1]) {
-    const ear = mesh(new THREE.SphereGeometry(0.03, 12, 10), skin, s * 0.114, 0.0, -0.005, head);
-    ear.scale.set(0.42, 1, 0.75);
-    ear.rotation.y = s * 0.3;
-    mesh(new THREE.SphereGeometry(0.014, 8, 6), blush, s * 0.12, -0.005, 0.0, head).scale.set(0.4, 1, 0.7);
+    const ear = mesh(new THREE.SphereGeometry(0.028, 12, 10), skin, s * 0.112, -0.005, -0.008, head);
+    ear.scale.set(0.45, 0.95, 0.7);
   }
-  // nose: bridge + rounded tip + nostrils
-  const nb = mesh(new THREE.CapsuleGeometry(0.008, 0.026, 4, 8), skin, 0, -0.002, 0.117, head);
-  nb.rotation.x = -0.35;
-  mesh(new THREE.SphereGeometry(0.0135, 12, 10), skin, 0, -0.022, 0.126, head).scale.set(1.15, 0.9, 0.9);
-  for (const s of [-1, 1]) mesh(new THREE.SphereGeometry(0.008, 8, 6), skin, s * 0.011, -0.026, 0.12, head);
-  // eyes: white, coloured iris, pupil, catch-light and a lid
-  const eyeWhite = std('#f6f3ec', { roughness: 0.25 });
-  const iris = o.eyeGlow ? new THREE.MeshBasicMaterial({ color: new THREE.Color(o.eyeGlow).multiplyScalar(4) }) : std(o.eyeColor || '#3a2a1a', { roughness: 0.15 });
-  const pupil = std('#060606', { roughness: 0.1 });
+  // small rounded nose
+  mesh(new THREE.SphereGeometry(0.014, 12, 10), skin, 0, -0.018, 0.119, head).scale.set(1, 0.85, 0.8);
+  // friendly stylised eyes: glossy dark ovals with a highlight
+  const eyeM = o.eyeGlow ? new THREE.MeshBasicMaterial({ color: new THREE.Color(o.eyeGlow).multiplyScalar(4) }) : std(new THREE.Color(o.eyeColor || '#3a2a1a').multiplyScalar(0.55).getStyle(), { roughness: 0.15 });
   const shine = new THREE.MeshBasicMaterial({ color: 0xffffff });
-  const lidM = std(new THREE.Color(o.skin || SKIN_TONES[1]).multiplyScalar(0.88).getStyle(), { roughness: 0.6 });
-  const lashM = std('#1a1210', { roughness: 0.8 });
   const eyes = [];
   for (const s of [-1, 1]) {
-    const eg = grp(head, s * 0.044, 0.018, 0.095);
-    const e = mesh(new THREE.SphereGeometry(0.023, 16, 12), eyeWhite, 0, 0, 0, eg);
-    e.scale.set(1.1, 1, 0.7);
-    const ir = mesh(new THREE.CircleGeometry(0.0135, 18), iris, 0, -0.001, 0.0165, eg);
-    const pu = mesh(new THREE.CircleGeometry(0.0065, 14), pupil, 0, -0.001, 0.0168, eg);
-    const sh = mesh(new THREE.CircleGeometry(0.0035, 8), shine, s * 0.004 + 0.004, 0.005, 0.0171, eg);
-    // upper lid shell + lash line
-    const lid = mesh(new THREE.SphereGeometry(0.025, 16, 8, 0, Math.PI * 2, 0, Math.PI * 0.3), lidM, 0, 0.003, -0.002, eg);
-    lid.scale.set(1.12, 1, 0.78);
-    lid.rotation.x = 0.15;
-    const lash = mesh(new THREE.TorusGeometry(0.022, 0.0035, 4, 12, Math.PI), lashM, 0, 0.004, 0.012, eg);
-    lash.scale.set(1.12, 0.75, 1);
-    lash.rotation.x = -0.4;
-    eyes.push(e, ir, pu, sh);
-    // arched brows
-    const brow = mesh(new THREE.TorusGeometry(0.03, 0.0065, 5, 12, Math.PI * 0.75), hairM, s * 0.046, 0.04, 0.11, head);
-    brow.rotation.z = Math.PI * 0.125 + (s > 0 ? -0.12 : 0.12);
-    brow.scale.set(1, 0.55, 1);
+    const e = mesh(new THREE.SphereGeometry(0.0195, 16, 12), eyeM, s * 0.041, 0.012, 0.105, head);
+    e.scale.set(0.82, 1.15, 0.5);
+    const sh = mesh(new THREE.SphereGeometry(0.0048, 8, 6), shine, s * 0.042 + 0.005, 0.02, 0.114, head);
+    sh.castShadow = false;
+    eyes.push(e, sh);
+    // thin, gently arched brows
+    const brow = mesh(new THREE.CapsuleGeometry(0.0045, 0.026, 3, 6), hairM, s * 0.043, 0.047, 0.108, head);
+    brow.rotation.z = Math.PI / 2 + s * 0.12;
   }
-  // lips (the mouth is scaled while talking)
-  const mouth = mesh(new THREE.CapsuleGeometry(0.008, 0.032, 4, 8), std('#9a4a44', { roughness: 0.5 }), 0, -0.068, 0.108, head);
-  mouth.rotation.z = Math.PI / 2;
+  // a small smile (scaled while talking)
+  const mouth = mesh(new THREE.TorusGeometry(0.014, 0.0035, 5, 12, Math.PI), std('#5a2a24', { roughness: 0.6 }), 0, -0.048, 0.104, head);
+  mouth.rotation.z = Math.PI;
   mouth.castShadow = false;
   mouth.userData.keep = true;
-  const lip = mesh(new THREE.TorusGeometry(0.02, 0.004, 4, 10, Math.PI), std('#7a3a34', { roughness: 0.5 }), 0, -0.064, 0.106, head);
-  lip.rotation.z = Math.PI;
 
   // hair, built from a scalp cap plus strands so it has some volume
   const style = o.hairStyle || 'short';
@@ -511,7 +487,7 @@ export class HumanoidAnim {
       P.scarf.tails[0].rotation.x = -0.15 - amp * 0.6 + Math.sin(this.t * 7) * 0.05 * amp;
       P.scarf.tails[1].rotation.x = -0.1 - amp * 0.5 + Math.sin(this.t * 6 + 1) * 0.05 * amp;
     }
-    if (P.mouth) P.mouth.scale.y = st === 'talk' ? 1 + Math.abs(Math.sin(this.t * 14)) * 3 : 1;
+    if (P.mouth) P.mouth.scale.y = st === 'talk' ? 1 + Math.abs(Math.sin(this.t * 14)) * 1.6 : 1;
   }
 }
 

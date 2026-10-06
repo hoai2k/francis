@@ -9,6 +9,7 @@ import { saveSettings, hasSave, loadSave, newSave, writeSave, deleteSave } from 
 import { setQuality } from './engine.js';
 import { SKIN_TONES, HAIR_COLORS, HAIR_STYLES, WAND_WOODS } from './models.js';
 import { el } from './util.js';
+import { autoFullscreen, toggleFullscreen, canFullscreen, fullscreenElement } from './fullscreen.js';
 import { PLATEAU } from './world/terrain.js';
 
 const MINIGAMES = [
@@ -47,8 +48,9 @@ export function openMainMenu() {
     w.innerHTML = `<div class="title-wrap"><div class="logo big">Hogwarts<span>Adventure</span></div><div class="tagline">A new student · eight spells · one House Cup</div></div><div class="menu-col"></div>
       <div class="m-foot">Not affiliated with any official Harry Potter product. Made with three.js · <span class="dev-ind"></span></div>`;
     const c = w.querySelector('.menu-col');
-    if (hasS) G.ui.button(c, 'Continue', () => continueGame(), 'primary');
+    if (hasS) G.ui.button(c, 'Continue', () => { autoFullscreen(); continueGame(); }, 'primary');
     G.ui.button(c, 'New Game', () => {
+      autoFullscreen();
       if (hasS) confirmBox('Start a new game? Your current progress will be replaced.', () => newGame());
       else newGame();
     }, hasS ? '' : 'primary');
@@ -56,6 +58,7 @@ export function openMainMenu() {
     G.ui.button(c, 'Settings', () => openSettings());
     G.ui.button(c, 'Controls', () => openControls());
     G.ui.button(c, 'Credits', () => openCredits(false, true));
+    if (canFullscreen()) G.ui.button(c, fullscreenElement() ? 'Exit fullscreen' : 'Fullscreen', () => toggleFullscreen(), 'fs-btn');
     const ind = w.querySelector('.dev-ind');
     const upd = () => { ind.textContent = G.input.device === 'pad' ? `🎮 ${{ xbox: 'Xbox', ps: 'PlayStation', switch: 'Switch Pro' }[padGlyphSet()]} controller detected` : G.input.device === 'touch' ? '👆 Touch controls' : '⌨️ Keyboard & mouse'; };
     upd();
@@ -128,6 +131,7 @@ export function openPause() {
     G.ui.button(c, 'House Points', () => openHouseBoard());
     G.ui.button(c, 'Settings', () => openSettings());
     G.ui.button(c, 'Controls', () => openControls());
+    if (canFullscreen()) G.ui.button(c, fullscreenElement() ? 'Exit fullscreen' : 'Fullscreen', () => { toggleFullscreen(); resume(); });
     if (G.minigame) G.ui.button(c, 'Leave minigame', () => { const mg = G.minigame; resume(); mg.abort?.(); });
     G.ui.button(c, 'Save & Quit to Title', () => { writeSave(); G.quitting = true; G.ui.cancelDialogue(); G.minigame?.abort?.(); G.minigame = null; G.enemies.clearZone(); G.player.flying = false; G.player.control = true; G.player.status.override = null; document.getElementById('draw-layer').classList.add('hidden'); menuBackdrop(true); openMainMenu(); G.audio.music('menu'); G.audio.wind(0); });
   }, { cls: 'pause', onBack: () => resume(), pauseCloses: true });
@@ -152,6 +156,7 @@ export function openSettings() {
     G.ui.option(o, 'Ambient occlusion (High)', [true, false], () => S.ao, (v) => { S.ao = v; save(); setQuality(S.quality); }, (v) => (v ? 'On' : 'Off'));
     G.ui.option(o, 'Day length', [6, 12, 24, 0], () => S.dayLength, (v) => { S.dayLength = v; save(); }, (v) => (v ? v + ' min' : 'Frozen'));
     G.ui.option(o, 'Screen shake', [true, false], () => S.shake, (v) => { S.shake = v; save(); }, (v) => (v ? 'On' : 'Off'));
+    if (canFullscreen()) G.ui.option(o, 'Fullscreen when playing', [true, false], () => S.fullscreen !== false, (v) => { S.fullscreen = v; save(); }, (v) => (v ? 'On' : 'Off'));
     G.ui.option(o, 'FPS counter', [false, true], () => S.fps, (v) => { S.fps = v; save(); }, (v) => (v ? 'On' : 'Off'));
     sec('Audio');
     G.ui.slider(o, 'Music volume', 0, 1, 0.05, () => S.music, (v) => { S.music = v; save(); }, (v) => Math.round(v * 100) + '%');
@@ -287,7 +292,7 @@ export function openCustomize(onDone) {
     G.ui.option(o, 'Pointed hat', [false, true], () => look.hat, (v) => { look.hat = v; rebuild(); }, (v) => (v ? 'Yes' : 'No'));
     G.ui.option(o, 'Wand wood', Object.keys(WAND_WOODS), () => look.wand, (v) => { look.wand = v; rebuild(); }, (v) => v[0].toUpperCase() + v.slice(1));
     const r = w.querySelector('.row');
-    G.ui.button(r, 'Begin your first year ›', () => onDone(), 'primary');
+    G.ui.button(r, 'Begin your first year ›', () => { autoFullscreen(); onDone(); }, 'primary');
     G.ui.button(r, 'Back', () => { G.ui.close(); G.mode = 'menu'; menuBackdrop(true); openMainMenu(); });
   }, { cls: 'custom', onBack: () => { G.ui.close(); G.mode = 'menu'; menuBackdrop(true); openMainMenu(); } });
   G.mode = 'menu-custom';
@@ -301,7 +306,7 @@ export function openMinigames() {
     MINIGAMES.forEach((m) => {
       const b = el('button', 'mg-card nav', `<span class="mg-ico">${m.icon}</span><b>${m.name}</b><small>${m.desc}</small><em>Best: ${G.save.best[m.id] ?? '—'}</em>`);
       b.dataset.kind = 'grid';
-      b.addEventListener('click', () => launchFromMenu(m.id));
+      b.addEventListener('click', () => { autoFullscreen(); launchFromMenu(m.id); });
       g.appendChild(b);
     });
     G.ui.button(w.querySelector('.row'), 'Back', () => G.ui.close(), 'primary');
