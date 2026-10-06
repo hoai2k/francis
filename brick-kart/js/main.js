@@ -31,12 +31,12 @@ const SKEY = 'brickkart.settings.v1', TKEY = 'brickkart.tt.v1', PKEY = 'brickkar
 const MOBILE = isTouchDevice() && Math.min(screen.width, screen.height) < 820;
 // a phone (not a tablet): too small to share, so the select screen and races are single-player
 const isPhone = () => isTouchDevice() && Math.min(screen.width, screen.height) < 600;
-// Online play (js/online/) is still being tested: off unless ONLINE_ENABLED or ?online=1 (?online=0
-// turns it off again). Off, the Online menu item isn't there and no online code is ever loaded.
+// Online play (js/online/): on unless ONLINE_ENABLED is false or the address has ?online=0 (?online=1
+// forces it on). Its code is only loaded when someone opens Online; off, the menu item isn't there.
 // Tilt (accelerometer) steering doesn't feel right yet: touch steering is drag-only and the tilt
 // options are hidden until it does. Flip this to bring them back.
 const TILT_ENABLED = false;
-const ONLINE_ENABLED = false;
+const ONLINE_ENABLED = true;
 const ONLINE = (() => { const v = new URLSearchParams(location.search).get('online'); return v === null ? ONLINE_ENABLED : v !== '0'; })();
 // developer / automated-test flag: ?norender runs everything but skips drawing the 3D views (headless
 // software rendering is far too slow to drive several online players at once)

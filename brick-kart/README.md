@@ -17,7 +17,7 @@ Play: <https://hoai2k.github.io/francis/brick-kart/>
 - **Quick Race**: one race on any map, always with **12 racers** (you plus CPU racers).
 - **Time Trial**: race alone with 3 Turbo Studs. Your best time on each map is
   saved in your browser.
-- **Online** (in progress, enable with `?online=1`): race friends on other
+- **Online**: race friends on other
   screens, up to 12 people in a race, with everyone on each screen able to join
   in (see [Online](#online) below).
 - **Racer select**: player 1 is already in, using whatever controller (or
@@ -379,19 +379,25 @@ setups.
 
 ## Online
 
-> **In progress — off by default.** Online play is switched on with **`?online=1`** in the
-> address (or `ONLINE_ENABLED` at the top of `js/main.js`). Without it the Online menu item isn't
-> shown and none of the online code (`js/online/`, `js/vendor/`) is loaded; the hooks it adds to
-> the race, karts, items and hazards are idle. **What exists:** everything described below.
-> **Tested** (automated, headless, against a local relay): lobby listing / host / join, the room
-> panel and bubbles, names (remembered, default, duplicates told apart, the on-screen keyboard),
-> two local players on one screen plus another screen, the line-up, a synchronized start (all
-> screens within one frame), remote kart smoothness, item uses and victim-decided hits, a guest
-> leaving (kart becomes a CPU), joining mid-race (watching, then racing the next one), host
-> migration mid-race, a guest's reconnect, the relay dying mid-race (finishes offline), an
-> unreachable relay, malformed messages, and the production relay's lobby. **Left:** a real
-> multi-device session over the production relay (this environment can't open WebSockets to it),
-> testing on real phones and gamepads, and tuning with real network latency.
+> **Status.** Online play is on. `?online=0` in the address (or `ONLINE_ENABLED = false` at
+> the top of `js/main.js`) switches it off: the Online menu item disappears and the online code
+> (`js/online/`, `js/vendor/`) is never loaded. Even when it's on, that code only loads once someone
+> opens Online.
+>
+> **Tested:** automated and headless, against a local copy of the relay, through a proxy that adds
+> real-world latency (40-150 ms each way, jitter, stalls, and a slow asymmetric screen). Covered:
+>
+> - the lobby, the room panel, names and the on-screen keyboard
+> - local players plus other screens, a full room (6 screens × 2 players = 12 people, plus a 7th
+>   screen watching), and the room-full and two-hosts-at-once cases
+> - the line-up, a fair start, smooth remote karts, items and hits
+> - leaving at every stage, joining mid-race, host migration, reconnects, hidden or frozen tabs
+> - the online Grand Prix
+> - phones by touch (portrait and landscape)
+> - an unreachable, silent or vanishing relay, and malformed messages
+>
+> **Not tested:** a real multi-device session over the production relay (the test environment
+> can't open WebSockets to it; its lobby was checked), and real phones and gamepads.
 
 Main menu → **Online**. Race friends anywhere: up to **12 people** in a race, and
 each screen can bring its own local players (split screen, extra controllers, a
@@ -416,8 +422,8 @@ fill the rest. Rooms are open to anyone who sees them (it's a game for friends).
   characters; it's saved for next time). X (Tab) on a saved name forgets it. The
   highlight starts on what that player slot (P1, P2…) used last time, so just
   pressing A all the way through keeps it.
-- **Starting**: when everyone is ready the host picks a map (guests see "Host is
-  picking a map…"). The host can press **Race!** twice to start without
+- **Starting**: when everyone is ready the host picks **Single race** (then a
+  map) or **Grand Prix** (then a cup); guests see "Host is picking a map…". The host can press **Race!** twice to start without
   someone who's still choosing (they watch that race). Then everyone sees the
   **line-up**: every player's driver in their kart with their name over it and a
   spinner that turns into a tick as each screen finishes loading the track.
@@ -431,9 +437,17 @@ fill the rest. Rooms are open to anyone who sees them (it's a game for friends).
   boost pads are your own screen's.
 - **After the race**: results with everyone's names; the host picks **Next
   race** (same racers, straight to the map choice) or **Change racers** (back to
-  the select screen). Grand Prix cups are offline only.
-- **Joining late**: joining while a race is running lets you **watch** it (◀︎ ▶︎
-  switches whom you follow); you're in the next one.
+  the select screen).
+- **Online Grand Prix**: a cup's maps in turn, with points after each race
+  (15-12-10-…-1, the same CPU racers all cup long, the grid in reverse points
+  order) and standings, then final medals. The table lives in the host's room
+  state, so it survives the host leaving. Someone who joins mid-cup watches the
+  current race and then races the rest from 0 points; someone who leaves keeps
+  their points and their kart carries on as a CPU.
+- **Joining late**: joining while a race is running lets you **watch** it (◀︎ ▶︎,
+  or the on-screen buttons, switch whom you follow); you're in the next one. A
+  screen that is simply slow to load the track still races: the host drives its
+  karts until it's ready, then hands them over.
 - **Leaving and trouble**: if someone leaves, a bubble says so and their kart
   carries on as a CPU, so the field stays at 12. A player whose connection drops
   briefly is shown as "reconnecting…" and their kart keeps going; they re-join
@@ -441,8 +455,13 @@ fill the rest. Rooms are open to anyone who sees them (it's a game for friends).
   the **host** leaves, the relay closes the room, so the game moves everyone to a
   new one by itself: the next player in join order becomes host, the race (or
   select screen) carries on, and that player's screen takes over the CPU karts.
-  If the online server can't be reached, the Online screen says so with
-  **Retry**; if it goes away mid-race, the race finishes offline with every
+  **Background tabs and locked phones**: a hidden tab can't keep racing (the
+  browser stops it), so a host whose tab is hidden hands the room to the next
+  player straight away and rejoins as a guest when it's back; a guest whose kart
+  stops updating is driven by the host as a CPU for the moment ("autopilot") and
+  gets it back smoothly on return.
+  If the online server can't be reached (or doesn't answer), the Online screen
+  says so with **Retry**; if it goes away mid-race, the race finishes offline with every
   other kart as a CPU. Local play never depends on any of this: the online
   code and the relay client are only loaded when you open Online.
 
@@ -466,9 +485,9 @@ Who owns what:
   and publishes them in the same message, and owns the room state: phase, join
   order, race setup and seed, start time, results.
 - **Everything else is a puppet**: other screens' karts are drawn from those
-  updates with **snapshot interpolation** on a shared race clock, about 100-150
-  ms behind real time (adaptive: it follows how late and how irregular updates
-  arrive), **dead reckoning** if updates are late (straight on for 0.3 s, then
+  updates with **snapshot interpolation** on a shared race clock, between 0.09 and
+  0.6 s behind real time (adaptive, per sender: it follows how late and how
+  irregular that screen's updates arrive; about 0.2 s on a good connection), **dead reckoning** if updates are late (straight on for 0.3 s, then
   along the track for up to 3 s), and **smoothed corrections** (a snap only for
   respawns and big jumps). Wheels, drift sparks, gliders, boost flames, shields,
   spins and the driver's cheers and taunts all come from the update.
@@ -476,8 +495,10 @@ Who owns what:
   few seconds after (topics `ping` / `pong`) and keep the sample with the
   shortest round trip; corrections are eased in. The countdown, race time,
   kart update times and **hazards** (moving traffic, crushers, cannons… their
-  positions are functions of this clock) all use it. The track and its scenery
-  are built from the host's seed, so they match everywhere.
+  positions are exact functions of this clock, with any random picks hashed from
+  the race seed and the cycle number) all use it. The track and its scenery are
+  built from the host's seed, so they match everywhere, whatever each screen
+  happened to load before.
 - **Items**: a use goes to everyone (event `u`) with the user's position and
   heading, a random seed and the standings at that moment; every screen spawns
   the same shot from the puppet as it's drawn (the event is held until the
@@ -521,14 +542,14 @@ screen is open, and each fetch is a whole request (900 an hour per screen), so
 don't leave it open for hours. Running out only makes the relay refuse
 connections until the next day; it never costs money.
 
-**Limitations.** The relay can't be changed from here, so: a host leaving costs
+**Limitations.** The relay can't be changed from here, so a host leaving costs
 everyone about half a second to a second without updates (other karts carry on
-along the track, then ease back); a screen in a background tab stops sending
-(browsers pause hidden tabs), and if that's the host its CPU karts freeze for
-the others until it's back; there's no protection against cheating (it's for
-friends); and a few effects are only approximately the same on every screen:
-Star Wars map hazards that pick random lanes, and particles. Ability powers that affect "karts nearby" use positions as each
-screen sees them.
+along the track, then ease back). The start is on a clock shared through the
+relay, so GO lands within about a quarter of the relay round trip on every
+screen (0-80 ms in tests); each screen times its own race from its own GO.
+There's no protection against cheating (it's for friends). Particles, and
+ability powers that affect "karts nearby", use positions as each screen sees
+them. Two rooms can have the same default name ("Brick Kart's race").
 
 For development and tests, `?debug` exposes the online state as `window.__net`,
 and `?norender` skips drawing the 3D views (headless software rendering is too
