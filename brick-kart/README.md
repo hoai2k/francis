@@ -344,7 +344,9 @@ you drop some.
 - **Falling off**: the crane puts you back on a safe stretch of road. If you fall again right away, it puts you further ahead next time.
 - Sound mutes when you switch to another tab or window.
 - **Full screen on phones** (the same approach as Widow's Bay): on Android and iPad
-  the first tap in landscape goes full screen (so does tapping the title). iPhone
+  the first tap in landscape goes full screen (so does tapping the title). Turning
+  the device mid-race pauses it, and tapping **Resume** in landscape goes full
+  screen (the pause menu says so while you're upright). iPhone
   Safari can't go full screen, so in the menus a swipe up tucks Safari's bars away
   (a hint says so while they're showing); during a race nothing scrolls. **Add to
   Home Screen** opens Brick Kart full screen in landscape, with its own icon.
