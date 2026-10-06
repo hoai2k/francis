@@ -442,8 +442,9 @@ class Game {
     // phones are single-player (extra controllers can't join); tablets and up take up to 8
     const phone = isPhone();
     const max = mode === 'tt' || phone ? 1 : MAX_PLAYERS;
-    // phase: 'driver' (choosing) -> 'kart' (driver locked, choosing a kart, or with up / down a
-    // glider: p.sub = 'kart' | 'glider') -> 'done'
+    // phase: 'driver' (choosing) -> 'kart' (driver locked: choosing a kart, p.sub = 'kart', then once
+    // that's locked in with a spin, the glider, p.sub = 'glider') -> 'done'. Offline, the last
+    // player locking in their glider starts the race.
     const players = [];
     const uni = (id) => UNIVERSES.find((u) => u.id === id) || { name: id, color: '#fff' };
     // Simplified mode offers a smaller roster (DRIVERS / KARTS indices, in order) in one grid
@@ -565,14 +566,12 @@ class Game {
       const kn = allowedK.indexOf(p?.kcur) + 1, dn = allowedD.indexOf(p?.dcur) + 1, gn = allowedG.indexOf(p?.gcur) + 1;
       const tag = !p ? 'Press <b>A</b> / <b>Enter</b> or tap a driver'
         : p.phase === 'driver' ? `${who}pick a <b>driver</b><em class="dnum">${dn} / ${allowedD.length}</em>`
-        : p.phase === 'kart' ? (glideStep ? `${who}pick a <b>glider</b> <em>${gn} / ${allowedG.length}</em>` : `${who}pick a <b>kart</b> <em>${kn} / ${allowedK.length}</em>`) : `${who}is ready!`;
+        : p.phase === 'kart' ? (glideStep ? `${who}pick a <b>glider</b> <em>${gn} / ${allowedG.length}</em>` : p.kartLock ? `${who}<b>kart</b> locked in ✓` : `${who}pick a <b>kart</b> <em>${kn} / ${allowedK.length}</em>`) : `${who}is ready!`;
       const u = glideStep ? gGroup(gl) : uni(d.from);
-      // choosing a kart: arrows either side of it (◀︎ ▶︎ on the pad too) and a lock-in button for touch;
-      // the Kart / Glider switch (▲ ▼ on the pad) flips between the two choices
-      // on phones (no grid) drivers are picked the same way
+      // choosing a kart, then a glider: arrows either side of it (◀︎ ▶︎ on the pad too) and a lock-in
+      // button for touch; on phones (no grid) drivers are picked the same way
       const what = glideStep ? 'glider' : 'kart';
-      const arrows = p?.phase === 'kart' ? `<button class="karr l" data-act="kprev:${p.id}" aria-label="Previous ${what}">${CHEV_L}</button><button class="karr r" data-act="knext:${p.id}" aria-label="Next ${what}">${CHEV_R}</button><button class="kok" data-act="kok:${p.id}">Lock in ✓</button>
-          <div class="ksw"><button class="${glideStep ? '' : 'on'}" data-act="ksub:${p.id}:kart">▲ Kart</button><button class="${glideStep ? 'on' : ''}" data-act="ksub:${p.id}:glider">▼ Glider</button></div>`
+      const arrows = p?.phase === 'kart' && !p.kartLock ? `<button class="karr l" data-act="kprev:${p.id}" aria-label="Previous ${what}">${CHEV_L}</button><button class="karr r" data-act="knext:${p.id}" aria-label="Next ${what}">${CHEV_R}</button><button class="kok" data-act="kok:${p.id}">Lock in ✓</button>`
         : p?.phase === 'driver' ? `<button class="karr l drv" data-act="dprev:${p.id}" aria-label="Previous driver">${CHEV_L}</button><button class="karr r drv" data-act="dnext:${p.id}" aria-label="Next driver">${CHEV_R}</button><button class="kok drv" data-act="dok:${p.id}">Lock in ✓</button>` : '';
       const sw = p?.swDir && performance.now() - p.swAt < 700 ? ` sw${p.swDir > 0 ? 'd' : 'u'}` : '';
       return `<div class="pvstep">${tag}</div>${arrows}
@@ -653,9 +652,9 @@ class Game {
       const swipe = players.length === 1 && players[0].device === 'touch';
       if (online) { online.changed(players); ui.querySelector('.hint2').innerHTML = online.hint(players); ui.querySelector('.go').innerHTML = online.goLabel(players); }
       else ui.querySelector('.hint2').innerHTML = swipe ? (ready ? 'All set! Tap <b>Race!</b>'
-        : players[0].phase === 'kart' ? 'Swipe <b>◀︎ ▶︎</b> to change · <b>▲ ▼</b> kart / glider' : 'Swipe <b>◀︎ ▶︎</b> to change driver')
+        : players[0].phase === 'kart' ? `Swipe <b>◀︎ ▶︎</b> to change ${players[0].sub === 'glider' ? 'glider' : 'kart'}` : 'Swipe <b>◀︎ ▶︎</b> to change driver')
         : ready ? 'All set! Press <b>A</b> / <b>Start</b> / <b>Enter</b> to race'
-        : players.some((p) => p.phase === 'kart') ? '<b>◀︎ ▶︎</b> change · <b>▲ ▼</b> kart / glider · <b>A</b> lock it in · <b>B</b> back'
+        : players.some((p) => p.phase === 'kart') ? '<b>◀︎ ▶︎</b> change · <b>A</b> lock it in · <b>B</b> back'
         : mode === 'tt' ? 'Time Trial is solo: beat your best time'
         : phone ? '<b>◀︎ ▶︎</b> change driver · <b>A</b> lock it in'
         : 'More players: press <b>A</b> on another controller · 2nd keyboard: <b>Right Shift</b>';
@@ -727,7 +726,7 @@ class Game {
     const moveIn = (cards, cur, dx, dy, idOf) => idOf(cards[nav(cards, Math.max(0, cards.findIndex((c) => idOf(c) === cur)), dx, dy)]);
     const lockDriver = (p) => {
       if (taken(p).has(p.dcur)) { this.audio.sfx('wrong'); return; }
-      p.phase = 'kart'; p.sub = 'kart';
+      p.phase = 'kart'; p.sub = 'kart'; p.kartLock = 0;
       p.kartAt = performance.now() + 1000;   // the kart rolls in after the lock-in jump-spin
       this.audio.sfx('select');
       refresh(p);
@@ -761,7 +760,31 @@ class Game {
     };
     // a touch player who has tapped or swiped keeps player 1 (a controller can't take it over)
     const touched = () => { for (const q of players) if (q.device === 'touch') q.acted = true; };
-    const lockKart = (p) => { p.phase = 'done'; this.audio.sfx('select'); refresh(); show.play(players.indexOf(p), 'win'); this.audio.voice(DRIVERS[p.dcur].voice, 'win', 0.9); };
+    // locking in the kart: a celebration spin, then the glider step slides in; locking in the
+    // glider: done (offline, the last one to lock in starts the race after their win pose)
+    let goAt = 0;
+    const lockKart = (p) => {
+      const i = players.indexOf(p);
+      if (show.items[i]?.slideFx) return;   // mid-slide to the glider step
+      if (p.sub !== 'glider') {
+        if (p.kartLock) return;
+        p.kartLock = performance.now() + 950;
+        this.audio.sfx('select');
+        show.spinCommit(i); show.play(i, 'cheer'); this.audio.voice(DRIVERS[p.dcur].voice, 'cheer', 0.9);
+        refresh();
+        return;
+      }
+      p.phase = 'done'; this.audio.sfx('select'); refresh(); show.play(i, 'win'); this.audio.voice(DRIVERS[p.dcur].voice, 'win', 0.9);
+      if (!online && players.every((q) => q.phase === 'done')) goAt = performance.now() + 1100;
+    };
+    // B / Back steps back one choice: glider ready -> glider -> kart -> driver
+    const stepBack = (p) => {
+      goAt = 0;
+      if (p.phase === 'done') { p.phase = 'kart'; p.sub = 'glider'; this.audio.sfx('back'); refresh(); return; }
+      if (p.kartLock) { p.kartLock = 0; this.audio.sfx('back'); refresh(); return; }
+      if (p.sub === 'glider') { this.audio.sfx('back'); switchSub(p, -1, 'kart'); return; }
+      p.phase = 'driver'; this.audio.sfx('back'); refresh();
+    };
     // touch: swipe a preview sideways for the previous / next driver, kart or glider (like ◀︎ ▶︎), and
     // up or down to flip between choosing the kart and the glider (like ▲ ▼). Swipes don't start on
     // its buttons, so taps on them still work.
@@ -783,8 +806,8 @@ class Game {
       touched();
       if (ax > ay * 1.2) {
         const dir = dx < 0 ? 1 : -1;   // swipe left: the next one
-        if (p.phase === 'driver') stepDriver(p, dir); else if (p.phase === 'kart') stepKart(p, dir);
-      } else if (ay > ax * 1.2 && p.phase === 'kart') switchSub(p, dy < 0 ? 1 : -1);   // the view follows the finger
+        if (p.phase === 'driver') stepDriver(p, dir); else if (p.phase === 'kart' && !p.kartLock) stepKart(p, dir);
+      }
     });
     const endSwipe = (e) => { if (swipe0?.id === e.pointerId) swipe0 = null; };
     stageEl.addEventListener('pointerup', endSwipe);
@@ -793,6 +816,9 @@ class Game {
       update: (dt) => {
         fillImgs(3);
         if (players.some((p) => p.kartAt && performance.now() >= p.kartAt)) { for (const p of players) if (p.kartAt && performance.now() >= p.kartAt) p.kartAt = 0; refresh(); }
+        // after the kart's lock-in spin, on to the glider
+        for (const p of players) if (p.kartLock && performance.now() >= p.kartLock && p.phase === 'kart') { p.kartLock = 0; switchSub(p, 1, 'glider'); }
+        if (goAt && performance.now() >= goAt) { goAt = 0; if (players.length && players.every((p) => p.phase === 'done')) { go(); return; } }
         layoutPicks();
         layoutCells();
         show.update(dt);
@@ -829,12 +855,12 @@ class Game {
             if (m.ok) { lockDriver(p); continue; }
             if (m.back) { if (online) { p.phase = 'name'; this.audio.sfx('back'); refresh(); continue; } if (p === players[0]) { back(); return; } leave(p); continue; }
           } else if (p.phase === 'kart') {
+            if (m.back) { stepBack(p); continue; }
+            if (p.kartLock) continue;
             if (dx) stepKart(p, dx);
-            if (dy) switchSub(p, dy);
             if (m.ok) { lockKart(p); continue; }
-            if (m.back) { if (p.sub === 'glider') switchSub(p, -1, 'kart'); else { p.phase = 'driver'; this.audio.sfx('back'); refresh(); } continue; }
           } else {
-            if (m.back) { p.phase = 'kart'; this.audio.sfx('back'); refresh(); continue; }
+            if (m.back) { stepBack(p); continue; }
             if (m.ok || m.start) { go(); return; }
           }
           if (m.start) go();
@@ -857,7 +883,7 @@ class Game {
         if (a === 'back') {
           const p = players.find((q) => q.device === 'touch' || q.device === 'kb') || players[0];
           if (p && online && p.phase === 'driver') { p.phase = 'name'; this.audio.sfx('back'); refresh(); return; }
-          if (p && p.phase !== 'driver' && p.phase !== 'name') { p.phase = p.phase === 'done' ? 'kart' : 'driver'; this.audio.sfx('back'); refresh(); } else back();
+          if (p && p.phase !== 'driver' && p.phase !== 'name') stepBack(p); else back();
           return;
         }
         if (a === 'go') go();
@@ -867,8 +893,7 @@ class Game {
           if (cmd === 'dnext') stepDriver(p, 1);
           if (cmd === 'dok') lockDriver(p);
         }
-        if (!p || p.phase !== 'kart') return;
-        if (cmd === 'ksub') switchSub(p, a.split(':')[2] === 'glider' ? 1 : -1, a.split(':')[2]);
+        if (!p || p.phase !== 'kart' || p.kartLock) return;
         if (cmd === 'kprev') stepKart(p, -1);
         if (cmd === 'knext') stepKart(p, 1);
         if (cmd === 'kok') lockKart(p);
@@ -879,7 +904,7 @@ class Game {
       // back from the cup / map screen: the same players, still locked in
       for (const q of this.players) {
         if (players.length >= max) break;
-        players.push({ id: q.id, device: q.device, dcur: q.driverIndex ?? allowedD[0], kcur: q.kartIndex ?? allowedK[0], gcur: q.gliderIndex ?? allowedG[0], sub: 'kart', phase: 'done', color: q.color, acted: true, olName: q.olName });
+        players.push({ id: q.id, device: q.device, dcur: q.driverIndex ?? allowedD[0], kcur: q.kartIndex ?? allowedK[0], gcur: q.gliderIndex ?? allowedG[0], sub: 'glider', phase: 'done', color: q.color, acted: true, olName: q.olName });
       }
       refresh();
     } else join(this.p1Device());
