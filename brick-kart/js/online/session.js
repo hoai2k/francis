@@ -90,6 +90,7 @@ export class Session {
     this.open(id, false, (err) => {
       if (err) { this.fatal(err === 'disconnected' || err === 'timeout' ? 'unreachable' : err); return; }
       this.setStatus('open');
+      this.hostSeenAt = now();
       this.emit('joined', { asHost: false });
       this.startSync();
     });
@@ -123,6 +124,23 @@ export class Session {
     this.room = null;
     if (r) { try { r.leave(); } catch { /* already closed */ } }
   }
+  // The host steps down on purpose (its tab is going into the background, where it can't keep
+  // the CPU karts going): leave, which closes the room, and follow everyone to the successor room
+  // as a guest.
+  handoff() {
+    if (!this.isHost || !this.room?.ready || this.closing) return false;
+    this.drop();
+    this.migrate(true);
+    return true;
+  }
+  // A guest gives up on a host that has gone silent (its page frozen without leaving): leave and do
+  // what everyone does when the host leaves. The others notice the same silence and come too.
+  abandonHost() {
+    if (this.isHost || !this.room?.ready || this.closing) return false;
+    this.drop();
+    this.migrate(false);
+    return true;
+  }
   leave() {
     this.closing = true;
     clearTimeout(this.retryT);
@@ -155,7 +173,7 @@ export class Session {
       if (this.closing) return;
       this.open(this.roomId, false, (err) => {
         if (this.closing) return;
-        if (!err) { this.setStatus('open'); this.graceUntil = now() + 6000; this.emit('reconnected'); this.startSync(); return; }
+        if (!err) { this.setStatus('open'); this.graceUntil = now() + 6000; this.hostSeenAt = now(); this.emit('reconnected'); this.startSync(); return; }
         if (err === 'not_found') { this.migrate(false); return; }   // the host left meanwhile
         if (err === 'full') { this.fatal('full'); return; }
         if (err === 'disconnected') refused++;
@@ -195,7 +213,7 @@ export class Session {
         if (asHost) {
           this.hostUid = this.me.uid; this.synced = true;
           this.order = [this.me.uid, ...order.filter((u) => u !== this.me.uid && u !== oldHost)];
-        } else this.startSync();
+        } else { this.startSync(); this.hostSeenAt = now(); }
         this.emit('migrated', { asHost });
       };
       if (myTurn) {
@@ -260,6 +278,7 @@ export class Session {
       for (const u of seen) if (!this.order.includes(u)) this.order.push(u);
       this.order = this.order.filter((u) => u === this.me.uid || this.byUid.has(u));
     } else if (host) {
+      if (host.p !== this.hostP) this.hostSeenAt = now();
       this.hostUid = host.uid; this.hostP = host.p;
       if (host.p.R && typeof host.p.R === 'object') { this.lastRoom = host.p.R; this.gen = Math.max(this.gen, num(host.p.R.g, 0, 999, 0)); }
     }
@@ -349,7 +368,8 @@ export class Session {
       }
       if (this.republishAt && t >= this.republishAt) { this.republishAt = 0; this.publish(true); }
       else if (this.dirty && t - this.pubT >= (this.gap || 0)) this.publish(true);
-      else if (t - this.pubT > MENU_HEARTBEAT * 1000) this.publish(true);
+      // (the host beats faster so a host that has gone quiet - a locked phone - is noticed)
+      else if (t - this.pubT > (this.isHost ? 5 : MENU_HEARTBEAT) * 1000) this.publish(true);
       this.sweep();
     }
   }

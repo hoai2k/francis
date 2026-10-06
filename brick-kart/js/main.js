@@ -934,11 +934,12 @@ class Game {
   }
 
   // ---- racing ------------------------------------------------------------------------------------------
-  showCups() {
+  // online: { pick(cup), back() } from js/online/online.js (the host picks a cup for the room)
+  showCups(online = null) {
     let focus = Math.min(this.lastCup ?? 0, CUPS.length - 1), shown = -1;
     const trackOf = (id) => TRACKS.findIndex((t) => t.id === id);
     const cards = CUPS.map((c, i) => `<div class="cup" data-i="${i}" style="--cc:${c.color}"><div class="trophy">🏆</div><div class="cn">${esc(c.name)}</div><div class="cl">${c.tracks.length} races</div></div>`).join('');
-    this.setScreen(`<div class="screen tracks cups"><div class="panel wide"><h2>Grand Prix · Choose a cup</h2><div class="cupgrid">${cards}</div>
+    this.setScreen(`<div class="screen tracks cups"><div class="panel wide"><h2>${online ? 'Online · ' : ''}Grand Prix · Choose a cup</h2><div class="cupgrid">${cards}</div>
       <div class="cuppv"></div>
       <div class="selfoot"><button class="bbtn" data-act="back">◀︎ Back</button><div class="hint2">${this.settings.cc}cc · 12 racers · ${this.settings.laps} laps · CPU ${this.settings.difficulty}</div><span></span></div></div></div>`);
     // the focused cup's races, in order, with a picture of each map
@@ -950,19 +951,20 @@ class Game {
         <div class="cuptracks">${c.tracks.map((id, n) => { const i = trackOf(id), t = TRACKS[i]; return `<div class="ctrack"><img src="${this.thumbs[i]}" alt=""><div class="cr">Race ${n + 1}</div><div class="tn">${esc(t.name)}</div><div class="ts">${esc(t.subtitle)}</div></div>`; }).join('')}</div>`;
     };
     const refresh = () => { this.ui.querySelectorAll('.cup').forEach((c, i) => c.classList.toggle('focus', i === focus)); preview(); };
-    const pick = (i) => { this.lastCup = i; this.audio.sfx('select'); this.startGP(CUPS[i]); };
+    const pick = (i) => { this.lastCup = i; this.audio.sfx('select'); if (online) online.pick(CUPS[i]); else this.startGP(CUPS[i]); };
+    const back = () => { if (online) online.back(); else this.showSelect('gp', true); };
     this.screen = {
       update: () => {
         for (const [, m] of this.menuEvents) {
           if (m.left || m.up) { focus = (focus + CUPS.length - 1) % CUPS.length; this.audio.sfx('click'); refresh(); }
           if (m.right || m.down) { focus = (focus + 1) % CUPS.length; this.audio.sfx('click'); refresh(); }
           if (m.ok || m.start) { pick(focus); return; }
-          if (m.back) { this.audio.sfx('back'); this.showSelect('gp', true); return; }
+          if (m.back) { this.audio.sfx('back'); back(); return; }
         }
       },
       hover: (i) => { focus = i; refresh(); },
       click: (i) => pick(i),
-      act: (a) => { if (a === 'back') this.showSelect('gp', true); },
+      act: (a) => { if (a === 'back') back(); },
     };
     refresh();
   }

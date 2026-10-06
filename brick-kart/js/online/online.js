@@ -24,7 +24,7 @@
 import { DRIVERS } from '../driver.js';
 import { KARTS } from '../vehicles.js';
 import { GLIDERS } from '../gliders.js';
-import { TRACKS } from '../tracks.js';
+import { TRACKS, CUPS } from '../tracks.js';
 import { driverPortrait } from '../showcase.js';
 import { fmt } from '../hud.js';
 import { Session, loadMiniRooms } from './session.js';
@@ -41,6 +41,7 @@ const ORD = (n) => n + (n % 100 > 10 && n % 100 < 14 ? 'th' : ['th', 'st', 'nd',
 const INTRO = 3, COUNT = 3.6, LINGER = 2.5;   // seconds: flyover, countdown, line-up after everyone's loaded
 const LOAD_TIMEOUT = 30000;
 const PH = ['n', 'd', 'k', 'g', 'r'];
+const POINTS = [15, 12, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1];   // Grand Prix points by place (as offline)
 const ERR = {
   unreachable: "Can't reach the online server — check your connection.",
   full: 'That room is full.',
@@ -69,6 +70,11 @@ export class Online {
     this.prev = new Map();       // player key -> last seen state (for the bubbles)
     this.modal = null;           // the name keyboard while it's open
     addEventListener('beforeunload', () => { try { this.session?.leave(); } catch { /* closing */ } });
+    // a host going into the background (another tab, a locked phone) can't keep the CPU karts
+    // going: it hands the room to the next player (see onHidden)
+    document.addEventListener('visibilitychange', () => this.onHidden(document.hidden));
+    addEventListener('pagehide', () => this.onHidden(true, true));
+    document.addEventListener('freeze', () => this.onHidden(true, true));
     if (new URLSearchParams(location.search).has('debug')) window.__net = this;
   }
   get isHost() { return !!this.session?.isHost; }
@@ -231,15 +237,31 @@ export class Online {
     m.pl = this.local.map((p) => [p.slot, p.name || '', p.pick && p.pick !== 'default' ? 1 : 0, DRIVERS[p.d]?.id || '', KARTS[p.k]?.id || '', GLIDERS[p.g]?.id || '', p.ph]);
     m.ld = this.loadedRi || 0;
     if (s.isHost && this.R) {
-      const R = { ...this.R, o: s.order, g: s.gen };
-      delete R.loadAt;
-      // the race setup rides along every second (and straight away when it changes or someone
-      // joins), so the 15-a-second race updates stay small
+      const R = this.roomOut();
+      // the race setup and the Grand Prix table ride along every second (and straight away when
+      // they change or someone joins), so the 15-a-second race updates stay small
       const su = this.setups.get(this.R.ri), t = performance.now();
-      if (su && (t - (this.suT || 0) > 1000 || force)) { R.su = su.raw; this.suT = t; }
+      if ((su || this.R.gp) && (t - (this.suT || 0) > 1000 || force)) { if (su) R.su = su.raw; if (this.R.gp) R.gp = this.gpOut(); this.suT = t; }
       m.R = R;
     } else delete m.R;
     s.publish(force, 150);
+  }
+  // the room state as published (the Grand Prix table only now and then: see publishMine)
+  roomOut() {
+    const s = this.session, R = { ...this.R, o: s.order, g: s.gen };
+    delete R.loadAt; delete R.gp;
+    if (this.R.gp) R.gpr = this.R.gp.round;
+    return R;
+  }
+  gpOut() { const gp = this.R.gp; return { c: gp.cup, r: gp.round, tr: gp.tracks, p: gp.pts.map((e) => e.slice(0, 5)) }; }
+  // a Grand Prix table from the host: { cup, name, round, tracks, pts: [[key, name, points, driver id, human]] }
+  gpIn(raw) {
+    if (!raw || typeof raw !== 'object') return null;
+    const cup = CUPS.find((c) => c.id === raw.c);
+    const tracks = Array.isArray(raw.tr) ? raw.tr.filter((id) => TRACKS.some((t) => t.id === id)).slice(0, 8) : [];
+    if (!cup || !tracks.length) return null;
+    const pts = (Array.isArray(raw.p) ? raw.p : []).slice(0, 40).filter(Array.isArray).map((e) => [str(e[0], 40), cleanName(str(e[1], 24)), int(e[2], 0, 9999), str(e[3], 40), e[4] ? 1 : 0]);
+    return { cup: cup.id, name: cup.name, round: int(raw.r, 0, 8), tracks, pts };
   }
   stage() {
     switch (this.view) {
@@ -303,6 +325,8 @@ export class Online {
     const ri = int(R.ri, 0, 1e6);
     if (R.su) this.addSetup(R.su);
     const prev = this.R;
+    if (R.gpr === undefined || R.gpr === null) this.gp = null;
+    else if (R.gp) { const gp = this.gpIn(R.gp); if (gp) this.gp = gp; }
     const R2 = this.R = { ph, ri, n: int(R.n, 0, 1e6), keep: R.keep ? 1 : 0, go: num(R.go, 0, 1e15, 0) || null, tk: Array.isArray(R.tk) ? R.tk.filter((i) => Number.isInteger(i) && i >= 0 && i < RACERS) : [], res: Array.isArray(R.res) ? R.res : null, o: Array.isArray(R.o) ? R.o : [] };
     if (ph === 'sel' || ph === 'trk') {
       const newRound = prev && prev.n !== R2.n;
@@ -322,7 +346,8 @@ export class Online {
       return;
     }
     if (ph === 'res') {
-      if (R2.res && ri === this.raceRi && this.view !== 'results') this.showResults(R2.res);
+      // (re-drawn once the Grand Prix table with this race's points arrives)
+      if (R2.res && ri === this.raceRi && (this.view !== 'results' || (this.gp && this.gp.round !== this.resRound))) this.showResults(R2.res);
       else if (ri !== this.raceRi && !['results', 'wait'].includes(this.view)) this.showWaiting();
     }
   }
@@ -489,6 +514,7 @@ export class Online {
         if (this.isHost) this.hostCheck();
       },
       hint: (players) => {
+        if (!players.length) return this.humans().length >= RACERS ? `The room is full (${RACERS} players) — you can watch the next race` : '<b>A</b> / <b>Enter</b> or tap a driver to join in';
         if (players.some((p) => p.phase === 'name')) return '<b>▲ ▼</b> pick your name · <b>A</b> OK · <b>X</b> forget a saved name';
         const ready = players.length && players.every((p) => p.phase === 'done');
         const more = !isPhoneScreen() && players.length < 8 ? ' · more players here: press <b>A</b> on another controller' : '';
@@ -580,20 +606,39 @@ export class Online {
     this.view = 'track';
     this.R.ph = 'trk';
     this.publishMine(true);
-    this.game.showTracks('online', {
-      pick: (def) => this.hostPick(def),
-      back: () => { this.R.ph = 'sel'; this.showSelect(true); },
+    const gp = this.R.gp;
+    // in a Grand Prix the next race is the cup's next map
+    if (gp && gp.round < gp.tracks.length) { this.hostPick(TRACKS.find((t) => t.id === gp.tracks[gp.round]) || TRACKS[0]); return; }
+    this.R.gp = null;
+    const back = () => { this.R.ph = 'sel'; this.showSelect(true); };
+    this.game.menu({
+      title: 'Online · Race type',
+      items: [
+        { label: 'Single race', action: () => this.game.showTracks('online', { pick: (def) => this.hostPick(def), back: () => this.toTrack() }) },
+        { label: 'Grand Prix', action: () => this.game.showCups({ pick: (cup) => this.hostStartGP(cup), back: () => this.toTrack() }) },
+        { label: 'Back', action: back },
+      ],
+      back,
     });
   }
+  // a Grand Prix: the cup's maps in turn, points after each race (the table lives in the room state)
+  hostStartGP(cup) {
+    this.R.gp = { cup: cup.id, name: cup.name, round: 0, tracks: [...cup.tracks], pts: [], cpus: null };
+    this.hostPick(TRACKS.find((t) => t.id === cup.tracks[0]) || TRACKS[0]);
+  }
+  gpKey(e) { return e.u ? e.u + ':' + e.slot : 'c:' + (DRIVERS[e.d]?.id || e.d); }
   hostPick(def) {
     const set = this.game.settings;
     // the field: everyone locked in (up to 12), then CPU racers to fill it
-    const humans = this.humans().filter((h) => h.ph === 'r' && (h.me || h.stage === 'rdy' || h.stage === 'sel')).slice(0, RACERS)
+    // (everyone locked in: on the select screen, or still on the results of the race before when the
+    // host goes straight on with the same racers)
+    const humans = this.humans().filter((h) => h.ph === 'r' && (h.me || ['rdy', 'sel', 'res', 'race', 'load'].includes(h.stage))).slice(0, RACERS)
       .map((h) => ({ u: h.uid, slot: h.slot, n: h.name, d: h.d, k: h.k, g: h.g }));
     const shuffle = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
     const used = new Set(humans.map((h) => h.d));
     const freeD = shuffle(DRIVERS.map((_, i) => i).filter((i) => !used.has(i)));
-    const cpus = [];
+    const gp = this.R.gp;
+    let cpus = [];
     for (let n = 0; humans.length + cpus.length < RACERS; n++) {
       const d = freeD.length ? freeD[n % freeD.length] : n % DRIVERS.length, from = DRIVERS[d]?.from;
       const own = KARTS.map((_, i) => i).filter((i) => KARTS[i].domain === from);
@@ -602,7 +647,16 @@ export class Online {
       const gpool = gown.length && Math.random() < 0.5 ? gown : GLIDERS.map((_, i) => i);
       cpus.push({ u: '', slot: 0, n: '', d, k: pool[Math.floor(Math.random() * pool.length)], g: gpool[Math.floor(Math.random() * gpool.length)] });
     }
-    const gr = [...cpus, ...shuffle(humans)];
+    let gr = [...cpus, ...shuffle(humans)];
+    if (gp) {
+      // the same CPU racers all cup long (a human's driver they'd clash with is skipped), and the grid
+      // in reverse order of points: the leader starts at the back
+      gp.cpus ||= cpus.map((c) => ({ d: c.d, k: c.k, g: c.g }));
+      const pool = gp.cpus.filter((c) => !used.has(c.d));
+      cpus = [...pool, ...cpus.filter((c) => !pool.some((q) => q.d === c.d))].slice(0, RACERS - humans.length).map((c) => ({ u: '', slot: 0, n: '', d: c.d, k: c.k, g: c.g }));
+      const ptsOf = (e) => gp.pts.find((p) => p[0] === this.gpKey(e))?.[2] || 0;
+      gr = [...cpus, ...shuffle(humans)].map((e, i) => [e, i]).sort((a, b) => ptsOf(a[0]) - ptsOf(b[0]) || a[1] - b[1]).map(([e]) => e);
+    }
     const ri = (this.R.ri || 0) + 1;
     const raw = { ri, tr: def.id, laps: set.laps, cc: set.cc, df: set.difficulty, sp: set.simple ? 1 : 0, sd: (Math.random() * 4294967295) >>> 0, gr: gr.map((e) => [e.u, e.slot, e.n, DRIVERS[e.d]?.id || '', KARTS[e.k]?.id || '', GLIDERS[e.g]?.id || '']) };
     this.setups.clear();
@@ -634,8 +688,11 @@ export class Online {
       if (!g.u || g.u === this.uid) return;
       // (a player who just dropped out is still in byUid for a few seconds: their kart carries on
       // along the track meanwhile, and is only taken over if they don't come back)
-      const p = s.byUid.get(g.u)?.p || null, here = live.has(g.u);
-      const racing = here && p && p.ld === R.ri && p.s === 'race';
+      const peer = s.byUid.get(g.u), p = peer?.p || null, here = live.has(g.u);
+      // (a screen that has gone quiet for 3 s - hidden, locked, stalled - counts as not racing: its
+      // karts carry on as CPUs and it takes them back from there when it wakes up)
+      const fresh = peer && performance.now() - (peer.t || 0) < 3000;
+      const racing = here && fresh && p && p.ld === R.ri && p.s === 'race';
       if (!nr.taken.has(i) && (!p || (here && counting && !racing && p.s !== 'res'))) nr.takeOver(i);
       else if (nr.taken.has(i) && racing) nr.release(i);
     });
@@ -644,6 +701,20 @@ export class Online {
   }
   hostEndRace(res) {
     if (!this.isHost) return;
+    const gp = this.R.gp, su = this.setups.get(this.R.ri);
+    if (gp && su) {
+      // points: everyone keeps theirs (a player who left still counts, raced by a CPU this time)
+      res.forEach(([i], place) => {
+        const e = su.gr[i];
+        if (!e) return;
+        const key = this.gpKey(e), name = e.u ? e.n : DRIVERS[e.d]?.name || 'CPU';
+        let row = gp.pts.find((p) => p[0] === key);
+        if (!row) gp.pts.push(row = [key, name, 0, DRIVERS[e.d]?.id || '', e.u ? 1 : 0]);
+        row[1] = name; row[3] = DRIVERS[e.d]?.id || row[3];
+        row[2] += POINTS[place] || 0;
+      });
+      gp.round++;
+    }
     this.R.ph = 'res';
     this.R.res = res;
     this.publishMine(true);
@@ -668,6 +739,8 @@ export class Online {
     setTimeout(() => {
       if (this.raceRi !== su.ri || !this.session) return;
       try { this.buildRace(su); } catch (e) { console.error('online race build failed', e); this.toLobby('Something went wrong loading that race.'); return; }
+      this.lastTick = performance.now();   // (building blocks the page for a moment: that's not being frozen)
+      if (this.session && !this.session.isHost) this.session.hostSeenAt = Math.max(this.session.hostSeenAt || 0, this.lastTick);
       this.loadedRi = su.ri;
       this.publishMine(true);
       this.updateLineup();
@@ -693,7 +766,7 @@ export class Online {
       remote: !players.has(i) && !(s.isHost && !e.u),
       name: e.u ? e.n : null, netHuman: !!e.u,
     }));
-    const opts = { def: su.def, mode: 'online', players: g.players, grid, simple: su.sp, cc: CC[su.cc] || 0.92, difficulty: su.df, racers: RACERS, laps: su.laps };
+    const opts = { def: su.def, mode: 'online', players: g.players, grid, simple: su.sp, cc: CC[su.cc] || 0.92, difficulty: su.df, racers: RACERS, laps: su.laps, seed: su.sd };
     // the world is built from the host's seed, so every screen gets the same one
     const race = withSeed(su.sd, () => g.buildRace(opts, false));
     g.hudRoot.classList.add('hidden');
@@ -716,11 +789,55 @@ export class Online {
     if (go && s) { const left = (go - s.sharedNow()) / 1000 - INTRO - COUNT; note = left > 0 ? `Starting in ${Math.ceil(left)}…` : 'Go!'; }
     this.lineup.setStatus(ready, note, nReady === people.length ? 'Everyone is here!' : undefined);
   }
+  // The page is hidden (or about to be frozen): a host hands the room on - straight away on a phone
+  // or when the page is being frozen (it may not run again for a while), after 2 s in a race on a
+  // computer (a quick look at another tab costs nothing), after 30 s in the menus.
+  onHidden(hidden, now = false) {
+    clearTimeout(this.hideT);
+    const s = this.session;
+    if (!hidden || !s?.isHost || s.status !== 'open') return;
+    const racing = this.view === 'race' || this.view === 'lineup';
+    const wait = now || isPhoneScreen() ? 0 : racing ? 2000 : 30000;
+    const go = () => { if ((document.hidden || now) && this.session === s && s.isHost) this.handOff('hidden'); };
+    if (wait) this.hideT = setTimeout(go, wait); else go();
+  }
+  handOff(why) {
+    const s = this.session;
+    if (!s?.isHost || !s.handoff()) return;
+    console.info('online: handing the room on (' + why + ')');
+  }
   // per frame (from the game loop)
   tick(dt) {
     const s = this.session;
     if (!s) return;
+    // a long gap between frames: this page was frozen or hidden. A host can't have kept the CPU
+    // karts going (the others will have given up on it), so it moves over as a guest; a guest gives
+    // the host the benefit of the doubt for a moment (its messages may still be on their way)
+    const tNow = performance.now(), gap = tNow - (this.lastTick || tNow);
+    this.lastTick = tNow;
+    if (gap > 1000 && !s.isHost) s.hostSeenAt = Math.max(s.hostSeenAt || 0, tNow);
+    // A host after such a gap checks a moment later whether the others gave up on it (they leave
+    // after 4 s of silence in a race): if every other screen has gone, it follows them. (A long
+    // frame of our own - loading a track - looks the same, so it's the others leaving that counts.)
+    if (s.isHost && s.status === 'open' && gap > (this.view === 'race' ? 3500 : 20000)) this.gapCheck = { at: tNow + 2500, had: s.byUid.size };
+    if (this.gapCheck && tNow > this.gapCheck.at) {
+      const had = this.gapCheck.had;
+      this.gapCheck = null;
+      const live = [...s.peers.values()].some((p) => p.uid);
+      if (s.isHost && s.status === 'open' && had > 0 && !live) { this.handOff('the others moved on'); return; }
+    }
+    // a host that has gone silent (a locked phone that never got to hand over): everyone moves on.
+    // (Racing it publishes 15 times a second; loading can block it for a while; in the menus it
+    // sends at least every 5 s.)
+    if (!s.isHost && s.status === 'open' && s.hostSeenAt && this.view !== 'joining') {
+      const limit = this.view === 'race' ? 4000 : this.view === 'lineup' ? 20000 : 25000;
+      if (tNow - s.hostSeenAt > limit) { this.bubble('The host stopped responding — finding a new host…'); s.abandonHost(); return; }
+    }
     s.tick(dt);
+    // our own kart driven by the host (we were away): say so until we have it back
+    const nr = this.netRace;
+    const away = nr && !nr.spectating && [...nr.myIdxs].some((i) => nr.taken.has(i)) && this.view === 'race';
+    if (away !== !!this.awayShown) { this.awayShown = away; if (away) this.banner('Catching up — your kart is on autopilot for a moment…'); else if (!['reconnecting', 'migrating'].includes(s.status)) this.banner(null); }
     if (s.isHost && s.status === 'open' && this.R) {
       this.hostT = (this.hostT || 0) - dt;
       if (this.hostT <= 0) { this.hostT = 0.25; this.hostCheck(); }
@@ -742,9 +859,8 @@ export class Online {
     }
     // the host's room state rides on its kart updates during a race
     if (this.view === 'race' && s.isHost && this.R) {
-      const m = s.mine, R = { ...this.R, o: s.order, g: s.gen }, su = this.setups.get(this.R.ri), t = performance.now();
-      delete R.loadAt;
-      if (su && t - (this.suT || 0) > 1000) { R.su = su.raw; this.suT = t; }
+      const m = s.mine, R = this.roomOut(), su = this.setups.get(this.R.ri), t = performance.now();
+      if ((su || this.R.gp) && t - (this.suT || 0) > 1000) { if (su) R.su = su.raw; if (this.R.gp) R.gp = this.gpOut(); this.suT = t; }
       m.R = R;
     }
   }
@@ -770,21 +886,48 @@ export class Online {
       for (const c of race.cams) { c.kart.engine?.set(0, false, false); c.kart.finished = true; }
     }
     g.touchRoot.classList.add('hidden');
+    const gp = this.isHost ? this.R?.gp : this.gp;
+    this.resRound = gp?.round;
     const rows = res.slice(0, RACERS).map((r, n) => {
       const i = int(r?.[0], 0, RACERS - 1), e = su.gr[i] || {}, d = DRIVERS[e.d] || DRIVERS[0];
       const t = num(r?.[1], 0, 1e5), est = !!r?.[2], me = e.u === this.uid;
-      return `<div class="rrow${me ? ' me' : ''}${e.u ? ' ol' : ''}" style="${me ? `--pc:${PCOL[e.slot % 8]}` : e.u ? '--pc:#3b8bff' : ''}"><span class="pl">${ORD(n + 1)}</span><img src="${driverPortrait(d)}" alt=""><span class="nm">${e.u ? `${this.devTag(e.si, e.slot, e.multi)}${esc(e.n)}${e.n.startsWith(d.name) ? '' : ` <em>${esc(d.name)}</em>`}` : `${esc(d.name)} <em class="cpu">CPU</em>`}</span><span class="tm">${est ? '--:--.--' : fmt(t)}</span></div>`;
+      return `<div class="rrow${me ? ' me' : ''}${e.u ? ' ol' : ''}" style="${me ? `--pc:${PCOL[e.slot % 8]}` : e.u ? '--pc:#3b8bff' : ''}"><span class="pl">${ORD(n + 1)}</span><img src="${driverPortrait(d)}" alt=""><span class="nm">${e.u ? `${this.devTag(e.si, e.slot, e.multi)}${esc(e.n)}${e.n.startsWith(d.name) ? '' : ` <em>${esc(d.name)}</em>`}` : `${esc(d.name)} <em class="cpu">CPU</em>`}</span><span class="tm">${est ? '--:--.--' : fmt(t)}</span>${gp ? `<span class="pts">+${POINTS[n] || 0}</span>` : ''}</div>`;
     }).join('');
+    if (gp) { this.showGPResults(gp, su, rows); return; }
     const items = this.isHost
       ? [{ label: 'Next race ▶︎', action: () => this.hostNext(true) }, { label: 'Change racers', action: () => this.hostNext(false) }, { label: 'Leave room', action: () => this.toLobby() }]
       : [{ label: 'Leave room', action: () => this.toLobby() }];
     g.resultsMenu(`Results · ${su.def.name}`, `<div class="results">${rows}</div>${this.isHost ? '' : '<p class="ol-note">Waiting for the host to start the next race…</p>'}`, items);
     this.publishMine(true);
   }
+  // Grand Prix results: this race with its points, and the standings so far (or the final ones)
+  showGPResults(gp, su, rows) {
+    const g = this.game, last = gp.round >= gp.tracks.length;
+    const order = [...gp.pts].sort((a, b) => b[2] - a[2]);
+    const medal = ['🥇', '🥈', '🥉'];
+    const stand = order.map((p, n) => {
+      const d = DRIVERS.find((x) => x.id === p[3]) || DRIVERS[0], me = p[0].startsWith(this.uid + ':');
+      return `<div class="rrow${me ? ' me' : ''}${p[4] ? ' ol' : ''}" style="${me ? '--pc:#ff4a3a' : p[4] ? '--pc:#3b8bff' : ''}"><span class="pl">${last && n < 3 ? medal[n] : ORD(n + 1)}</span><img src="${driverPortrait(d)}" alt=""><span class="nm">${esc(p[1])}${p[4] ? '' : ' <em class="cpu">CPU</em>'}</span><span class="pts big">${p[2]}</span></div>`;
+    }).join('');
+    const next = TRACKS.find((t) => t.id === gp.tracks[gp.round]);
+    const head = last ? `🏆 ${esc(order[0]?.[1] || '')} wins the ${esc(gp.name)}!` : `Standings after race ${gp.round} of ${gp.tracks.length}`;
+    const items = this.isHost
+      ? last ? [{ label: 'New race ▶︎', action: () => { this.R.gp = null; this.hostNext(false); } }, { label: 'Leave room', action: () => this.toLobby() }]
+        : [{ label: `Next: ${next?.name || 'race'} ▶︎`, action: () => this.hostNext(true) }, { label: 'Leave room', action: () => this.toLobby() }]
+      : [{ label: 'Leave room', action: () => this.toLobby() }];
+    g.resultsMenu(`${gp.name} · ${last ? 'Final standings' : `Race ${gp.round}/${gp.tracks.length} · ${su.def.name}`}`,
+      `<div class="ol-gp"><div><h3>${esc(su.def.name)}</h3><div class="results">${rows}</div></div><div><h3>${head}</h3><div class="results">${stand}</div></div></div>${this.isHost ? '' : `<p class="ol-note">${last ? 'The cup is over!' : `Next: ${esc(next?.name || '')} — waiting for the host…`}</p>`}`, items);
+    if (last) g.audio.sfx('finish');
+    this.publishMine(true);
+  }
   hostNext(keep) {
     Object.assign(this.R, { n: (this.R.n || 0) + 1, keep: keep ? 1 : 0, res: null, go: null, tk: [], ph: 'sel' });
     this.showSelect(keep);
-    if (keep && this.local.length && this.local.every((p) => p.ph === 'r')) this.toTrack();
+    // straight on to the map (or the cup's next map) if everyone's still locked in; anyone new picks first
+    // (a screen with nobody on it yet - someone who arrived during the race - gets to pick first,
+    // unless the room is already full)
+    const hs = this.humans(), fresh = hs.length < RACERS && this.session.members().some((m) => !m.me && !(Array.isArray(m.p?.pl) && m.p.pl.length));
+    if (keep && this.local.length && this.local.every((p) => p.ph === 'r') && hs.every((h) => h.ph === 'r') && !fresh) this.toTrack();
   }
   showWaiting() {
     this.view = 'wait';

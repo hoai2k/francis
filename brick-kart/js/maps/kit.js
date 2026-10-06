@@ -4,7 +4,7 @@ import { BrickBuilder, C, plastic, baseplateMat, brickGeometry, faceTexture } fr
 import { groundPlane } from '../world.js';
 import { LEGO } from '../decor.js';
 export { tree, roundTree, pine, palm, rock, lamp, building, snowman, crystal, tower, wallSeg, cloud, mountain, grandstand, billboard, minifig, canvasTexture, pick, rng } from '../decor.js';
-export { mover, trackMover, crossing, geyser, crusher, spinner, cannon } from '../hazards.js';
+export { mover, trackMover, crossing, geyser, crusher, spinner, cannon, cycleRandom } from '../hazards.js';
 export { THREE, BrickBuilder, C, plastic, baseplateMat, brickGeometry, faceTexture, groundPlane };
 
 const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), E = new THREE.Euler(), V = new THREE.Vector3(), S = new THREE.Vector3();

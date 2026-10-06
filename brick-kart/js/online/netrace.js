@@ -38,7 +38,7 @@ class Puppet {
     this.cur = blankSnap();               // the interpolated state this frame
     this.disp = new THREE.Vector3().copy(k.pos); this.dispYaw = k.yaw;
     this.init = false;
-    this.delay = 0.13; this.late = 0.06; this.dev = 0.02; this.space = 1 / RACE_HZ;
+    this.delay = 0.15; this.late = 0.06; this.dev = 0.02; this.space = 1 / RACE_HZ;
     this.gestN = -1;
     this.ctl = { throttle: 0, brake: 0, steer: 0, drift: false, driftPressed: false, itemPressed: false, back: false, aimFwd: false };
     this.renderT = -1e9;
@@ -51,9 +51,11 @@ class Puppet {
     // render delay sits just behind the newest data, with room for the next update and jitter
     const late = nowT - s.t;
     if (Number.isFinite(late) && Math.abs(late) < 5) {
+      // (outliers are clamped: a rare stall is bridged by dead reckoning rather than holding
+      // everything further back for good)
       if (!this.lateInit) { this.late = late; this.lateInit = true; }
-      this.dev += (Math.abs(late - this.late) - this.dev) * 0.1;
-      this.late += (late - this.late) * 0.1;
+      this.dev += (Math.min(0.06, Math.abs(late - this.late)) - this.dev) * 0.1;
+      this.late += (Math.min(late, this.late + 0.08) - this.late) * 0.1;
     }
     if (last) this.space += (Math.min(0.5, s.t - last.t) - this.space) * 0.1;
     this.head = (this.head + 1) % BUF;
@@ -62,7 +64,9 @@ class Puppet {
     this.n = Math.min(BUF, this.n + 1);
     return true;
   }
-  targetDelay() { return Math.max(0.09, Math.min(0.35, this.late + this.space + 2 * this.dev + 0.015)); }
+  // (capped at 0.6 s: on a very slow link, being a little further behind beats guessing)
+  // (the spacing term is capped: before GO updates come only 3 times a second)
+  targetDelay() { return Math.max(0.09, Math.min(0.6, this.late + Math.min(0.15, this.space) + 2 * this.dev + 0.015)); }
 }
 
 export class NetRace {
@@ -104,7 +108,8 @@ export class NetRace {
   ownerOf(i) { const g = this.grid[i]; return g && g.u && !this.taken.has(i) ? g.u : this.hostUid(); }
   // does this screen simulate kart i?
   owns(i) {
-    if (this.myIdxs.has(i)) return true;
+    // (our own karts too, unless the host is driving them for us: we were away / not updating)
+    if (this.myIdxs.has(i)) return !this.taken.has(i);
     return this.session.isHost && this.ownerOf(i) === this.me;
   }
   // Re-check who simulates each kart (after a takeover, a release or a host change) and switch
@@ -134,8 +139,9 @@ export class NetRace {
         k.lapSeen = Math.max(k.lapSeen || 0, k.lap);
         if (!k.human) race.drivers.set(k, new AIDriver(k, race, this.setup.df || 'normal'));
         this.puppets.delete(k.idx);
-      } else if (!mine && !k.remote && !k.human) {
-        // a CPU we drove goes back to its owner's updates
+      } else if (!mine && !k.remote) {
+        // a CPU we drove goes back to its owner's updates (or our own kart, while the host drives it
+        // for us: when we get it back we carry on from where the host had it)
         k.remote = true;
         race.drivers.delete(k);
         const p = new Puppet(k);
@@ -211,9 +217,11 @@ export class NetRace {
     const now = this.clockNow();
     for (const p of this.puppets.values()) {
       if (!p.n) { p.k.syncModel(dt); continue; }
-      // ease the render delay towards its target (time runs at most 5% fast or slow)
+      // ease the render delay towards its target (time runs at most 5% fast, or 15% slow when updates
+      // are arriving later than we allowed for); before GO nothing moves, so it's set outright
       const want = p.targetDelay();
-      p.delay += Math.max(-dt * 0.05, Math.min(dt * 0.05, want - p.delay));
+      if (!this.race.started) p.delay = want;
+      else p.delay += Math.max(-dt * 0.05, Math.min(dt * 0.15, want - p.delay));
       p.renderT = now - p.delay;
       this.sample(p, p.renderT);
       this.pose(p, dt);

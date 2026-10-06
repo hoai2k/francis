@@ -4,7 +4,7 @@
 // candles, across the Quidditch pitch dodging Bludgers, past Hagrid's hut and the
 // Whomping Willow, into the Forbidden Forest (Aragog's spiders), then glide over the
 // Black Lake and race the giant squid's tentacles back to the station.
-import { THREE, BrickBuilder, C, plastic, groundPlane, pine, rock, minifig, liquid, disc, strokeTrack, inRange, each, edges, arch, tunnel, mat4, crossing, brickGeometry, canvasTexture } from './kit.js';
+import { THREE, BrickBuilder, C, plastic, groundPlane, pine, rock, minifig, liquid, disc, strokeTrack, inRange, each, edges, arch, tunnel, mat4, crossing, brickGeometry, canvasTexture, cycleRandom } from './kit.js';
 import * as P from './hogwarts-props.js';
 
 const V1 = new THREE.Vector3(), V2 = new THREE.Vector3();
@@ -96,6 +96,7 @@ function dementorSwoop(ctx, { center, targets, period = 5.5, offset = 0, radius 
   ctx.group.add(marker);
   const target = new THREE.Vector3(), from = new THREE.Vector3(), cpos = new THREE.Vector3();
   let state = 0, cycle = -1, frozeFx = false;
+  const rnd = cycleRandom();   // (the same pick on every online screen)
   const TEL = 1.7, DIVE = 0.7, HIT = 0.45, RISE = 1.3;
   return {
     update(dt, t) {
@@ -104,9 +105,9 @@ function dementorSwoop(ctx, { center, targets, period = 5.5, offset = 0, radius 
       cpos.set(center.x + Math.cos(a) * 26, center.y + 20 + Math.sin(tt * 1.3) * 2, center.z + Math.sin(a) * 18);
       if (n !== cycle) {
         cycle = n;
-        const [k, lf] = targets[Math.floor(Math.random() * targets.length)];
-        const i = tr.wrap(tr.kToIndex(k) + Math.floor((Math.random() - 0.5) * 10));
-        tr.at(i, (lf + (Math.random() - 0.5) * 0.4) * tr.HW[i], 0.14, target);
+        const [k, lf] = targets[Math.floor(rnd(n, 0) * targets.length)];
+        const i = tr.wrap(tr.kToIndex(k) + Math.floor((rnd(n, 1) - 0.5) * 10));
+        tr.at(i, (lf + (rnd(n, 2) - 0.5) * 0.4) * tr.HW[i], 0.14, target);
       }
       const s0 = period - TEL - DIVE - HIT - RISE;
       marker.position.copy(target);

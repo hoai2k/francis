@@ -16,7 +16,7 @@ function slashTexture() {
 }
 
 // Jogo's meteors and Gojo's Hollow Purple in the Unlimited Void and head home.
-import { THREE, BrickBuilder, C, plastic, groundPlane, pine, rock, lamp, building, crossing, liquid, disc, strokeTrack, inRange, each, edges, arch, tunnel, mat4, canvasTexture, brickGeometry } from './kit.js';
+import { THREE, BrickBuilder, C, plastic, groundPlane, pine, rock, lamp, building, crossing, liquid, disc, strokeTrack, inRange, each, edges, arch, tunnel, mat4, canvasTexture, brickGeometry, cycleRandom } from './kit.js';
 import * as P from './jjk-props.js';
 
 const V1 = new THREE.Vector3(), V2 = new THREE.Vector3();
@@ -93,29 +93,35 @@ function meteors(ctx, { from, targets, period = 2.6, offset = 0 }) {
   marker.add(fill);
   ctx.group.add(rockG, marker);
   rockG.visible = marker.visible = false;
-  let t0 = -offset, flying = false, boom = 0;
+  let boom = 0, cur = -1, landed = -1, flying = false;
+  const rnd = cycleRandom();
   const target = new THREE.Vector3(), src = new THREE.Vector3();
-  const FLIGHT = 1.9;
+  const FLIGHT = 1.9, BOOM = 0.28;
   return {
+    // rock n leaves at exactly n periods of the hazard clock and lands on a spot hashed from n:
+    // the same on every online screen
     update(dt, t) {
-      boom = Math.max(0, boom - dt);
-      if (!flying && t - t0 > period) {
-        t0 = t; flying = true;
-        const [k, latF] = targets[Math.floor(Math.random() * targets.length)];
-        const i = tr.wrap(tr.kToIndex(k) + Math.floor((Math.random() - 0.5) * 16));
-        tr.at(i, (latF + (Math.random() - 0.5) * 0.5) * tr.HW[i], 0.12, target);
+      const x = t + offset, n = Math.floor(x / period), u = x - n * period;
+      if (n >= 1 && n !== cur) {
+        cur = n;
+        const [k, latF] = targets[Math.floor(rnd(n, 0) * targets.length)];
+        const i = tr.wrap(tr.kToIndex(k) + Math.floor((rnd(n, 1) - 0.5) * 16));
+        tr.at(i, (latF + (rnd(n, 2) - 0.5) * 0.5) * tr.HW[i], 0.12, target);
         src.copy(typeof from === 'function' ? from() : from);
       }
-      if (!flying) { rockG.visible = marker.visible = false; return; }
-      const f = (t - t0) / FLIGHT;
-      if (f >= 1) {
-        flying = false; boom = 0.28;
-        const fx = fxOf(ctx);
-        if (fx) { fx.explosion(target); for (let n = 0; n < 20; n++) { const a = Math.random() * 6.28; fx.spark(target.x, target.y + 0.5, target.z, Math.cos(a) * 9, 8 + Math.random() * 8, Math.sin(a) * 9, 0xff4a00, 0.8, 18); } }
-        ctx.world.race?.audio.sfx('cannon', target);
+      boom = n >= 1 && u >= FLIGHT && u < FLIGHT + BOOM ? FLIGHT + BOOM - u : 0;
+      flying = n >= 1 && u < FLIGHT;
+      if (n < 1 || u >= FLIGHT) {
         rockG.visible = marker.visible = false;
+        if (boom > 0 && landed !== n) {
+          landed = n;
+          const fx = fxOf(ctx);
+          if (fx) { fx.explosion(target); for (let j = 0; j < 20; j++) { const a = Math.random() * 6.28; fx.spark(target.x, target.y + 0.5, target.z, Math.cos(a) * 9, 8 + Math.random() * 8, Math.sin(a) * 9, 0xff4a00, 0.8, 18); } }
+          ctx.world.race?.audio.sfx('cannon', target);
+        }
         return;
       }
+      const f = u / FLIGHT;
       rockG.visible = marker.visible = true;
       rockG.position.lerpVectors(src, target, f);
       rockG.position.y += Math.sin(f * Math.PI) * 38;

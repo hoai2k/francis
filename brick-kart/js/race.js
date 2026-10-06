@@ -14,7 +14,7 @@ import { GLIDERS } from './gliders.js';
 import { ABILITY, ABILITIES } from './abilities.js';
 import { MAP_FROM } from './tracks.js';
 import { HUD, splitCells } from './hud.js';
-import { Hazards } from './hazards.js';
+import { Hazards, hazardSeeds } from './hazards.js';
 
 export const MAX_RACERS = 12;   // karts per race, players included
 const V = new THREE.Vector3();
@@ -98,7 +98,8 @@ export class Race {
     this.cc = opts.cc ?? 0.92;
     this.scene = new THREE.Scene();
     this.scene.environment = game.envMap;
-    this.world = new World(opts.def, this.scene);
+    hazardSeeds(opts.seed ?? null);   // online: hazards' random choices follow the race seed
+    try { this.world = new World(opts.def, this.scene); } finally { hazardSeeds(null); }
     this.world.race = this;
     this.track = this.world.track;
     this.hazards = new Hazards(this, this.world.hazards);

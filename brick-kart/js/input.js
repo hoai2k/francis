@@ -42,10 +42,12 @@ export class Input {
     addEventListener('keyup', (e) => this.keys.delete(e.code));
     addEventListener('blur', () => this.keys.clear());
     this.edge = new Set();
+    this.used = new Set();         // edge-triggered race controls already handed out this frame
   }
 
   // call once per frame
   poll() {
+    this.used.clear();
     this.edge = this.pressed;
     this.pressed = new Set();
     this.padPrev = this.padNow;
@@ -112,6 +114,11 @@ export class Input {
         c.pause = this.pEdge(dev, 9);
       }
     }
+    // a press counts once per frame: a slow frame steps the race twice with the same input, which
+    // used to fire a Triple item twice (or hop twice) for one press
+    if (c.itemPressed && this.used.has(dev + ':i')) c.itemPressed = false; else if (c.itemPressed) this.used.add(dev + ':i');
+    if (c.driftPressed && this.used.has(dev + ':d')) c.driftPressed = false; else if (c.driftPressed) this.used.add(dev + ':d');
+    if (c.pause && this.used.has(dev + ':p')) c.pause = false; else if (c.pause) this.used.add(dev + ':p');
     return c;
   }
 
