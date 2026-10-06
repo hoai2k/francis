@@ -175,6 +175,8 @@ export class DriverAnim {
     if (s.look) { p.hy = Math.PI * 0.55; p.ty = 0.45; p.rx = -0.4; p.rz = -0.1; }
     // standing on the select stage (no kart): arms hang relaxed, angled a little away from the body
     if (s.stand) { p.lx = -0.12 + S(t * 1.1) * 0.08; p.rx = -0.12 - S(t * 1.1) * 0.08; p.lz = 0.2 + S(t * 0.8) * 0.04; p.rz = -0.2 - S(t * 0.8) * 0.04; p.by = 0; }
+    // rigs with fixed arms (R2-D2's connectors) keep this arm pose through every gesture
+    const arms = rig.armsFixed ? [p.lx, p.rx, p.lz, p.rz] : null;
     if (s.phase === 'pre') {
       p.hy = S(t * 0.8) * 0.7; p.hx = S(t * 0.5) * 0.1; p.by = Math.abs(S(t * 9)) * 0.02;
     } else if (s.phase === 'win') {
@@ -193,6 +195,10 @@ export class DriverAnim {
         const w = ease(Math.min(1, f / 0.12, (1 - f) / 0.2));
         for (const k in gp) if (k in this.p) p[k] = (p[k] ?? 0) * (1 - w) + gp[k] * w;
       }
+    }
+    if (arms) {
+      [p.lx, p.rx, p.lz, p.rz] = arms;
+      if (s.stand) { p.lx = p.rx = p.lz = p.rz = 0; }
     }
     // smooth toward the target pose (spins are tracked directly)
     const k = Math.min(1, dt * 14);

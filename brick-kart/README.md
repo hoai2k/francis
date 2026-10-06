@@ -85,19 +85,19 @@ You pick a **driver** and then a **kart** separately, like Mario Kart. Pick a
 driver from the grid (they stand on their own in your preview, introducing
 themselves with waves, hops, twirls, dances and their signature moves) and press
 **A** (they jump-spin with a cheer, then hop into their kart); then flip through karts with **◀ ▶** in your
-own preview and press **A** again to lock it in (**B** steps back). While you're on
-the kart, press **▲ / ▼** (or tap **Kart** / **Glider**) to switch to choosing your
-**glider**: the preview slides up or down out of its panel and back in as the
-kart flying under its open glider, seen from further back so the whole wing shows;
-◀ ▶ then flips through gliders, and ▲ / ▼ again switches back to the kart. Every player
+own preview and press **A** again to lock it in (**B** steps back). The kart does a
+celebration spin and hop, then the preview slides on to the **glider** step: the
+kart flying under its open glider, seen from further back so the whole wing shows.
+Flip through gliders with ◀ ▶ and press **A** to lock it in. When the last player
+locks in their glider the race starts (on to the cup or map choice) after their
+victory pose, with no extra press needed. Every player
 does this at their own pace, so nobody waits for anyone else. On phones there's
 no grid: the preview fills the screen and you flip through drivers with ◀ ▶ too,
 tapping **Lock in**. On a touch screen you can also swipe the preview left / right
-to flip through drivers, karts and gliders, and swipe up / down to switch between the
-kart and the glider. Wherever the figures stand, the camera frames them in the part of
+to flip through drivers, karts and gliders. Wherever the figures stand, the camera frames them in the part of
 the preview no text or button covers. Phones are single-player (the whole screen
 is one big preview and fits without scrolling); tablets and computers take up to 8. The **Back**
-button steps back one stage (ready → kart → driver → menu), coming back from the
+button steps back one stage (ready → glider → kart → driver → menu), coming back from the
 cup or map screen keeps everyone locked in, and each player slot remembers the
 driver, kart and glider it last looked at. The 14 original Brick Kart drivers are listed after the
 movie casts, and the classic karts come after the newer vehicles. The drivers are brick-built movie characters from

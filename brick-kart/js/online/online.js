@@ -518,7 +518,7 @@ export class Online {
         if (players.some((p) => p.phase === 'name')) return '<b>▲ ▼</b> pick your name · <b>A</b> OK · <b>X</b> forget a saved name';
         const ready = players.length && players.every((p) => p.phase === 'done');
         const more = !isPhoneScreen() && players.length < 8 ? ' · more players here: press <b>A</b> on another controller' : '';
-        if (!ready) return (players.some((p) => p.phase === 'kart') ? '<b>◀︎ ▶︎</b> change · <b>▲ ▼</b> kart / glider · <b>A</b> lock it in' : '<b>A</b> lock in your driver') + more;
+        if (!ready) return (players.some((p) => p.phase === 'kart') ? '<b>◀︎ ▶︎</b> change · <b>A</b> lock it in' : '<b>A</b> lock in your driver') + more;
         const waiting = this.humans().filter((h) => !h.me && h.ph !== 'r').map((h) => h.name);
         if (this.isHost) return waiting.length ? `Waiting for <b>${esc(waiting.slice(0, 3).join(', '))}</b>${waiting.length > 3 ? '…' : ''} · press <b>Race!</b> twice to go without them` : 'Everyone is ready! Press <b>A</b> / <b>Race!</b> to pick a map';
         return this.R?.ph === 'trk' ? 'Host is picking a map…' : `Ready! Waiting for ${waiting.length ? esc(waiting.slice(0, 3).join(', ')) : 'the host'}…`;

@@ -406,12 +406,17 @@ function r2d2() {
     torso.add(pv);
     return pv;
   });
-  const rig = { root, torso, head, armL: arms[0], armR: arms[1], armLen: 0.42, height: 1.5, width: 1.45 };
+  // the front connectors plug into the steering wheel but never wave (armsFixed: gestures and the
+  // select screen's moves leave them where they are)
+  const rig = { root, torso, head, armL: arms[0], armR: arms[1], armLen: 0.42, height: 1.5, width: 1.45, armsFixed: true };
+  // his wave: the periscope rises out of the dome and turns left and right (k: 0..1 how far up)
+  const scope = (k, t) => { peri.position.y = 0.3 * k; peri.rotation.y = S(t * 4) * 1.0 * k; };
+  rig.wave = scope;
   rig.fx = (name, f, t) => {
     const cheer = name === 'cheer', win = name === 'win';
-    if (cheer) head.rotation.y = f * PI * 4;
-    else if (win) head.rotation.y = t * 5;
-    peri.position.y = cheer || win ? 0.2 + S(t * 9) * 0.05 : 0;
+    if (cheer) head.rotation.y = S(f * PI * 2) * 0.6;
+    else if (win) head.rotation.y = S(t * 2) * 0.5;
+    scope(cheer || win ? 1 : 0, t);
     fire.visible = name === 'trick' || name === 'use' || win;
     if (fire.visible) fire.scale.z = 0.75 + S(t * 37) * 0.25;
   };
@@ -882,10 +887,11 @@ export default [
     id: 'r2d2', name: 'R2-D2', blurb: 'Plucky astromech droid', weight: 'light', color: 0x1f55b8,
     voice: { kind: 'droid', pitch: 1.0 }, style: { cheer: 'beep', trick: 'arms' },
     gestures: {
-      cheer: (f, t) => ({ lx: -1.6 + S(t * 16) * 0.6, rx: -1.6 - S(t * 16) * 0.6, by: A(S(t * 12)) * 0.12, tz: S(t * 12) * 0.12 }),
-      win: (f, t) => ({ lx: -1.7 + S(t * 14) * 0.5, rx: -1.7 - S(t * 14) * 0.5, by: A(S(t * 7)) * 0.1, tz: S(t * 7) * 0.14 }),
+      // no arms to wave: he rocks and bobs while the periscope comes up and looks around (rig.fx)
+      cheer: (f, t) => ({ by: A(S(t * 12)) * 0.12, tz: S(t * 12) * 0.12 }),
+      win: (f, t) => ({ by: A(S(t * 7)) * 0.1, tz: S(t * 7) * 0.14 }),
       taunt: (f, t, rig, a) => ({ hy: a.tauntSide * 1.5, tz: a.tauntSide * 0.16, by: A(S(t * 18)) * 0.05 }),
-      trick: (f) => ({ by: S(f * PI) * 0.3, lx: -0.2, rx: -0.2, tx: 0.12 }),
+      trick: (f) => ({ by: S(f * PI) * 0.3, tx: 0.12 }),
     },
     build: r2d2,
   },
