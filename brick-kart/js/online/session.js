@@ -64,8 +64,22 @@ export class Session {
   setStatus(s, info) { this.status = s; this.emit('status', s, info); }
 
   // ---- lobby ------------------------------------------------------------------------------------
+  // The open rooms, every 4 s while the lobby is open. (Our own loop rather than the client's
+  // watchRooms: each request gives up after 6 s, so a relay that never answers shows as an error
+  // instead of "Connecting…" for ever.)
   watchRooms(cb) {
-    try { return this.net.watchRooms(cb, 4000); } catch (e) { cb({ rooms: [], error: e }); return () => {}; }
+    let stopped = false, timer = null;
+    const tick = async () => {
+      let res;
+      try {
+        res = { rooms: await Promise.race([this.net.listRooms(), new Promise((_, no) => setTimeout(() => no(new Error('lobby timed out')), 6000))]) };
+      } catch (error) { res = { rooms: [], error }; }
+      if (stopped) return;
+      try { cb(res); } catch (e) { console.error(e); }
+      timer = setTimeout(tick, 4000);
+    };
+    tick();
+    return () => { stopped = true; clearTimeout(timer); };
   }
 
   // ---- hosting and joining ------------------------------------------------------------------------

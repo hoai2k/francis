@@ -12,13 +12,25 @@ const V = new THREE.Vector3();
 
 export class Lineup {
   // people: [{ uid, name, d, k, g }] (indices into DRIVERS / KARTS / GLIDERS); title: the map's name
-  constructor(game, people, title, sub) {
+  // onLeave: leave the room (Back twice, or the Leave button)
+  constructor(game, people, title, sub, onLeave = null) {
     this.game = game;
+    this.onLeave = onLeave;
     this.people = people;
     const labels = people.map((p, i) => `<div class="lu-tag${p.me ? ' me' : ''}" data-n="${i}"><b>${p.tag || ''}${esc(p.name)}</b><span>${p.name.startsWith(DRIVERS[p.d]?.name || '\u0000') ? '&nbsp;' : esc(DRIVERS[p.d]?.name || '')}</span><i class="lu-st"></i></div>`).join('');
     game.setScreen(`<div class="screen lineup"><div class="lu-head"><h2>${esc(title)}</h2><p class="lu-sub">${esc(sub || '')}</p></div>
       <div class="lu-stage"><canvas class="lu-cv"></canvas><div class="lu-tags">${labels}</div></div>
-      <div class="lu-foot"><span class="lu-note">Loading…</span></div></div>`, { update: (dt) => this.update(dt) });
+      <div class="lu-foot"><span class="lu-note">Loading…</span>${onLeave ? '<button class="bbtn lu-leave" data-act="leave">Leave</button>' : ''}</div></div>`, {
+      update: (dt) => {
+        for (const [, m] of game.menuEvents) if (m.back && this.onLeave) {
+          const t = performance.now();
+          if (t - (this.backAt || 0) < 3000) { this.onLeave(); return; }
+          this.backAt = t; this.note.textContent = 'Press Back again to leave the room';
+        }
+        this.update(dt);
+      },
+      act: (a) => { if (a === 'leave') this.onLeave?.(); },
+    });
     const ui = game.ui;
     this.cv = ui.querySelector('.lu-cv');
     this.tags = [...ui.querySelectorAll('.lu-tag')];

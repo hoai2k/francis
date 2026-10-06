@@ -730,7 +730,7 @@ export class Online {
     this.view = 'lineup';
     const people = su.gr.filter((e) => e.u).map((e) => ({ uid: e.u, name: e.n, d: e.d, k: e.k, g: e.g, tag: this.devTag(e.si, e.slot, e.multi), me: e.u === this.uid }));
     const mine = su.gr.some((e) => e.u === this.uid);
-    this.lineup = new Lineup(g, people, su.def.name, mine ? 'Loading the track…' : "You're watching this one — you'll race in the next");
+    this.lineup = new Lineup(g, people, su.def.name, mine ? 'Loading the track…' : "You're watching this one — you'll race in the next", () => this.toLobby());
     g.hudRoot.classList.add('hidden');
     g.touchRoot.classList.add('hidden');
     this.publishMine(true);
@@ -749,10 +749,9 @@ export class Online {
   }
   buildRace(su) {
     const g = this.game, s = this.session;
-    // too late to race (the host already took our karts over): watch instead
+    // (loading late is fine: the host drives our karts meanwhile and hands them over once we're racing)
     const mineIdx = su.gr.map((e, i) => (e.u === this.uid ? i : -1)).filter((i) => i >= 0);
-    const late = mineIdx.length && this.R?.ph === 'race' && mineIdx.every((i) => this.R.tk?.includes(i));
-    const spectate = !mineIdx.length || !!late;
+    const spectate = !mineIdx.length;
     const players = new Map();
     if (!spectate) for (const i of mineIdx) {
       const e = su.gr[i], lp = this.local.find((p) => p.slot === e.slot);
@@ -873,7 +872,22 @@ export class Online {
     g.paused = false;
     g.hudRoot.classList.remove('hidden');
     g.touchRoot.classList.toggle('hidden', !g.players.some((p) => p.device === 'touch'));
+    if (this.netRace?.spectating) this.specBar(true);
     this.publishMine(true);
+  }
+  // spectators: buttons to switch whom to follow and to open the menu (touch has no keys)
+  specBar(on) {
+    document.getElementById('ol-spec')?.remove();
+    if (!on) return;
+    const el = document.createElement('div');
+    el.id = 'ol-spec';
+    el.innerHTML = '<button data-s="-1" aria-label="Previous racer">◀︎</button><button data-s="menu" aria-label="Menu">☰</button><button data-s="1" aria-label="Next racer">▶︎</button>';
+    el.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-s]');
+      if (!b || this.view !== 'race') return;
+      if (b.dataset.s === 'menu') this.pause(); else this.netRace?.cycleSpec(+b.dataset.s);
+    });
+    document.body.appendChild(el);
   }
 
   // ---- results -----------------------------------------------------------------------------------------------
@@ -1029,6 +1043,7 @@ export class Online {
   // ---- leaving ---------------------------------------------------------------------------------------------------
   disposeRace() {
     const g = this.game;
+    this.specBar(false);
     if (this.race) {
       if (g.race === this.race) g.race = null;
       try { this.race.dispose(); } catch (e) { console.error(e); }
