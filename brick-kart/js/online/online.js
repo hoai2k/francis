@@ -801,8 +801,8 @@ export class Online {
     const g = this.game, race = this.race;
     if (!race || this.view !== 'race' || performance.now() - (this.pauseClosed || 0) < 250 || g.screen) return;
     race.inputBlocked = true;
-    const resume = () => { race.inputBlocked = false; this.pauseClosed = performance.now(); g.clearScreen(); };
-    g.menu({ title: 'Online race', cls: 'pause', items: [{ label: 'Resume', action: resume }, { label: 'Leave room', action: () => this.toLobby() }], back: resume });
+    const resume = () => { g.resumeFullscreen(); race.inputBlocked = false; this.pauseClosed = performance.now(); g.clearScreen(); };
+    g.menu({ title: 'Online race', cls: 'pause', sub: g.pauseNote(), items: [{ label: 'Resume', action: resume }, { label: 'Leave room', action: () => this.toLobby() }], back: resume });
   }
 
   // ---- connection trouble ----------------------------------------------------------------------------------------

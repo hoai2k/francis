@@ -16,7 +16,7 @@ import { ABILITY } from './abilities.js';
 import { Showcase, driverPortrait } from './showcase.js';
 import { ICONS, ITEMS } from './items.js';
 import { setDetail } from './decor.js';
-import { createChrome, requestFullscreen, exitFullscreen, fullscreenElement } from './chrome.js';
+import { createChrome, requestFullscreen, exitFullscreen, fullscreenElement, canFullscreen, standalone } from './chrome.js';
 import { fmt } from './hud.js';
 
 // arrows: chevrons drawn as SVG (◀ ▶ text gets turned into emoji boxes on iOS; text arrows carry U+FE0E)
@@ -88,6 +88,20 @@ class Game {
     // browser bars: fullscreen on the first tap in landscape where possible; on iPhone Safari a
     // swipe up in the menus tucks the bars away (see chrome.js)
     this.chrome = createChrome({ touch: isTouchDevice(), isPlaying: () => !!this.race && this.race.mode !== 'attract' && !this.paused, hintEl: document.getElementById('bars-hint') });
+    // phones and tablets (as in mini/widowsbay): turning the device mid-race pauses it, and the tap
+    // on Resume then goes fullscreen in landscape (fullscreen needs a tap; the turn alone can't)
+    if (isTouchDevice()) {
+      let wasLandscape = innerWidth > innerHeight;
+      const turned = () => {
+        const l = innerWidth > innerHeight;
+        if (l === wasLandscape) return;
+        wasLandscape = l;
+        if (this.race && this.race.mode !== 'attract' && !this.paused && !this.screen) this.pause();
+      };
+      addEventListener('resize', turned);
+      addEventListener('orientationchange', () => setTimeout(turned, 150));
+      screen.orientation?.addEventListener?.('change', () => setTimeout(turned, 150));
+    }
     const unlock = (e) => {
       this.audio.unlock();
       // pressing Start/Enter/tap on the title screen goes fullscreen (needs a real key press or tap)
@@ -290,6 +304,15 @@ class Game {
 
   // ---- screens ------------------------------------------------------------------------
   enterFullscreen() { requestFullscreen(); }
+  // Resume on a phone or tablet held sideways goes fullscreen (call it from the tap itself)
+  resumeFullscreen() {
+    if (isTouchDevice() && !standalone && innerWidth > innerHeight && !fullscreenElement()) requestFullscreen();
+  }
+  // the pause menu's line for a phone held upright: how to get fullscreen
+  pauseNote() {
+    return isTouchDevice() && !standalone && canFullscreen() && innerHeight > innerWidth && !fullscreenElement()
+      ? '<p class="pause-note">📱 Turn sideways, then tap Resume to play full screen</p>' : '';
+  }
   toggleFullscreen() {
     // iPhone Safari can't go fullscreen: point at the ways it can lose its bars
     if (this.chrome?.scrollTrick) { this.chrome.flashHint(); return; }
@@ -989,9 +1012,9 @@ class Game {
     this.paused = true;
     this.audio.sfx('pause');
     for (const c of this.race.cams) c.kart.engine?.set(0, false, false);
-    const resume = () => { this.paused = false; this.clearScreen(); };
+    const resume = () => { this.resumeFullscreen(); this.paused = false; this.clearScreen(); };
     this.menu({
-      title: 'Paused', cls: 'pause',
+      title: 'Paused', cls: 'pause', sub: this.pauseNote(),
       items: [
         { label: 'Resume', action: resume },
         { label: 'Restart race', action: () => { this.paused = false; this.startRace(this.lastRaceOpts); } },
