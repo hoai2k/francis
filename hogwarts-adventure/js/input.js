@@ -211,8 +211,17 @@ export class Input {
       const bv = (i) => { const b = gp.buttons[i]; return b ? (typeof b === 'object' ? b.value || (b.pressed ? 1 : 0) : b) : 0; };
       this.lt = bv(6); this.rt = bv(7);
       let any = Math.abs(ls.x) + Math.abs(ls.y) + Math.abs(rs.x) + Math.abs(rs.y) > 0.3;
-      for (let i = 0; i < gp.buttons.length; i++) {
-        const down = bv(i) > 0.45;
+      // some controllers report the d-pad as axes (6/7) or a hat switch (axis 9)
+      const dpadAxis = { 12: false, 13: false, 14: false, 15: false };
+      if (gp.mapping !== 'standard') {
+        if (gp.axes.length > 7) { dpadAxis[14] = gp.axes[6] < -0.5; dpadAxis[15] = gp.axes[6] > 0.5; dpadAxis[12] = gp.axes[7] < -0.5; dpadAxis[13] = gp.axes[7] > 0.5; }
+        if (gp.axes.length > 9 && Math.abs(gp.axes[9]) <= 1.01) {
+          const h = Math.round((gp.axes[9] + 1) * 3.5); // 0=up .. 7=up-left, 8+=idle
+          if (h <= 7) { dpadAxis[12] ||= h === 0 || h === 1 || h === 7; dpadAxis[15] ||= h >= 1 && h <= 3; dpadAxis[13] ||= h >= 3 && h <= 5; dpadAxis[14] ||= h >= 5 && h <= 7; }
+        }
+      }
+      for (let i = 0; i < Math.max(gp.buttons.length, 16); i++) {
+        const down = bv(i) > 0.45 || !!dpadAxis[i];
         const was = this.padPrev[i];
         if (down) any = true;
         if (down !== was) {

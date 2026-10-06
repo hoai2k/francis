@@ -66,10 +66,11 @@ export async function play(opts) {
       p.teleport(gh.spots.duelA, Math.PI);
       p.control = false;
       G.enemies.clearZone();
+      G.spells.clear();
       G.enemies.hpScale = 1;
       const e = G.enemies.spawn('duelist', gh.spots.duelB, {
         name: o.name, house: o.house, level: o.level, hp: o.hp, spells: o.spells, rate: o.rate, block: o.block, dodge: o.dodge, volley: o.volley,
-        range: 11, bounds, aggro: false, yaw: 0, hat: o.hat, robe: o.robe,
+        range: 11, bounds, aggro: false, hold: true, yaw: 0, hat: o.hat, robe: o.robe,
       });
       e.yaw = 0;
       S.opp = e;
@@ -92,6 +93,7 @@ export async function play(opts) {
       G.cam.snap();
       G.cam.lockTarget = e;
       e.aggro = true;
+      e.o.hold = false;
       p.control = true;
       S.state = 'fight';
       G.ui.showHUD(true);

@@ -43,11 +43,11 @@ export class Spells {
       uniforms: { time: { value: 0 }, color: { value: new THREE.Color(0.4, 0.8, 1.6) }, strength: { value: 1 }, hit: { value: 0 } },
       vertexShader: `varying vec3 vN; varying vec3 vV; varying vec3 vP; void main(){ vN = normalize(normalMatrix*normal); vec4 mv = modelViewMatrix*vec4(position,1.0); vV = normalize(-mv.xyz); vP = position; gl_Position = projectionMatrix*mv; }`,
       fragmentShader: `uniform float time, strength, hit; uniform vec3 color; varying vec3 vN; varying vec3 vV; varying vec3 vP;
-        void main(){ float f = pow(1.0 - abs(dot(vN, vV)), 2.5);
+        void main(){ float f = pow(clamp(1.0 - abs(dot(vN, vV)), 0.0, 1.0), 2.5);
           vec2 h = vec2(atan(vP.z, vP.x)*6.0, vP.y*8.0); vec2 g = abs(fract(h + vec2(0.0, time*0.3)) - 0.5);
           float hex = smoothstep(0.42, 0.5, max(g.x, g.y));
           float a = (f*0.9 + hex*0.18 + 0.05) * strength + hit*0.6*f;
-          gl_FragColor = vec4(color * a * (1.0 + hit*2.0), a); }`,
+          a = clamp(a, 0.0, 1.0); gl_FragColor = vec4(color * a * (1.0 + hit*2.0), a); }`,
     });
     this.shield = new THREE.Mesh(new THREE.SphereGeometry(1.25, 32, 20), this.shieldMat);
     this.shield.visible = false;

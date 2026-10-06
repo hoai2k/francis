@@ -43,7 +43,7 @@ const skyFrag = /* glsl */ `
     // stars
     col += vec3(0.9,0.95,1.0) * stars(d) * night * smoothstep(0.0, 0.25, d.y) * 2.5;
     // milky band
-    float band = exp(-pow(dot(d, normalize(vec3(0.3,0.5,0.8))), 2.0) * 18.0);
+    float bd = dot(d, normalize(vec3(0.3,0.5,0.8))); float band = exp(-bd * bd * 18.0);
     col += vec3(0.12,0.12,0.22) * band * fbm(d.xz*6.0) * night * smoothstep(0.0,0.3,d.y);
     // clouds
     if (d.y > 0.0) {

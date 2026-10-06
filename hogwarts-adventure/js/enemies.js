@@ -427,6 +427,7 @@ export class Enemy {
   // ------------------------------------------------------------ AI: dark wizard / duellist
   ai_wizard(dt, p) { this.aiWizard(dt, p); }
   aiWizard(dt, p) {
+    if (this.o.hold) { this.face(p.pos, dt); this.vel.x = this.vel.z = 0; return; } // waiting for the duel to start
     const d = this.pos.distanceTo(p.pos);
     if (!this.aggro && d > 20) return;
     this.aggro = true;
