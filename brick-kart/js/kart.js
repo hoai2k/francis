@@ -12,6 +12,7 @@ export const SPARK_COLORS = [0x7fd4ff, 0xff9a1a, 0xd05aff];
 // Angle helpers are constant-time and never loop: a while-loop wrap spins forever on a
 // huge or infinite angle (that froze the game once after a bad time step).
 const TAU = Math.PI * 2;
+const _home = new THREE.Vector3();
 export function wrapAngle(a) {
   if (!Number.isFinite(a)) return 0;
   if (a >= -Math.PI && a <= Math.PI) return a;
@@ -121,6 +122,16 @@ export class Kart {
   get boosting() { return this.boostTime > 0 || this.goldenTime > 0; }
   get stunned() { return this.spinTime > 0 || this.wreckTime > 0 || this.respawn > 0 || this.frozenTime > 0; }
   get invincible() { return this.goldenTime > 0 || this.invuln > 0 || this.respawn > 0 || this.bulletTime > 0 || this.ghostTime > 0; }
+  // steering that eases a glider back to the centre line: aim at a point on it ~35 m ahead,
+  // judged by the travel direction (it lags the nose while gliding; judging by the nose swings
+  // past the middle), gently: never more than 60% lock
+  glideHomeSteer() {
+    const tr = this.track;
+    const tp = tr.at(tr.wrap((this.loc.i ?? 0) + Math.round(10 + Math.max(0, this.speed) * 0.8)), 0, 0, _home);
+    const err = angleDiff(this.moveYaw, Math.atan2(tp.x - this.pos.x, tp.z - this.pos.z));
+    return Math.max(-0.6, Math.min(0.6, -err));
+  }
+
   forward(out = new THREE.Vector3()) { return out.set(Math.sin(this.yaw), 0, Math.cos(this.yaw)); }
 
   boost(t, instant = true) {
@@ -345,6 +356,12 @@ export class Kart {
     const on = this.race.started && !stunned && !this.finishedCoast;
     let throttle = on ? ctl.throttle : 0, brake = on ? ctl.brake : 0, steer = on ? ctl.steer : 0;
     if (this.finishedCoast) { throttle = 0.6; steer = this.aiSteer || 0; }
+    // gliding: let go of the stick and the glider eases back toward the middle of the track
+    if (this.gliding && on && this.player) {
+      const w = Math.max(0, 1 - Math.abs(steer) / 0.3);
+      if (w > 0) steer += (this.glideHomeSteer() - steer) * w;
+    }
+    this.glideSteer = this.gliding ? steer : 0;
     if (this.spinTime > 0) this.spinTime -= dt;
     if (this.wreckTime > 0) this.wreckTime -= dt;
 
@@ -627,8 +644,10 @@ export class Kart {
     // lean into steering, drift lean, and follow the track banking when grounded
     const rel = angleDiff(Math.atan2(this.loc.tx || 0, this.loc.tz || 1), this.yaw);
     const bankRoll = this.grounded ? -Math.atan(this.loc.bank || 0) * Math.cos(rel) : 0;
-    const glideRoll = this.gliding ? -(this.ctl.steer || 0) * 0.35 : 0;
-    const roll = -(this.ctl.steer || 0) * Math.min(1, Math.abs(this.speed) / 30) * 0.08 + this.driftVis * 0.18 + bankRoll + glideRoll;
+    // gliding: bank into the turn like a plane (right side down turning right), including the
+    // drift back to the track when the stick is let go
+    const glideRoll = this.gliding ? (this.glideSteer || 0) * 0.3 : 0;
+    const roll = (this.gliding ? 0 : -(this.ctl.steer || 0) * Math.min(1, Math.abs(this.speed) / 30) * 0.08) + this.driftVis * 0.18 + bankRoll + glideRoll;
     this.visRoll += (roll - this.visRoll) * Math.min(1, dt * 8);
     this.knockRoll *= Math.exp(-4 * dt);
     m.root.rotation.z = this.visRoll + this.knockRoll + (this.wreckTime > 0 ? Math.sin(this.wreckTime * 20) * 0.2 : 0);
@@ -678,7 +697,7 @@ export class Kart {
       m.glider.scale.set(this.gliderT, 1, 1);
       m.glider.rotation.z = Math.sin(performance.now() * 0.004) * 0.05;
       const gfx = m.glider.userData.fx;
-      if (gfx) { const s = this._gfx ||= { t: 0, open: 0, steer: 0, speed01: 0 }; s.t += dt; s.open = this.gliderT; s.steer = this.ctl?.steer || 0; s.speed01 = Math.min(1, Math.abs(this.speed) / (this.topSpeed || 1)); gfx(s, dt); }
+      if (gfx) { const s = this._gfx ||= { t: 0, open: 0, steer: 0, speed01: 0 }; s.t += dt; s.open = this.gliderT; s.steer = this.glideSteer || 0; s.speed01 = Math.min(1, Math.abs(this.speed) / (this.topSpeed || 1)); gfx(s, dt); }
     }
     this.bubble.visible = this.shieldTime > 0;
     if (this.bubble.visible) this.bubble.scale.setScalar(1 + Math.sin(performance.now() * 0.006) * 0.03);

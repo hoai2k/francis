@@ -33,6 +33,9 @@ const MOBILE = isTouchDevice() && Math.min(screen.width, screen.height) < 820;
 const isPhone = () => isTouchDevice() && Math.min(screen.width, screen.height) < 600;
 // Online play (js/online/) is still being tested: off unless ONLINE_ENABLED or ?online=1 (?online=0
 // turns it off again). Off, the Online menu item isn't there and no online code is ever loaded.
+// Tilt (accelerometer) steering doesn't feel right yet: touch steering is drag-only and the tilt
+// options are hidden until it does. Flip this to bring them back.
+const TILT_ENABLED = false;
 const ONLINE_ENABLED = false;
 const ONLINE = (() => { const v = new URLSearchParams(location.search).get('online'); return v === null ? ONLINE_ENABLED : v !== '0'; })();
 // developer / automated-test flag: ?norender runs everything but skips drawing the 3D views (headless
@@ -106,12 +109,12 @@ class Game {
       // developer view of the movie-character drivers
       import('./gallery.js').then(({ Gallery }) => { this.attract = new Gallery(this, q); });
     } else if (q.get('quick')) {
-      // developer shortcut: ?quick=<trackId>&players=<n>; &driver=<id> / &kart=<id> pick player 1's
+      // developer shortcut: ?quick=<trackId>&players=<n>&device=touch; &driver=<id> / &kart=<id> pick player 1's
       const np = +(q.get('players') || 1);
       const d0 = Math.max(0, DRIVERS.findIndex((d) => d.id === q.get('driver')));
       const k0 = Math.max(0, KARTS.findIndex((k) => k.id === q.get('kart')));
       const g0 = gliderIndex(q.get('glider'));
-      this.players = Array.from({ length: np }, (_, i) => this.makePlayer({ id: i, device: i === 0 ? 'kb' : 'pad' + (i - 1), cursor: 0, driver: (d0 + i) % Math.max(1, DRIVERS.length), kart: k0, glider: g0, color: PCOL[i] }));
+      this.players = Array.from({ length: np }, (_, i) => this.makePlayer({ id: i, device: i === 0 ? (q.get('device') === 'touch' ? 'touch' : 'kb') : 'pad' + (i - 1), cursor: 0, driver: (d0 + i) % Math.max(1, DRIVERS.length), kart: k0, glider: g0, color: PCOL[i] }));
       this.startRace({ def: TRACKS.find((t) => t.id === q.get('quick')) || TRACKS[0], mode: q.get('mode') || 'race' });
     } else {
       // show the title right away; build the background race just after it has painted
@@ -340,7 +343,7 @@ class Game {
   // touch steering settings -> the input layer (full lock angle per style and sensitivity)
   applyTilt() {
     const s = this.settings, FULL = { wheel: { low: 45, med: 32, high: 22 }, turn: { low: 55, med: 40, high: 28 } };
-    this.input.steerMode = s.touchSteer || 'both';
+    this.input.steerMode = TILT_ENABLED ? s.touchSteer || 'both' : 'drag';
     this.input.tiltCfg = { style: s.tiltStyle === 'turn' ? 'turn' : 'wheel', full: (FULL[s.tiltStyle] || FULL.wheel)[s.tiltSens] || 32, invert: !!s.tiltInvert };
     if (this.input.steerMode !== 'drag' && this.input.tiltOn) this.input.calibrateTilt();
   }
@@ -359,8 +362,8 @@ class Game {
         { label: 'Laps', value: () => String(s.laps), left: () => cyc('laps', laps, -1), right: () => cyc('laps', laps, 1) },
         { label: 'Legoized', value: () => (s.lego !== false ? 'On' : 'Off'), left: () => { s.lego = s.lego === false; save(SKEY, s); }, right: () => { s.lego = s.lego === false; save(SKEY, s); } },
         { label: 'Simplified mode', value: () => (s.simple ? 'On' : 'Off'), left: () => { s.simple = !s.simple; save(SKEY, s); }, right: () => { s.simple = !s.simple; save(SKEY, s); } },
-        // phones: how steering works (dragging always works unless it's tilt only)
-        ...(isTouchDevice() ? [
+        // phones: how steering works (dragging always works unless it's tilt only; off for now)
+        ...(TILT_ENABLED && isTouchDevice() ? [
           { label: 'Touch steering', value: () => ({ both: 'Tilt + drag', drag: 'Drag only', tilt: 'Tilt only' }[s.touchSteer] || 'Tilt + drag'), left: () => tilt('touchSteer', ['both', 'drag', 'tilt'], -1), right: () => tilt('touchSteer', ['both', 'drag', 'tilt'], 1) },
           { label: 'Tilt style', value: () => (s.tiltStyle === 'turn' ? 'Turn (gyro)' : 'Wheel'), left: () => tilt('tiltStyle', ['wheel', 'turn'], -1), right: () => tilt('tiltStyle', ['wheel', 'turn'], 1) },
           { label: 'Tilt sensitivity', value: () => ({ low: 'Low', med: 'Medium', high: 'High' }[s.tiltSens] || 'Medium'), left: () => tilt('tiltSens', ['low', 'med', 'high'], -1), right: () => tilt('tiltSens', ['low', 'med', 'high'], 1) },
@@ -389,7 +392,7 @@ class Game {
           <tr><td>Steer</td><td>A / D or ← / →</td></tr><tr><td>Accelerate</td><td>W or ↑</td></tr><tr><td>Brake / reverse</td><td>S or ↓</td></tr>
           <tr><td>Hop & drift</td><td>Space</td></tr><tr><td>Use item</td><td>E or Shift</td></tr><tr><td>Look behind</td><td>Q</td></tr><tr><td>Pause</td><td>Esc / P</td></tr>
           <tr><td>2nd keyboard player</td><td>Arrows, Right Shift = drift, Enter = item (join with Right Shift)</td></tr></table>
-          <h3>📱 Touch</h3><p>Tilt the phone like a steering wheel, or drag a finger left / right anywhere on the screen (Options → Touch steering). DRIFT, ITEM, BRAKE on the right. Gas is automatic.</p></div>
+          <h3>📱 Touch</h3><p>Drag a finger left / right anywhere to steer; drag it down to brake. While steering, touch with a second finger to drift. ITEM (bottom right) shows what you hold. Gas is automatic.</p></div>
         <div><h3>🏁 Tips</h3><ul>
           <li>Hold drift through corners until the sparks turn <b style="color:#7fd4ff">blue</b>, <b style="color:#ff9a1a">orange</b>, then <b style="color:#d05aff">purple</b>, then let go for a mini-turbo.</li>
           <li>Press drift in mid-air off a ramp to do a trick and land with a boost.</li>

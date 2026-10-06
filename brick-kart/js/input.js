@@ -28,7 +28,8 @@ export class Input {
     this.prevMenu = new Map();     // device -> { dir: {up,down,left,right} timers }
     this.touch = { drift: false, item: false, brake: false, gas: true, pause: false, pressed: new Set(), active: false, drag: null, tilt: 0 };
     // touch steering: 'both' (tilt, and dragging overrides it while a finger is down), 'drag' or 'tilt'
-    this.steerMode = 'both';
+    // (main.js sets it; drag-only while tilt steering is switched off)
+    this.steerMode = 'drag';
     this.tiltOn = false; this.tiltPerm = false;
     this.lastDevice = 'kb';
     this.prevTouchHeld = {};
@@ -157,13 +158,15 @@ export class Input {
 
   // --- touch overlay -----------------------------------------------------------------
   // No steering buttons: drag a finger left/right anywhere on the screen (it steers relative to
-  // where it touched down, and the anchor follows past full lock so reversing is instant), and/or
-  // tilt the phone like a steering wheel. Buttons on the right: ITEM, DRIFT, BRAKE.
+  // where it touched down, and the anchor follows past full lock so reversing is instant). Drag
+  // that finger well down to brake (and reverse); touch anywhere with a second finger to drift
+  // (or hop, or do a trick in the air). One button: ITEM, which shows the item you hold (the HUD
+  // moves its item slots into it) and is greyed out while you have none.
   buildTouch(root) {
     this.touchRoot = root;
     root.innerHTML = `
-      <div class="tzone"></div><div class="tknob hidden"><i></i></div>
-      <div class="tpad right"><button data-k="item" class="t-item" aria-label="Use item">ITEM</button><button data-k="drift" class="t-drift" aria-label="Drift / hop">DRIFT</button><button data-k="brake" class="t-brake" aria-label="Brake">BRAKE</button></div>
+      <div class="tzone"></div>
+      <button data-k="item" class="t-item empty" aria-label="Use item"><span class="t-lbl">ITEM</span></button>
       <button data-k="pause" class="t-pause" aria-label="Pause">II</button>`;
     const t = this.touch;
     const owners = new Map();
@@ -175,23 +178,17 @@ export class Input {
       btn.addEventListener('pointerup', up); btn.addEventListener('pointercancel', up); btn.addEventListener('lostpointercapture', up);
       btn.addEventListener('contextmenu', (e) => e.preventDefault());
     });
-    // drag steering
-    const zone = root.querySelector('.tzone'), knob = root.querySelector('.tknob'), dot = knob.firstElementChild;
-    const R = () => Math.max(46, Math.min(90, innerWidth * 0.12));   // drag distance for full lock
-    const draw = () => {
-      const d = t.drag;
-      knob.classList.toggle('hidden', !d);
-      if (!d) return;
-      knob.style.transform = `translate(${d.x0}px, ${d.y0}px)`;
-      dot.style.transform = `translateX(${d.axis * R()}px)`;
-    };
+    // the steering finger, plus any extra fingers (held = drift)
+    const zone = root.querySelector('.tzone');
+    const R = () => Math.max(46, Math.min(90, innerWidth * 0.12));    // sideways drag for full lock
+    const B = () => Math.max(60, Math.min(120, innerHeight * 0.16));  // downward drag that brakes
+    const extra = new Set();
     zone.addEventListener('pointerdown', (e) => {
       e.preventDefault();
       this.lastDevice = 'touch'; t.active = true;
-      if (t.drag || this.steerMode === 'tilt') return;
       zone.setPointerCapture?.(e.pointerId);
-      t.drag = { id: e.pointerId, x0: e.clientX, y0: e.clientY, axis: 0 };
-      draw();
+      if (!t.drag && this.steerMode !== 'tilt') { t.drag = { id: e.pointerId, x0: e.clientX, y0: e.clientY, axis: 0 }; return; }
+      extra.add(e.pointerId); set('drift', true);
     });
     zone.addEventListener('pointermove', (e) => {
       const d = t.drag;
@@ -200,11 +197,17 @@ export class Input {
       if (Math.abs(dx) > r) d.x0 = e.clientX - Math.sign(dx) * r;   // anchor follows past full lock
       const v = (e.clientX - d.x0) / r;
       d.axis = Math.abs(v) < 0.06 ? 0 : v;
-      draw();
+      // brake: the finger well below where it went down (the anchor follows it back up)
+      if (e.clientY < d.y0) d.y0 = e.clientY;
+      const dy = e.clientY - d.y0, b = B();
+      if (!t.brake && dy > b) set('brake', true);
+      else if (t.brake && dy < b * 0.5) set('brake', false);
     });
-    // letting go hands steering back to the tilt, re-centred on how the phone is held right now
-    // (so the kart doesn't jerk to wherever the phone drifted while the finger was steering)
-    const end = (e) => { if (t.drag && t.drag.id === e.pointerId) { t.drag = null; draw(); this.recentreTilt(); } };
+    // letting go hands steering back to the tilt (if on), re-centred on how the phone is held now
+    const end = (e) => {
+      if (t.drag && t.drag.id === e.pointerId) { t.drag = null; set('brake', false); this.recentreTilt(); }
+      if (extra.delete(e.pointerId) && !extra.size) set('drift', false);
+    };
     zone.addEventListener('pointerup', end); zone.addEventListener('pointercancel', end); zone.addEventListener('lostpointercapture', end);
     zone.addEventListener('contextmenu', (e) => e.preventDefault());
     // iOS only allows motion sensors after a tap: ask on the first one

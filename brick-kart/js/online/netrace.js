@@ -314,7 +314,7 @@ export class NetRace {
     k.trickSpin = s.trick;
     k.lookBack = !!(s.flags & F.LOOK);
     k.respawn = gone ? 1 : 0; k.respawnPlaced = !gone;
-    p.ctl.steer = s.steer; k.ctl = p.ctl;
+    p.ctl.steer = s.steer; k.ctl = p.ctl; k.glideSteer = s.steer;   // (while gliding it's the glide steering)
     k.studs = s.studs;
     k.item = s.item; k.itemCount = s.item ? MULTI[s.item] || 1 : 0;
     k.nextItem = null; k.roulette = 0; k.roulette2 = 0;

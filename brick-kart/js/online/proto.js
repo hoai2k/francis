@@ -85,7 +85,7 @@ export function encodeKart(k, t, out) {
   const vx = Math.sin(k.moveYaw) * k.speed + k.kvx, vz = Math.cos(k.moveYaw) * k.speed + k.kvz;
   out.length = 0;
   out.push(k.idx, r3(t), r2(k.pos.x), r2(k.pos.y), r2(k.pos.z), r3(k.yaw), r2(vx), r2(vz), r2(k.vy), r2(k.speed),
-    r2(k.ctl?.steer || 0), f, d.active ? d.dir * Math.max(1, d.level) : 0, r2(Math.max(0, k.spinTime)), r2(Math.max(0, k.hidden)),
+    r2((k.gliding ? k.glideSteer : k.ctl?.steer) || 0), f, d.active ? d.dir * Math.max(1, d.level) : 0, r2(Math.max(0, k.spinTime)), r2(Math.max(0, k.hidden)),
     r2(Math.max(0, k.invuln)), r2(k.raceDist), k.item || 0, k.gest || 0, k.gestN, k.finished ? r3(k.finishTime) : 0, k.studs | 0,
     r2(Math.max(0, k.trickSpin || 0)));
   return out;

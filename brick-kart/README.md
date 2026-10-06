@@ -324,10 +324,10 @@ you drop some.
 
 | Action | Controller | Keyboard | Touch |
 | --- | --- | --- | --- |
-| Steer | Left stick / D-pad | A D / ← → | tilt the phone, or drag left / right anywhere |
+| Steer | Left stick / D-pad | A D / ← → | drag left / right anywhere |
 | Accelerate | A or RT | W / ↑ | automatic |
-| Brake / reverse | B or LT | S / ↓ | BRAKE |
-| Hop & drift | RB | Space | DRIFT |
+| Brake / reverse | B or LT | S / ↓ | drag the steering finger down |
+| Hop & drift | RB | Space | touch with a second finger |
 | Use item | LB, X or Y | E or Shift | ITEM |
 | Look behind | click a stick | Q | |
 | Pause | Start | Esc / P | II |
@@ -336,7 +336,8 @@ you drop some.
   purple. Let go for a mini-turbo.
 - **Tricks**: tap drift in mid-air after a ramp to land with a boost.
 - **Rocket start**: hold accelerate just after the second start light comes on.
-- **Gliding**: steer while you fly. You land wherever the road is below you, and once you're past the gap you come down twice as fast. Ground obstacles like hay bales and cupcakes only stop you if you fly low enough to hit them.
+- **Gliding**: steer while you fly; the glider banks into the turn like a plane. Let go and it
+  eases back towards the middle of the track. You land wherever the road is below you, and once you're past the gap you come down twice as fast. Ground obstacles like hay bales and cupcakes only stop you if you fly low enough to hit them.
 - **Off the road**: the grass, sand or snow beside the track is drivable but slow
   (you can't wander far from the track). Only water, lava, holes and the void of
   space drop you into a respawn.
@@ -347,21 +348,17 @@ you drop some.
   Safari can't go full screen, so in the menus a swipe up tucks Safari's bars away
   (a hint says so while they're showing); during a race nothing scrolls. **Add to
   Home Screen** opens Brick Kart full screen in landscape, with its own icon.
-- **Touch steering**: drag a finger left / right anywhere on the screen (it steers
-  from where you touched down), and/or tilt the phone. Options on touch devices:
-  - **Touch steering**: Tilt + drag (while a finger is down, dragging steers and tilt
-    is ignored; when it lifts, the phone's current angle becomes straight ahead),
-    Drag only (motion sensors off) or Tilt only.
-  - **Tilt style**: **Wheel** rotates the phone like a steering wheel, the way most
-    mobile racers do it (Asphalt, F1 Mobile, Mario Kart Tour's gyro handling); it
-    works with the phone upright or flat. **Turn (gyro)** turns the phone left /
-    right as if pointing it, read from the gyroscope and slowly re-centring.
-  - **Tilt sensitivity** (how far you tilt for full lock: about 45° / 32° / 22°) and
-    **Invert tilt**. A small dead zone, a gentle curve near the centre and a little
-    smoothing keep it steady; tipping the phone towards or away from you doesn't steer.
-  However you hold the phone when the race says GO is straight ahead (portrait or
-  either landscape, on iPhone and Android alike). iPhones ask for motion access on
-  the first tap.
+- **Touch controls**: drag a finger left / right anywhere on the screen to steer
+  (it steers from where you touched down, and the anchor follows past full lock so
+  turning back is instant). Drag that finger well down to brake (and reverse); slide
+  it back up to let go. While steering, touch anywhere with a second finger to hop
+  and drift (or do a trick in the air). The one button is **ITEM**: it shows the item
+  you're holding (and the next one beside it) and is greyed out while you have none.
+  Gas is automatic.
+- **Tilt steering** is switched off for now (`TILT_ENABLED` in `js/main.js`), along
+  with its options, until it feels right. The code is still there: Wheel or Turn
+  (gyro) style, three sensitivities and invert, with a dead zone, a gentle curve and
+  smoothing, re-centred at GO and whenever the steering finger lifts.
 - Tapping outside a popup menu (Options, How to Play, Pause) closes it.
 
 ## Multiplayer (1–8 players, split-screen)
