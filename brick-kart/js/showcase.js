@@ -206,6 +206,8 @@ function standPose(it, n, t, dt, face) {
       }
       case 'commit': y = Math.sin(f * Math.PI) * 0.75; ry += smooth(f) * Math.PI * 2; arms = { lx: -2.85, lz: 0.45, rx: -2.85, rz: -0.45 }; break;
     }
+    // armless rigs (R2-D2) don't wave their connectors: a wave raises the periscope instead
+    if (rig?.armsFixed) { if (mv.name === 'wave') rig.wave?.(w, tt); arms = null; }
     if (arms) {
       const aw = mv.name === 'commit' ? Math.min(1, f / 0.1) : w;
       const blend = (o, x, z) => { if (o && x !== undefined) { o.rotation.x += (x - o.rotation.x) * aw; o.rotation.z += (z - o.rotation.z) * aw; } };
@@ -284,6 +286,8 @@ export class Showcase {
     if (it.plate) this.scene.remove(it.plate);
     for (const m of it.m.mats || []) m.dispose();
   }
+  // the kart in slot i spins round once with a hop (locking it in)
+  spinCommit(i) { const it = this.items[i]; if (it && !it.m.standing) it.spinFx = { t: 0, e: 0 }; }
   // swap the glider on the kart in slot i (keeps the driver and kart as they are)
   setGlider(i, def) {
     const it = this.items[i], g = it?.m.glider;
@@ -379,6 +383,15 @@ export class Showcase {
     this.items.forEach((it, n) => {
       // standing drivers face the camera and show off (standPose); karts turn on the turntable
       if (!it.m.standing && this.spin) it.m.root.rotation.y += dt * this.spin;
+      // a locked-in kart: one quick spin with a hop (spinCommit)
+      const sc = it.spinFx;
+      if (sc && !it.m.standing) {
+        sc.t += dt;
+        const f = Math.min(1, sc.t / 0.85), e = smooth(f);
+        it.m.root.rotation.y += (e - sc.e) * Math.PI * 2; sc.e = e;
+        if (!it.glide) it.m.root.position.y = (it.y || 0) + Math.sin(f * Math.PI) * 0.45;
+        if (f >= 1) it.spinFx = null;
+      }
       if (!it.anim) { if (it.m.standing) standPose(it, n, this.t, dt, face); return; }
       // idle personality: now and then show off a gesture
       it.nextIdle -= dt;
@@ -484,6 +497,15 @@ export class Showcase {
   }
   update(dt) {
     this.t += dt;
+    // the kart <-> glider slide runs on even when a cell isn't drawn (too small, a hidden canvas, or ?norender),
+    // so the swap it carries always happens
+    for (const it of this.items) {
+      const sf = it?.slideFx;
+      if (!sf) continue;
+      sf.t += dt;
+      if (sf.t >= 0.2 && sf.mid) { const m = sf.mid; sf.mid = null; m(); }
+      if (sf.t >= 0.4) it.slideFx = null;
+    }
     const w = this.canvas.clientWidth, h = this.canvas.clientHeight;
     if (!w || !h) return;
     if (this.canvas.width !== w || this.canvas.height !== h) this.r.setSize(w, h, false);
@@ -506,14 +528,9 @@ export class Showcase {
       let off = 0;
       const sf = it.slideFx;
       if (sf) {
-        sf.t += dt;
         const D = 0.2;
         if (sf.t < D) { const u = sf.t / D; off = sf.dir * u * u; }
-        else {
-          if (sf.mid) { const m = sf.mid; sf.mid = null; m(); }
-          const u = Math.min(1, (sf.t - D) / D); off = -sf.dir * (1 - u) * (1 - u);
-          if (u >= 1) it.slideFx = null;
-        }
+        else { const u = Math.min(1, (sf.t - D) / D); off = -sf.dir * (1 - u) * (1 - u); }
       }
       this.r.setViewport(c.x, y + off * c.h, c.w, c.h);
       this.r.setScissor(c.x, y, c.w, c.h);

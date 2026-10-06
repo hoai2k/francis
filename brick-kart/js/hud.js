@@ -59,6 +59,11 @@ export class HUD {
         lastItem: null, lastRank: 0, rollT: 0, msgT: 0,
       };
     });
+    // touch player: the item slots live in the ITEM button instead of the top corner
+    const tbtn = document.querySelector('#touch .t-item');
+    if (tbtn) { tbtn.querySelector('.h-items')?.remove(); tbtn.classList.add('empty'); }
+    const tp = this.panels.find((p, i) => race.cams[i].player.device === 'touch');
+    if (tbtn && tp) { tbtn.appendChild(tp.el.querySelector('.h-items')); tp.tbtn = tbtn; }
     // shared elements
     this.count = this.count.bind(this);
     this.countEl = document.createElement('div'); this.countEl.className = 'h-count'; root.appendChild(this.countEl);
@@ -162,6 +167,7 @@ export class HUD {
       }
       p.slot2.classList.toggle('rolling', k.roulette2 > 0);
       if (show2 !== p.last2) { p.last2 = show2; p.icon2.innerHTML = show2 ? ICONS[show2] : ''; }
+      if (p.tbtn) p.tbtn.classList.toggle('empty', !k.item && !(k.roulette > 0));
       p.cnt.textContent = MULTI[k.item] && k.roulette <= 0 && k.itemCount > 1 ? '×' + k.itemCount : k.item === 'goldturbo' && k.goldTurboTime > 0 ? Math.ceil(k.goldTurboTime) + 's' : '';
       p.ink.classList.toggle('show', k.inkTime > 0);
       if (k.inkTime > 0) p.ink.style.opacity = Math.min(1, k.inkTime / 1.5);

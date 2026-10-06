@@ -6,6 +6,22 @@ import { BrickBuilder, C, plastic } from './lego.js';
 
 const V = new THREE.Vector3();
 
+// A hazard's random choices as a function of its cycle number n (and a draw j within it), from a
+// salt drawn when the world is built. Online, worlds are built from the host's seed, so every screen
+// makes the same choice at the same moment however its frames fall (Math.random at that moment
+// wouldn't). Offline it's just as random as before.
+// While a world is being built for an online race, salts come from the race seed and the hazard's
+// creation order (hazardSeeds), not from Math.random's position, which shared caches (textures
+// built for an earlier race) can shift from one screen to another.
+let seeds = null;
+export function hazardSeeds(seed) { seeds = seed === null || seed === undefined ? null : { seed: seed >>> 0, n: 0 }; }
+const mix = (a, b) => { let x = Math.imul(a ^ Math.imul(b + 0x9e3779b9, 0x85ebca6b), 0xc2b2ae35) >>> 0; x ^= x >>> 16; x = Math.imul(x, 0x27d4eb2f) >>> 0; return (x ^ (x >>> 15)) >>> 0; };
+function newSalt() { return seeds ? mix(seeds.seed, seeds.n++) % 1e9 : Math.floor(Math.random() * 1e9); }
+export function cycleRandom() {
+  const salt = newSalt();
+  return (n, j = 0) => { let x = Math.imul((n * 8 + j) ^ salt, 2654435761) >>> 0; x ^= x >>> 15; x = Math.imul(x, 2246822519) >>> 0; x ^= x >>> 13; x = Math.imul(x, 3266489917) >>> 0; x ^= x >>> 16; return (x >>> 0) / 4294967296; };
+}
+
 // Something that follows a polyline (closed loop or back-and-forth).
 export function mover(ctx, { mesh, path, speed = 10, loop = true, oneWay = false, radius = 2.5, kind = 'spin', roll = 0, offset = 0, bob = 0, yOffset = 0 }) {
   ctx.group.add(mesh);
@@ -151,7 +167,7 @@ export function spinner(ctx, { center, length = 10, speed = 1.2, balls = 6, colo
   }
   g.add(arm);
   ctx.group.add(g);
-  const ang0 = Math.random() * 6;   // (the world is built from a shared seed online)
+  const ang0 = cycleRandom()(0) * 6;   // (the same on every online screen)
   let ang = ang0;
   return {
     update(dt, t) { ang = ang0 + speed * t; arm.rotation.y = ang; },
@@ -176,10 +192,10 @@ export function cannon(ctx, { from, targets, period = 3.5, offset = 0, color = C
   ctx.group.add(ball, marker);
   const target = new THREE.Vector3();
   let flying = false, boom = 0, shot = -1, landed = -1;
-  const FLIGHT = 1.8, salt = Math.floor(Math.random() * 1e6);
+  const FLIGHT = 1.8;
   // shot n's landing spot comes from a hash of n, and shots fire on a fixed beat of the hazard
   // clock (the first one period after the start): the same on every online player's screen
-  const rnd = (n, j) => { let x = Math.imul((n * 4 + j) ^ salt, 2654435761) >>> 0; x ^= x >>> 15; x = Math.imul(x, 2246822519) >>> 0; x ^= x >>> 13; return (x >>> 0) / 4294967296; };
+  const rnd = cycleRandom();
   const pick = (n) => {
     const [k, latF] = targets[Math.floor(rnd(n, 0) * targets.length)];
     const i = tr.kToIndex(k) + Math.floor((rnd(n, 1) - 0.5) * 20);

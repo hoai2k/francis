@@ -2,7 +2,7 @@
 // (Jawas and their sandcrawler), Beggar's Canyon, a glide over the Sarlacc
 // pit, Mos Eisley (Cad Bane, Darth Maul, the Mandalorian), the battle of Hoth
 // (AT-ATs) and a Death Star trench run under the superlaser.
-import { THREE, BrickBuilder, C, plastic, groundPlane, baseplateMat, canvasTexture, grandstand, arch, each, inRange, strokeTrack, disc, crossing, rock, crystal, mountain } from './kit.js';
+import { THREE, BrickBuilder, C, plastic, groundPlane, baseplateMat, canvasTexture, grandstand, arch, each, inRange, strokeTrack, disc, crossing, rock, crystal, mountain, cycleRandom } from './kit.js';
 import * as P from './starwars-props.js';
 
 const SW = P.SW;
@@ -17,12 +17,12 @@ function pew(ctx, pos, f = 1500, vol = 0.1) {
   au.tone(f, 0.16, { vol: vol * a, type: 'square', slide: 0.25, filter: 3200 });
 }
 
-// A kart inside [ka, kb] picked at random (or null)
-function kartIn(ctx, ka, kb) {
+// A kart inside [ka, kb] picked by u in [0, 1) (or null). (Karts are in grid order on every screen.)
+function kartIn(ctx, ka, kb, u) {
   const r = ctx.world.race;
   if (!r) return null;
   const list = r.karts.filter((k) => k.respawn <= 0 && !k.finished && k.loc.i !== undefined && inRange(ctx.track, k.loc.i, ka, kb));
-  return list.length ? list[Math.floor(Math.random() * list.length)] : null;
+  return list.length ? list[Math.floor(u * list.length)] : null;
 }
 
 // Blaster shots: a red ring marks where the bolt will land (leading a kart in
@@ -39,43 +39,48 @@ function blaster(ctx, o) {
   ctx.group.add(bolt, mk);
   const aimT = o.aim ?? 1.1, FLY = 0.25, R = o.radius ?? 3;
   const target = new THREE.Vector3(), from = new THREE.Vector3();
-  let t0 = -(o.offset ?? 0), state = 0, boom = 0;
-  const pick = () => {
-    const k = kartIn(ctx, o.ka, o.kb);
-    if (k && Math.random() < 0.8) {
-      const lead = Math.max(0, k.speed) * (aimT + FLY) * (0.8 + Math.random() * 0.3);
+  // One shot per cycle (wait, aim, fly, burst), timed off the hazard clock, with its choices hashed
+  // from the cycle number: the same shots on every online screen.
+  const BOOM = 0.32, C = o.period + aimT + FLY + BOOM, off = o.offset ?? 0, rnd = cycleRandom();
+  let state = 0, picked = -1, shot = -1, burst = -1;
+  const pick = (n) => {
+    const k = kartIn(ctx, o.ka, o.kb, rnd(n, 0));
+    if (k && rnd(n, 1) < 0.8) {
+      const lead = Math.max(0, k.speed) * (aimT + FLY) * (0.8 + rnd(n, 2) * 0.3);
       target.set(k.pos.x + Math.sin(k.moveYaw) * lead, 0, k.pos.z + Math.cos(k.moveYaw) * lead);
       const loc = tr.locate(target.x, k.pos.y, target.z, k.loc.i, {});
       if (loc.gap || Math.abs(loc.lat) > loc.hw + 2) { tr.at(loc.i, Math.max(-loc.hw, Math.min(loc.hw, loc.lat)), 0.1, target); } else target.y = loc.y + 0.1;
     } else {
       const ia = tr.kToIndex(o.ka), ib = tr.kToIndex(o.kb);
-      const i = tr.wrap(ia + Math.floor(Math.random() * ((ib - ia + tr.N) % tr.N)));
-      tr.at(i, (Math.random() - 0.5) * 1.6 * tr.HW[i], 0.1, target);
+      const i = tr.wrap(ia + Math.floor(rnd(n, 3) * ((ib - ia + tr.N) % tr.N)));
+      tr.at(i, (rnd(n, 4) - 0.5) * 1.6 * tr.HW[i], 0.1, target);
     }
   };
   return {
     update(dt, t) {
-      if (state === 0) {
-        if (t - t0 > o.period) { pick(); state = 1; t0 = t; mk.visible = true; mk.position.copy(target); }
-      } else if (state === 1) {
-        const f = (t - t0) / aimT;
+      const x = t + off, n = Math.floor(x / C), p = x - n * C;
+      if (p < o.period) { state = 0; bolt.visible = mk.visible = false; return; }
+      if (picked !== n) { picked = n; pick(n); mk.position.copy(target); }
+      if (p < o.period + aimT) {
+        state = 1; mk.visible = true;
+        const f = (p - o.period) / aimT;
         mm.opacity = 0.35 + 0.55 * Math.abs(Math.sin(t * (8 + f * 14)));
         mk.scale.setScalar(1.5 - f * 0.5);
         o.onAim?.(target, f);
-        if (f >= 1) { state = 2; t0 = t; o.muzzle(from); bolt.visible = true; pew(ctx, from, o.pitch ?? 1500); }
-      } else if (state === 2) {
-        const f = Math.min(1, (t - t0) / FLY);
-        bolt.position.lerpVectors(from, target, f);
+      } else if (p < o.period + aimT + FLY) {
+        state = 2;
+        if (shot !== n) { shot = n; o.muzzle(from); pew(ctx, from, o.pitch ?? 1500); }
+        bolt.visible = true;
+        bolt.position.lerpVectors(from, target, (p - o.period - aimT) / FLY);
         bolt.lookAt(target);
-        if (f >= 1) {
-          state = 3; t0 = t; boom = 0.32; bolt.visible = false; mk.visible = false;
+      } else {
+        state = 3; bolt.visible = false; mk.visible = false;
+        if (burst !== n) {
+          burst = n;
           const fx = ctx.world.race?.fx;
           if (fx) for (let j = 0; j < 22; j++) { const a = Math.random() * 6.28; fx.spark(target.x, target.y + 0.4, target.z, Math.cos(a) * 9, 4 + Math.random() * 8, Math.sin(a) * 9, j % 2 ? color : 0xffe0a0, 0.45, 14); }
           ctx.world.race?.audio.sfx('bump', target);
         }
-      } else if (state === 3) {
-        boom -= dt;
-        if (boom <= 0) { state = 0; t0 = t; }
       }
     },
     test(p) { return state === 3 && Math.abs(p.y - target.y) < 4 && Math.hypot(p.x - target.x, p.z - target.z) < R ? (o.kind ?? 'spin') : null; },
@@ -99,7 +104,7 @@ function maulSpinner(ctx, k) {
   const hum = { t: 0 };
   return {
     update(dt, t) {
-      ang += 1.45 * dt; m.rotation.y = ang; m.position.y = c.y + Math.abs(Math.sin(t * 2.9)) * 0.15;
+      ang = 1.45 * t; m.rotation.y = ang;   // (a function of the hazard clock: the same on every screen) m.position.y = c.y + Math.abs(Math.sin(t * 2.9)) * 0.15;
       hum.t -= dt;
       if (hum.t < 0) { hum.t = 2.2; const au = ctx.world.race?.audio; if (au?.ctx) { const a = au.att(c); if (a > 0.05) au.tone(110, 0.5, { vol: 0.07 * a, type: 'sawtooth', slide: 1.3, filter: 600 }); } }
     },
@@ -122,7 +127,11 @@ function walker(ctx, { k, len = 46, speed = 2.6, s = 1.2, offset = 0, dir = 1 })
   const c = tr.at(i, 0, 0); c.y = tr.groundY;
   const rx = tr.R[i * 2], rz = tr.R[i * 2 + 1];
   const base = Math.atan2(rx, rz);
-  let pos = (offset * 2 - 1) * len, turning = 0, yaw = dir > 0 ? base : base + Math.PI;
+  // Where it is, which way it faces and its stride are functions of the hazard clock (so every
+  // online screen agrees): walk across (W s), turn round (TURN s), walk back, turn round.
+  const TURN = 4.5, W = 2 * len / speed, T = 2 * (W + TURN), pos0 = (offset * 2 - 1) * len;
+  const ph0 = dir > 0 ? (pos0 + len) / speed : W + TURN + (len - pos0) / speed;
+  let pos = pos0, yaw = dir > 0 ? base : base + Math.PI, lastT = 0;
   const feet = w.legs.map(() => ({ x: 0, z: 0, kind: null, lastU: 0 }));
   const H = w.H;
   const laser = blaster(ctx, {
@@ -134,14 +143,13 @@ function walker(ctx, { k, len = 46, speed = 2.6, s = 1.2, offset = 0, dir = 1 })
   for (let o = -len - 10; o <= len + 10; o += 8) ctx.claim(c.x + rx * o, c.z + rz * o, 14 * s);
   return {
     update(dt, t) {
-      if (turning > 0) {
-        turning -= dt; yaw += (Math.PI / 4.5) * dt; w.step(dt, 0.4);
-        if (turning <= 0) { dir = -dir; yaw = dir > 0 ? base : base + Math.PI; }
-      } else {
-        pos += dir * speed * dt;
-        if (dir * pos > len) { pos = dir * len; turning = 4.5; }
-        w.step(dt, speed);
-      }
+      const ph = ((ph0 + t) % T + T) % T;
+      let stride = speed;
+      if (ph < W) { pos = -len + ph * speed; yaw = base; }
+      else if (ph < W + TURN) { pos = len; yaw = base + Math.PI * (ph - W) / TURN; stride = 0.4; }
+      else if (ph < 2 * W + TURN) { pos = len - (ph - W - TURN) * speed; yaw = base + Math.PI; }
+      else { pos = -len; yaw = base + Math.PI + Math.PI * (ph - 2 * W - TURN) / TURN; stride = 0.4; }
+      w.step(t - lastT, stride); lastT = t;   // (the legs' phase adds up to the clock exactly)
       w.root.position.set(c.x + rx * pos, c.y, c.z + rz * pos);
       w.root.rotation.y = yaw;
       const cs = Math.cos(yaw), sn = Math.sin(yaw);
@@ -188,40 +196,49 @@ function strafe(ctx, { ka, kb, period = 7, offset = 0, shots = 6 }) {
   const pts = [], rings = [], boom = [], offN = [];
   for (let n = 0; n < shots; n++) { const r = new THREE.Mesh(ringG, mat); r.visible = false; ctx.group.add(r); rings.push(r); pts.push(new THREE.Vector3()); boom.push(0); offN.push(0); }
   const ia = tr.kToIndex(ka), ib = tr.kToIndex(kb), span = (ib - ia + tr.N) % tr.N;
-  let t0 = -offset, state = 0, d = 0, fired = 0, boltT = 0;
-  const WARN = 1.5, SPEED = 75;
+  let state = 0, d = 0, fired = 0, boltT = 0, cur = -1;
+  const WARN = 1.5, SPEED = 75, PASS = (span + 130) / SPEED, CYC = period + WARN + PASS, rnd = cycleRandom();
+  const fireT = offN.map(() => Infinity);
   return {
+    // run n of the hazard clock: wait, light up a lane (hashed from n), fly the pass. The TIE's
+    // position and each shot are functions of the clock: the same on every online screen.
     update(dt, t) {
-      for (let n = 0; n < shots; n++) if (boom[n] > 0) boom[n] -= dt;
       if (boltT > 0) { boltT -= dt; if (boltT <= 0) bolt.visible = false; }
-      if (state === 0 && t - t0 > period) {
-        state = 1; t0 = t;
-        const lane = [-0.55, -0.2, 0.2, 0.55][Math.floor(Math.random() * 4)];
-        for (let n = 0; n < shots; n++) {
-          offN[n] = Math.round((n + 0.5) / shots * span);
-          const i = tr.wrap(ib - offN[n]);
-          tr.at(i, (lane + (Math.random() - 0.5) * 0.15) * tr.HW[i], 0.1, pts[n]);
-          rings[n].position.copy(pts[n]); rings[n].visible = true;
+      const x = t + offset, n = Math.floor(x / CYC), q = x - n * CYC;
+      for (let k = 0; k < shots; k++) boom[k] = t >= fireT[k] && t < fireT[k] + 0.34 ? fireT[k] + 0.34 - t : 0;
+      if (q < period) {
+        if (state !== 0) { tie.visible = false; for (const r of rings) r.visible = false; }
+        state = 0; return;
+      }
+      if (cur !== n) {
+        cur = n; fired = 0;
+        const lane = [-0.55, -0.2, 0.2, 0.55][Math.floor(rnd(n, 0) * 4)];
+        for (let k = 0; k < shots; k++) {
+          offN[k] = Math.round((k + 0.5) / shots * span);
+          const i = tr.wrap(ib - offN[k]);
+          tr.at(i, (lane + (rnd(n, 1 + k) - 0.5) * 0.15) * tr.HW[i], 0.1, pts[k]);
+          rings[k].position.copy(pts[k]); rings[k].visible = true;
+          fireT[k] = Infinity;
         }
-      } else if (state === 1) {
-        mat.opacity = 0.3 + 0.5 * Math.abs(Math.sin(t * 12));
-        if (t - t0 > WARN) { state = 2; d = -40; fired = 0; tie.visible = true; }
-      } else if (state === 2) {
-        d += SPEED * dt;
-        mat.opacity = 0.3 + 0.5 * Math.abs(Math.sin(t * 20));
-        const i = tr.wrap(ib + 30 - Math.round(d));
-        tr.at(i, 0, 7 + Math.sin(d * 0.05) * 1.5, tie.position);
-        tie.rotation.set(0, tr.yawAt(i) + Math.PI, Math.sin(d * 0.03) * 0.3, 'YXZ');
-        // fire at each target once the TIE is ~30 units before it
-        while (fired < shots && d >= offN[fired]) {
-          const n = fired++;
-          boom[n] = 0.34; rings[n].visible = false;
-          bolt.position.copy(tie.position); bolt.lookAt(pts[n]); bolt.scale.set(1, 1, tie.position.distanceTo(pts[n])); bolt.visible = true; boltT = 0.07;
-          const fx = ctx.world.race?.fx;
-          if (fx) for (let j = 0; j < 16; j++) { const a = Math.random() * 6.28; fx.spark(pts[n].x, pts[n].y + 0.4, pts[n].z, Math.cos(a) * 8, 4 + Math.random() * 7, Math.sin(a) * 8, j % 2 ? 0x40ff60 : 0xffffff, 0.4, 14); }
-          pew(ctx, pts[n], 1800, 0.08);
-        }
-        if (d > span + 90) { state = 0; t0 = t; tie.visible = false; }
+      }
+      if (q < period + WARN) { state = 1; tie.visible = false; mat.opacity = 0.3 + 0.5 * Math.abs(Math.sin(t * 12)); return; }
+      state = 2;
+      const tS = t - (q - period - WARN);
+      d = -40 + SPEED * (t - tS);
+      tie.visible = d <= span + 90;
+      mat.opacity = 0.3 + 0.5 * Math.abs(Math.sin(t * 20));
+      const i = tr.wrap(ib + 30 - Math.round(d));
+      tr.at(i, 0, 7 + Math.sin(d * 0.05) * 1.5, tie.position);
+      tie.rotation.set(0, tr.yawAt(i) + Math.PI, Math.sin(d * 0.03) * 0.3, 'YXZ');
+      // fire at each target once the TIE is ~30 units before it
+      while (fired < shots && d >= offN[fired]) {
+        const k = fired++;
+        fireT[k] = tS + (offN[k] + 40) / SPEED;
+        boom[k] = Math.max(0, fireT[k] + 0.34 - t); rings[k].visible = false;
+        bolt.position.copy(tie.position); bolt.lookAt(pts[k]); bolt.scale.set(1, 1, tie.position.distanceTo(pts[k])); bolt.visible = true; boltT = 0.07;
+        const fx = ctx.world.race?.fx;
+        if (fx) for (let j = 0; j < 16; j++) { const a = Math.random() * 6.28; fx.spark(pts[k].x, pts[k].y + 0.4, pts[k].z, Math.cos(a) * 8, 4 + Math.random() * 7, Math.sin(a) * 8, j % 2 ? 0x40ff60 : 0xffffff, 0.4, 14); }
+        pew(ctx, pts[k], 1800, 0.08);
       }
     },
     test(p) { for (let n = 0; n < shots; n++) if (boom[n] > 0 && Math.abs(p.y - pts[n].y) < 4 && Math.hypot(p.x - pts[n].x, p.z - pts[n].z) < 2.9) return 'spin'; return null; },
@@ -264,17 +281,20 @@ function superlaser(ctx, { k, focus, dish, period = 10, offset = 0 }) {
   stripeHold.visible = false;
   ctx.group.add(stripeHold);
   const hit = new THREE.Vector3();
-  let state = 0, t0 = -offset, sfxT = 0;
-  const CHARGE = 2.6, FIRE = 2.4;
+  let state = 0, sfxT = 0;
+  const CHARGE = 2.6, FIRE = 2.4, CYC = period + CHARGE + FIRE;
   return {
+    // wait, charge, fire: an exact cycle of the hazard clock (the same on every online screen)
     update(dt, t) {
-      const ph = t - t0;
-      if (state === 0 && ph > period) { state = 1; t0 = t; trib.visible = true; stripeHold.visible = true; const au = ctx.world.race?.audio; if (au?.ctx && au.att(a) > 0.05) au.tone(90, CHARGE, { vol: 0.12 * au.att(a), type: 'sawtooth', slide: 6, filter: 1200 }); }
-      else if (state === 1) {
+      const x = t + offset, n = Math.floor(x / CYC), q = x - n * CYC;
+      const next = q <= period ? 0 : q <= period + CHARGE ? 1 : 2, ph = next === 1 ? q - period : q - period - CHARGE;
+      if (next === 0) { if (state !== 0) { beam.visible = false; stripeHold.visible = false; trib.visible = false; } state = 0; return; }
+      if (next === 1 && state !== 1) { state = 1; trib.visible = true; stripeHold.visible = true; beam.visible = false; const au = ctx.world.race?.audio; if (au?.ctx && au.att(a) > 0.05) au.tone(90, CHARGE, { vol: 0.12 * au.att(a), type: 'sawtooth', slide: 6, filter: 1200 }); }
+      if (next === 2 && state !== 2) { state = 2; beam.visible = true; trib.visible = false; stripeHold.visible = true; ctx.world.race?.audio.sfx('rocket', a); }
+      if (state === 1) {
         const f = ph / CHARGE;
         stripe.material.opacity = 0.25 + 0.6 * Math.abs(Math.sin(t * (6 + f * 18)));
         trib.children.forEach((m) => { m.scale.x = m.scale.y = 0.6 + f * 1.4; });
-        if (ph > CHARGE) { state = 2; t0 = t; beam.visible = true; trib.visible = false; ctx.world.race?.audio.sfx('rocket', a); }
       } else if (state === 2) {
         const f = ph / FIRE;
         hit.lerpVectors(a, b, f);
@@ -285,7 +305,6 @@ function superlaser(ctx, { k, focus, dish, period = 10, offset = 0 }) {
         const fx = ctx.world.race?.fx;
         if (fx) for (let j = 0; j < 4; j++) { const an = Math.random() * 6.28; fx.spark(hit.x, hit.y + 0.3, hit.z, Math.cos(an) * 10, 6 + Math.random() * 10, Math.sin(an) * 10, j % 2 ? 0x6aff5a : 0xffffff, 0.5, 14); }
         if (sfxT < 0) { sfxT = 0.3; ctx.world.race?.audio.sfx('bump', hit); }
-        if (ph > FIRE) { state = 0; t0 = t; beam.visible = false; stripeHold.visible = false; }
       }
     },
     test(p) { return state === 2 && Math.abs(p.y - hit.y) < 5 && Math.hypot(p.x - hit.x, p.z - hit.z) < 3.4 ? 'wreck' : null; },

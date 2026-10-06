@@ -4,7 +4,7 @@
 // lightning on the broken expressway, glide off a ruined skyscraper over the flooded
 // crater under Uro's flipped sky, survive Ryu's Granite Blast and Kurourushi's
 // cockroach swarm in the Sendai colony and finish through ash-grey Sakurajima.
-import { THREE, BrickBuilder, C, plastic, groundPlane, rock, liquid, disc, strokeTrack, inRange, each, edges, arch, mat4, canvasTexture, brickGeometry, crossing } from './kit.js';
+import { THREE, BrickBuilder, C, plastic, groundPlane, rock, liquid, disc, strokeTrack, inRange, each, edges, arch, mat4, canvasTexture, brickGeometry, crossing, cycleRandom } from './kit.js';
 import * as P from './jjk-props.js';
 import * as Q from './jjk-culling-props.js';
 
@@ -97,30 +97,35 @@ function lightning(ctx, { targets, period = 2.6, offset = 0 }) {
   const fill = new THREE.Mesh(new THREE.CircleGeometry(3.6, 28).rotateX(-Math.PI / 2), fillMat); marker.add(fill);
   ctx.group.add(bolt, marker); bolt.visible = marker.visible = false;
   const target = new THREE.Vector3();
-  let t0 = -offset, state = 0;
-  const TEL = 1.3, HIT = 0.3;
+  let state = 0, cur = -1, struck = -1;
+  const TEL = 1.3, HIT = 0.3, rnd = cycleRandom();
   return {
+    // cycle n of the hazard clock: wait, mark the spot (hashed from n), strike: the same on every
+    // online screen
     update(dt, t) {
-      const e = t - t0;
-      if (state === 0 && e > period - TEL - HIT) {
-        state = 1; const [k, latF] = targets[Math.floor(Math.random() * targets.length)];
-        const i = tr.wrap(tr.kToIndex(k) + Math.floor((Math.random() - 0.5) * 14));
-        tr.at(i, (latF + (Math.random() - 0.5) * 0.4) * tr.HW[i], 0.12, target);
+      const x = t + offset, n = Math.floor(x / period), u = x - n * period, s0 = period - TEL - HIT;
+      if (u <= s0) { if (state !== 0) bolt.visible = marker.visible = false; state = 0; return; }
+      if (cur !== n) {
+        cur = n;
+        const [k, latF] = targets[Math.floor(rnd(n, 0) * targets.length)];
+        const i = tr.wrap(tr.kToIndex(k) + Math.floor((rnd(n, 1) - 0.5) * 14));
+        tr.at(i, (latF + (rnd(n, 2) - 0.5) * 0.4) * tr.HW[i], 0.12, target);
         marker.position.copy(target); marker.visible = true;
       }
-      if (state === 1) {
-        const f = (e - (period - TEL - HIT)) / TEL;
+      if (u < period - HIT) {
+        state = 1; marker.visible = true; bolt.visible = false;
+        const f = (u - s0) / TEL;
         fill.scale.setScalar(Math.max(0.01, Math.min(1, f))); ringMat.opacity = 0.4 + 0.5 * Math.abs(Math.sin(t * 14));
         const fx = fxOf(ctx); if (fx && Math.random() < 0.4) { const a = Math.random() * 6.28; fx.spark(target.x + Math.cos(a) * 4, target.y + 0.3, target.z + Math.sin(a) * 4, 0, 3 + Math.random() * 3, 0, 0x8ad8ff, 0.4, 0); }
-        if (f >= 1) {
-          state = 2; bolt.visible = true; bolt.position.copy(target); bolt.rotation.y = Math.random() * 6.28;
-          const fx2 = fxOf(ctx); if (fx2) { for (let n = 0; n < 22; n++) { const a = Math.random() * 6.28; fx2.spark(target.x, target.y + 0.5, target.z, Math.cos(a) * 12, 4 + Math.random() * 10, Math.sin(a) * 12, n % 2 ? 0xbfefff : 0x3a9aff, 0.5, 14); } }
-          ctx.world.race?.audio.sfx('cannon', target);
-        }
-      } else if (state === 2) {
-        bolt.scale.x = bolt.scale.z = 0.7 + Math.random() * 0.6;
-        if (e > period) { state = 0; t0 = t; bolt.visible = marker.visible = false; }
+        return;
       }
+      state = 2;
+      if (struck !== n) {
+        struck = n; bolt.visible = true; bolt.position.copy(target); bolt.rotation.y = Math.random() * 6.28;
+        const fx2 = fxOf(ctx); if (fx2) { for (let j = 0; j < 22; j++) { const a = Math.random() * 6.28; fx2.spark(target.x, target.y + 0.5, target.z, Math.cos(a) * 12, 4 + Math.random() * 10, Math.sin(a) * 12, j % 2 ? 0xbfefff : 0x3a9aff, 0.5, 14); } }
+        ctx.world.race?.audio.sfx('cannon', target);
+      }
+      bolt.scale.x = bolt.scale.z = 0.7 + Math.random() * 0.6;
     },
     test(p) { return state === 2 && Math.hypot(p.x - target.x, p.z - target.z) < 4.3 && p.y < target.y + 5 ? 'spin' : null; },
     near(p, r) { return state > 0 && Math.hypot(p.x - target.x, p.z - target.z) < 4.4 + r; },

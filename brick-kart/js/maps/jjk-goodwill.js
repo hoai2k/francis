@@ -5,7 +5,7 @@
 // the juvenile detention centre (Sukuna's first awakening), splash through
 // Mahito's sewer tunnel, cross the Yasohachi Bridge, dodge Mechamaru's Ultra Cannon
 // and run the bases of the season-finale baseball game back to Kyoto.
-import { THREE, BrickBuilder, C, plastic, groundPlane, pine, roundTree, rock, lamp, crossing, liquid, disc, strokeTrack, inRange, each, edges, arch, tunnel, mat4, canvasTexture, grandstand, billboard } from './kit.js';
+import { THREE, BrickBuilder, C, plastic, groundPlane, pine, roundTree, rock, lamp, crossing, liquid, disc, strokeTrack, inRange, each, edges, arch, tunnel, mat4, canvasTexture, grandstand, billboard, cycleRandom } from './kit.js';
 import * as P from './jjk-props.js';
 import * as G from './jjk-goodwill-props.js';
 
@@ -194,25 +194,33 @@ function flyBalls(ctx, { from, targets, period = 2.8, offset = 0 }) {
   marker.add(new THREE.Mesh(new THREE.RingGeometry(3.2, 3.9, 28).rotateX(-Math.PI / 2), ringMat));
   const fill = new THREE.Mesh(new THREE.CircleGeometry(3.2, 28).rotateX(-Math.PI / 2), fillMat); marker.add(fill);
   ctx.group.add(ball, marker); ball.visible = marker.visible = false;
-  let t0 = -offset, flying = false, boom = 0;
-  const target = new THREE.Vector3(), FLIGHT = 1.9;
+  let boom = 0, cur = -1, landed = -1, flying = false;
+  const rnd = cycleRandom();
+  const target = new THREE.Vector3(), FLIGHT = 1.9, BOOM = 0.3;
   return {
+    // shot n leaves at exactly n periods of the hazard clock and lands on a spot hashed from n:
+    // the same on every online screen
     update(dt, t) {
-      boom = Math.max(0, boom - dt);
-      if (!flying && t - t0 > period) {
-        t0 = t; flying = true;
-        const [k, latF] = targets[Math.floor(Math.random() * targets.length)];
-        const i = tr.wrap(tr.kToIndex(k) + Math.floor((Math.random() - 0.5) * 10));
-        tr.at(i, (latF + (Math.random() - 0.5) * 0.4) * tr.HW[i], 0.1, target);
-        sfx(ctx, 'bump', from);
+      const x = t + offset, n = Math.floor(x / period), u = x - n * period;
+      if (n >= 1 && n !== cur) {
+        cur = n;
+        const [k, latF] = targets[Math.floor(rnd(n, 0) * targets.length)];
+        const i = tr.wrap(tr.kToIndex(k) + Math.floor((rnd(n, 1) - 0.5) * 10));
+        tr.at(i, (latF + (rnd(n, 2) - 0.5) * 0.4) * tr.HW[i], 0.1, target);
+        if (u < FLIGHT) sfx(ctx, 'bump', from);
       }
-      if (!flying) return;
-      const f = (t - t0) / FLIGHT;
-      if (f >= 1) {
-        flying = false; boom = 0.3; ball.visible = marker.visible = false;
-        const fx = fxOf(ctx); if (fx) { fx.dust({ pos: target, yaw: 0 }, 0xc8905a, 12); fx.pop(target, 0xffffff); }
-        sfx(ctx, 'wall', target); return;
+      boom = n >= 1 && u >= FLIGHT && u < FLIGHT + BOOM ? FLIGHT + BOOM - u : 0;
+      flying = n >= 1 && u < FLIGHT;
+      if (n < 1 || u >= FLIGHT) {
+        ball.visible = marker.visible = false;
+        if (boom > 0 && landed !== n) {
+          landed = n;
+          const fx = fxOf(ctx); if (fx) { fx.dust({ pos: target, yaw: 0 }, 0xc8905a, 12); fx.pop(target, 0xffffff); }
+          sfx(ctx, 'wall', target);
+        }
+        return;
       }
+      const f = u / FLIGHT;
       ball.visible = marker.visible = true;
       ball.position.lerpVectors(from, target, f); ball.position.y += Math.sin(f * Math.PI) * 46 + 1.6;
       ball.rotation.set(t * 8, t * 3, 0);
