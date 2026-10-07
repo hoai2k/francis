@@ -47,6 +47,10 @@ function points() {
     { id: 'lake', label: 'Lake shore', zone: 'grounds', pos: gp(SPOTS.lakeShore.x + 4, SPOTS.lakeShore.z), yaw: -Math.PI / 2, map: [SPOTS.lakeShore.x, SPOTS.lakeShore.z] },
     { id: 'forest', label: 'Forbidden Forest edge', zone: 'grounds', pos: gp(140, 60), yaw: Math.PI / 2, map: [140, 60], cond: () => y >= 2 || G.story.stage >= 5 },
     { id: 'hogsmeade', label: 'Hogsmeade', zone: 'hogsmeade', pos: W.hogsmeade.W(0, 0, -2), yaw: Math.PI, map: [0, 99], cond: () => y >= 3 },
+    { id: 'library', label: 'The Library', zone: 'library', pos: W.library.spawn.pos, yaw: Math.PI },
+    { id: 'greenhouse', label: 'Greenhouse Three', zone: 'greenhouse', pos: W.greenhouse.spawn.pos, yaw: Math.PI, map: [-70, 78] },
+    { id: 'astronomy', label: 'Astronomy Tower & Owlery', zone: 'astronomy', pos: W.astronomy.spawn.pos, yaw: Math.PI },
+    { id: 'divination', label: 'Divination Room', zone: 'divination', pos: W.divination.spawn.pos, yaw: Math.PI },
     { id: 'room', label: 'Room of Requirement', zone: 'requirement', pos: W.requirement.spawn.pos, yaw: Math.PI, cond: () => G.story.requirementOpen?.() },
   ].filter((p) => !p.cond || p.cond());
 }

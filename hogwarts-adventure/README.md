@@ -297,6 +297,29 @@ bones in the Undercroft.
 Side quests: barricades for Calloway, healing supplies for Isolde, Kofi's
 hidden fireworks, and one last duel with Rowan Ashdown.
 
+## Castle wings and classes (optional)
+
+New doors on the Grand Staircase lead to the **Library** (ground floor), the
+**Astronomy Tower** (first landing) and the **Divination Room** (second
+landing). **Greenhouse Three** stands on the grounds west of the castle road.
+All of them are on the fast-travel map.
+
+- **Herbology** with Professor Bramblewood: repot Mandrakes while they're
+  calm, and hold your earmuffs (block) when one screams.
+- **Astronomy** with Professor Starling: steer the telescope's cross-hair and
+  chart three constellations against the clock.
+- **Transfiguration** with Professor Marlowe, in the Library: repeat
+  ever-longer wand patterns and turn a mouse into, eventually, a dragon.
+- **Divination** with Madam Vey, from third year: match omens in the crystal
+  mist, then hear your fortune.
+- **The Restricted Section** sits behind a locked gate at the back of the
+  Library (Alohomora), with a forbidden book chained up high (Accio).
+- **The Owlery**, across the bridge from the Astronomy Tower, lets you send a
+  letter to a friend once a day for a little friendship.
+
+Every class can be repeated for house points and experience, and works with
+keyboard, mouse, touch and controller.
+
 ## Minigames
 
 All six can also be played from **Minigames** on the title screen.

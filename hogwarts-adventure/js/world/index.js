@@ -10,6 +10,7 @@ import { buildHogsmeade } from './hogsmeade.js';
 import { buildLakebed, buildMaze, buildGraveyard } from './years4.js';
 import { buildRequirement, addRequirementDoor, buildArcana } from './years5.js';
 import { buildCave } from './years6.js';
+import { buildLibrary, buildGreenhouse, addGreenhouseExterior, buildAstronomy, buildDivination, addWingDoors } from './wings.js';
 
 export class World {
   constructor() {
@@ -37,6 +38,10 @@ export class World {
       ['requirement', () => buildRequirement(Q), 'Asking the Room for what you need'],
       ['arcana', () => buildArcana(Q), 'Sealing the Department of Arcana'],
       ['cave', () => buildCave(Q), 'Filling a sea cave with something nasty'],
+      ['library', () => buildLibrary(Q), 'Shelving ten thousand books'],
+      ['greenhouse', () => buildGreenhouse(Q), 'Watering the Mandrakes'],
+      ['astronomy', () => buildAstronomy(Q), 'Polishing the telescopes'],
+      ['divination', () => buildDivination(Q), 'Lighting incense in the Divination room'],
     ];
     for (let i = 0; i < steps.length; i++) {
       const [name, fn, label] = steps[i];
@@ -51,6 +56,7 @@ export class World {
     g.portals.push({ pos: new THREE.Vector3(0, PLATEAU, -22.5), r: 3.2, to: 'greatHall', at: 'fromGrounds', label: 'Enter the Great Hall' });
     addUndercroftDoor();
     addRequirementDoor();
+    addWingDoors();
     // the path to Hogsmeade at the bottom of the castle road (third years and up)
     const hy = g.groundY(0, 98);
     g.portals.push({ pos: new THREE.Vector3(0, hy, 99), r: 3, to: 'hogsmeade', at: 'fromCastle', label: 'Path to Hogsmeade', locked: () => (G.save?.year || 1) < 3, lockedMsg: 'Hogsmeade visits begin in third year' });
@@ -59,6 +65,7 @@ export class World {
       spawn: g.spawn,
       fromHogsmeade: { pos: new THREE.Vector3(0, g.groundY(0, 93), 93), yaw: Math.PI },
     };
+    addGreenhouseExterior();
   }
 
   // Pre-compile every zone's shaders so the first visit does not hitch.

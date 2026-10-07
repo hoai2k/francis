@@ -509,3 +509,35 @@ body.big-text #hud, body.big-text #screens, body.big-text .captions { zoom: 1.18
 .gear-row i { grid-column: 2; grid-row: 1 / span 2; align-self: center; font-style: normal; color: #ffd27a; font-size: 0.85em; }
 .gear-row.on { border-color: #ffd27a; }
 .gear-row.locked { opacity: 0.55; }
+
+/* class minigames (HTML panels) */
+.lesson { position: fixed; left: 50%; top: 52%; transform: translate(-50%, -50%); width: min(92vw, 680px); max-height: 86vh; overflow: auto; pointer-events: auto; z-index: 25;
+  background: linear-gradient(180deg, rgba(28, 20, 36, 0.94), rgba(14, 10, 20, 0.96)); border: 2px solid rgba(255, 210, 122, 0.6); border-radius: 14px; padding: 14px 16px 12px; color: #f2e6cc; text-align: center; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6); }
+.lesson .l-title { font: 700 clamp(15px, 2.6vw, 22px) Cinzel, serif; color: #ffd27a; margin-bottom: 10px; }
+.lesson .l-help { font: 14px 'EB Garamond', serif; opacity: 0.85; margin-top: 10px; }
+.lesson button { font: inherit; cursor: pointer; touch-action: manipulation; }
+.lesson .focus { outline: 3px solid #7ad0ff; outline-offset: 2px; }
+.herb .pots { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; max-width: min(420px, 70vh); margin: 0 auto; }
+.herb .pot { aspect-ratio: 1.3; font-size: clamp(30px, 7vw, 48px); border-radius: 12px; border: 2px solid #7a5030; background: radial-gradient(circle at 50% 70%, #6a4028, #3a2416); }
+.herb .pot.calm { background: radial-gradient(circle at 50% 70%, #4a7a2a, #2a4416); }
+.herb .pot.scream { background: radial-gradient(circle at 50% 70%, #c04030, #5a1a10); animation: shake 0.15s infinite; }
+.herb .earmuffs { margin-top: 10px; padding: 8px 18px; border-radius: 20px; border: 2px solid #ffd27a; background: #2a1e30; color: #ffd27a; }
+.herb .earmuffs.on, .herb.muffled .earmuffs { background: #ffd27a; color: #2a1e10; }
+.herb.stunned .pots { filter: blur(2px) grayscale(0.6); }
+@keyframes shake { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(3px); } }
+.astro .sky { width: 100%; height: auto; border-radius: 10px; display: block; touch-action: none; }
+.astro .ref { position: absolute; right: 22px; top: 52px; width: 140px; height: 100px; border: 1px solid rgba(255, 210, 122, 0.6); border-radius: 6px; }
+.trans .obj { font-size: clamp(56px, 12vw, 96px); line-height: 1.2; }
+.trans .obj.poof { animation: poof 0.5s; }
+@keyframes poof { 0% { transform: scale(0.3) rotate(-20deg); filter: brightness(3); } 100% { transform: none; } }
+.trans .seq { font: 600 22px Cinzel, serif; min-height: 30px; letter-spacing: 4px; color: #ffd27a; }
+.trans .pad { display: grid; grid-template-columns: repeat(4, 64px); gap: 10px; justify-content: center; margin-top: 10px; }
+.trans .pad button { height: 64px; border-radius: 50%; font-size: 24px; border: 2px solid #ffd27a; background: #2a1e30; color: #ffe0a0; }
+.trans .pad button.lit { animation: lit 0.4s; }
+.trans .pad button.bad { animation: bad 0.4s; }
+@keyframes lit { 50% { background: #ffd27a; color: #2a1e10; transform: scale(1.12); } }
+@keyframes bad { 50% { background: #c03030; transform: scale(0.92); } }
+.divi .cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; max-width: min(460px, 78vh); margin: 0 auto; }
+.divi .card { aspect-ratio: 1.15; border-radius: 10px; border: 2px solid #c08aa0; background: repeating-linear-gradient(45deg, #4a2040, #4a2040 6px, #3a1830 6px, #3a1830 12px); font-size: clamp(26px, 6vw, 40px); transition: transform 0.2s; }
+.divi .card.up { background: #f4e8d0; transform: rotateY(0); }
+.divi .card.got { background: #d8f0c0; border-color: #6ab04a; }
