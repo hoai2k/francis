@@ -509,6 +509,11 @@ class Game {
     const show = new Showcase(canvas, { cam: [5.6, 3.6, 8.4], look: [0, 1.25, 0], spin: 0.4, cells: cellRects });
     this.cleanup = () => show.dispose();
     const slotKeys = [], slotHtml = [];   // what each preview cell currently shows
+    // online, with 4 people or fewer in the room: the other screens' players get preview cells too,
+    // after ours, live from their presence ({ remote: true, key, name, color, phase, sub, dcur, kcur,
+    // gcur, stale, status }). rstate remembers each one's step, to mirror their lock-in moves.
+    const remotes = () => (online ? online.previewRemotes() : []);
+    const rstate = new Map();
     let gridKey = '', picksKey = '';
     // phones hide the grid: drivers are stepped through with arrows instead
     const compact = () => !picksEl.offsetWidth;
@@ -559,6 +564,17 @@ class Game {
     // lay the preview cells out in the grid that keeps them closest to square
     const layoutCells = () => {
       const n = Math.max(1, cellsEl.children.length), W = stageEl.clientWidth || 1, H = stageEl.clientHeight || 1;
+      // a phone online: its own player big, the others as small live previews down the side
+      if (phone && n > 1) {
+        const key = 'thumbs' + n;
+        if (key === gridKey) return;
+        gridKey = key;
+        cellsEl.style.gridTemplateColumns = '1fr 27%';
+        cellsEl.style.gridTemplateRows = `repeat(${n - 1}, 1fr)`;
+        cellsEl.firstElementChild.style.gridRow = `1 / span ${n - 1}`;
+        return;
+      }
+      if (cellsEl.firstElementChild) cellsEl.firstElementChild.style.gridRow = '';
       let cols = 1, best = -Infinity;
       for (let c = 1; c <= n; c++) {
         const r = Math.ceil(n / c), score = Math.min(W / c, (H / r) * 1.2) - (c * r - n) * 8;
@@ -572,6 +588,7 @@ class Game {
     };
     const gGroup = (gl) => GLIDER_GROUP_NAMES[gl.group] || { name: 'Glider', color: '#fff' };
     const cellHtml = (p, d, ch, following, standing) => {
+      if (p?.remote) return remoteHtml(p, d, ch, standing);
       // online: each player first picks the name they race under (see js/online/names.js)
       if (online && p?.phase === 'name') return online.nameCell(p);
       const kartStep = p && locked(p), glideStep = kartStep && p.sub === 'glider';
@@ -595,15 +612,51 @@ class Game {
         ${standing ? '' : `<div class="pvkart">${glideStep ? `on the <b>${esc(ch.vehicle)}</b> with <b>${esc(d.name)}</b>` : kartStep ? `driven by <b>${esc(d.name)}</b>${p.phase === 'done' ? ` · <b>${esc(gl.name)}</b>` : ''}` : `in the <b>${esc(ch.vehicle)}</b>`}</div>`}
         ${glideStep ? '' : `<div class="stats big">${statBars(combinedStats(ch.stats, d))}</div>`}</div>${following ? '<div class="pvfollow">▶︎ picking now</div>' : ''}`;
     };
+    // another screen's player: the same preview, marked as theirs (🌐 and their name), with no controls
+    const remoteHtml = (p, d, ch, standing) => {
+      const kartStep = locked(p), glideStep = kartStep && p.sub === 'glider', gl = GLIDERS[p.gcur ?? 0];
+      const who = `<i class="rwho" style="background:${p.color}">${p.host ? '👑 ' : '🌐 '}${esc(p.name)}</i> `;
+      const tag = p.status ? `${who}<span class="rst">${esc(p.status)}</span>`
+        : p.phase === 'name' ? `${who}choosing a name…` : p.phase === 'driver' ? `${who}picking a <b>driver</b>`
+        : p.phase === 'kart' ? `${who}picking a <b>${glideStep ? 'glider' : 'kart'}</b>` : `${who}is ready!`;
+      if (phone) return `<div class="pvstep">${tag}</div><div class="pvinfo"><div class="pvname">${esc(glideStep ? gl.name : kartStep ? ch.vehicle : d.name)}</div></div>`;
+      const u = glideStep ? gGroup(gl) : uni(d.from);
+      const sw = p.swDir && performance.now() - p.swAt < 700 ? ` sw${p.swDir > 0 ? 'd' : 'u'}` : '';
+      return `<div class="pvstep">${tag}</div>
+        <div class="pvinfo${sw}"><div class="pvfrom" style="color:${u.color}">${esc(u.name)}</div>
+        <div class="pvname">${esc(glideStep ? gl.name : kartStep ? ch.vehicle : d.name)}</div>
+        ${standing ? '' : `<div class="pvkart">${glideStep ? `on the <b>${esc(ch.vehicle)}</b> with <b>${esc(d.name)}</b>` : `driven by <b>${esc(d.name)}</b>${p.phase === 'done' ? ` · <b>${esc(gl.name)}</b>` : ''}`}</div>`}
+        ${glideStep ? '' : `<div class="stats big">${statBars(combinedStats(ch.stats, d))}</div>`}</div>`;
+    };
+    // a remote player's step changed: play what their own screen shows (driver lock-in jump, the
+    // kart's lock-in spin and slide to the glider, the win pose)
+    const remoteMoves = (p, i) => {
+      const st = rstate.get(p.key) || {}, now = performance.now();
+      const was = st.phase, wasSub = st.sub;
+      let move = null;
+      if (was && (was !== p.phase || wasSub !== p.sub)) {
+        if ((was === 'name' || was === 'driver') && p.phase === 'kart') { st.kartAt = now + 1000; move = 'commit'; }
+        else if (was === 'kart' && wasSub !== 'glider' && p.phase === 'kart' && p.sub === 'glider') { move = 'slide'; st.swAt = now; }
+        else if (p.phase === 'done' && was !== 'done') move = 'win';
+      } else if (!was && p.phase === 'kart') st.kartAt = 0;
+      st.phase = p.phase; st.sub = p.sub;
+      rstate.set(p.key, st);
+      p.kartAt = st.kartAt; p.swDir = st.swAt ? 1 : 0; p.swAt = st.swAt || 0;
+      return move;
+    };
     const refreshStage = (cheerP) => {
-      const list = players.length ? players : [null];
+      const rem = remotes();
+      const list = [...(players.length ? players : [null]), ...rem];
+      for (const k of [...rstate.keys()]) if (!rem.some((r) => r.key === k)) rstate.delete(k);
       const fp = followed();
       while (cellsEl.children.length > list.length) cellsEl.lastElementChild.remove();
       while (cellsEl.children.length < list.length) cellsEl.appendChild(document.createElement('div'));
       show.trim(list.length); slotKeys.length = slotHtml.length = list.length;
-      ui.querySelector('.csel').classList.toggle('multi', list.length > 1);
+      ui.querySelector('.csel').classList.toggle('multi', list.length > 1 && !phone);
+      ui.querySelector('.csel').classList.toggle('thumbs', list.length > 1 && phone);
       layoutCells();
       list.forEach((p, i) => {
+        const move = p?.remote ? remoteMoves(p, i) : null;
         const d = DRIVERS[p ? p.dcur : 0], ch = KARTS[p ? p.kcur : 0];
         // while choosing a driver they stand on their own; the kart joins once they lock in (after
         // their lock-in jump-spin)
@@ -620,12 +673,15 @@ class Game {
           // a new glider or the kart / glider view: changed in place (no rebuild)
           const it = show.items[i];
           if (it && it.glider !== gl) show.setGlider(i, gl);
-          if (it && it.glide !== glide && !it.slideFx) show.setGlide(i, glide);
+          if (move === 'slide' && it && !it.slideFx) { show.spinCommit(i); show.play(i, 'cheer'); show.slide(i, 1, () => show.setGlide(i, true)); }
+          else if (it && it.glide !== glide && !it.slideFx) show.setGlide(i, glide);
         }
         show.setPhase(i, phase);
         if (p && p === cheerP) { if (standing) show.standMove(i, 'commit'); else show.play(i, 'cheer'); this.audio.voice(d.voice, 'cheer', 0.9); }
+        if (move === 'commit' && standing) show.standMove(i, 'commit');
+        if (move === 'win') show.play(i, 'win');
         const cell = cellsEl.children[i];
-        cell.className = 'pvcell' + (p && p === fp && players.length > 1 ? ' follow' : '');
+        cell.className = 'pvcell' + (p && p === fp && players.length > 1 ? ' follow' : '') + (p?.remote ? ' remote' + (p.stale ? ' away' : '') : '');
         cell.style.setProperty('--pc', p ? p.color : 'rgba(255,255,255,.25)');
         const html = cellHtml(p, d, ch, p && p === fp && players.length > 1, standing);
         if (html !== slotHtml[i]) { cell.innerHTML = html; slotHtml[i] = html; }
@@ -830,6 +886,7 @@ class Game {
       update: (dt) => {
         fillImgs(3);
         if (players.some((p) => p.kartAt && performance.now() >= p.kartAt)) { for (const p of players) if (p.kartAt && performance.now() >= p.kartAt) p.kartAt = 0; refresh(); }
+        for (const st of rstate.values()) if (st.kartAt && performance.now() >= st.kartAt) { st.kartAt = 0; refreshStage(); }
         // after the kart's lock-in spin, on to the glider
         for (const p of players) if (p.kartLock && performance.now() >= p.kartLock && p.phase === 'kart') { p.kartLock = 0; switchSub(p, 1, 'glider'); }
         if (goAt && performance.now() >= goAt) { goAt = 0; if (players.length && players.every((p) => p.phase === 'done')) { go(); return; } }

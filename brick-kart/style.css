@@ -487,3 +487,20 @@ canvas.pod3d { display: block; width: min(640px, 100%); height: min(300px, 38vh)
 .lu-leave { width: auto; font-size: 16px; padding: 8px 14px 6px; margin: 0; background: var(--dk, #475466); }
 #ol-spec { position: fixed; left: 50%; bottom: 12px; transform: translateX(-50%); z-index: 25; display: flex; gap: 8px; }
 #ol-spec button { width: 52px; height: 44px; border: 0; border-radius: 10px; background: rgba(10,16,30,.7); color: #fff; font-size: 20px; box-shadow: inset 0 0 0 2px rgba(255,255,255,.25); cursor: pointer; }
+
+/* online: other screens' players on the select screen (4 people or fewer): the same preview cells,
+   marked as remote: their name with 🌐, a cooler tint with a fine diagonal sheen, no controls, and
+   dimmed while they're away */
+.csel.multi .pvcell.remote { box-shadow: inset 0 0 0 3px color-mix(in srgb, var(--pc) 60%, transparent); background: repeating-linear-gradient(135deg, rgba(160,200,255,.05) 0 2px, transparent 2px 12px), linear-gradient(180deg, rgba(40,70,140,.12), color-mix(in srgb, var(--pc) 20%, transparent)); }
+.pvcell.remote .pvstep .rwho { color: #10203c; text-shadow: none; }
+.pvcell.remote .pvstep .rst { opacity: .85; }
+.pvcell.away::after { content: ''; position: absolute; inset: 0; border-radius: inherit; background: rgba(8,12,24,.55); }
+.pvcell.away .pvstep { z-index: 1; }
+.olroster.slim:empty { display: none; }
+/* a phone: its own player big, the others as small live previews down the side */
+.csel.thumbs .pvcells { gap: 4px; padding: 0; }
+.csel.thumbs .pvcell.remote { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--pc) 70%, transparent); background: linear-gradient(180deg, rgba(40,70,140,.2), color-mix(in srgb, var(--pc) 22%, transparent)); }
+.csel.thumbs .pvcell.remote .pvstep { top: 3px; left: 3px; right: 3px; font-size: 10px; padding: 1px 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.csel.thumbs .pvcell.remote .pvstep b { color: inherit; }
+.csel.thumbs .pvcell.remote .pvinfo { left: 4px; right: 4px; bottom: 3px; }
+.csel.thumbs .pvcell.remote .pvname { font-size: 12px; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

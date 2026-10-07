@@ -487,6 +487,7 @@ export class Online {
       this.publishMine(true);
       this.hostCheck();
     }
+    if (this.view === 'select') this.selRefreshSoon();
   }
   onLeft(p) {
     if (!p) return;
@@ -501,6 +502,7 @@ export class Online {
       this.publishMine(true);
     }
     this.renderRoster();
+    if (this.view === 'select') this.selRefreshSoon();   // (the previews follow the head-count)
     if (this.isHost) this.hostCheck();
   }
   bubble(text) { this.game.toast(text); }
@@ -515,12 +517,32 @@ export class Online {
     }
     return { n: 'choosing a name…', d: 'choosing a driver…', k: 'choosing a kart…', g: 'choosing a glider…', r: 'ready ✓' }[h.ph] || 'connecting…';
   }
-  // the room panel: one chip per person (keyed, so portraits aren't rebuilt on every update)
+  // With 4 people or fewer in the room, the select screen shows everyone as a preview, like local
+  // multiplayer: the other screens' players (live from their presence) after ours. More than that
+  // and it's the room panel and bubbles.
+  previewMode(hs = this.humans()) { return hs.length > 0 && hs.length <= 4 && ['select', 'track', 'confirm'].includes(this.view); }
+  previewRemotes() {
+    const hs = this.humans();
+    if (!this.previewMode(hs)) return [];
+    const s = this.session, PHASE = { n: 'name', d: 'driver', k: 'kart', g: 'kart', r: 'done' };
+    return hs.filter((h) => !h.me).map((h) => {
+      const away = s?.missing.has(h.uid) ? 'reconnecting…' : h.stage === 'join' || !h.stage ? 'connecting…'
+        : h.stage === 'res' ? 'still on the results' : h.stage === 'sel' || h.stage === 'rdy' ? '' : 'away';
+      return {
+        remote: true, key: h.key, id: h.slot, name: h.name, color: SCOL[h.si % SCOL.length], host: h.host && (h.slot === 0 || !h.multi),
+        dcur: h.d, kcur: h.k, gcur: h.g, phase: PHASE[h.ph] || 'name', sub: h.ph === 'g' ? 'glider' : 'kart',
+        stale: !!away, status: away,
+      };
+    });
+  }
+  // the room panel: one chip per person (keyed, so portraits aren't rebuilt on every update); while
+  // everyone has a preview it only lists screens that are still connecting
   renderRoster() {
     const el = this.game.ui.querySelector('.olroster');
     if (!el) return;
     if (el !== this.rosterEl) { this.rosterEl = el; this.chips = new Map(); el.innerHTML = ''; }
-    const hs = this.humans(), keys = new Set();
+    const all = this.humans(), preview = this.previewMode(all), hs = preview ? [] : all, keys = new Set();
+    el.classList.toggle('slim', preview);
     for (const h of hs) {
       keys.add(h.key);
       let c = this.chips.get(h.key);
@@ -613,6 +635,7 @@ export class Online {
       },
       back: () => { this.view = 'confirm'; this.confirmLeave(() => this.showSelect(false)); },
       canJoin: (n) => this.canJoin(n),
+      previewRemotes: () => this.previewRemotes(),
       taken: () => this.humans().filter((h) => !h.me && h.ph !== 'n' && h.ph !== 'd' && (h.stage === 'sel' || h.stage === 'rdy')).map((h) => h.d),
       tags: (i) => {
         let html = '';
