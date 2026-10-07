@@ -23,6 +23,8 @@ export const ITEMS = {
   egg: { name: 'Golden egg', short: 'Golden egg', icon: '🥚', price: 0, tags: [], gift: false },
   orb: { name: 'Prophecy orb', short: 'Prophecy', icon: '🔮', price: 0, tags: [], gift: false },
   locket: { name: 'Heavy gold locket', short: 'Locket', icon: '📿', price: 0, tags: [], gift: false },
+  fang: { name: 'Wyrm fang', short: 'Wyrm fang', icon: '🦷', price: 0, tags: [], gift: false },
+  circlet: { name: 'Silver circlet', short: 'Circlet', icon: '👑', price: 0, tags: [], gift: false },
   shell: { name: 'Lake shell', short: 'Shell', icon: '🐚', price: 0, tags: ['creature', 'plant'], gift: true },
 };
 export const SHOPS = {

@@ -25,6 +25,7 @@ export function buildUndercroft(Q) {
   const M = materials();
   const zone = makeZone('undercroft', 'The Undercroft', { fog: { color: 0x07120c, density: 0.03 } });
   const { C, W } = zone;
+  zone.colliders.terrain = () => -100; // every floor here has its own collider; pits really drop
   const B = new Builder();
   const wet = new THREE.MeshStandardMaterial({ color: 0x2a3a30, roughness: 0.35, metalness: 0.1 });
   const S = M.stoneDark;

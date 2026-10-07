@@ -234,6 +234,7 @@ export default {
         await G.ui.fade(1, 0.5);
         cave().boat.position.copy(cave().spots.island).setY(cave().spots.lakeY + 0.25).add(new THREE.Vector3(0, 0, 9));
         G.player.teleport(cave().spots.island, Math.PI);
+        cave().checkpoint = { pos: cave().spots.island.clone(), yaw: Math.PI };
         s.placeNPC('headmistress', 'cave', cave().spots.basin.clone().add(new THREE.Vector3(1.2, 0, 1)), Math.PI);
         await G.ui.fade(0, 0.5);
         await s.talk('headmistress', ['The locket is in the basin, under the potion. The potion must be drunk; it cannot be emptied any other way.', 'I will drink it. Whatever I say, whatever I beg — make me keep drinking. Promise me.']);

@@ -656,3 +656,42 @@ TYPES.inferius = {
 TYPES.drownedhost = { ...TYPES.inferius, name: 'The Drowned Host', hp: 1300, radius: 1, height: 4.2, speed: 2.2, points: 120, boss: true, xp: 1000,
   model: (o) => TYPES.inferius.model({ ...o, big: true }),
   ai(dt, p) { this.o.big = true; TYPES.inferius.ai.call(this, dt, p); } };
+
+// ------------------------------------------------------------------ the Hollow King, mortal at last (Year 7 final duel)
+TYPES.hollowkingFinal = {
+  ...TYPES.hollowking, name: 'The Hollow King', hp: 3600, resist: { stupefy: 0.5, petrificus: 0.3, leviosa: 0, levicorpus: 0, obscuro: 0.3 }, weak: { expelliarmus: 1.25, patronum: 1.2 }, points: 300, xp: 3000,
+  ai(dt, p) {
+    const f = this.hp / this.maxHp;
+    const ph = f > 0.7 ? 1 : f > 0.35 ? 2 : 3;
+    const C = this.o.center || this.pos;
+    if (ph !== this.phase) {
+      this.phase = ph;
+      this.phaseLabel = ['', 'Phase I — the duel', 'Phase II — the Hollow rises', 'Phase III — nothing left to lose'][ph];
+      postFlash(0.3); G.cam.shake(0.4);
+      if (ph === 2) {
+        G.ui.banner('“Rise, my Hollowed!”', 'He is shielded while his servants stand — and his Dementors drain the light', '');
+        G.audio.sfx('dementor');
+        for (let i = 0; i < 3; i++) { const a = (i / 3) * Math.PI * 2; const e = G.enemies.spawn(i ? 'wizard' : 'dementor', C.clone().add(new THREE.Vector3(Math.cos(a) * 10, 0, Math.sin(a) * 10)), { aggro: true, level: 6, spells: ['curse', 'killing'], name: 'Hollowed', lord: !i, hp: i ? undefined : 900 }); e.summon = true; }
+        this.invuln = true; this.ensureShield(); this.shieldMesh.visible = true;
+      }
+      if (ph === 3) { G.ui.banner('The Hollow King is mortal!', 'Every vessel is gone. Finish this.', ''); G.audio.sfx('roar'); }
+    }
+    if (this.invuln && !G.enemies.list.some((e) => e.alive && e.summon)) {
+      this.invuln = false; if (this.shieldMesh) this.shieldMesh.visible = false;
+      G.ui.floatText(this.pos.clone().setY(this.pos.y + 2.8), 'Shield down!', 'combo'); G.audio.sfx('shatter'); this.status.stun = 2.5;
+    }
+    this.level = 6 + ph;
+    this.o.spells = ph === 1 ? ['curse', 'killing', 'stupefyE'] : ph === 2 ? ['killing', 'curse', 'incendioE'] : ['killing', 'killing', 'curse'];
+    this.o.volley = ph + 1;
+    this.o.range = 14;
+    this.o.block = 0.4; this.o.dodge = 0.3;
+    this.specT = (this.specT ?? 6) - dt;
+    if (this.specT <= 0 && this.canAct) {
+      this.specT = ph === 3 ? 3.5 : 5.5;
+      const r = Math.random();
+      if (r < 0.35) this.beam(); else if (r < 0.65) this.meteorRain(); else this.eruptions(ph + 2, 1.0);
+    }
+    this.aiWizard(dt, p);
+    if (Math.random() < 0.5) G.fx.emit({ pos: this.pos.clone().setY(this.pos.y + rand(0.2, 2.6)), color: 0x40ff70, count: 1, speed: 0.5, size: 0.3, life: 0.8, intensity: 3, noScale: true });
+  },
+};

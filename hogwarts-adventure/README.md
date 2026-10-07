@@ -1,9 +1,12 @@
 # Hogwarts Adventure
 
-A Harry Potter–inspired 3D adventure in the browser. You arrive as a new
-student, get sorted into a house, explore a candlelit castle, learn eight
-spells, fight dark wizards, a mountain troll and Dementors, and earn house
-points in six minigames. The House Cup is decided at the end-of-term feast.
+A Harry Potter–inspired 3D adventure in the browser: a full **seven-year
+saga**. You arrive as a new student and get sorted into a house. Each year you
+ride the Hogwarts Express back to a candlelit castle, learn about thirty
+spells, make friends and a rival, and fight dark wizards, trolls, Dementors, a
+giant serpent, a dragon, Inferi and, in the end, the Hollow King himself. Earn
+house points in quests and minigames; the House Cup is decided at every
+end-of-term feast.
 
 Play: <https://hoai2k.github.io/francis/hogwarts-adventure/>
 
@@ -45,8 +48,8 @@ years. Sweets and gifts go in your **Satchel** (pause menu).
 
 ## Progression (the seven-year update)
 
-- **School years:** the game is growing into a seven-year saga. Each year has
-  its own story, a mid-year twist and a final boss, and ends with the House Cup.
+- **School years:** all seven years are playable. Each year has its own story,
+  a mid-year twist and a final boss, and ends with the House Cup.
   Saves from before the update continue as *Year 1 complete*. **School Years**
   in the pause menu lists every year and can replay one from the autosave made
   when it began.
@@ -254,6 +257,32 @@ necklace hurts Tamsin in Hogsmeade.
 
 Side quests: Isolde's bricked-up storerooms, Bram's runaway seed pods and
 Pell's Lantern Club brewing contest.
+
+## Year 7 — The Last Stand
+
+The Hollow King has seized the Ministry, and Hollowed searchers stop the
+train. The Headmistress's cursed hand gives her until summer, so you hunt the
+remaining **vessels**. You learn Oppugno, then take fangs from the Wyrm's
+bones in the Undercroft.
+
+- **The locket:** Cassius's uncle hid it in the family crypt. Its guardians
+  are Inferi, and it fights back with phantoms of your friends.
+- **The cup:** it lies in a vault beneath the Veil, guarded by a Dementor lord.
+- **The twist:** the last vessel is Malachar himself.
+- **The circlet:** it is in the Room of Hidden Things, surrounded by cursed
+  fire.
+- **Rallying the castle:** gather your friends, and Cassius chooses his side.
+- **The Battle of Hogwarts** is a six-wave defence of the courtyard against
+  the Hollowed, acromantulas, Dementors, a war troll, marching Inferi and
+  Vesper Mordaunt. Then Malachar comes, and he finally falls for good.
+- **The final duel:** face the Hollow King, mortal at last, in the Great Hall.
+  Phase I is a duel. In Phase II he is shielded while his Hollowed stand. In
+  Phase III he fights with beams, meteor rains and volleys of dark lances.
+- **Ever After:** your three closest friends (and Cassius, if redeemed) each
+  get their own ending scene, followed by the last House Cup.
+
+Side quests: barricades for Calloway, healing supplies for Isolde, Kofi's
+hidden fireworks, and one last duel with Rowan Ashdown.
 
 ## Minigames
 

@@ -80,6 +80,8 @@ export function buildArcana(Q) {
   const tile = new THREE.MeshStandardMaterial({ color: 0x14161e, roughness: 0.2, metalness: 0.5 });
   // A: lift lobby (z 0 .. -12)
   room(B, C, M, -4, -12, 4, 0, 6, { doors: [{ side: 'n', at: 0, w: 3, h: 4 }], wall: black, floor: tile, ceilMat: black });
+  C.box(0, -0.25, -6, 4.5, 0.25, 6.5);
+  zone.colliders.terrain = () => -100; // the Veil Chamber is sunk below the entrance level
   // B: the round Hall of Doors (z -12 .. -32), twelve black doors
   const R = 10, cz = -22;
   B.add(new THREE.CylinderGeometry(R + 1, R + 1, 0.5, 32), tile, mat4(0, -0.25, cz));

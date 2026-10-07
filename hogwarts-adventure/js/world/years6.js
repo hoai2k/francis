@@ -14,6 +14,7 @@ export function buildCave(Q) {
   const M = materials();
   const zone = makeZone('cave', 'The Sea Cave', { fog: { color: 0x061014, density: 0.022 }, noSave: true, noCompanion: true });
   const { C, W } = zone;
+  zone.colliders.terrain = () => -100; // fall in the lake and the Inferi have you
   const B = new Builder();
   const rock = new THREE.MeshStandardMaterial({ color: 0x1e2226, roughness: 0.85, flatShading: true });
   const wet = new THREE.MeshStandardMaterial({ color: 0x14181c, roughness: 0.3, metalness: 0.2, flatShading: true });

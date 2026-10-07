@@ -49,7 +49,7 @@ function route(from, to) {
   return cur;
 }
 
-export const BUILT_YEARS = 6;
+export const BUILT_YEARS = 7;
 const Y1_FROM = ['Headmistress Aldmoor', 'Headmistress Aldmoor', 'Professor Thornwick', 'Professor Duskwood', 'Professor Vexley', 'Professor Vexley', 'Madam Hale', 'Brannoc the Groundskeeper', 'Headmistress Aldmoor', 'Headmistress Aldmoor', 'Brannoc the Groundskeeper'];
 
 export const QUESTS = [
@@ -157,7 +157,7 @@ export class Story {
   currentQuest() {
     if (this.journeyQuest?.quest) return this.journeyQuest.quest;
     if (this.yearEngine && !G.save.yearDone) return this.yearEngine.objective();
-    if (G.save.yearDone) return { title: `Year ${G.save.year} complete`, objective: this.yearAvailable(G.save.year + 1) ? `Begin Year ${G.save.year + 1}: open the pause menu → School Years, or talk to the Headmistress.` : 'Explore, find collectibles and play minigames. More years arrive in a later update.' };
+    if (G.save.yearDone) return { title: `Year ${G.save.year} complete`, objective: this.yearAvailable(G.save.year + 1) ? `Begin Year ${G.save.year + 1}: open the pause menu → School Years, or talk to the Headmistress.` : (G.save.year >= 7 ? 'The saga is complete! Replay any year from the pause menu (School Years), explore and hunt collectibles.' : 'Explore, find collectibles and play minigames. More years arrive in a later update.') };
     return QUESTS[Math.min(this.stage, QUESTS.length - 1)];
   }
   completedQuests() { if (this.yearEngine) return this.yearEngine.def.quests.slice(0, this.yearEngine.qi).map((q) => q.title); return G.save.year > 1 ? [] : QUESTS.slice(0, Math.min(this.stage, 11)).map((q) => q.title); }
