@@ -63,6 +63,7 @@ export class Player {
     });
     this.root.add(this.model.root);
     this.anim = this.model.anim;
+    this.anim.onTrigger = (name) => G.net?.trig(name); // friends see casts, waves and cheers
     this.wandTip = this.model.wandTip;
   }
 
@@ -140,7 +141,7 @@ export class Player {
     if (this.lastHurt > 5) this.hp = Math.min(this.maxHp, this.hp + dt * 4);
 
     if (this.flying) return; // a minigame drives the player
-    const canAct = this.alive && this.control && G.mode === 'play';
+    const canAct = this.alive && this.control && G.mode === 'play' && !G.paused;
     const camYaw = G.cam.yaw;
     let mx = canAct ? I.move.x : 0, my = canAct ? I.move.y : 0;
     const mag = Math.min(1, Math.hypot(mx, my));

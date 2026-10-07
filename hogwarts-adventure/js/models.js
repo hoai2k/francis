@@ -365,6 +365,7 @@ export class HumanoidAnim {
     const d = dur ?? { cast: 0.38, hit: 0.4, wave: 1.2, nod: 0.6, flick: 0.5, point: 1, cheer: 1.2 }[name] ?? 0.4;
     this.shots = this.shots.filter((s) => s.name !== name);
     this.shots.push({ name, t: 0, dur: d });
+    this.onTrigger?.(name);
   }
   shot(name) { return this.shots.find((s) => s.name === name); }
   update(dt, speed = 0, extra = {}) {

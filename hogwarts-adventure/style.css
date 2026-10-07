@@ -384,3 +384,23 @@ body[data-device='kbm'] .pt-heat-btns { display: none; }
   .d-choice { padding: 4px 10px; font-size: 15px; }
   .banner { top: 30%; padding: 8px 20px; }
 }
+
+/* ---------- online co-op ---------- */
+.join-slot:empty { display: none; }
+.join-btn { border-color: #7ad0ff; background: linear-gradient(180deg, rgba(40,70,110,.92), rgba(20,32,56,.92)); }
+.join-btn small, .menu-col .btn small { display: block; font-family: 'EB Garamond', serif; font-size: 14px; letter-spacing: 0; color: var(--dim); text-transform: none; }
+.net-pill { display: flex; align-items: center; gap: 7px; max-width: min(360px, 60vw); padding: 3px 11px 3px 9px; border-radius: 14px; background: rgba(10,8,14,.6); border: 1px solid rgba(122,208,255,.35); font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
+.net-pill .dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: #6adf7a; box-shadow: 0 0 8px #6adf7a; }
+.net-pill .dot.warn { background: #f0b040; box-shadow: 0 0 8px #f0b040; animation: tin 1s ease infinite alternate; }
+.subtitle { position: fixed; left: 50%; bottom: calc(150px + var(--safe-b)); transform: translateX(-50%); z-index: 15; width: max-content; max-width: min(640px, 92vw); padding: 7px 16px; border-radius: 10px; background: rgba(12,9,18,.78); border: 1px solid rgba(227,180,90,.25); font-size: 17px; line-height: 1.35; text-align: center; pointer-events: none; animation: tin .3s ease; }
+.subtitle b { font-family: 'Cinzel', serif; font-size: 15px; }
+.house-pick { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 6px 0 14px; }
+.hp-card { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 12px 6px; border-radius: 12px; background: rgba(255,255,255,.04); border: 1px solid rgba(227,180,90,.25); cursor: pointer; font-family: 'Cinzel', serif; font-size: 15px; }
+.hp-card.focus, .hp-card:hover { border-color: var(--gold2); box-shadow: 0 0 18px rgba(255,200,100,.35); }
+.o-note { margin: 2px 4px 8px; font-size: 15px; color: var(--dim); }
+.crest-spin.small { display: inline-block; font-size: 18px; margin-right: 6px; }
+@media (max-width: 560px) {
+  .house-pick { grid-template-columns: repeat(2, 1fr); }
+  .net-pill { font-size: 13px; max-width: 46vw; }
+  .subtitle { bottom: calc(190px + var(--safe-b)); font-size: 15px; }
+}
