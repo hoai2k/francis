@@ -109,6 +109,7 @@ export function latestSlot() {
 export function writeSave() {
   const s = G.save;
   if (!s || !s.started || G.practiceSave) return;
+  if (G.net?.isGuest) return; // visiting a friend's world: their world is theirs, my save stays as it was
   if (G.player && G.zone && G.mode !== 'cutscene' && !G.zone.noSave) {
     s.zone = G.zone.name;
     s.pos = [G.player.pos.x, G.player.pos.y, G.player.pos.z, G.player.yaw];

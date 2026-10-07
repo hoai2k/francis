@@ -209,6 +209,85 @@ and 30 Bertie Bott's beans.
 
 Progress and settings are saved in `localStorage`.
 
+Play with friends online: see [Online co-op](#online-co-op).
+
+## Online co-op
+
+Play the story with friends on other devices (up to three friends in one world).
+
+- **Host:** while playing, open the pause menu and choose **Host this world
+  online**. (**Settings → Online** has the same switch.) Choose **Stop hosting**
+  to close the world. Quitting to the title closes it too.
+- **Join:** on the title screen, **Join Online World** appears while a friend
+  is hosting. If you have a save, you join as the student from your most
+  recent save slot, with your level, talents and spell loadouts. If not, you
+  make a student and pick a house first. Your own save is never changed by a
+  visit, so experience earned in a friend's world isn't kept.
+- **Roles:** the host is the main character and leads the story. Guests are
+  the supporting cast. They see the host's quest ("Help Rowan: …"), get the
+  spells the host has learned, and can fight beside them in every story
+  battle. The school year is the host's (School Years is host-only).
+  Professors and Pip offer guests the practice version of their
+  activity (wand drawing, potions, the duelling tournament, Quidditch, the
+  Hippogriff, the frog chase).
+- **Shared world:** you can wander between rooms separately or stay together.
+  In the same room you see each other move, cast, block with Protego, light
+  Lumos, ride brooms and the Hippogriff, and you read the host's
+  conversations as subtitles. Enemies chase whoever is closer. House points,
+  Chocolate Frog cards and beans belong to the host's world. Whatever a guest
+  earns (kills, combos, minigames, collectibles) goes to the guest's house.
+- **Pause menu:** online, menus don't stop the world, because your friends
+  are still playing in it. Your student just stands still and enemies leave
+  you alone. Guests also get **Go to <host>** (jump to wherever the host is)
+  and **Leave <host>'s world**.
+- **Connection trouble:** a dropped connection reconnects by itself while
+  everyone keeps playing. If the host's connection drops, guests wait for
+  them to come back. If the host closes the world, guests return to the
+  title screen with a message.
+
+### How it works
+
+Online play uses the same **mini-rooms** relay as Brick Kart
+(`https://mini-rooms.hoai2k.workers.dev`, from the
+[`mini`](https://github.com/hoai2k/mini) repository; `?rooms=<url>` overrides
+it, and pages on localhost use `http://localhost:8787`). `js/vendor/mini-rooms.js`
+is a verbatim copy of its browser client. None of the online code loads
+until the title screen checks for open worlds or someone hosts.
+
+- **Presence** (each player, 10 times a second with company, once a second
+  alone): name, house and look, zone, position and rotation (of the
+  Hippogriff while riding it), animation, Protego / Lumos / alive flags,
+  health and one-shot animations (cast, hit, cheer…). Other screens draw it
+  with **snapshot interpolation** on a per-sender clock estimate, between
+  0.11 and 0.45 s behind (it follows how irregular that sender's updates
+  are), with a short dead reckoning when updates are late.
+- **The host owns the world.** The host's presence also carries the world
+  state (story stage, flags, house points, collectibles, spells, time of
+  day) and the enemies in the host's room. Guests show those enemies as
+  **puppets**.
+- **Hits are decided by the player who owns the target.** A guest's spell
+  that hits a puppet is sent to the host, who applies it, combos included.
+  Enemy spells are re-created on each screen and only hurt that screen's
+  student. Enemy melee and area attacks (troll slams, Malachar's eruptions
+  and beam, Dementor drain) are checked on the host against a stand-in for
+  each guest and sent to that guest, whose own screen applies them, so dodge
+  rolls and Protego still work. Telegraphs and troll shockwaves are shown
+  on every screen.
+- **Events** (casts, enemy spells, telegraphs, hits, points, collectibles,
+  subtitles…) are batched into at most 20 relay messages a second. All
+  incoming data is validated: types, ranges, finite numbers and known ids.
+  Names and text are escaped before they reach the page, and anything
+  malformed is ignored. Errors in online code are caught and logged, and
+  never stop the game loop.
+- **Budget:** the relay's free plan allows 100,000 requests a day, and each
+  message sent counts 1/20 of a request. A playing pair sends about 4,000
+  requests an hour, so the allowance covers roughly a day of two-player
+  play. The title screen checks for open worlds every 5 s (every 20 s after
+  three minutes, never while the tab is hidden).
+
+For debugging, `G.net` is the live session (`G.net.stats` counts the
+events sent and received by kind).
+
 ## Graphics
 
 - WebGL renderer with ACES tone mapping and real-time shadows.
@@ -238,6 +317,12 @@ Progress and settings are saved in `localStorage`.
 - `js/story.js`, `js/menus.js`, `js/ui.js`: quests, NPCs, menus and HUD
 - `js/audio.js`: procedural orchestral music and sound effects
 - `js/minigames/`: the six minigames
+- `js/online/`: online co-op, loaded only when used. `session.js` is the
+  relay connection, lobby, reconnects and clock estimate. `coop.js` is
+  presence, world state, events and the host / join / leave flows.
+  `remote.js` draws friends' students, the host-side stand-ins for guests
+  and the guests' enemy puppets.
+- `js/vendor/mini-rooms.js`: the mini-rooms relay client (verbatim copy)
 
 ## Credits
 

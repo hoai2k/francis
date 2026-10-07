@@ -26,6 +26,7 @@ export const G = {
   cam: null,
   lights: null,
   minigame: null,
+  net: null, // online co-op session (js/online/coop.js), null when playing alone
   quality: 'medium',
 };
 

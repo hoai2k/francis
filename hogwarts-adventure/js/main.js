@@ -79,7 +79,7 @@ async function boot() {
   openMainMenu();
   G.audio.music('menu');
   setInterval(() => { if (G.mode === 'play' || G.mode === 'minigame') { G.save.playTime += 30; writeSave(); } }, 30000);
-  window.addEventListener('beforeunload', () => writeSave());
+  window.addEventListener('beforeunload', () => { writeSave(); G.net?.close(); });
   document.addEventListener('visibilitychange', () => { if (document.hidden && G.mode === 'play' && !G.paused) openPause(); });
   requestAnimationFrame(loop);
 }
@@ -107,7 +107,9 @@ function loop(now) {
   }
   if (G.ui.wheel) G.ui.updateWheel();
   if (G.ui.cmd) G.ui.updateCommand();
-  const paused = G.paused;
+  // online, a menu doesn't stop the world (friends are still playing in it): the game keeps
+  // running with your student standing still. Minigames still pause, they're yours alone.
+  const paused = G.paused && !(G.net?.live && !G.minigame);
   const dt = paused ? 0 : realDt * G.timeScale;
   if (!paused) {
     G.time += dt;
@@ -135,9 +137,10 @@ function loop(now) {
     G.cam.update(realDt);
     if (G.mode === 'play') {
       G.ui.updateHUD(realDt);
-      G.story.updatePrompt();
+      if (!G.paused) G.story.updatePrompt();
     }
   }
+  G.net?.update(realDt);
   updatePost(dt, realDt);
   G.composer.render();
   I.endFrame();

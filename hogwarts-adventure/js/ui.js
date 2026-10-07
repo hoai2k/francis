@@ -81,6 +81,7 @@ export class UI {
     this.toast(`<b style="color:${h.c2 === '#2b2622' ? '#f0d060' : h.c2}">${n > 0 ? '+' : ''}${n}</b> points to ${h.name}${reason ? ` <i>· ${reason}</i>` : ''}`, 'points');
   }
   floatText(pos, text, cls = '') {
+    G.net?.float(pos, text, cls);
     const e = el('div', 'float ' + cls, text);
     this.hudLayer.appendChild(e);
     this.floats.push({ e, pos: pos.clone(), t: 0, vx: (Math.random() - 0.5) * 30 });
@@ -328,6 +329,19 @@ export class UI {
     if (G.mode === 'play') this.showHUD(true);
     return result;
   }
+  // a line of the host's conversation, for friends standing nearby (never blocks play)
+  subtitle(who, text, color) {
+    if (!this.subEl) { this.subEl = el('div', 'subtitle hidden'); document.body.appendChild(this.subEl); }
+    const s = this.subEl;
+    s.innerHTML = '<b></b><span></span>';
+    s.querySelector('b').textContent = who ? who + ': ' : '';
+    s.querySelector('b').style.color = color;
+    s.querySelector('span').textContent = text;
+    s.classList.remove('hidden');
+    clearTimeout(this._subT);
+    this._subT = setTimeout(() => s.classList.add('hidden'), 2500 + text.length * 45);
+  }
+
   // drop any open conversation (used when a minigame or the game is quit)
   cancelDialogue() {
     this.sayToken = (this.sayToken || 0) + 1;
@@ -344,6 +358,7 @@ export class UI {
       d.innerHTML = `<div class="d-name" style="color:${color}">${line.who || ''}</div><div class="d-text"></div><div class="d-choices"></div><div class="d-next">${glyph('confirm')}</div>`;
       const textEl = d.querySelector('.d-text'), choicesEl = d.querySelector('.d-choices'), next = d.querySelector('.d-next');
       const full = line.text;
+      G.net?.line(line); // friends in the room read along
       let shown = 0;
       next.style.visibility = 'hidden';
       if (line.speaker) line.speaker(true);

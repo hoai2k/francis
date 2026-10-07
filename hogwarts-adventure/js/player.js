@@ -64,6 +64,7 @@ export class Player {
     });
     this.root.add(this.model.root);
     this.anim = this.model.anim;
+    this.anim.onTrigger = (name) => G.net?.trig(name); // friends see casts, waves and cheers
     this.wandTip = this.model.wandTip;
     applyStats();
   }
@@ -150,7 +151,7 @@ export class Player {
       this.petrified -= dt;
       if (Math.random() < 0.3) G.fx.emit({ pos: this.pos.clone().setY(this.pos.y + Math.random() * 1.8), color: 0xc8c0b0, count: 1, speed: 0.3, size: 0.15, life: 0.6, intensity: 1.5, noScale: true });
     }
-    const canAct = this.alive && this.control && G.mode === 'play' && !(this.petrified > 0);
+    const canAct = this.alive && this.control && G.mode === 'play' && !(this.petrified > 0) && !G.paused;
     const camYaw = G.cam.yaw;
     let mx = canAct ? I.move.x : 0, my = canAct ? I.move.y : 0;
     const mag = Math.min(1, Math.hypot(mx, my));

@@ -93,8 +93,29 @@ export class Story {
   set stage(v) {
     G.save.stage = v;
     this.placeNPCs();
-    G.ui.setQuest(this.currentQuest());
+    G.ui.setQuest(this.questView());
     writeSave();
+  }
+  // online guests follow the host's story without saving it
+  syncStage(v) {
+    G.save.stage = v;
+    this.placeNPCs();
+    G.ui.setQuest(this.questView());
+  }
+  // the quest panel; a guest sees the host's quest as theirs to help with
+  questView() {
+    const q = this.currentQuest();
+    if (!G.net?.isGuest || !q) return q;
+    const host = G.net.hostName.replace(/[<>&]/g, '');
+    if (this.hostQuest && G.save.year > 1 && !G.save.yearDone) return { title: this.hostQuest.title, objective: `Help ${host}: ${this.hostQuest.objective}` };
+    if (G.save.yearDone || this.stage >= 11) return { title: q.title, objective: `Explore ${host}’s world together, find collectibles and play minigames for your house.` };
+    return { title: q.title, objective: `Help ${host}: ${q.objective}` };
+  }
+  announceStage(old, now, host) {
+    const q = QUESTS[old];
+    if (q && old > 0) { G.ui.banner('Quest complete', q.title, 'quest'); G.audio.sfx('quest'); }
+    const nq = QUESTS[now];
+    if (nq) setTimeout(() => G.ui.toast(`<b>New quest:</b> ${nq.title}`, 'quest', 4000), 600);
   }
   advance(to) {
     const q = QUESTS[this.stage];
@@ -188,6 +209,12 @@ export class Story {
   // ------------------------------------------------------------ house points
   addPoints(house, n, reason, quiet) {
     if (!house || !n) return;
+    if (G.net?.isGuest) {
+      // the host keeps the score; it comes back with their next update
+      G.net.points(house, n, reason);
+      if (!quiet) { G.ui.points(house, n, reason); G.audio.sfx('points'); }
+      return;
+    }
     const p = G.save.points;
     p[house] = Math.max(0, p[house] + n);
     if (!quiet) { G.ui.points(house, n, reason); G.audio.sfx('points'); }
@@ -331,6 +358,32 @@ export class Story {
     beanSpots.push({ zone: 'tower', pos: gz.tower.W(-4, 0.6, 5) }, { zone: 'grounds', pos: new THREE.Vector3(14, PLATEAU + 0.6, -12) });
     beanSpots.forEach((s, i) => { s.color = beanCols[i % beanCols.length]; this.addCollectible('bean', i, s); });
   }
+  // the collectibles of the current save (after loading another one, or joining a friend's world)
+  rebuildCollectibles() {
+    for (const c of this.collectibles) c.mesh.parent?.remove(c.mesh);
+    this.collectibles = [];
+    this.buildCollectibles();
+  }
+  // online guests: hide whatever the host's world has already collected
+  applyCollected() {
+    const s = G.save;
+    for (const c of this.collectibles) {
+      if (c.got) continue;
+      if (c.kind === 'card' ? s.cards.includes(c.i) : s.beans.includes(c.i)) { c.got = true; c.mesh.parent?.remove(c.mesh); }
+    }
+  }
+  // host: a friend picked one up in my world
+  collectRemote(kind, i, house, who) {
+    const list = kind === 'card' ? G.save.cards : G.save.beans;
+    if (list.includes(i)) return;
+    list.push(i);
+    const c = this.collectibles.find((x) => x.kind === kind && x.i === i && !x.got);
+    if (c) { c.got = true; c.mesh.parent?.remove(c.mesh); }
+    this.addPoints(house || G.save.house, kind === 'card' ? 5 : 1, null, true);
+    const name = who.replace(/[<>&]/g, '');
+    if (kind === 'card') G.ui.toast(`<b>${name}</b> found a Chocolate Frog card: <b>${CARDS[i]}</b> (${G.save.cards.length}/12)`, 'info', 3500);
+    writeSave();
+  }
   addCollectible(kind, i, s) {
     const have = kind === 'card' ? G.save.cards.includes(i) : G.save.beans.includes(i);
     if (have) return;
@@ -365,17 +418,19 @@ export class Story {
     c.got = true;
     c.mesh.parent?.remove(c.mesh);
     const house = G.save.house;
+    const guest = G.net?.isGuest; // the host's world keeps it (and gives my house the points)
+    if (guest) G.net.collect(c.kind, c.i);
     if (c.kind === 'card') {
       G.save.cards.push(c.i);
       const name = CARDS[c.i];
       G.audio.sfx('card');
       G.ui.banner(`Chocolate Frog Card: ${name}`, `${CARD_LORE[name]} (${G.save.cards.length}/12)`, 'card');
-      this.addPoints(house, 5, 'Rare card', true);
+      if (!guest) this.addPoints(house, 5, 'Rare card', true);
     } else {
       G.save.beans.push(c.i);
       G.audio.sfx('pickup');
       G.ui.toast(`Bertie Bott's bean: <i>${pick(BEAN_FLAVOURS)}</i> flavour! (${G.save.beans.length}/${this.totalBeans})`, 'info');
-      this.addPoints(house, 1, null, true);
+      if (!guest) this.addPoints(house, 1, null, true);
     }
     G.fx.burst(c.pos, c.kind === 'card' ? 0xffd070 : 0xffffff, 40, 5);
     writeSave();
@@ -386,7 +441,7 @@ export class Story {
   buildStations() {
     const I = this.interactables;
     const W = G.world.zones;
-    const npcAct = (id, label, fn) => I.push({ npc: id, label: () => label(), act: async () => { if (this.yearEngine && (await this.yearEngine.talk(id))) return; return fn(); }, r: 2.6 });
+    const npcAct = (id, label, fn) => I.push({ npc: id, label: () => label(), act: async () => { if (G.net?.isGuest) return this.guestTalk(id); if (this.yearEngine && (await this.yearEngine.talk(id))) return; return fn(); }, r: 2.6 });
     this.npcAct = npcAct;
     npcAct('headmistress', () => 'Talk to Headmistress Aldmoor', () => this.talkHeadmistress());
     npcAct('thornwick', () => 'Talk to Professor Thornwick', () => this.talkThornwick());
@@ -738,6 +793,35 @@ export class Story {
     if (c === 0) await runMinigame('frogs', {});
   }
 
+  // online guests are supporting characters: the professors know the host leads the story, and
+  // offer the practice version of their activity (points still go to the guest's house)
+  async guestTalk(id) {
+    const host = G.net.hostName.replace(/[<>&]/g, '');
+    const s = this.stage;
+    const lines = {
+      headmistress: [`Ah, ${G.save.name}. ${host} has a remarkable year ahead. Do stay close and lend your wand when it matters.`],
+      thornwick: [s > 1 ? 'Wand practice keeps the wrist supple! A neat trace earns you a Wand Mastery boost.' : `Oh, hello! Is ${host} with you? Do come along to Charms together.`],
+      vexley: [s > 3 ? 'You may brew, if you can follow instructions.' : `Not on my timetable. Come back with ${host} when the time is right.`],
+      duskwood: [s >= 2 ? 'Fancy a go at the tournament? Every win counts for your house.' : `The Duelling Club opens once ${host} has had a Charms lesson or two.`],
+      hale: [s >= 5 ? 'Another flier! Mount up whenever you like.' : 'Flying lessons come after castle classes. No brooms in the corridors!'],
+      brannoc: [s >= 6 ? 'Silvermane likes a bit o’ company. Fancy a flight?' : `Mornin’! Yer with ${host}, aren’t yeh? Keep an eye out near that forest.`],
+      pip: [s >= 2 ? 'My Chocolate Frogs escaped AGAIN! Help me catch them?' : `Hi! I’m Pip. Any friend of ${host}’s is a friend of mine!`],
+    }[id] || ['Hello there.'];
+    const offers = {
+      thornwick: s > 1 && ['Practise wand shapes', () => this.playWand()],
+      vexley: s > 3 && ['Brew a potion', () => this.playPotions()],
+      duskwood: s >= 2 && ['Start the tournament', () => runMinigame('duel', {})],
+      hale: s >= 5 && ['Fly!', () => runMinigame('quidditch', {})],
+      brannoc: s >= 6 && ['Fly Silvermane', () => runMinigame('creatures', {})],
+      pip: s >= 2 && ['Catch the frogs!', () => runMinigame('frogs', {})],
+    };
+    const offer = offers[id];
+    const d = this.npcs[id]?.d || NPC_LOOKS[id];
+    if (!offer) { await this.talk(id, lines); return; }
+    const c = await this.talk(id, [{ who: d.name, color: d.color, voice: d.voice, text: lines[0], choices: [offer[0], 'Not now'], speaker: (on) => this.npcs[id].model.anim.set(on ? 'talk' : 'idle') }]);
+    if (c === 0) await offer[1]();
+  }
+
   async playPotions(quest) {
     const r = await runMinigame('potions', { quest });
     return r;
@@ -751,6 +835,7 @@ export class Story {
 
   // ------------------------------------------------------------ encounters
   onArrive(zone) {
+    if (G.net?.isGuest) return; // the host's screen runs the story's fights
     this.yearEngine?.onArrive(zone);
     const s = this.stage;
     if (zone === 'corridor' && s === 1 && !G.save.flags.pixiesDone) this.startPixies();
@@ -758,6 +843,14 @@ export class Story {
     if (zone === 'greatHall' && s === 10) setTimeout(() => this.run(() => this.houseCup()), 800);
   }
   onRespawn() {
+    if (G.net?.isGuest) {
+      // back on my feet next to the host if we're in the same place, else at the door
+      const h = G.net.hostAvatar?.latest;
+      if (h && h.z === G.zone.name) G.player.teleport(h.p.clone().add(new THREE.Vector3(1.2, 0.2, 1.2)), G.player.yaw);
+      else G.player.teleport(G.zone.spawn.pos, G.zone.spawn.yaw);
+      G.cam.snap();
+      return;
+    }
     if (this.yearEngine?.onRespawn()) return;
     const s = this.stage;
     G.enemies.clearZone();
@@ -811,6 +904,7 @@ export class Story {
   }
 
   onEvent(type, data) {
+    if (G.net?.isGuest) return;
     this.yearEngine?.onEvent(type, data);
     const s = this.stage;
     if (type === 'kill') {
@@ -965,14 +1059,15 @@ export class Story {
     }
     this.updateCollectibles(dt);
     for (const f of this.tickers.values()) f(dt);
-    this.yearEngine?.update(dt);
-    // triggered encounters by position
+    if (!G.net?.isGuest) this.yearEngine?.update(dt);
+    // triggered encounters by position (online, only the host's screen starts them)
     const s = this.stage;
+    const leads = !G.net?.isGuest;
     if (G.zone?.name === 'grounds' && G.mode === 'play' && G.save.year === 1) {
-      if (s === 8 && this.encounter !== 'lake' && p.pos.distanceTo(G.world.zones.grounds.pierEnd) < 45) this.startLake();
+      if (leads && s === 8 && this.encounter !== 'lake' && p.pos.distanceTo(G.world.zones.grounds.pierEnd) < 45) this.startLake();
       const C = SPOTS.clearing;
-      if (s === 9 && G.save.flags.malacharDefeated && !this.encounter && !this.busy) { this.encounter = 'bossDone'; this.advance(10); }
-      if (s === 9 && !this.encounter && !G.save.flags.malacharDefeated && Math.hypot(p.pos.x - C.x, p.pos.z - C.z) < 34 && !this.busy) {
+      if (leads && s === 9 && G.save.flags.malacharDefeated && !this.encounter && !this.busy) { this.encounter = 'bossDone'; this.advance(10); }
+      if (leads && s === 9 && !this.encounter && !G.save.flags.malacharDefeated && Math.hypot(p.pos.x - C.x, p.pos.z - C.z) < 34 && !this.busy) {
         this.encounter = 'boss';
         this.run(async () => {
           G.skyObj.lock = 0.97;
@@ -986,7 +1081,7 @@ export class Story {
     }
     // rival houses earn points over time
     this.rivalT -= dt;
-    if (this.rivalT <= 0 && G.mode === 'play') {
+    if (this.rivalT <= 0 && G.mode === 'play' && leads) {
       this.rivalT = rand(60, 120);
       const others = HOUSE_KEYS.filter((k) => k !== G.save.house);
       const h = pick(others);

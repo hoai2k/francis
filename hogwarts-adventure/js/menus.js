@@ -26,6 +26,23 @@ const MINIGAMES = [
 ];
 
 function title(h, sub) { return `<h2 class="m-title">${h}</h2>${sub ? `<p class="m-sub">${sub}</p>` : ''}`; }
+const escHTML = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+// ---------------------------------------------------------------- online (loaded on first use)
+let coopMod = null;
+function online() {
+  if (!coopMod) {
+    coopMod = import('./online/coop.js').then((m) => { m.setLeaveHooks(onLeftWorld); return m; });
+    coopMod.catch(() => { coopMod = null; });
+  }
+  return coopMod;
+}
+function closeNet() {
+  const n = G.net;
+  if (!n) return;
+  G.net = null;
+  n.close();
+}
 
 // ---------------------------------------------------------------- backdrop
 let orbitT = 0;
@@ -43,6 +60,7 @@ export function menuBackdrop(init, dt = 0) {
 
 // ---------------------------------------------------------------- title
 export function openMainMenu() {
+  closeNet(); // never online on the title screen
   G.ui.closeAll();
   G.mode = 'menu';
   G.paused = false;
@@ -57,6 +75,10 @@ export function openMainMenu() {
     if (lastSave) G.ui.button(c, `Continue <small>${lastSave.name} · Year ${lastSave.year}</small>`, () => { autoFullscreen(); setSlot(last); continueGame(); }, 'primary');
     G.ui.button(c, 'New Game', () => { autoFullscreen(); openSlots('new'); }, lastSave ? '' : 'primary');
     if (anySave()) G.ui.button(c, 'Load Game', () => openSlots('load'));
+    // "Join Online World" appears here while a friend is hosting
+    const joinSlot = el('div', 'join-slot');
+    c.appendChild(joinSlot);
+    watchJoin(joinSlot);
     G.ui.button(c, 'Minigames', () => openMinigames());
     G.ui.button(c, 'Settings', () => openSettings());
     G.ui.button(c, 'Controls', () => openControls());
@@ -120,6 +142,7 @@ function newGame() {
   G.save = newSave();
   G.spells.setUnlocked([]);
   G.player.rebuild();
+  G.story.rebuildCollectibles();
   G.ui.closeAll();
   openCustomize(() => {
     G.ui.closeAll();
@@ -138,6 +161,7 @@ export function startFromSave() {
   G.quitting = false;
   G.spells.setUnlocked(G.save.spells);
   G.player.rebuild();
+  G.story.rebuildCollectibles();
   G.ui.closeAll();
   G.ui.fade(1, 0.4).then(async () => {
     G.player.root.visible = true;
@@ -178,21 +202,32 @@ export function openPause() {
   G.ui.showHUD(false);
   G.ui.closeWheel();
   G.ui.open((w) => {
-    w.innerHTML = `<div class="panel">${title('Paused', `${G.save.name} of ${HOUSES[G.save.house]?.name || 'no house yet'} · ${G.zone.label}`)}<div class="menu-col"></div></div>`;
+    const net = G.net;
+    const sub = net?.isGuest ? `Visiting ${escHTML(net.hostName)}’s world · the world keeps going while you’re in this menu` : net?.isHost ? 'Your world is online · it keeps going while you’re in this menu' : '';
+    w.innerHTML = `<div class="panel">${title('Paused', `${escHTML(G.save.name)} of ${HOUSES[G.save.house]?.name || 'no house yet'} · ${G.zone.label}${sub ? `<br><small>${sub}</small>` : ''}`)}<div class="menu-col"></div></div>`;
     const c = w.querySelector('.menu-col');
     G.ui.button(c, 'Resume', () => resume(), 'primary');
+    if (net?.isGuest && !G.minigame) G.ui.button(c, `Go to ${escHTML(net.hostName)}`, () => { resume(); net.travelToHost(); });
+    if (!net?.isGuest && G.save.stage > 0 && !G.minigame) {
+      G.ui.button(c, net?.isHost ? 'Stop hosting' : 'Host this world online', () => {
+        resume();
+        if (G.net?.isHost) online().then((m) => m.stopHosting());
+        else online().then((m) => m.hostWorld()).catch(() => G.ui.toast('Online play could not load. Check your connection.', 'info'));
+      });
+    }
     G.ui.button(c, 'Spellbook', () => openSpellbook());
     G.ui.button(c, `Owl Post & Journal${unreadBadge()}`, () => openJournal());
     G.ui.button(c, `Satchel <small>${coins()} Sickles</small>`, () => openSatchel());
     G.ui.button(c, 'Friends', () => openFriends());
     G.ui.button(c, 'Quidditch', async () => { const { openQuidditch } = await import('./quidditch.js'); openQuidditch(); });
-    G.ui.button(c, 'School Years', () => openYears());
+    if (!net?.isGuest) G.ui.button(c, 'School Years', () => openYears());
     G.ui.button(c, 'House Points', () => openHouseBoard());
     G.ui.button(c, 'Settings', () => openSettings());
     G.ui.button(c, 'Controls', () => openControls());
     if (canFullscreen()) G.ui.button(c, fullscreenElement() ? 'Exit fullscreen' : 'Fullscreen', () => { toggleFullscreen(); resume(); });
     if (G.minigame) G.ui.button(c, 'Leave minigame', () => { const mg = G.minigame; resume(); mg.abort?.(); });
-    G.ui.button(c, 'Save & Quit to Title', () => { writeSave(); G.quitting = true; G.ui.cancelDialogue(); G.minigame?.abort?.(); G.minigame = null; G.enemies.clearZone(); G.player.flying = false; G.player.control = true; G.player.status.override = null; document.getElementById('draw-layer').classList.add('hidden'); menuBackdrop(true); openMainMenu(); G.audio.music('menu'); G.audio.wind(0); });
+    if (net?.isGuest) G.ui.button(c, `Leave ${escHTML(net.hostName)}’s world`, () => confirmBox(`Leave ${escHTML(net.hostName)}’s world and go back to the title screen? Your own save is untouched.`, () => online().then((m) => m.leaveWorld(null))));
+    else G.ui.button(c, 'Save & Quit to Title', () => { closeNet(); writeSave(); G.quitting = true; G.ui.cancelDialogue(); G.minigame?.abort?.(); G.minigame = null; G.enemies.clearZone(); G.player.flying = false; G.player.control = true; G.player.status.override = null; document.getElementById('draw-layer').classList.add('hidden'); menuBackdrop(true); openMainMenu(); G.audio.music('menu'); G.audio.wind(0); });
   }, { cls: 'pause', onBack: () => resume(), pauseCloses: true });
 }
 function resume() {
@@ -218,6 +253,29 @@ export function openSettings() {
     if (canFullscreen()) G.ui.option(o, 'Fullscreen when playing', [true, false], () => S.fullscreen !== false, (v) => { S.fullscreen = v; save(); }, (v) => (v ? 'On' : 'Off'));
     G.ui.option(o, 'Snow and weather', [true, false], () => S.weather !== false, (v) => { S.weather = v; save(); }, (v) => (v ? 'On' : 'Off'));
     G.ui.option(o, 'FPS counter', [false, true], () => S.fps, (v) => { S.fps = v; save(); }, (v) => (v ? 'On' : 'Off'));
+    if (G.mode === 'play' && !G.minigame && G.save.started && G.save.stage > 0 && !G.net?.isGuest) {
+      sec('Online');
+      const row = el('div', 'opt nav', '<span class="o-label">Host this world online</span><span class="o-ctl"><b class="o-val"></b></span>');
+      const val = row.querySelector('.o-val');
+      const render = () => { val.textContent = G.net?.isHost ? 'On · friends can join' : 'Off'; };
+      let waiting = false;
+      const toggle = async () => {
+        if (waiting) return;
+        waiting = true;
+        try {
+          const m = await online();
+          if (G.net?.isHost) m.stopHosting();
+          else { val.textContent = 'Opening…'; await m.hostWorld(); }
+        } catch { G.ui.toast('Online play could not load. Check your connection.', 'info'); }
+        waiting = false;
+        render();
+      };
+      row.addEventListener('click', toggle);
+      row.addEventListener('adjust', toggle);
+      render();
+      o.appendChild(row);
+      o.appendChild(el('p', 'o-note', 'Friends on other devices choose <b>Join Online World</b> on the title screen. You lead the story; they join in as your supporting cast.'));
+    }
     sec('Audio');
     G.ui.slider(o, 'Music volume', 0, 1, 0.05, () => S.music, (v) => { S.music = v; save(); }, (v) => Math.round(v * 100) + '%');
     G.ui.slider(o, 'Effects volume', 0, 1, 0.05, () => S.sfx, (v) => { S.sfx = v; save(); }, (v) => Math.round(v * 100) + '%');
@@ -233,7 +291,7 @@ export function openSettings() {
     G.ui.option(o, 'Capture mouse when playing', [true, false], () => S.pointerLock !== false, (v) => { S.pointerLock = v; save(); }, (v) => (v ? 'On' : 'Off (drag to look)'));
     const r = w.querySelector('.row');
     G.ui.button(r, 'Back', () => G.ui.close(), 'primary');
-    G.ui.button(r, 'Erase this save slot', () => confirmBox(`Erase save slot ${currentSlot()}?`, () => { deleteSave(); G.save = newSave(); G.ui.toast('Save slot erased', 'info'); }));
+    if (!G.net) G.ui.button(r, 'Erase this save slot', () => confirmBox(`Erase save slot ${currentSlot()}?`, () => { deleteSave(); G.save = newSave(); G.ui.toast('Save slot erased', 'info'); }));
   }, { cls: 'settings' });
 }
 
@@ -492,7 +550,7 @@ export function openHouseBoard() {
 }
 
 // ---------------------------------------------------------------- customisation
-export function openCustomize(onDone) {
+export function openCustomize(onDone, opts = {}) {
   const look = G.save.look;
   const p = G.player;
   G.world.setZone('greatHall', { pos: G.world.zones.greatHall.W(0, 0, 30), yaw: 0 });
@@ -522,9 +580,10 @@ export function openCustomize(onDone) {
     G.ui.option(o, 'Pointed hat', [false, true], () => look.hat, (v) => { look.hat = v; rebuild(); }, (v) => (v ? 'Yes' : 'No'));
     G.ui.option(o, 'Wand wood', Object.keys(WAND_WOODS), () => look.wand, (v) => { look.wand = v; rebuild(); }, (v) => v[0].toUpperCase() + v.slice(1));
     const r = w.querySelector('.row');
-    G.ui.button(r, 'Begin your first year ›', () => { autoFullscreen(); onDone(); }, 'primary');
-    G.ui.button(r, 'Back', () => { G.ui.close(); G.mode = 'menu'; menuBackdrop(true); openMainMenu(); });
-  }, { cls: 'custom', onBack: () => { G.ui.close(); G.mode = 'menu'; menuBackdrop(true); openMainMenu(); } });
+    G.ui.button(r, opts.doneLabel || 'Begin your first year ›', () => { autoFullscreen(); onDone(); }, 'primary');
+    G.ui.button(r, 'Back', back);
+  }, { cls: 'custom', onBack: back });
+  function back() { G.ui.close(); if (opts.onBack) { opts.onBack(); return; } G.mode = 'menu'; menuBackdrop(true); openMainMenu(); }
   G.mode = 'menu-custom';
 }
 
@@ -592,4 +651,126 @@ export function openCredits(won, fromMenu, year = 1) {
     if (!fromMenu && G.story.yearAvailable(year + 1)) G.ui.button(row, `Begin Year ${year + 1} ›`, () => { G.ui.close(); G.mode = 'play'; G.story.beginYear(year + 1); }, 'primary');
     G.ui.button(row, fromMenu ? 'Back' : 'Keep exploring', () => { G.ui.close(); if (!fromMenu) { G.mode = 'play'; G.ui.showHUD(true); G.story.offerNextYear(); } }, fromMenu || !G.story.yearAvailable(year + 1) ? 'primary' : '');
   }, { cls: 'creditscr' });
+}
+
+// ---------------------------------------------------------------- online: joining a friend's world
+// The title screen checks for open worlds and shows "Join Online World" while one is hosted.
+function watchJoin(slot) {
+  let key = '';
+  online().then((m) => {
+    if (!document.body.contains(slot)) return;
+    const stop = m.watchWorlds((rooms) => {
+      if (!document.body.contains(slot)) { stop(); return; }
+      const list = (rooms || []).filter((r) => r.count < r.capacity);
+      const k = list.map((r) => r.id + r.title).join('|');
+      if (k === key) return;
+      key = k;
+      slot.innerHTML = '';
+      if (!list.length) return;
+      const label = list.length === 1 ? `Join Online World<small>${escHTML(list[0].title)}</small>` : `Join Online World<small>${list.length} worlds open</small>`;
+      G.ui.button(slot, label, () => (list.length === 1 ? startJoin(list[0]) : openWorldList(list)), 'join-btn');
+    });
+  }).catch(() => { /* online play unavailable: the title screen works as before */ });
+}
+
+function openWorldList(rooms) {
+  G.ui.open((w) => {
+    w.innerHTML = `<div class="panel small">${title('Join Online World', 'Pick a friend’s world.')}<div class="menu-col"></div><div class="row"></div></div>`;
+    const c = w.querySelector('.menu-col');
+    for (const r of rooms) G.ui.button(c, `${escHTML(r.title)} <small>${r.count}/${r.capacity}</small>`, () => { G.ui.close(); startJoin(r); });
+    G.ui.button(w.querySelector('.row'), 'Back', () => G.ui.close());
+  }, { cls: 'modal' });
+}
+
+async function startJoin(room) {
+  autoFullscreen();
+  let m;
+  try { m = await online(); } catch { infoBox('Online play could not load. Check your connection and try again.'); return; }
+  G.ui.closeAll();
+  m.joinWorld(room, {
+    openCustomize: () => new Promise((res) => openCustomize(() => res(true), { onBack: () => res(null), doneLabel: 'Continue ›' })),
+    pickHouse,
+    backToTitle: (msg) => {
+      G.ui.closeAll();
+      G.mode = 'menu';
+      G.save = loadSave() || newSave();
+      G.player.rebuild();
+      menuBackdrop(true);
+      openMainMenu();
+      if (msg) infoBox(msg);
+    },
+    connecting: (text, onCancel) => {
+      const entry = G.ui.open((w) => {
+        w.innerHTML = `<div class="panel small">${title(text)}<p class="m-sub"><span class="crest-spin small">✦</span> Connecting…</p><div class="row"></div></div>`;
+        G.ui.button(w.querySelector('.row'), 'Cancel', () => {
+          G.ui.close(entry);
+          onCancel();
+          G.ui.closeAll();
+          G.mode = 'menu';
+          G.save = loadSave() || newSave();
+          G.player.rebuild();
+          menuBackdrop(true);
+          openMainMenu();
+        });
+      }, { cls: 'modal', modal: true });
+      return { close: () => G.ui.close(entry) };
+    },
+  });
+}
+
+// a visitor without a save of their own picks a house (there's no Sorting in someone else's world)
+function pickHouse() {
+  G.ui.closeAll();
+  return new Promise((res) => {
+    G.ui.open((w) => {
+      w.innerHTML = `<div class="panel">${title('Choose your house', 'You’re visiting a friend’s world. Points you earn there go to your house.')}<div class="house-pick"></div><div class="row"></div></div>`;
+      const g = w.querySelector('.house-pick');
+      for (const k of HOUSE_KEYS) {
+        const b = el('button', 'hp-card nav', `${crestSVG(k, 56)}<b>${HOUSES[k].name}</b>`);
+        b.dataset.kind = 'grid';
+        b.addEventListener('click', () => { G.audio.sfx('ui'); G.ui.close(); res(k); });
+        g.appendChild(b);
+      }
+      const r = w.querySelector('.row');
+      G.ui.button(r, 'Let the Hat decide', () => { G.ui.close(); res(HOUSE_KEYS[Math.floor(Math.random() * 4)]); });
+      G.ui.button(r, 'Back', () => { G.ui.close(); res(null); });
+    }, { cls: 'modal', onBack: () => { G.ui.close(); res(null); } });
+  });
+}
+
+function infoBox(text) {
+  G.ui.open((w) => {
+    w.innerHTML = `<div class="panel small">${title('Online')}<p>${escHTML(text)}</p><div class="row"></div></div>`;
+    G.ui.button(w.querySelector('.row'), 'OK', () => G.ui.close(), 'primary');
+  }, { cls: 'modal' });
+}
+
+// a visit ended (by choice, or the world closed): back to the title with my own save
+function onLeftWorld(message) {
+  G.quitting = true;
+  G.ui.cancelDialogue();
+  G.minigame?.abort?.();
+  G.minigame = null;
+  G.enemies.clearZone();
+  G.paused = false;
+  const P = G.player;
+  if (G.spells.lumosOn) G.spells.toggleLumos(false);
+  P.flying = false; P.control = true; P.status.override = null; P.alive = true; P.hp = P.maxHp; P.mana = P.maxMana;
+  if (P.root.parent !== G.scene) { P.root.parent?.remove(P.root); G.scene.add(P.root); }
+  P.model.root.position.set(0, 0, 0);
+  document.getElementById('draw-layer').classList.add('hidden');
+  G.save = loadSave() || newSave();
+  G.spells.setUnlocked(G.save.spells);
+  P.rebuild();
+  G.story.resume();
+  G.story.rebuildCollectibles();
+  G.ui.updatePoints();
+  G.skyObj.lock = null;
+  G.skyObj.tod = G.save.tod ?? 0.68;
+  G.ui.closeAll();
+  menuBackdrop(true);
+  openMainMenu();
+  G.audio.music('menu');
+  G.audio.wind(0);
+  if (message) infoBox(message);
 }

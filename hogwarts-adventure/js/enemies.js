@@ -10,6 +10,9 @@ import { glowSprite } from './textures.js';
 import { controlMult, comboMult, addXP } from './progress.js';
 
 const _v = new THREE.Vector3(), _w = new THREE.Vector3();
+// story banners and tips during fights are shown to friends in the same room too
+const banner = (t, sub, cls) => { G.ui.banner(t, sub, cls); G.net?.share('banner', t, sub, cls); };
+const tip = (t, kind) => { G.ui.toast(t, kind); G.net?.share('toast', t.replace(/<[^>]+>/g, '')); };
 
 // ------------------------------------------------------------------ telegraphs
 const teleMat = (color) => new THREE.ShaderMaterial({
@@ -133,6 +136,7 @@ export class Enemy {
 
   takeHit(h) {
     if (!this.alive) return;
+    this.creditHouse = G.net?.credit || null; // a friend's hit: their house gets the points
     let dmg = h.dmg;
     const sp = h.spell;
     const def = this.def;
@@ -200,7 +204,7 @@ export class Enemy {
         if (this.type === 'dementor') G.ui.floatText(top, 'No effect', 'warn');
         else { this.status.frozen = (this.def.boss ? 1.4 : 3.5) * controlMult(); G.audio.sfx('petrificus'); }
       }
-      if (sp === 'leviosa') this.lift();
+      if (sp === 'leviosa') this.lift(h.remote);
       if (sp === 'patronum' && this.type === 'dementor') this.flee = 3;
       if (this.type === 'troll') this.trollHit(sp);
       if (!this.status.stun && !this.status.frozen && this.anim.trigger) this.anim.trigger('hit');
@@ -253,12 +257,12 @@ export class Enemy {
     G.story?.onEvent('disarm');
   }
 
-  lift() {
+  lift(remote) {
     if (this.def.boss && this.type !== 'troll') { G.ui.floatText(this.pos.clone().setY(this.pos.y + 2.4), 'Too strong', 'warn'); return; }
     if (this.type === 'troll') return; // handled by trollHit (the club)
     this.status.lifted = 3.5 * controlMult();
     this.liftBase = this.pos.y;
-    G.spells.holdEnemy(this);
+    if (!remote) G.spells.holdEnemy(this); // a friend's Leviosa: they hold it on their screen
     G.ui.floatText(this.pos.clone().setY(this.pos.y + 2.4), 'Levitating', 'combo');
   }
   endLift(slam) {
@@ -275,11 +279,11 @@ export class Enemy {
     this.vel.copy(v);
   }
 
-  onLumos(d) {
+  onLumos(d, from = G.player.pos) {
     if (this.type === 'pixie') { this.status.stun = 2.5; G.ui.floatText(this.pos.clone().setY(this.pos.y + 1), 'Dazzled', 'combo'); }
     if (this.type === 'dementor') {
       this.takeHit({ dmg: 260, spell: 'lumos' });
-      this.vel.add(_v.subVectors(this.pos, G.player.pos).setY(0).normalize().multiplyScalar(6));
+      this.vel.add(_v.subVectors(this.pos, from || G.player.pos).setY(0).normalize().multiplyScalar(6));
     }
   }
   onPatronus() {
@@ -311,13 +315,33 @@ export class Enemy {
   }
 
   // ------------------------------------------------------------ per-frame
+  // online: chase whichever student is nearer (sticking with the current one unless the other
+  // is clearly closer); minigame opponents only ever face the host
+  pickTarget(dt) {
+    const P = G.player;
+    const others = G.minigame ? null : G.net?.proxies();
+    if (!others || !others.length) return (this.tgt = P);
+    this.tgtT = (this.tgtT || 0) - dt;
+    const cur = this.tgt;
+    if (this.tgtT > 0 && cur && cur.alive && (cur === P || others.includes(cur))) return cur;
+    this.tgtT = 0.8;
+    // a student in a menu is left alone while someone else is still playing
+    let best = P, bd = P.alive && !G.paused ? P.pos.distanceTo(this.pos) - (cur === P ? 3 : 0) : Infinity;
+    for (const q of others) {
+      if (!q.alive) continue;
+      const d = q.pos.distanceTo(this.pos) - (cur === q ? 3 : 0);
+      if (d < bd) { bd = d; best = q; }
+    }
+    return (this.tgt = best);
+  }
+
   update(dt0) {
     const S = this.status;
     // Glacius chill and Arresto Momentum slow everything this foe does
     this.inSlow = G.spells.fields?.length ? G.spells.inSlowField(this.pos) : false;
     const dt = dt0 * (this.inSlow ? 0.3 : 1) * (S.chill > 0 ? 0.55 : 1);
     this.t += dt;
-    const p = G.player;
+    const p = this.pickTarget(dt);
     if (!this.alive) {
       this.deadT += dt;
       this.vel.y -= 20 * dt;
@@ -396,9 +420,10 @@ export class Enemy {
       if (Math.random() < 0.15) G.fx.emit({ pos: _v.copy(this.pos).setY(this.pos.y + this.height + 0.2), color: 0xffe060, count: 1, speed: 1, size: 0.15, life: 0.5, intensity: 3, noScale: true });
     }
     // AI
+    const awake = this.canAct && G.mode === 'play' && p.alive && !(p === G.player && G.paused);
     if (this.canAct && this.status.blind > 0 && G.mode === 'play') this.wanderBlind(dt);
-    else if (this.canAct && G.mode === 'play' && p.alive && this.def.ai) this.def.ai.call(this, dt, p);
-    else if (this.canAct && G.mode === 'play' && p.alive) this[this.type === 'duelist' ? 'aiWizard' : 'ai_' + this.type]?.(dt, p);
+    else if (awake && this.def.ai) this.def.ai.call(this, dt, p);
+    else if (awake) this[this.type === 'duelist' ? 'aiWizard' : 'ai_' + this.type]?.(dt, p);
     else { this.vel.x = damp(this.vel.x, 0, 6, dt); this.vel.z = damp(this.vel.z, 0, 6, dt); }
     // physics
     if (this.def.flying) {
@@ -522,7 +547,7 @@ export class Enemy {
     this.reactCd = (this.reactCd || 0) - dt;
     if (this.reactCd <= 0 && this.status.disarmed <= 0) {
       for (const pr of G.spells.projectiles) {
-        if (pr.team !== 'player') continue;
+        if (pr.team !== 'player' && pr.team !== 'remote') continue;
         const dd = pr.pos.distanceTo(this.pos);
         if (dd < 9 && pr.vel.dot(_w.subVectors(this.pos, pr.pos)) > 0) {
           this.reactCd = 1.2;
@@ -591,10 +616,14 @@ export class Enemy {
     this.face(p.pos, dt, 3);
     this.moveToward(p.pos, d > 4 ? this.def.speed : 0.5, dt, 1.5);
     if (d < 8) {
-      p.hp -= dt * 4 * (G.enemies.dmgScale || 1);
-      p.lastHurt = 0;
-      p.mana = Math.max(0, p.mana - dt * 4);
-      if (p.hp <= 0 && p.alive) p.faint();
+      const a = dt * 4 * (G.enemies.dmgScale || 1);
+      if (p.drain) p.drain(a); // a friend: their screen applies it
+      else {
+        p.hp -= a;
+        p.lastHurt = 0;
+        p.mana = Math.max(0, p.mana - dt * 4);
+        if (p.hp <= 0 && p.alive) p.faint();
+      }
     }
     this.atkT = (this.atkT ?? rand(2, 4)) - dt;
     this.anim.set(this.atkT < 0.7 ? 'reach' : 'idle');
@@ -618,7 +647,7 @@ export class Enemy {
       club.position.copy(wp);
       club.quaternion.copy(wq);
       G.enemies.floatingClub = { club, t: 0, troll: this, base: wp.clone() };
-      G.ui.banner('Wingardium Leviosa!', 'The troll’s club floats out of its hand. Now hit it — or drop the club on its head!', 'unlock');
+      banner('Wingardium Leviosa!', 'The troll’s club floats out of its hand. Now hit it — or drop the club on its head!', 'unlock');
       G.audio.sfx('leviosa');
       G.story?.onEvent('trollClub');
       this.anim.set('stagger');
@@ -631,7 +660,7 @@ export class Enemy {
     if (!this.roared) { this.roared = true; this.anim.set('roar'); this.atk = { kind: 'roar', t: 0 }; G.audio.sfx('roar'); G.cam.shake(0.4); }
     const phase2 = this.hp < this.maxHp * 0.5;
     this.phaseLabel = phase2 ? 'Enraged!' : '';
-    if (phase2 && !this.enraged) { this.enraged = true; this.anim.set('roar'); this.atk = { kind: 'roar', t: 0 }; G.audio.sfx('roar'); G.ui.banner('The troll is enraged!', 'Watch for shockwaves — jump over them!', ''); }
+    if (phase2 && !this.enraged) { this.enraged = true; this.anim.set('roar'); this.atk = { kind: 'roar', t: 0 }; G.audio.sfx('roar'); banner('The troll is enraged!', 'Watch for shockwaves — jump over them!', ''); }
     const spd = phase2 ? 1.25 : 1;
     if (this.clubGone > 0) {
       this.clubGone -= dt;
@@ -682,7 +711,7 @@ export class Enemy {
             G.audio.sfx('slam'); G.cam.shake(0.55); G.input.rumble(0.9, 0.6, 300);
             G.fx.shock(at.clone().setY(at.y + 0.1), 0xd8b080, 5, 0.5);
             G.fx.smokePuff(at, 0x7a6a5a, 16, { speed: 4 });
-            if (p.pos.distanceTo(at) < 3.4 && p.pos.y - at.y < 1.5) p.damage(28 * (G.enemies.dmgScale || 1), { knock: _v.subVectors(p.pos, at).setY(0).normalize().multiplyScalar(8).clone() });
+            for (const q of G.enemies.players()) if (q.pos.distanceTo(at) < 3.4 && q.pos.y - at.y < 1.5) q.damage(28 * (G.enemies.dmgScale || 1), { knock: _v.subVectors(q.pos, at).setY(0).normalize().multiplyScalar(8).clone() });
             if (phase2) this.shockwave(at);
           });
         } else {
@@ -690,7 +719,7 @@ export class Enemy {
           this.atk = { kind: 'sweep', t: 0 };
           G.enemies.telegraph(this.pos.clone(), 5.2, 0.85 / spd, () => {
             G.audio.sfx('whoosh'); G.cam.shake(0.3);
-            if (p.pos.distanceTo(this.pos) < 5.4 && p.pos.y - this.pos.y < 1.2) p.damage(20 * (G.enemies.dmgScale || 1), { knock: _v.subVectors(p.pos, this.pos).setY(0).normalize().multiplyScalar(10).clone() });
+            for (const q of G.enemies.players()) if (q.pos.distanceTo(this.pos) < 5.4 && q.pos.y - this.pos.y < 1.2) q.damage(20 * (G.enemies.dmgScale || 1), { knock: _v.subVectors(q.pos, this.pos).setY(0).normalize().multiplyScalar(10).clone() });
           }, { color: 0xff8020 });
         }
         this.atkCd = rand(1.6, 2.6);
@@ -721,13 +750,8 @@ export class Enemy {
     this.anim.update(dt, Math.hypot(this.vel.x, this.vel.z));
   }
   shockwave(center) {
-    // expanding ring the player must jump over
-    G.enemies.waves.push({ c: center.clone(), r: 0.5, speed: 9, hit: false, mesh: (() => {
-      const m = new THREE.Mesh(new THREE.TorusGeometry(1, 0.08, 6, 64), new THREE.MeshBasicMaterial({ color: new THREE.Color(3, 1.6, 0.6), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
-      m.rotation.x = Math.PI / 2; m.position.copy(center).setY(center.y + 0.25);
-      G.scene.add(m);
-      return m;
-    })() });
+    G.enemies.addWave(center);
+    G.net?.wave(center); // every screen runs its own copy and checks its own student
   }
 
   // ------------------------------------------------------------ AI: final boss
@@ -752,7 +776,7 @@ export class Enemy {
       // never let this phase stall: after 40 s his remaining summons vanish
       if (left && this.phase2T > 40) {
         for (const e of G.enemies.list) if (e.alive && e.summon) e.die({});
-        G.ui.toast('The darkness falters — Malachar is exposed!', 'info');
+        tip('The darkness falters — Malachar is exposed!', 'info');
       }
       if ((!left || this.phase2T > 40) && this.summoned) {
         this.invuln = false;
@@ -782,7 +806,7 @@ export class Enemy {
     this.shieldCd = (this.shieldCd ?? 6) - dt;
     if (phase === 1 && this.shieldCd <= 0 && !this.shield) {
       this.shield = 1; this.shieldHits = 3; this.shieldT = 6; this.ensureShield(); this.shieldMesh.visible = true; this.shieldCd = 12;
-      G.ui.toast('Malachar raises a dark shield: hit it 3 times or shatter it with <b>Expelliarmus</b>!', 'info');
+      tip('Malachar raises a dark shield: hit it 3 times or shatter it with <b>Expelliarmus</b>!', 'info');
     }
     // the shield never lasts long
     if (this.shield) { this.shieldT = (this.shieldT ?? 6) - dt; if (this.shieldT <= 0 || phase !== 1) { this.shield = 0; G.audio.sfx('nox'); } }
@@ -811,7 +835,7 @@ export class Enemy {
       this.shield = 0;
       this.ensureShield();
       this.shieldMesh.visible = true;
-      G.ui.banner('Malachar calls the darkness', 'He is untouchable while his Dementors and pixies remain. Expecto Patronum!', '');
+      banner('Malachar calls the darkness', 'He is untouchable while his Dementors and pixies remain. Expecto Patronum!', '');
       G.audio.sfx('dementor');
       postFlash(0.2);
       const C = this.o.center;
@@ -831,13 +855,13 @@ export class Enemy {
       this.invuln = false;
       if (this.shieldMesh) this.shieldMesh.visible = false;
       this.shield = 0;
-      G.ui.banner('Malachar rises!', 'Watch the ground and dodge the beam!', '');
+      banner('Malachar rises!', 'Watch the ground and dodge the beam!', '');
       G.audio.sfx('roar');
       G.cam.shake(0.4);
     }
   }
   volley(n, spread) {
-    const p = G.player;
+    const p = this.tgt || G.player;
     this.anim.set('aim');
     G.fx.emit({ pos: this.wandPos(), color: 0x40ff70, count: 20, speed: 2, size: 0.3, life: 0.4, intensity: 3 });
     setTimeout(() => {
@@ -846,7 +870,7 @@ export class Enemy {
     }, 400);
   }
   eruptions(n, delay) {
-    const p = G.player;
+    const p = this.tgt || G.player;
     for (let i = 0; i < n; i++) {
       const at = p.pos.clone().add(new THREE.Vector3(rand(-3, 3) * (i ? 1 : 0), 0, rand(-3, 3) * (i ? 1 : 0)));
       at.y = G.zone.colliders.ground(at.x, at.z, at.y + 2).y;
@@ -855,12 +879,12 @@ export class Enemy {
         G.fx.shock(at.clone().setY(at.y + 0.1), 0x30ff60, 3, 0.4);
         G.audio.sfx('explode');
         G.cam.shake(0.2);
-        if (p.pos.distanceTo(at) < 2.6) p.damage(18 * (G.enemies.dmgScale || 1), { knock: new THREE.Vector3(0, 6, 0) });
+        for (const q of G.enemies.players()) if (q.pos.distanceTo(at) < 2.6) q.damage(18 * (G.enemies.dmgScale || 1), { knock: new THREE.Vector3(0, 6, 0) });
       }, { color: 0x30ff60 });
     }
   }
   meteorRain() {
-    const p = G.player;
+    const p = this.tgt || G.player;
     for (let i = 0; i < 6; i++) {
       const at = p.pos.clone().add(new THREE.Vector3(rand(-7, 7), 0, rand(-7, 7)));
       if (i === 0) at.copy(p.pos);
@@ -870,12 +894,12 @@ export class Enemy {
         G.fx.smokePuff(at, 0x102010, 8);
         G.audio.sfx('explode');
         G.cam.shake(0.15);
-        if (p.pos.distanceTo(at) < 2.2) p.damage(16 * (G.enemies.dmgScale || 1));
+        for (const q of G.enemies.players()) if (q.pos.distanceTo(at) < 2.2) q.damage(16 * (G.enemies.dmgScale || 1));
       }, { color: 0x40ff70 });
     }
   }
   beam() {
-    const p = G.player;
+    const p = this.tgt || G.player;
     const yaw = Math.atan2(p.pos.x - this.pos.x, p.pos.z - this.pos.z);
     const from = this.pos.clone();
     G.enemies.telegraph(from, 1, 1.1, () => {
@@ -889,10 +913,12 @@ export class Enemy {
       G.cam.shake(0.3);
       G.lights.flash(from.clone().addScaledVector(dir, 6).setY(from.y + 1), 0x40ff70, 160, 20, 0.6);
       // damage along the line
-      const rel = _v.subVectors(p.pos, from);
-      const along = rel.dot(dir);
-      const perp = Math.abs(rel.x * dir.z - rel.z * dir.x);
-      if (along > 0 && along < len && perp < 1.4 && p.pos.y - from.y < 2.2) p.damage(30 * (G.enemies.dmgScale || 1), { knock: new THREE.Vector3(-dir.z, 3, dir.x).multiplyScalar(4) });
+      for (const q of G.enemies.players()) {
+        const rel = _v.subVectors(q.pos, from);
+        const along = rel.dot(dir);
+        const perp = Math.abs(rel.x * dir.z - rel.z * dir.x);
+        if (along > 0 && along < len && perp < 1.4 && q.pos.y - from.y < 2.2) q.damage(30 * (G.enemies.dmgScale || 1), { knock: new THREE.Vector3(-dir.z, 3, dir.x).multiplyScalar(4) });
+      }
       let t = 0;
       const fade = () => { t += 0.05; beam.material.opacity = 0.85 * (1 - t); beam.scale.x = beam.scale.z = 1 - t * 0.8; if (t < 1) setTimeout(fade, 30); else G.scene.remove(beam); };
       fade();
@@ -930,6 +956,7 @@ export class Enemies {
   telegraph(pos, r, delay, fn, opts) {
     const t = new Telegraph(pos, r, delay, fn, opts);
     this.telegraphs.push(t);
+    G.net?.telegraph(pos, r, delay, opts);
     return t;
   }
   // lingering damaging puddle (venom, fire, cursed ground)
@@ -938,6 +965,18 @@ export class Enemies {
     m.rotation.x = -Math.PI / 2; m.position.copy(pos).setY(pos.y + 0.05);
     G.scene.add(m);
     this.hazards.push({ pos: pos.clone(), r, t: dur, dps, color, m });
+  }
+  // the students area attacks can hit: me, plus friends in this room when I'm the host
+  players() {
+    const others = G.minigame ? null : G.net?.proxies();
+    return others && others.length ? [G.player, ...others] : [G.player];
+  }
+  // a troll shockwave: an expanding ring the player must jump over
+  addWave(center) {
+    const m = new THREE.Mesh(new THREE.TorusGeometry(1, 0.08, 6, 64), new THREE.MeshBasicMaterial({ color: new THREE.Color(3, 1.6, 0.6), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+    m.rotation.x = Math.PI / 2; m.position.copy(center).setY(center.y + 0.25);
+    G.scene.add(m);
+    this.waves.push({ c: center.clone(), r: 0.5, speed: 9, hit: false, mesh: m });
   }
   get aliveCount() { return this.list.filter((e) => e.alive).length; }
   clearZone() {
@@ -961,7 +1000,7 @@ export class Enemies {
   onDeath(e, h) {
     const p = G.player;
     if (G.cam.lockTarget === e) G.cam.lockTarget = null;
-    const house = G.save.house;
+    const house = e.creditHouse || G.save.house;
     addXP((e.def.xp ?? (e.def.boss ? 400 : 12 + e.def.points * 6)) * (e.o.xpScale ?? 1));
     if (house && e.def.points) G.story?.addPoints(house, e.def.points, e.def.boss ? `Defeated ${e.name}` : null, !e.def.boss);
     // drops
