@@ -5,7 +5,8 @@ import { G, HOUSES, HOUSE_KEYS } from './state.js';
 import { makeWizard, makeSortingHat, makeCard, makeBean, makeHippogriff, HAIR_COLORS, SKIN_TONES } from './models.js';
 import { SPELL_BY_ID } from './spelldata.js';
 import { glyph } from './input.js';
-import { writeSave } from './save.js';
+import { writeSave, autoSave } from './save.js';
+import { addXP, sendOwl, YEARS } from './progress.js';
 import { runMinigame } from './minigames/index.js';
 import { PLATEAU, SPOTS, groundHeight, WATER_Y } from './world/terrain.js';
 import { rand, pick, dampAngle, sleep, clamp } from './util.js';
@@ -46,6 +47,9 @@ function route(from, to) {
   return cur;
 }
 
+export const BUILT_YEARS = 1;
+const Y1_FROM = ['Headmistress Aldmoor', 'Headmistress Aldmoor', 'Professor Thornwick', 'Professor Duskwood', 'Professor Vexley', 'Professor Vexley', 'Madam Hale', 'Brannoc the Groundskeeper', 'Headmistress Aldmoor', 'Headmistress Aldmoor', 'Brannoc the Groundskeeper'];
+
 export const QUESTS = [
   { title: 'The Sorting', objective: 'Take your seat for the Sorting ceremony.' },
   { title: 'Charms Class', objective: 'Climb the Grand Staircase to the Charms Corridor and find Professor Thornwick.' },
@@ -82,18 +86,45 @@ export class Story {
   set stage(v) {
     G.save.stage = v;
     this.placeNPCs();
-    G.ui.setQuest(QUESTS[Math.min(v, QUESTS.length - 1)]);
+    G.ui.setQuest(this.currentQuest());
     writeSave();
   }
   advance(to) {
     const q = QUESTS[this.stage];
-    if (q && this.stage > 0) { G.ui.banner('Quest complete', q.title, 'quest'); G.audio.sfx('quest'); }
+    if (q && this.stage > 0) { G.ui.banner('Quest complete', q.title, 'quest'); G.audio.sfx('quest'); addXP(120 + G.save.year * 30, q.title); }
     setTimeout(() => {
       this.stage = to;
       const nq = QUESTS[to];
       if (nq) G.ui.toast(`<b>New quest:</b> ${nq.title}`, 'quest', 4000);
     }, 600);
     this.stage = to;
+    this.questLetter();
+  }
+  // every new quest arrives as an owl post letter, which doubles as the quest log
+  questLetter() {
+    if (G.save.year !== 1) return;
+    const q = QUESTS[this.stage];
+    if (!q || this.stage >= 11) return;
+    const from = Y1_FROM[this.stage] || 'Headmistress Aldmoor';
+    sendOwl(`y1-q${this.stage}`, from, q.title, q.objective, { quest: true, silent: this.stage === 0 });
+  }
+  // ------------------------------------------------------------ year / quest log API
+  resume() {
+    this.placeNPCs();
+    G.ui.setQuest(this.currentQuest());
+  }
+  currentQuest() {
+    if (G.save.yearDone) return { title: `Year ${G.save.year} complete`, objective: this.yearAvailable(G.save.year + 1) ? `Begin Year ${G.save.year + 1}: open the pause menu → School Years, or talk to the Headmistress.` : 'Explore, find collectibles and play minigames. More years arrive in a later update.' };
+    return QUESTS[Math.min(this.stage, QUESTS.length - 1)];
+  }
+  completedQuests() { return QUESTS.slice(0, Math.min(this.stage, 11)).map((q) => q.title); }
+  yearFraction() { return G.save.yearDone ? 1 : Math.min(1, this.stage / 11); }
+  yearAvailable(n) { return n >= 1 && n <= BUILT_YEARS; }
+  offerNextYear() {
+    const n = G.save.year + 1;
+    if (!G.save.yearDone) return;
+    if (!this.yearAvailable(n)) { if (n <= 7) G.ui.toast(`Year ${n} — ${YEARS[n - 1].title} — arrives in a later update. Keep exploring!`, 'info', 5000); return; }
+    G.ui.toast(`Year ${n} awaits! Talk to the Headmistress, or open School Years from the pause menu.`, 'quest', 5000);
   }
 
   // ------------------------------------------------------------ house points
@@ -339,6 +370,8 @@ export class Story {
   async beginNewGame() {
     G.save.started = true;
     this.stage = 0;
+    this.questLetter();
+    autoSave(true);
     G.world.setZone('greatHall', { pos: G.world.zones.greatHall.W(0, 0, -24), yaw: Math.PI });
     G.mode = 'cutscene';
     G.ui.showHUD(false);
@@ -450,6 +483,11 @@ export class Story {
       return;
     }
     if (s === 10) return this.houseCup();
+    if (G.save.yearDone && this.yearAvailable(G.save.year + 1)) {
+      const c = await this.talk('headmistress', [{ who: NPC_LOOKS.headmistress.name, color: NPC_LOOKS.headmistress.color, text: `Summer is nearly over, ${G.save.name}. Are you ready for your ${['', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh'][G.save.year]} year?`, choices: [`Begin Year ${G.save.year + 1}`, 'Not yet'], speaker: (on) => this.npcs.headmistress.model.anim.set(on ? 'talk' : 'idle') }]);
+      if (c === 0) await this.beginYear?.(G.save.year + 1);
+      return;
+    }
     const lines = {
       0: ['Take your seat, the Hat is waiting.'],
       1: ['Charms is up the Grand Staircase. Professor Thornwick will be delighted to meet you.'],
@@ -731,9 +769,18 @@ export class Story {
     await sleep(2800);
     G.save.completed = true;
     this.advance(11);
-    writeSave();
+    this.finishYear(winner);
     G.cam.setCinematic(null);
     openCredits(winner === G.save.house);
+  }
+
+  finishYear(winner) {
+    const s = G.save;
+    s.yearDone = true;
+    if (!s.yearsDone.some((y) => y.year === s.year)) s.yearsDone.push({ year: s.year, cup: winner });
+    addXP(500 + s.year * 100, `Year ${s.year} complete`);
+    sendOwl(`y${s.year}-end`, 'Headmistress Aldmoor', `End of Year ${s.year}`, `Congratulations on completing your ${['first', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh'][s.year - 1]} year. ${HOUSES[winner].name} won the House Cup. Enjoy the summer — and keep your wand out of sight of Muggles!`, { silent: true });
+    autoSave(false);
   }
 
   // ------------------------------------------------------------ per-frame

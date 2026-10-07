@@ -5,6 +5,7 @@ import { makeWizard, SKIN_TONES, HAIR_COLORS, WAND_WOODS } from './models.js';
 import { clamp, damp, dampAngle, wrapAngle } from './util.js';
 import { postHit } from './engine.js';
 import { WATER_Y } from './world/terrain.js';
+import { defMult, regenMult, applyStats } from './progress.js';
 
 const _v = new THREE.Vector3();
 const UP = new THREE.Vector3(0, 1, 0);
@@ -64,6 +65,7 @@ export class Player {
     this.root.add(this.model.root);
     this.anim = this.model.anim;
     this.wandTip = this.model.wandTip;
+    applyStats();
   }
 
   get alive_() { return this.alive; }
@@ -92,6 +94,7 @@ export class Player {
       return G.spells.shieldAbsorb(amount, info);
     }
     if (this.buffs.wiggenweld) amount *= 0.7;
+    amount *= defMult() * (G.diffDmg ?? 1);
     this.hp -= amount;
     this.lastHurt = 0;
     this.anim.trigger('hit');
@@ -136,7 +139,7 @@ export class Player {
     for (const k in this.buffs) { this.buffs[k] -= dt; if (this.buffs[k] <= 0) { delete this.buffs[k]; G.ui.updateBuffs(); } }
     // regen
     const regenDelay = this.lastCast > 0.9;
-    if (regenDelay && !this.blocking) this.mana = Math.min(this.maxMana, this.mana + dt * (14 + (this.buffs.focus ? 14 : 0)));
+    if (regenDelay && !this.blocking) this.mana = Math.min(this.maxMana, this.mana + dt * (14 + (this.buffs.focus ? 14 : 0)) * regenMult());
     if (this.lastHurt > 5) this.hp = Math.min(this.maxHp, this.hp + dt * 4);
 
     if (this.flying) return; // a minigame drives the player

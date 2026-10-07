@@ -5,6 +5,7 @@ import { G, HOUSES, HOUSE_KEYS } from './state.js';
 import { SPELLS, SPELL_BY_ID, spellIcon } from './spelldata.js';
 import { glyph } from './input.js';
 import { el, clamp, sleep } from './util.js';
+import { currentLoadout, slotCount, levelProgress, masteryLevel, today, unreadLetters } from './progress.js';
 
 const _v = new THREE.Vector3();
 
@@ -83,6 +84,7 @@ export class UI {
         <div class="bars">
           <div class="bar hp"><div class="fill" id="hp-fill"></div><div class="ghost" id="hp-ghost"></div></div>
           <div class="bar mana"><div class="fill" id="mana-fill"></div></div>
+          <div class="xpline"><span class="lvl" id="hud-lvl">1</span><div class="bar xp"><div class="fill" id="xp-fill"></div></div><span class="ldo" id="hud-ldo"></span></div>
           <div class="buffs" id="buffs"></div>
         </div>
       </div>
@@ -122,27 +124,46 @@ export class UI {
   buildSpellBar() {
     const bar = this.$('spellbar');
     const sp = G.spells;
+    if (!sp || !G.save) return;
     bar.innerHTML = '';
-    SPELLS.forEach((s, i) => {
-      const unlocked = sp.unlocked.has(s.id);
-      const d = el('div', 'slot' + (unlocked ? '' : ' locked'), `${unlocked ? spellIcon(s, 34) : '<span class="lock-ico">?</span>'}<div class="cd"></div><span class="key">${i + 1}</span>`);
-      d.dataset.id = s.id;
-      d.title = unlocked ? s.name : 'Locked';
+    const n = slotCount();
+    for (let i = 0; i < n; i++) {
+      const s = sp.slotSpell(i);
+      const stars = s ? masteryLevel(s.id) : 0;
+      const d = el('div', 'slot' + (s ? '' : ' locked'), `${s ? spellIcon(s, 34) : '<span class="lock-ico">·</span>'}<div class="cd"></div><span class="key">${i + 1}</span>${stars ? `<span class="mst">${'★'.repeat(stars)}</span>` : ''}`);
+      d.dataset.slot = i;
+      d.title = s ? s.name : 'Empty slot';
       d.addEventListener('click', () => sp.select(i));
       bar.appendChild(d);
-    });
+    }
+    this.$('hud-ldo') && (this.$('hud-ldo').textContent = `Loadout ${G.save.loadout + 1}`);
     // touch spell picker
     const tb = G.input.tSpellBar;
     if (tb) {
       tb.innerHTML = '';
-      SPELLS.forEach((s, i) => {
-        if (!sp.unlocked.has(s.id)) return;
+      for (let i = 0; i < n; i++) {
+        const s = sp.slotSpell(i);
+        if (!s) continue;
         const b = el('button', 't-sp', spellIcon(s, 26));
-        b.dataset.id = s.id;
+        b.dataset.slot = i;
         b.addEventListener('touchstart', (e) => { e.preventDefault(); sp.select(i); }, { passive: false });
         tb.appendChild(b);
-      });
+      }
+      const lb = el('button', 't-sp t-ldo', `<b>${G.save.loadout + 1}</b>`);
+      lb.addEventListener('touchstart', (e) => { e.preventDefault(); sp.swapLoadout(1); }, { passive: false });
+      tb.appendChild(lb);
     }
+    this.updateXP();
+  }
+  updateXP() {
+    if (!G.save) return;
+    this.$('hud-lvl').textContent = G.save.level;
+    this.$('xp-fill').style.width = levelProgress() * 100 + '%';
+    this.$('hud-lvl').classList.toggle('pts', G.save.talentPts > 0);
+  }
+  floatXP(n) {
+    const p = G.player;
+    if (p && G.mode === 'play') this.floatText(p.pos.clone().setY(p.pos.y + 2.4), `+${n} XP`, 'xp');
   }
 
   updatePoints() {
@@ -209,9 +230,10 @@ export class UI {
     // spell slots
     const slots = this.$('spellbar').children;
     for (let i = 0; i < slots.length; i++) {
-      const s = SPELLS[i];
-      const cd = sp.cooldowns[s.id] || 0;
+      const s = sp.slotSpell(i);
       const sl = slots[i];
+      if (!s) { sl.classList.remove('sel', 'active'); continue; }
+      const cd = sp.cooldowns[s.id] || 0;
       sl.classList.toggle('sel', sp.selected === i);
       sl.classList.toggle('active', (s.id === 'lumos' && sp.lumosOn) || (s.id === 'protego' && sp.shieldUp));
       sl.classList.toggle('nomana', p.mana < s.mana);
@@ -219,7 +241,7 @@ export class UI {
       sl.querySelector('.cd').style.background = f > 0 ? `conic-gradient(rgba(0,0,0,.72) ${f * 360}deg, transparent 0)` : 'none';
     }
     const tb = G.input.tSpellBar;
-    if (tb) for (const b of tb.children) b.classList.toggle('sel', SPELLS[sp.selected]?.id === b.dataset.id);
+    if (tb) for (const b of tb.children) b.classList.toggle('sel', +b.dataset.slot === sp.selected);
     // boss
     if (this.bossTarget) {
       const b = this.bossTarget;
@@ -484,22 +506,26 @@ export class UI {
     const w = this.wheelEl;
     w.classList.remove('hidden');
     w.innerHTML = '<div class="w-center"></div>';
-    const unlocked = SPELLS.filter((s) => G.spells.unlocked.has(s.id));
-    SPELLS.forEach((s, i) => {
-      const a = (i / 8) * Math.PI * 2 - Math.PI / 2;
-      const d = el('div', 'w-item' + (G.spells.unlocked.has(s.id) ? '' : ' locked'), G.spells.unlocked.has(s.id) ? spellIcon(s, 40) : '?');
+    const n = slotCount();
+    let any = false;
+    for (let i = 0; i < n; i++) {
+      const s = G.spells.slotSpell(i);
+      any ||= !!s;
+      const a = (i / n) * Math.PI * 2 - Math.PI / 2;
+      const d = el('div', 'w-item' + (s ? '' : ' locked'), s ? spellIcon(s, 40) : '·');
       d.style.left = 50 + Math.cos(a) * 36 + '%';
       d.style.top = 50 + Math.sin(a) * 36 + '%';
       d.addEventListener('click', () => { this.wheel.pick = i; this.closeWheel(); });
       w.appendChild(d);
-    });
-    this.wheel = { pick: G.spells.selected, mx: 0, my: 0 };
-    if (!unlocked.length) this.closeWheel();
+    }
+    this.wheel = { pick: G.spells.selected, mx: 0, my: 0, n };
+    if (!any) this.closeWheel();
     G.audio?.sfx('wheel');
   }
   updateWheel() {
     if (!this.wheel) return;
     const I = G.input;
+    const n = this.wheel.n;
     let x = I.rstick.x, y = -I.rstick.y;
     if (I.device !== 'pad') {
       this.wheel.mx += G.input.look.x * 90; this.wheel.my += G.input.look.y * 90;
@@ -510,15 +536,15 @@ export class UI {
     if (Math.hypot(x, y) > 0.5) {
       let a = Math.atan2(y, x) + Math.PI / 2;
       if (a < 0) a += Math.PI * 2;
-      const i = Math.round(a / (Math.PI * 2 / 8)) % 8;
-      if (G.spells.unlocked.has(SPELLS[i].id)) {
+      const i = Math.round(a / (Math.PI * 2 / n)) % n;
+      if (G.spells.slotSpell(i)) {
         if (i !== this.wheel.pick) G.audio?.sfx('uimove');
         this.wheel.pick = i;
       }
     }
     const items = this.wheelEl.querySelectorAll('.w-item');
     items.forEach((it, i) => it.classList.toggle('sel', i === this.wheel.pick));
-    const s = SPELLS[this.wheel.pick];
+    const s = G.spells.slotSpell(this.wheel.pick);
     this.wheelEl.querySelector('.w-center').innerHTML = s ? `<b style="color:${s.css}">${s.name}</b><small>${s.short}</small>` : '';
     if (!I.isHeld('wheel')) this.closeWheel();
   }

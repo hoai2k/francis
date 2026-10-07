@@ -31,6 +31,27 @@ textures, particles, the music and the sound effects.
     Malachar the Hollow.
 11. **The House Cup**, then free roam.
 
+## Progression (the seven-year update)
+
+- **School years:** the game is growing into a seven-year saga. Each year has
+  its own story, a mid-year twist and a final boss, and ends with the House Cup.
+  Saves from before the update continue as *Year 1 complete*. **School Years**
+  in the pause menu lists every year and can replay one from the autosave made
+  when it began.
+- **Levels and talents:** spells, quests, minigames and defeated foes give
+  experience. Every level gives a talent point for **Offence** (damage),
+  **Defence** (health, damage taken), **Control** (stun/freeze/lift time, combo
+  damage) or **Utility** (magic regeneration, cooldowns). Respec for free.
+- **Spell mastery:** every spell levels up with use (up to ★★★★): more damage,
+  a wider area and a shorter cooldown.
+- **Loadouts:** you equip 4 spells in Year 1, one more each year up to 8.
+  Protego is always on the block button. Keep three loadouts and swap them with
+  **T** or the **D-pad ↑ ↓** (touch: the number button next to your spells).
+- **Owl post:** every new quest arrives as a letter. The Owl Post & Journal
+  screen is the quest log, with the school calendar date.
+- **Save slots:** three save slots plus an autosave at the start and end of
+  every year.
+
 ## Spells
 
 | # | Spell | Effect |
@@ -83,11 +104,12 @@ and 30 Bertie Bott's beans.
 | Lock on | Tab or middle click | LT / L2 |
 | Previous / next spell | Wheel, Z / R | LB / RB |
 | Spell wheel | Hold C | Hold LB or RB, pick with the right stick |
-| Pick spell | 1–8 | — |
+| Pick spell slot | 1–8 | — |
+| Swap loadout | T | D-pad ↑ / ↓ |
 | Jump | Space | A / ✕ |
 | Dodge roll (hold to sprint) | Shift | B / ◯ (L3 sprints) |
 | Interact | E | X / ☐ |
-| Spellbook / journal | B / J | View |
+| Spellbook (loadouts, talents) / owl post | B / J | View / pause menu |
 | Pause | Esc or P | Menu / Options |
 
 - **Touch:** the left half is a floating joystick (push to the edge to
