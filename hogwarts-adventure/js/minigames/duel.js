@@ -15,7 +15,10 @@ const OPPONENTS = [
 ];
 
 export async function play(opts = {}) {
-  const OPP = opts.opponents || OPPONENTS;
+  // the duelling ladder gets tougher every school year
+  const yr = Math.min(7, G.save?.year || 1);
+  const ladder = (o) => ({ ...o, level: o.level + (yr - 1), hp: Math.round(o.hp * (1 + (yr - 1) * 0.35)), rate: o.rate * (1 - Math.min(0.35, (yr - 1) * 0.05)), spells: [...o.spells, ...(yr >= 3 && !o.spells.includes('incendioE') ? ['incendioE'] : []), ...(yr >= 5 && !o.spells.includes('curse') ? ['curse'] : [])] });
+  const OPP = opts.opponents || OPPONENTS.map(ladder);
   const N = OPP.length;
   const gh = G.world.zones.greatHall;
   await G.ui.fade(1, 0.35);
@@ -55,7 +58,7 @@ export async function play(opts = {}) {
       cleanup();
       const pts = opts.opponents ? (S.wins === N ? 40 : 0) : [0, 10, 25, 45, 70, 100][S.wins];
       resolve(aborted ? { aborted: true } : {
-        title: opts.opponents ? (S.wins === N ? opts.winTitle || 'Victory!' : 'Defeated') : S.wins === 5 ? 'Duelling Champion!' : S.wins ? `${S.wins} duel${S.wins > 1 ? 's' : ''} won` : 'Defeated',
+        title: opts.opponents ? (S.wins === N ? opts.winTitle || 'Victory!' : 'Defeated') : S.wins === 5 ? `Duelling Champion — Year ${yr}!` : S.wins ? `${S.wins} duel${S.wins > 1 ? 's' : ''} won` : 'Defeated',
         sub: opts.opponents ? '' : S.wins === 5 ? 'Nobody has beaten Lucan Mortlake in three years.' : '',
         success: opts.opponents ? S.wins === N : S.wins > 0, wins: S.wins, score: S.wins * 100 + Math.round(p.hp), points: pts,
         lines: [['Rounds won', `${S.wins} / ${N}`], ['Last opponent', OPP[Math.min(S.round, N - 1)].name]],

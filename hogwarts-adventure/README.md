@@ -322,15 +322,16 @@ keyboard, mouse, touch and controller.
 
 ## Minigames
 
-All six can also be played from **Minigames** on the title screen.
+All of these can also be played from **Minigames** on the title screen, along with the class minigames, the Yule Ball dance and the poison riddle.
 
 - **Quidditch**: fly through the rings, dodge two Bludgers and catch the
   Golden Snitch.
 - **Potions**: drop ingredients in order on the beat, stir in circles and
   keep the heat in the band. A good brew gives a timed buff (Wiggenweld,
   Liquid Luck, Strength Draught, Focus Tonic).
-- **Duelling Club**: a five-round tournament against tougher and tougher
-  duellists.
+- **Duelling Club**: a five-round ladder against tougher and tougher
+  duellists. It gets harder every school year, with more health, faster
+  casting and nastier spells.
 - **Wand drawing**: trace glowing spell shapes quickly and accurately. A
   good run gives a Wand Mastery damage boost.
 - **Hippogriff**: bow when she is calm, then fly a ring course over the

@@ -20,10 +20,16 @@ const MINIGAMES = [
   { id: 'quidditch', name: 'Quidditch Practice', desc: 'Fly through rings, dodge Bludgers, catch the Snitch.', icon: '🧹' },
   { id: 'match', name: 'Quidditch Match', desc: 'A full seven-a-side match in your team position (Seeker if you have none).', icon: '🏆' },
   { id: 'potions', name: 'Potions Class', desc: 'Add ingredients on the beat, stir and keep the heat steady.', icon: '⚗️' },
-  { id: 'duel', name: 'Duelling Club', desc: 'A tournament of five ever-tougher duellists.', icon: '⚡' },
+  { id: 'duel', name: 'Duelling Club', desc: 'A ladder of five ever-tougher duellists that grows harder each school year.', icon: '⚡' },
   { id: 'wanddraw', name: 'Wand Drawing', desc: 'Trace spell shapes quickly and neatly.', icon: '🪄' },
   { id: 'creatures', name: 'Hippogriff Flight', desc: 'Bow to Silvermane, then fly the rings over the grounds.', icon: '🦅' },
   { id: 'frogs', name: 'Chocolate Frog Chase', desc: 'Catch the escaped frogs before time runs out.', icon: '🐸' },
+  { id: 'herbology', name: 'Herbology', desc: 'Repot Mandrakes — and wear your earmuffs when they scream.', icon: '🌱' },
+  { id: 'astronomy', name: 'Astronomy', desc: 'Chart three constellations through the telescope.', icon: '🔭' },
+  { id: 'transfig', name: 'Transfiguration', desc: 'Repeat the wand patterns and transform a mouse.', icon: '🐭' },
+  { id: 'divination', name: 'Divination', desc: 'Match the omens in the crystal mist.', icon: '🔮' },
+  { id: 'dance', name: 'Yule Ball', desc: 'Dance on the beat with a partner.', icon: '💃' },
+  { id: 'poison', name: 'Poison Riddle', desc: 'Find the antidote among six phials.', icon: '🧪' },
 ];
 
 function title(h, sub) { return `<h2 class="m-title">${h}</h2>${sub ? `<p class="m-sub">${sub}</p>` : ''}`; }
