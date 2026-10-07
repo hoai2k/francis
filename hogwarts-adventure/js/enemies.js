@@ -134,12 +134,20 @@ export class Enemy {
     if (def.resist[sp] != null && def.resist.all == null) mult *= def.resist[sp];
     // shields
     if (this.shield > 0 && !h.splash && sp !== 'patronum') {
-      if (this.type === 'malachar' && sp === 'expelliarmus') {
-        this.shield = 0;
-        this.shieldMesh && (this.shieldMesh.visible = false);
-        G.ui.floatText(this.pos.clone().setY(this.pos.y + 2.6), 'Shield broken!', 'combo');
-        G.audio.sfx('shatter');
-        this.status.stun = 1.2;
+      if (this.type === 'malachar') {
+        // his shield cracks under any spell; Expelliarmus shatters it at once
+        this.shieldHits = (this.shieldHits ?? 3) - (sp === 'expelliarmus' ? 3 : 1);
+        if (this.shieldHits <= 0) {
+          this.shield = 0;
+          this.shieldMesh && (this.shieldMesh.visible = false);
+          G.ui.floatText(this.pos.clone().setY(this.pos.y + 2.6), 'Shield broken!', 'combo');
+          G.audio.sfx('shatter');
+          this.status.stun = 1.5;
+        } else {
+          G.audio.sfx('block');
+          G.fx.burst(this.pos.clone().setY(this.pos.y + 1.2), 0x30c060, 20, 4);
+          G.ui.floatText(this.pos.clone().setY(this.pos.y + 2.4), `Shield cracking (${this.shieldHits})`, 'warn');
+        }
         return;
       }
       if (this.type !== 'malachar' && h.proj && Math.random() < 0.5 + this.level * 0.08) {
@@ -668,9 +676,15 @@ export class Enemy {
       this.invuln = true;
       this.moveToward(C, 3, dt);
       this.hoverY = 0;
+      this.phase2T = (this.phase2T ?? 0) + dt;
       const left = G.enemies.list.filter((e) => e.alive && e.summon).length;
       this.phaseLabel = left ? `Defeat his summons (${left})` : '';
-      if (!left && this.summoned) {
+      // never let this phase stall: after 40 s his remaining summons vanish
+      if (left && this.phase2T > 40) {
+        for (const e of G.enemies.list) if (e.alive && e.summon) e.die({});
+        G.ui.toast('The darkness falters — Malachar is exposed!', 'info');
+      }
+      if ((!left || this.phase2T > 40) && this.summoned) {
         this.invuln = false;
         this.shieldMesh && (this.shieldMesh.visible = false);
         this.hp = Math.min(this.hp, this.maxHp * 0.33);
@@ -697,9 +711,11 @@ export class Enemy {
     // shield cycle (phase 1): only Expelliarmus breaks it
     this.shieldCd = (this.shieldCd ?? 6) - dt;
     if (phase === 1 && this.shieldCd <= 0 && !this.shield) {
-      this.shield = 1; this.ensureShield(); this.shieldMesh.visible = true; this.shieldCd = 12;
-      G.ui.toast('Malachar raises a dark shield — break it with <b>Expelliarmus</b>!', 'info');
+      this.shield = 1; this.shieldHits = 3; this.shieldT = 6; this.ensureShield(); this.shieldMesh.visible = true; this.shieldCd = 12;
+      G.ui.toast('Malachar raises a dark shield: hit it 3 times or shatter it with <b>Expelliarmus</b>!', 'info');
     }
+    // the shield never lasts long
+    if (this.shield) { this.shieldT = (this.shieldT ?? 6) - dt; if (this.shieldT <= 0 || phase !== 1) { this.shield = 0; G.audio.sfx('nox'); } }
     if (this.shieldMesh) this.shieldMesh.visible = this.shield > 0;
     this.attackT = (this.attackT ?? 2) - dt;
     if (this.attackT <= 0) {

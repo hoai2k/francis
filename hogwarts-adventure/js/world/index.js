@@ -49,6 +49,7 @@ export class World {
   setZone(name, entry) {
     const z = this.zones[name];
     if (!z) return;
+    this.portalArmed = false;
     if (G.zone && G.zone !== z) G.zone.group.visible = G.zone.world.visible = false;
     G.zone = z;
     z.group.visible = z.world.visible = true;
@@ -106,10 +107,27 @@ export class World {
     // portals
     this.nearPortal = null;
     if (G.mode !== 'play' || !G.player) return;
+    const pl = G.player;
+    let inside = false;
     for (const p of z.portals) {
       if (p.locked && p.locked()) continue;
-      const d = p.pos.distanceTo(G.player.pos);
-      if (d < p.r + 0.6 && Math.abs(p.pos.y - G.player.pos.y) < 3) this.nearPortal = p;
+      const dy = Math.abs(p.pos.y - pl.pos.y);
+      if (dy > 3) continue;
+      const d = Math.hypot(p.pos.x - pl.pos.x, p.pos.z - pl.pos.z);
+      if (d < p.r + 0.6) this.nearPortal = p;
+      // walking into a doorway takes you through it
+      if (d < p.r * 0.85 + 0.4) {
+        inside = true;
+        const vx = pl.vel.x, vz = pl.vel.z;
+        const toward = vx * (p.pos.x - pl.pos.x) + vz * (p.pos.z - pl.pos.z);
+        if (this.portalArmed && Math.hypot(vx, vz) > 1 && toward > 0 && !G.minigame && !G.story?.busy && pl.alive) {
+          this.portalArmed = false;
+          this.travel(p.to, p.at);
+          return;
+        }
+      }
     }
+    // after arriving, re-arm only once the player has stepped away from every doorway
+    if (!inside) this.portalArmed = true;
   }
 }
