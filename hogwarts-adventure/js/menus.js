@@ -5,7 +5,10 @@ import { G, HOUSES, HOUSE_KEYS } from './state.js';
 import { SPELLS, spellIcon } from './spelldata.js';
 import { BINDINGS, glyph, padGlyphSet } from './input.js';
 import { crestSVG } from './ui.js';
-import { saveSettings, hasSave, loadSave, newSave, writeSave, deleteSave } from './save.js';
+import { saveSettings, hasSave, loadSave, newSave, writeSave, deleteSave, SLOTS, peekSlot, currentSlot, setSlot, latestSlot, anySave, loadYearSnapshot } from './save.js';
+import { TALENTS, TALENT_MAX, spendTalent, resetTalents, slotCount, slotsFor, equippable, setSlot as setSpellSlot, masteryLevel, MASTERY_STEPS, YEARS, today, xpForLevel, levelProgress } from './progress.js';
+import { SPELL_BY_ID } from './spelldata.js';
+import { ITEMS, SHOPS, coins, itemCount, buy, useItem, frogCard } from './items.js';
 import { setQuality } from './engine.js';
 import { SKIN_TONES, HAIR_COLORS, HAIR_STYLES, WAND_WOODS } from './models.js';
 import { el } from './util.js';
@@ -60,18 +63,17 @@ export function openMainMenu() {
   G.ui.closeAll();
   G.mode = 'menu';
   G.paused = false;
+  G.practiceSave = false;
   document.exitPointerLock?.();
-  const hasS = hasSave() && loadSave()?.started;
+  const last = latestSlot();
+  const lastSave = last ? peekSlot(last) : null;
   G.ui.open((w) => {
-    w.innerHTML = `<div class="title-wrap"><div class="logo big">Hogwarts<span>Adventure</span></div><div class="tagline">A new student · eight spells · one House Cup</div></div><div class="menu-col"></div>
+    w.innerHTML = `<div class="title-wrap"><div class="logo big">Hogwarts<span>Adventure</span></div><div class="tagline">Seven years · thirty spells · one House Cup at a time</div></div><div class="menu-col"></div>
       <div class="m-foot">Not affiliated with any official Harry Potter product. Made with three.js · <span class="dev-ind"></span></div>`;
     const c = w.querySelector('.menu-col');
-    if (hasS) G.ui.button(c, 'Continue', () => { autoFullscreen(); continueGame(); }, 'primary');
-    G.ui.button(c, 'New Game', () => {
-      autoFullscreen();
-      if (hasS) confirmBox('Start a new game? Your current progress will be replaced.', () => newGame());
-      else newGame();
-    }, hasS ? '' : 'primary');
+    if (lastSave) G.ui.button(c, `Continue <small>${lastSave.name} · Year ${lastSave.year}</small>`, () => { autoFullscreen(); setSlot(last); continueGame(); }, 'primary');
+    G.ui.button(c, 'New Game', () => { autoFullscreen(); openSlots('new'); }, lastSave ? '' : 'primary');
+    if (anySave()) G.ui.button(c, 'Load Game', () => openSlots('load'));
     // "Join Online World" appears here while a friend is hosting
     const joinSlot = el('div', 'join-slot');
     c.appendChild(joinSlot);
@@ -93,6 +95,38 @@ export function openMainMenu() {
   }, { cls: 'main', modal: true });
 }
 
+function slotSummary(s) {
+  if (!s || !s.started) return '<i>Empty</i>';
+  const h = HOUSES[s.house];
+  const hrs = Math.floor((s.playTime || 0) / 3600), mins = Math.floor(((s.playTime || 0) % 3600) / 60);
+  return `${h ? crestSVG(s.house, 22) : ''}<b>${s.name}</b> · Year ${s.year}${s.yearDone ? ' (complete)' : ''} · Level ${s.level}<small>${h ? h.name + ' · ' : ''}${hrs}h ${mins}m${s.savedAt ? ' · ' + new Date(s.savedAt).toLocaleDateString() : ''}</small>`;
+}
+// save slot picker: 'new' starts a game in a slot, 'load' loads one
+function openSlots(kind) {
+  G.ui.open((w) => {
+    w.innerHTML = `<div class="panel">${title(kind === 'new' ? 'Choose a save slot' : 'Load game', kind === 'new' ? 'Your progress is saved here automatically.' : 'Pick a slot, or the latest autosave.')}<div class="menu-col slots"></div><div class="row"></div></div>`;
+    const c = w.querySelector('.slots');
+    for (const n of SLOTS) {
+      const s = peekSlot(n);
+      if (kind === 'load' && !s?.started) continue;
+      G.ui.button(c, `<span class="sl-n">${n}</span><span class="sl-d">${slotSummary(s)}</span>`, () => {
+        if (kind === 'load') { setSlot(n); G.ui.closeAll(); continueGame(); return; }
+        const go = () => { setSlot(n); newGame(); };
+        if (s?.started) confirmBox(`Overwrite slot ${n} (${s.name}, Year ${s.year})?`, go); else go();
+      }, 'slot-btn');
+    }
+    const auto = peekSlot('auto');
+    if (kind === 'load' && auto?.started) {
+      G.ui.button(c, `<span class="sl-n">⟳</span><span class="sl-d">Autosave · ${slotSummary(auto)}</span>`, () => {
+        G.ui.closeAll();
+        G.save = auto; // continue into the current slot
+        startFromSave();
+      }, 'slot-btn');
+    }
+    G.ui.button(w.querySelector('.row'), 'Back', () => G.ui.close(), 'primary');
+  }, { cls: 'slotscr' });
+}
+
 function confirmBox(text, yes) {
   G.ui.open((w) => {
     w.innerHTML = `<div class="panel small">${title('Are you sure?')}<p>${text}</p><div class="row"></div></div>`;
@@ -105,7 +139,7 @@ function confirmBox(text, yes) {
 function newGame() {
   G.quitting = false;
   G.save = newSave();
-  G.spells.unlocked = new Set();
+  G.spells.setUnlocked([]);
   G.player.rebuild();
   G.story.rebuildCollectibles();
   G.ui.closeAll();
@@ -119,20 +153,32 @@ function newGame() {
 }
 
 function continueGame() {
-  G.quitting = false;
   G.save = loadSave() || newSave();
-  G.spells.unlocked = new Set(G.save.spells);
+  startFromSave();
+}
+export function startFromSave() {
+  G.quitting = false;
+  G.spells.setUnlocked(G.save.spells);
   G.player.rebuild();
   G.story.rebuildCollectibles();
   G.ui.closeAll();
   G.ui.fade(1, 0.4).then(async () => {
     G.player.root.visible = true;
     G.skyObj.tod = G.save.tod ?? 0.68;
-    const zone = G.world.zones[G.save.zone] ? G.save.zone : 'greatHall';
+    const zone = G.world.zones[G.save.zone] && !G.world.zones[G.save.zone].noSave ? G.save.zone : 'greatHall';
     const p = G.save.pos;
     G.world.setZone(zone, p ? { pos: new THREE.Vector3(p[0], p[1], p[2]), yaw: p[3] } : null);
-    G.story.stage = G.save.stage;
-    if (G.save.stage === 0) { G.story.beginNewGame(); return; }
+    G.story.resume();
+    if (G.save.journey) {
+      const { runJourney } = await import('./journey.js');
+      const j = G.save.journey;
+      G.ui.fade(0, 0.5);
+      if (!(await runJourney(j.year, j.step))) return;
+      if (j.year === 1) { G.story.sortingAfterJourney(); return; }
+      await G.story.startYear(j.year);
+      return;
+    }
+    if (G.save.year === 1 && G.save.stage === 0) { G.story.beginNewGame(); return; }
     G.cam.setCinematic(null);
     G.cam.snap();
     G.mode = 'play';
@@ -140,7 +186,8 @@ function continueGame() {
     G.ui.showHUD(true);
     G.story.onArrive(zone);
     await G.ui.fade(0, 0.6);
-    G.ui.toast(`Welcome back, ${G.save.name}!`, 'info');
+    G.ui.toast(`Welcome back, ${G.save.name}! ${today().label}, Year ${G.save.year}.`, 'info');
+    if (G.save.yearDone) G.story.offerNextYear?.();
   });
 }
 
@@ -166,7 +213,9 @@ export function openPause() {
       });
     }
     G.ui.button(c, 'Spellbook', () => openSpellbook());
-    G.ui.button(c, 'Journal & Collection', () => openJournal());
+    G.ui.button(c, `Owl Post & Journal${unreadBadge()}`, () => openJournal());
+    G.ui.button(c, `Satchel <small>${coins()} Sickles</small>`, () => openSatchel());
+    if (!net?.isGuest) G.ui.button(c, 'School Years', () => openYears());
     G.ui.button(c, 'House Points', () => openHouseBoard());
     G.ui.button(c, 'Settings', () => openSettings());
     G.ui.button(c, 'Controls', () => openControls());
@@ -236,7 +285,7 @@ export function openSettings() {
     G.ui.option(o, 'Capture mouse when playing', [true, false], () => S.pointerLock !== false, (v) => { S.pointerLock = v; save(); }, (v) => (v ? 'On' : 'Off (drag to look)'));
     const r = w.querySelector('.row');
     G.ui.button(r, 'Back', () => G.ui.close(), 'primary');
-    if (!G.net) G.ui.button(r, 'Reset progress', () => confirmBox('Erase all saved progress?', () => { deleteSave(); G.save = newSave(); G.ui.toast('Progress erased', 'info'); }));
+    if (!G.net) G.ui.button(r, 'Erase this save slot', () => confirmBox(`Erase save slot ${currentSlot()}?`, () => { deleteSave(); G.save = newSave(); G.ui.toast('Save slot erased', 'info'); }));
   }, { cls: 'settings' });
 }
 
@@ -264,24 +313,91 @@ export function openControls() {
 }
 
 // ---------------------------------------------------------------- spellbook
-export function openSpellbook(fromPlay) {
+// Tabs: Loadouts (equip spells into slots, three saved loadouts), Spells (all learned
+// spells and mastery) and Talents. Every row works with d-pad / arrows / mouse / touch.
+let bookTab = 'loadout';
+export function openSpellbook(fromPlay, tab) {
   if (fromPlay) { G.paused = true; document.exitPointerLock?.(); G.ui.showHUD(false); }
-  G.ui.open((w) => {
-    w.innerHTML = `<div class="panel wide">${title('Spellbook', 'Select a spell to ready it. Lift, freeze or set foes alight, then follow up for combos.')}<div class="spellgrid"></div><div class="combos"><b>Combos:</b> Leviosa → Incendio = <i>Fire Comet</i> · Leviosa → Stupefy = <i>Meteor Slam</i> · Petrificus → Stupefy/Expelliarmus = <i>Shatter</i> · Incendio → Petrificus = <i>Steam Blast</i> · Expelliarmus → Stupefy = <i>Knockout</i></div><div class="row"></div></div>`;
-    const g = w.querySelector('.spellgrid');
-    SPELLS.forEach((s, i) => {
-      const un = G.spells.unlocked.has(s.id);
-      const card = el('button', 'spellcard nav' + (un ? '' : ' locked') + (G.spells.selected === i ? ' sel' : ''), un
-        ? `${spellIcon(s, 52)}<div><b style="color:${s.css}">${i + 1}. ${s.name}</b><small>${s.desc}</small><em>Magic ${s.mana}${s.drain ? ` + ${s.drain}/s` : ''} · cooldown ${s.cd}s</em></div>`
-        : `<span class="lock-ico big">?</span><div><b>${i + 1}. ???</b><small>${unlockHint(s.id)}</small></div>`);
-      card.dataset.kind = 'grid';
-      card.addEventListener('click', () => { if (un) { G.spells.select(i); g.querySelectorAll('.spellcard').forEach((c, k) => c.classList.toggle('sel', k === i)); G.audio.sfx('ui'); } });
-      g.appendChild(card);
-    });
-    G.ui.button(w.querySelector('.row'), 'Close', () => close(), 'primary');
-  }, { cls: 'book', onBack: () => close(), pauseCloses: true, bookCloses: true });
-  function close() { G.ui.close(); if (fromPlay) resume(); }
+  if (tab) bookTab = tab;
+  let entry;
+  const rebuild = () => { const f = entry.focus; G.ui.close(entry); open(f); };
+  const open = (focus = 0) => {
+    entry = G.ui.open((w) => {
+      const pts = G.save.talentPts;
+      w.innerHTML = `<div class="panel wide">${title('Spellbook', `Level ${G.save.level} · ${Math.floor(levelProgress() * 100)}% to next level${pts ? ` · <b class="gold">${pts} talent point${pts > 1 ? 's' : ''} to spend</b>` : ''}`)}<div class="tabs"></div><div class="book-body"></div><div class="row"></div></div>`;
+      const tabs = w.querySelector('.tabs'), body = w.querySelector('.book-body');
+      for (const [k, label] of [['loadout', 'Loadouts'], ['spells', 'Spells'], ['talents', `Talents${pts ? ' •' : ''}`]]) {
+        const b = el('button', 'tab nav' + (bookTab === k ? ' on' : ''), label);
+        b.dataset.kind = 'grid';
+        b.addEventListener('click', () => { bookTab = k; G.audio.sfx('ui'); rebuild(); });
+        tabs.appendChild(b);
+      }
+      if (bookTab === 'loadout') buildLoadouts(body, rebuild);
+      else if (bookTab === 'spells') buildSpellList(body);
+      else buildTalents(body, rebuild);
+      G.ui.button(w.querySelector('.row'), 'Close', () => close(), 'primary');
+    }, { cls: 'book', onBack: () => close(), pauseCloses: true, bookCloses: true, focus });
+  };
+  open();
+  function close() { G.ui.close(entry); G.ui.buildSpellBar(); if (fromPlay) resume(); }
 }
+function buildLoadouts(body, rebuild) {
+  const s = G.save;
+  const n = slotCount();
+  const learned = [...G.spells.unlocked].filter(equippable);
+  body.innerHTML = `<p class="small">You can equip <b>${n}</b> spells (more unlock each school year). <b>Protego</b> is always on the block button. Swap loadouts in play with ${G.input.device === 'pad' ? 'the D-pad ↑ ↓' : G.input.device === 'touch' ? 'the loadout button by your spells' : 'T'}.</p><div class="ldo-tabs"></div><div class="opts ldo-slots"></div>`;
+  const lt = body.querySelector('.ldo-tabs');
+  for (let li = 0; li < 3; li++) {
+    const b = el('button', 'tab nav' + (s.loadout === li ? ' on' : ''), `Loadout ${li + 1}`);
+    b.dataset.kind = 'grid';
+    b.addEventListener('click', () => { s.loadout = li; G.spells.selected = 0; G.audio.sfx('ui'); rebuild(); });
+    lt.appendChild(b);
+  }
+  const o = body.querySelector('.ldo-slots');
+  const L = s.loadouts[s.loadout];
+  for (let i = 0; i < 8; i++) {
+    if (i >= n) {
+      const yr = YEARS.find((y) => slotsFor(y.n) > i);
+      o.appendChild(el('div', 'opt disabled', `<span class="o-label">Slot ${i + 1}</span><span class="o-ctl"><i>Unlocks in Year ${yr ? yr.n : 7}</i></span>`));
+      continue;
+    }
+    const values = [null, ...learned];
+    G.ui.option(o, `Slot ${i + 1}`, values, () => L[i] ?? null, (v) => { if (v) setSpellSlot(s.loadout, i, v); else L[i] = null; G.ui.buildSpellBar(); setTimeout(rebuild, 0); },
+      (v) => (v ? `${spellIcon(SPELL_BY_ID[v], 22)} ${SPELL_BY_ID[v].name} ${'★'.repeat(masteryLevel(v))}` : '<i>Empty</i>'));
+  }
+}
+function buildSpellList(body) {
+  body.innerHTML = `<div class="spellgrid"></div><div class="combos small" id="combo-list"></div>`;
+  const g = body.querySelector('.spellgrid');
+  for (const sp of SPELLS) {
+    const un = G.spells.unlocked.has(sp.id);
+    const m = masteryLevel(sp.id), uses = G.save.mastery[sp.id] || 0, next = MASTERY_STEPS[m + 1];
+    const card = el('button', 'spellcard nav' + (un ? '' : ' locked'), un
+      ? `${spellIcon(sp, 52)}<div><b style="color:${sp.css}">${sp.name}</b> <span class="gold">${'★'.repeat(m)}${'☆'.repeat(4 - m)}</span><small>${sp.desc}</small><em>Magic ${sp.mana}${sp.drain ? ` + ${sp.drain}/s` : ''} · cooldown ${sp.cd}s${next ? ` · mastery ${uses}/${next}` : ' · mastered'}</em>${sp.puzzle ? `<em class="puz">Puzzles: ${sp.puzzle}</em>` : ''}</div>`
+      : `<span class="lock-ico big">?</span><div><b>???</b><small>${sp.hint || unlockHint(sp.id) || 'Learned in a later year.'}</small></div>`);
+    card.dataset.kind = 'grid';
+    g.appendChild(card);
+  }
+  body.querySelector('#combo-list').innerHTML = `<b>Combos:</b> ${COMBOS.filter((c) => c.need.every((id) => G.spells.unlocked.has(id))).map((c) => `${c.how} = <i>${c.name}</i>`).join(' · ') || 'Learn more spells to discover combos.'}`;
+}
+function buildTalents(body, rebuild) {
+  const s = G.save;
+  body.innerHTML = `<p class="small">Earn a talent point every level. Ranks max out at ${TALENT_MAX}.</p><div class="menu-col talents"></div>`;
+  const c = body.querySelector('.talents');
+  for (const [k, t] of Object.entries(TALENTS)) {
+    const r = s.talents[k];
+    G.ui.button(c, `<span class="t-ico">${t.icon}</span><span class="t-txt"><b>${t.name}</b> <span class="pips">${'◆'.repeat(r)}${'◇'.repeat(TALENT_MAX - r)}</span><small>${t.desc}</small></span><span class="t-plus">${s.talentPts > 0 && r < TALENT_MAX ? '+' : ''}</span>`, () => { if (spendTalent(k)) { G.audio.sfx('unlock'); G.ui.updateXP(); rebuild(); } else G.audio.sfx('fail'); }, 'talent-btn');
+  }
+  G.ui.button(c, 'Reset talents (free)', () => { resetTalents(); G.ui.updateXP(); rebuild(); });
+}
+const COMBOS = [
+  { name: 'Fire Comet', how: 'Leviosa → Incendio', need: ['leviosa', 'incendio'] },
+  { name: 'Meteor Slam', how: 'Leviosa → Stupefy', need: ['leviosa', 'stupefy'] },
+  { name: 'Shatter', how: 'Petrificus → Stupefy/Expelliarmus', need: ['petrificus', 'stupefy'] },
+  { name: 'Steam Blast', how: 'Incendio → Petrificus', need: ['incendio', 'petrificus'] },
+  { name: 'Knockout', how: 'Expelliarmus → Stupefy', need: ['expelliarmus', 'stupefy'] },
+];
+export function registerCombo(c) { COMBOS.push(c); }
 function unlockHint(id) {
   return {
     stupefy: 'Learned at the Sorting.', protego: 'Learned at the Sorting.', lumos: 'Learned at the Sorting.',
@@ -289,29 +405,108 @@ function unlockHint(id) {
     petrificus: 'Reward for a brave deed in the dungeons.', patronum: 'Taught by the Headmistress when darkness comes.',
   }[id];
 }
+function unreadBadge() { const n = (G.save.letters || []).filter((l) => !l.read).length; return n ? ` <span class="badge">${n}</span>` : ''; }
 
-// ---------------------------------------------------------------- journal
+// ---------------------------------------------------------------- owl post + journal
 export async function openJournal(fromPlay) {
   if (fromPlay) { G.paused = true; document.exitPointerLock?.(); G.ui.showHUD(false); }
-  const { QUESTS } = await import('./story.js');
   const CARDS = ['Merlin', 'Morgana', 'Circe', 'Paracelsus', 'Cliodna', 'Agrippa', 'Ptolemy', 'Nicolas Flamel', 'Medea', 'Taliesin', 'Baba Yaga', 'Hengist'];
   G.ui.open((w) => {
-    const s = G.save.stage;
-    const q = QUESTS[Math.min(s, QUESTS.length - 1)];
-    const done = QUESTS.slice(0, Math.min(s, 11)).map((x) => `<li>✔ ${x.title}</li>`).join('');
+    const q = G.story.currentQuest();
+    const date = today();
+    const letters = G.save.letters || [];
+    const done = G.story.completedQuests().map((x) => `<li>✔ ${x}</li>`).join('');
     const cards = CARDS.map((n, i) => `<div class="fcard ${G.save.cards.includes(i) ? 'got' : ''}">${G.save.cards.includes(i) ? `<b>${n}</b>` : '?'}</div>`).join('');
     const best = MINIGAMES.map((m) => `<li>${m.icon} ${m.name}: <b>${G.save.best[m.id] ?? '—'}</b></li>`).join('');
-    w.innerHTML = `<div class="panel wide">${title('Journal')}
+    const extra = G.story.journalExtra ? G.story.journalExtra() : '';
+    w.innerHTML = `<div class="panel wide">${title('Owl Post & Journal', `Year ${G.save.year} · ${date.label} · ${date.term}`)}
       <div class="nav jr" data-kind="scroll">
-      <div class="j-cols"><div><h3>Current quest</h3><p><b>${q.title}</b><br>${q.objective}</p><h3>Completed</h3><ul class="done">${done || '<li>Nothing yet</li>'}</ul></div>
-      <div><h3>Chocolate Frog Cards (${G.save.cards.length}/12)</h3><div class="fcards">${cards}</div>
+      <div class="j-cols"><div><h3>Current quest</h3><p><b>${q.title}</b><br>${q.objective}</p>
+      <h3>Owl post</h3><div class="letters">${letters.length ? letters.map((l) => `<details class="letter ${l.read ? '' : 'new'}"${l === letters[0] ? ' open' : ''}><summary>🦉 <b>${l.title}</b> <small>— ${l.from}, Year ${l.year}</small></summary><p>${l.body}</p></details>`).join('') : '<p class="small">No letters yet.</p>'}</div>
+      <h3>Completed this year</h3><ul class="done">${done || '<li>Nothing yet</li>'}</ul></div>
+      <div>${extra}<h3>Chocolate Frog Cards (${G.save.cards.length}/12)</h3><div class="fcards">${cards}</div>
       <h3>Bertie Bott's Every Flavour Beans</h3><p>${G.save.beans.length} / 30 found</p>
       <h3>Minigame bests</h3><ul>${best}</ul></div></div></div><div class="row"></div></div>`;
+    letters.forEach((l) => (l.read = true));
     G.ui.button(w.querySelector('.row'), 'Close', () => close(), 'primary');
     const jr = w.querySelector('.jr');
     jr.addEventListener('adjust', (e) => { jr.scrollTop += e.detail * 80; });
   }, { cls: 'journal', onBack: () => close(), pauseCloses: true });
   function close() { G.ui.close(); if (fromPlay) resume(); }
+}
+
+// ---------------------------------------------------------------- shops + satchel
+export function openShop(id) {
+  const shop = SHOPS[id];
+  const wasPaused = G.paused;
+  G.paused = true;
+  document.exitPointerLock?.();
+  return new Promise((res) => {
+    let entry;
+    const build = (focus = 0) => {
+      entry = G.ui.open((w) => {
+        w.innerHTML = `<div class="panel">${title(shop.title, `${shop.sub} · you have <b class="gold">${coins()} Sickles</b>`)}<div class="menu-col shop"></div><div class="row"></div></div>`;
+        const c = w.querySelector('.shop');
+        for (const iid of shop.items) {
+          const it = ITEMS[iid];
+          G.ui.button(c, `<span class="t-ico">${it.icon}</span><span class="t-txt"><b>${it.name}</b><small>${it.eat ? 'Eat: ' + it.eat : 'A good gift for the right friend'} · you have ${itemCount(iid)}</small></span><span class="price">${it.price}s</span>`, () => {
+            if (!buy(iid)) { G.ui.toast('Not enough Sickles.', 'info'); return; }
+            let extra = '';
+            if (iid === 'frog') extra = ' ' + frogCard().replace('Just chocolate this time.', '');
+            G.ui.toast(`Bought ${it.short}.${extra}`, 'info');
+            const f = entry.focus; G.ui.close(entry); build(f);
+          }, 'talent-btn');
+        }
+        G.ui.button(w.querySelector('.row'), 'Done', () => done(), 'primary');
+      }, { cls: 'shopscr', onBack: () => done(), focus });
+    };
+    const done = () => { G.ui.close(entry); G.paused = wasPaused; if (G.mode === 'play' && !wasPaused) G.ui.showHUD(true); res(); };
+    build();
+  });
+}
+export function openSatchel() {
+  let entry;
+  const build = (focus = 0) => {
+    entry = G.ui.open((w) => {
+      const ids = Object.keys(G.save.items || {}).filter((k) => ITEMS[k] && itemCount(k) > 0);
+      w.innerHTML = `<div class="panel">${title('Satchel', `<b class="gold">${coins()} Sickles</b> · eat sweets for a boost, or give them to friends`)}<div class="menu-col shop"></div><div class="row"></div></div>`;
+      const c = w.querySelector('.shop');
+      if (!ids.length) c.innerHTML = '<p class="small">Your satchel is empty. The sweets trolley on the Hogwarts Express (and, from your third year, Hogsmeade) sells treats.</p>';
+      for (const iid of ids) {
+        const it = ITEMS[iid];
+        G.ui.button(c, `<span class="t-ico">${it.icon}</span><span class="t-txt"><b>${it.name} ×${itemCount(iid)}</b><small>${it.eat ? 'Use: ' + it.eat : 'Gift item'}</small></span>`, () => {
+          if (!it.eat) { G.ui.toast('Give this to a friend: talk to them and choose Give a gift.', 'tip'); return; }
+          useItem(iid);
+          const f = entry.focus; G.ui.close(entry); build(f);
+        }, 'talent-btn');
+      }
+      G.ui.button(w.querySelector('.row'), 'Close', () => G.ui.close(entry), 'primary');
+    }, { cls: 'shopscr', focus });
+  };
+  build();
+}
+
+// ---------------------------------------------------------------- school years
+export function openYears() {
+  G.ui.open((w) => {
+    w.innerHTML = `<div class="panel wide">${title('School Years', 'Each year has its own story. Replay a year from the autosave made when it began.')}<div class="menu-col years"></div><div class="row"></div></div>`;
+    const c = w.querySelector('.years');
+    for (const y of YEARS) {
+      const done = G.save.yearsDone.some((d) => d.year === y.n);
+      const cur = G.save.year === y.n;
+      const snap = loadYearSnapshot(y.n);
+      const ready = G.story.yearAvailable ? G.story.yearAvailable(y.n) : y.n === 1;
+      const status = done ? '✔ Complete' : cur ? 'In progress' : ready ? 'Locked' : 'Coming in a later update';
+      const b = G.ui.button(c, `<span class="sl-n">${y.n}</span><span class="sl-d"><b>${y.title}</b> <small>${y.sub} · ${status}${snap && !cur ? ' · replay available' : ''}</small></span>`, () => {
+        if (!snap || cur) { G.audio.sfx('fail'); return; }
+        confirmBox(`Replay Year ${y.n} from its start? Your current progress in this slot will be replaced by that autosave.`, () => {
+          G.ui.closeAll(); G.paused = false; G.save = snap; startFromSave();
+        });
+      }, 'slot-btn' + (cur ? ' cur' : ''));
+      if (!snap || cur) b.classList.add('dim');
+    }
+    G.ui.button(w.querySelector('.row'), 'Back', () => G.ui.close(), 'primary');
+  }, { cls: 'yearscr' });
 }
 
 export function openHouseBoard() {
@@ -380,17 +575,20 @@ async function launchFromMenu(id) {
   const { runMinigame } = await import('./minigames/index.js');
   G.quitting = false;
   G.ui.closeAll();
-  const saved = loadSave();
-  if (saved && saved.started) { G.save = saved; G.spells.unlocked = new Set(saved.spells); }
+  const saved = latestSlot() ? loadSave(latestSlot()) : null;
+  if (saved && saved.started) { setSlot(latestSlot()); G.save = saved; } else { G.save = newSave(); G.practiceSave = true; }
   // practice needs a few spells for the duel
-  for (const s of ['stupefy', 'protego', 'expelliarmus', 'lumos', 'petrificus']) if (id === 'duel' || id === 'frogs') G.spells.unlocked.add(s);
+  const practice = new Set(G.save.spells);
+  for (const s of ['stupefy', 'protego', 'expelliarmus', 'lumos', 'petrificus']) if (id === 'duel' || id === 'frogs') practice.add(s);
+  G.spells.setUnlocked([...practice]);
   G.player.rebuild();
   G.player.root.visible = true;
   G.ui.refreshHUD();
   await runMinigame(id, { practice: true, fromMenu: true });
   if (G.quitting) return;
   if (saved && saved.started) writeSave();
-  G.spells.unlocked = new Set(G.save.spells);
+  G.spells.setUnlocked(G.save.spells);
+  G.practiceSave = false;
   menuBackdrop(true);
   openMainMenu();
   G.audio.music('menu');
@@ -530,9 +728,9 @@ function onLeftWorld(message) {
   P.model.root.position.set(0, 0, 0);
   document.getElementById('draw-layer').classList.add('hidden');
   G.save = loadSave() || newSave();
-  G.spells.unlocked = new Set(G.save.spells);
+  G.spells.setUnlocked(G.save.spells);
   P.rebuild();
-  G.story.syncStage(G.save.stage);
+  G.story.resume();
   G.story.rebuildCollectibles();
   G.ui.updatePoints();
   G.skyObj.lock = null;

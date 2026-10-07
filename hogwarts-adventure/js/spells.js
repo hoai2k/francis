@@ -7,6 +7,7 @@ import { makeStag } from './models.js';
 import { postFlash } from './engine.js';
 import { glowSprite } from './textures.js';
 import { clamp, rand } from './util.js';
+import { currentLoadout, slotCount, autoEquip, seedLoadouts, addMastery, masteryDmg, masteryCd, masteryArea, dmgMult, cdMult, comboMult, controlMult, addXP } from './progress.js';
 
 const _v = new THREE.Vector3(), _w = new THREE.Vector3(), _u = new THREE.Vector3();
 const UP = new THREE.Vector3(0, 1, 0);
@@ -21,10 +22,12 @@ export const ENEMY_SPELLS = {
   killing: { id: 'killing', name: 'Dark lance', color: 0x30ff60, color2: 0xe0ffe0, dmg: 20, speed: 34, radius: 0.45, kind: 'bolt', enemy: true },
 };
 
+const NONE = { id: null, name: '—', short: '', mana: 0, cd: 0, color: 0xffffff, css: '#888' };
+
 export class Spells {
   constructor() {
-    this.unlocked = new Set(G.save.spells || []);
     this.selected = 0;
+    this.setUnlocked(G.save.spells || []);
     this.cooldowns = {};
     this.projectiles = [];
     this.stags = [];
@@ -55,30 +58,50 @@ export class Spells {
     this.shieldHit = 0;
   }
 
-  get current() { return SPELLS[this.selected]; }
+  // the selected slot of the active loadout (Protego lives on the block button)
+  slotSpell(i) { const id = currentLoadout()?.[i]; return id && i < slotCount() && this.unlocked.has(id) ? SPELL_BY_ID[id] : null; }
+  get current() { return this.slotSpell(this.selected) || NONE; }
+  setUnlocked(list) {
+    this.unlocked = new Set(list);
+    seedLoadouts(this.unlocked);
+    this.selected = 0;
+    if (!this.slotSpell(0)) this.cycle(1);
+  }
   unlock(id, silent) {
     if (this.unlocked.has(id)) return;
     this.unlocked.add(id);
     G.save.spells = [...this.unlocked];
+    const placed = autoEquip(id);
     G.ui.buildSpellBar();
     if (!silent) {
       const s = SPELL_BY_ID[id];
       G.ui.banner(`New spell: ${s.name}`, s.desc, 'unlock');
       G.audio.sfx('unlock');
-      this.select(SPELLS.indexOf(s));
+      addXP(80);
+      if (placed) this.select(currentLoadout().indexOf(id));
+      else if (id !== 'protego') setTimeout(() => G.ui.toast(`Your spell slots are full. Equip <b>${s.name}</b> in the Spellbook (${G.input.device === 'pad' ? 'View' : 'B'}).`, 'tip', 5000), 2200);
     }
   }
   select(i) {
-    const s = SPELLS[i];
-    if (!s || !this.unlocked.has(s.id)) return;
+    if (!this.slotSpell(i)) return;
     if (this.selected !== i) G.audio.sfx('uimove');
     this.selected = i;
   }
   cycle(dir) {
-    for (let k = 1; k <= 8; k++) {
-      const i = (this.selected + dir * k + 80) % 8;
-      if (this.unlocked.has(SPELLS[i].id)) { this.select(i); return; }
+    const n = slotCount();
+    for (let k = 1; k <= n; k++) {
+      const i = (this.selected + dir * k + n * 10) % n;
+      if (this.slotSpell(i)) { this.select(i); return; }
     }
+  }
+  swapLoadout(dir = 1) {
+    const s = G.save;
+    s.loadout = (s.loadout + dir + 3) % 3;
+    if (this.lumosOn && !currentLoadout().includes('lumos')) this.toggleLumos(false);
+    if (!this.slotSpell(this.selected)) { this.selected = 0; if (!this.slotSpell(0)) this.cycle(1); }
+    G.ui.buildSpellBar();
+    G.ui.toast(`Loadout ${s.loadout + 1}: ${currentLoadout().slice(0, slotCount()).filter(Boolean).map((id) => SPELL_BY_ID[id].short).join(' · ') || 'empty'}`, 'info', 1800);
+    G.audio.sfx('wheel');
   }
 
   // ------------------------------------------------------------ aiming
@@ -121,12 +144,15 @@ export class Spells {
   update(dt) {
     const I = G.input, p = G.player;
     for (const k in this.cooldowns) this.cooldowns[k] = Math.max(0, this.cooldowns[k] - dt);
-    if (!this.unlocked.has(this.current.id) && this.unlocked.size) this.cycle(1);
+    if (!this.slotSpell(this.selected) && this.unlocked.size) this.cycle(1);
     const canAct = G.mode === 'play' && p.alive && p.control && !G.ui.wheel && !G.paused;
     if (canAct) {
       for (let i = 1; i <= 8; i++) if (I.isPressed('spell' + i)) this.select(i - 1);
       if (I.isPressed('next')) this.cycle(1);
       if (I.isPressed('prev')) this.cycle(-1);
+      if (I.isPressed('loadout')) this.swapLoadout(1);
+      if (I.device === 'pad' && I.isPressed('up')) this.swapLoadout(-1);
+      if (I.device === 'pad' && I.isPressed('down')) this.swapLoadout(1);
       // controller: d-pad left/right also cycles spells; flick the right stick to switch lock-on target
       if (I.device === 'pad') {
         if (I.isPressed('right')) this.cycle(1);
@@ -258,7 +284,15 @@ export class Spells {
     const p = G.player;
     if (!this.unlocked.has(s.id)) return;
     if ((this.cooldowns[s.id] || 0) > 0) return;
-    if (s.id === 'lumos') { this.toggleLumos(!this.lumosOn); this.cooldowns.lumos = s.cd; return; }
+    if (!s.id) return;
+    if (s.id === 'lumos') { this.toggleLumos(!this.lumosOn); this.cooldowns.lumos = s.cd; addMastery('lumos'); return; }
+    if (s.cast) { // spells with their own behaviour (spellbook2.js)
+      if (!this.payFor(s)) return;
+      s.cast(this, p);
+      addMastery(s.id);
+      G.story?.onEvent('cast', s.id);
+      return;
+    }
     if (s.id === 'leviosa' && this.held) { this.throwHeld(); this.cooldowns.leviosa = 0.3; return; }
     const cost = s.mana * (p.buffs.focus ? 0.75 : 1);
     if (p.mana < cost) {
@@ -270,7 +304,8 @@ export class Spells {
     p.mana -= cost;
     p.lastCast = 0;
     p.aimT = 0.9;
-    this.cooldowns[s.id] = s.cd;
+    this.cooldowns[s.id] = s.cd * masteryCd(s.id) * cdMult();
+    addMastery(s.id);
     p.anim.trigger(s.id === 'leviosa' ? 'flick' : 'cast');
     const origin = p.wandPos();
     // spells leave from slightly in front of the wand so they never start inside walls
@@ -281,10 +316,34 @@ export class Spells {
     G.fx.emit({ pos: origin, color: s.color, count: 20, speed: 3, size: 0.2, life: 0.35, intensity: 3 });
     G.lights.flash(origin, s.color, 25, 6, 0.2);
     if (s.kind === 'patronus') { this.castPatronus(origin, dir); G.net?.patronus(origin, dir); return; }
-    const def = { ...s, dmg: s.dmg * (p.buffs.strength ? 1.35 : 1) * (p.buffs.mastery ? 1.25 : 1) };
+    const def = { ...s, dmg: s.dmg * (p.buffs.strength ? 1.35 : 1) * (p.buffs.mastery ? 1.25 : 1) * masteryDmg(s.id) * dmgMult(), splash: s.splash ? s.splash * masteryArea(s.id) : 0 };
     this.spawnProjectile(def, origin, dir, 'player', p, aim.target);
     G.net?.cast(s.id, origin, dir, aim.target);
     G.story?.onEvent('cast', s.id);
+  }
+
+  // shared cost / cooldown / animation for custom spells; returns false if it cannot be cast
+  payFor(s, anim = 'cast') {
+    const p = G.player;
+    const cost = s.mana * (p.buffs.focus ? 0.75 : 1);
+    if (p.mana < cost) {
+      G.ui.floatText(p.pos.clone().setY(p.pos.y + 2.1), 'Not enough magic', 'warn');
+      G.audio.sfx('fail');
+      this.cooldowns[s.id] = 0.3;
+      return false;
+    }
+    p.mana -= cost;
+    p.lastCast = 0;
+    p.aimT = 0.9;
+    this.cooldowns[s.id] = s.cd * masteryCd(s.id) * cdMult();
+    p.anim.trigger(anim);
+    G.input.rumble(0.15, 0.25, 60);
+    return true;
+  }
+  // damage a custom spell deals, with every multiplier applied
+  power(s) {
+    const p = G.player;
+    return s.dmg * (p.buffs.strength ? 1.35 : 1) * (p.buffs.mastery ? 1.25 : 1) * masteryDmg(s.id) * dmgMult();
   }
 
   // ------------------------------------------------------------ projectiles

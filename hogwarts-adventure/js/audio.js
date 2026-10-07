@@ -493,6 +493,8 @@ export class AudioSys {
       case 'hoot': this._tone(t, 500, 420, 0.25, 0.06, 'sine'); this._tone(t + 0.3, 480, 400, 0.4, 0.06, 'sine'); break;
       case 'frog': this._tone(t, 180, 260, 0.08, 0.12, 'square', null, 0); this._tone(t + 0.1, 160, 220, 0.08, 0.1, 'square', null, 0); break;
       case 'screech': this._tone(t, 1400, 900, 0.5, 0.08, 'sawtooth', null, 0.5); this._noise(t, 0.5, 0.1, 'bandpass', 2500, null, 3); break;
+      case 'whistle': [0, 0.55].forEach((d) => { this._tone(t + d, 880, 870, 0.45, 0.07, 'sine', null, 0.2); this._tone(t + d, 1108, 1100, 0.45, 0.05, 'sine', null, 0.2); this._noise(t + d, 0.45, 0.05, 'bandpass', 2400, null, 4); }); break;
+      case 'steam': this._noise(t, 0.8, 0.15, 'highpass', 1500, null, 1, 3000); break;
       case 'gong': this._tone(t, 110, 105, 2.5, 0.25, 'sine', null, 0.9); this._tone(t, 167, 160, 2.2, 0.12, 'sine', null, 0.9); break;
       default: break;
     }

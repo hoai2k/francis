@@ -118,7 +118,7 @@ export class Session {
         clearTimeout(timer);
         if (err) { if (this.room === room) this.room = null; try { room.leave(); } catch { /* gone */ } reject(new Error(err)); } else resolve();
       };
-      const timer = setTimeout(() => finish('timeout'), 9000);
+      const timer = setTimeout(() => finish('timeout'), 15000);
       room.onClose((reason) => {
         if (!done) { finish(reason || 'disconnected'); return; }
         if (this.room === room) { this.room = null; this.lost(reason || 'disconnected'); }

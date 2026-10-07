@@ -17,7 +17,7 @@ import * as THREE from 'three';
 import { G, HOUSES, HOUSE_KEYS } from '../state.js';
 import { SPELL_BY_ID } from '../spelldata.js';
 import { ENEMY_SPELLS } from '../spells.js';
-import { loadSave, newSave } from '../save.js';
+import { loadSave, newSave, latestSlot } from '../save.js';
 import { Session, loadMiniRooms, listWorlds, newUid, PROTO, num, int, str, esc, vec, r2, r3, clamp } from './session.js';
 import { RemotePlayer, Proxy, PF, packLook, cleanHouse, readEnemy, writeEnemy, makePuppet, pushPuppet, updatePuppet } from './remote.js';
 
@@ -25,7 +25,7 @@ export { listWorlds };
 
 const UID = newUid(); // this tab: stays the same across reconnects
 const UID_RE = /^[a-z0-9]{10}$/;
-const ZONES = ['grounds', 'greatHall', 'staircase', 'corridor', 'dungeon', 'tower'];
+const isZone = (z) => typeof z === 'string' && Object.hasOwn(G.world.zones, z);
 const ENEMY_DEF_BY_ID = Object.fromEntries(Object.values(ENEMY_SPELLS).map((d) => [d.id, d]));
 const canonSpell = (id) => SPELL_BY_ID[id] || ENEMY_DEF_BY_ID[id] || null;
 const v3 = (a) => new THREE.Vector3(a[0], a[1], a[2]);
@@ -233,7 +233,7 @@ export class Coop {
   worldState() {
     const s = G.save;
     return {
-      st: s.stage, f: s.flags, pts: s.points, c: s.cards, b: s.beans, sp: [...G.spells.unlocked],
+      st: s.stage, yr: s.year, yd: s.yearDone ? 1 : 0, f: s.flags, pts: s.points, c: s.cards, b: s.beans, sp: [...G.spells.unlocked],
       tod: r3(G.skyObj.tod), lk: G.skyObj.lock != null ? 1 : 0, done: s.completed ? 1 : 0,
     };
   }
@@ -250,12 +250,16 @@ export class Coop {
       for (const k of Object.keys(W.f).slice(0, 40)) if (/^[A-Za-z]{1,24}$/.test(k) && (typeof W.f[k] === 'boolean' || typeof W.f[k] === 'number')) flags[k] = W.f[k];
       s.flags = flags;
     }
-    if (Array.isArray(W.sp)) for (const id of W.sp.slice(0, 8)) if (SPELL_BY_ID[id] && !G.spells.unlocked.has(id)) G.spells.unlock(id, first);
+    if (Array.isArray(W.sp)) for (const id of W.sp.slice(0, 40)) if (SPELL_BY_ID[id] && !G.spells.unlocked.has(id)) G.spells.unlock(id, first);
     if (Array.isArray(W.c)) s.cards = [...new Set(W.c.filter((i) => Number.isInteger(i) && i >= 0 && i < 12))];
     if (Array.isArray(W.b)) s.beans = [...new Set(W.b.filter((i) => Number.isInteger(i) && i >= 0 && i < 30))];
     G.story.applyCollected();
     s.completed = !!W.done;
+    const yr = int(W.yr, 1, 7, s.year || 1), yd = !!W.yd;
+    const yearChanged = yr !== s.year || yd !== !!s.yearDone;
+    s.year = yr; s.yearDone = yd;
     const st = int(W.st, 0, 11, s.stage);
+    if (yearChanged && st === s.stage) G.story.syncStage(st);
     if (st !== s.stage) {
       const old = s.stage;
       G.story.syncStage(st);
@@ -630,8 +634,8 @@ export class Coop {
   // a spot next to the host (where they last stood on solid ground)
   spotNearHost() {
     const d = this.hostData;
-    const gp = Array.isArray(d?.gp) && ZONES.includes(d.gp[0]) ? d.gp : null;
-    const zone = gp ? gp[0] : ZONES.includes(d?.z) ? d.z : 'greatHall';
+    const gp = Array.isArray(d?.gp) && isZone(d.gp[0]) ? d.gp : null;
+    const zone = gp ? gp[0] : isZone(d?.z) ? d.z : 'greatHall';
     const Z = G.world.zones[zone];
     let pos = null, yaw = 0;
     if (gp && [gp[1], gp[2], gp[3]].every((x) => typeof x === 'number' && Number.isFinite(x) && Math.abs(x) < 5000)) {
@@ -652,11 +656,12 @@ export class Coop {
     await G.ui.fade(1, 0.4);
     G.minigame = null;
     G.enemies.clearZone();
-    const own = this.ident;
-    const s = { ...newSave(), started: true, name: own.name, look: { ...own.look }, house: own.house, best: { ...(own.best || {}) }, potions: { ...(own.potions || {}) } };
+    // my student (level, talents, loadouts, satchel) visiting the host's world; nothing is saved
+    const own = JSON.parse(JSON.stringify(this.ident));
+    const s = { ...newSave(), ...own, started: true, stage: 0, flags: {}, cards: [], beans: [], yearDone: false, completed: false };
     s.spells = [...new Set([...(own.spells || []), 'stupefy', 'protego', 'lumos'])].filter((id) => SPELL_BY_ID[id]);
     G.save = s;
-    G.spells.unlocked = new Set(s.spells);
+    G.spells.setUnlocked(s.spells);
     this.entered = true;
     this.applyWorld(W, true);
     G.story.syncStage(G.save.stage);
@@ -731,8 +736,10 @@ export async function joinWorld(room, { openCustomize, pickHouse, backToTitle, c
   busy = true;
   let s = null, cancelled = false, panel = null;
   try {
-    const own = loadSave();
-    let ident = own?.started && own.house ? { name: own.name, look: own.look, house: own.house, spells: own.spells, best: own.best, potions: own.potions } : null;
+    // I visit as the student from my most recent save (it is never written to)
+    const slot = latestSlot();
+    const own = slot ? loadSave(slot) : null;
+    let ident = own?.started && own.house ? own : null;
     if (!ident) {
       // a new player: make a student first
       G.save = newSave();
@@ -741,7 +748,7 @@ export async function joinWorld(room, { openCustomize, pickHouse, backToTitle, c
       if (!look) { backToTitle(); return; }
       const house = await pickHouse();
       if (!house) { backToTitle(); return; }
-      ident = { name: G.save.name, look: G.save.look, house, spells: [] };
+      ident = { ...G.save, house, spells: [] };
     }
     panel = connecting(`Joining ${esc(room.title)}…`, () => { cancelled = true; s?.leave(); });
     const lib = await loadMiniRooms();
@@ -750,13 +757,14 @@ export async function joinWorld(room, { openCustomize, pickHouse, backToTitle, c
     const coop = new Coop(s, 'guest', ident);
     await s.join(room.id);
     if (cancelled) { s.leave(); return; }
-    await coop.waitForHost(10000);
+    await coop.waitForHost(15000);
     if (cancelled) { s.leave(); return; }
     panel.close();
     panel = null;
     G.net = coop;
     await coop.enterAsGuest();
   } catch (e) {
+    console.warn('online: could not join', e);
     s?.leave();
     if (G.net && G.net.s === s) { G.net.dispose(); G.net = null; }
     panel?.close();

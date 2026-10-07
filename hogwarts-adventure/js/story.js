@@ -5,7 +5,10 @@ import { G, HOUSES, HOUSE_KEYS } from './state.js';
 import { makeWizard, makeSortingHat, makeCard, makeBean, makeHippogriff, HAIR_COLORS, SKIN_TONES } from './models.js';
 import { SPELL_BY_ID } from './spelldata.js';
 import { glyph } from './input.js';
-import { writeSave } from './save.js';
+import { writeSave, autoSave } from './save.js';
+import { addXP, sendOwl, YEARS } from './progress.js';
+import { FRIENDS, FRIEND_IDS } from './friends.js';
+import { addCoins } from './items.js';
 import { runMinigame } from './minigames/index.js';
 import { PLATEAU, SPOTS, groundHeight, WATER_Y } from './world/terrain.js';
 import { rand, pick, dampAngle, sleep, clamp } from './util.js';
@@ -46,6 +49,9 @@ function route(from, to) {
   return cur;
 }
 
+export const BUILT_YEARS = 1;
+const Y1_FROM = ['Headmistress Aldmoor', 'Headmistress Aldmoor', 'Professor Thornwick', 'Professor Duskwood', 'Professor Vexley', 'Professor Vexley', 'Madam Hale', 'Brannoc the Groundskeeper', 'Headmistress Aldmoor', 'Headmistress Aldmoor', 'Brannoc the Groundskeeper'];
+
 export const QUESTS = [
   { title: 'The Sorting', objective: 'Take your seat for the Sorting ceremony.' },
   { title: 'Charms Class', objective: 'Climb the Grand Staircase to the Charms Corridor and find Professor Thornwick.' },
@@ -70,6 +76,9 @@ export class Story {
     this.musicT = 0;
     this.busy = false;
     this.encounter = null;
+    this.tickers = new Map();
+    this.journeyQuest = null;
+    this.friendTalkOverride = null;
     this.buildNPCs();
     this.buildCollectibles();
     this.buildStations();
@@ -82,20 +91,22 @@ export class Story {
   set stage(v) {
     G.save.stage = v;
     this.placeNPCs();
-    G.ui.setQuest(this.questView(v));
+    G.ui.setQuest(this.questView());
     writeSave();
   }
   // online guests follow the host's story without saving it
   syncStage(v) {
     G.save.stage = v;
     this.placeNPCs();
-    G.ui.setQuest(this.questView(v));
+    G.ui.setQuest(this.questView());
   }
-  questView(v) {
-    const q = QUESTS[Math.min(v, QUESTS.length - 1)];
+  // the quest panel; a guest sees the host's quest as theirs to help with
+  questView() {
+    const q = this.currentQuest();
     if (!G.net?.isGuest || !q) return q;
     const host = G.net.hostName.replace(/[<>&]/g, '');
-    return { title: q.title, objective: v >= 11 ? q.objective : `Help ${host}: ${q.objective}` };
+    if (G.save.yearDone || this.stage >= 11) return { title: q.title, objective: `Explore ${host}’s world together, find collectibles and play minigames for your house.` };
+    return { title: q.title, objective: `Help ${host}: ${q.objective}` };
   }
   announceStage(old, now, host) {
     const q = QUESTS[old];
@@ -105,13 +116,43 @@ export class Story {
   }
   advance(to) {
     const q = QUESTS[this.stage];
-    if (q && this.stage > 0) { G.ui.banner('Quest complete', q.title, 'quest'); G.audio.sfx('quest'); }
+    if (q && this.stage > 0) { G.ui.banner('Quest complete', q.title, 'quest'); G.audio.sfx('quest'); addXP(120 + G.save.year * 30, q.title); addCoins(12); }
     setTimeout(() => {
       this.stage = to;
       const nq = QUESTS[to];
       if (nq) G.ui.toast(`<b>New quest:</b> ${nq.title}`, 'quest', 4000);
     }, 600);
     this.stage = to;
+    this.questLetter();
+  }
+  // every new quest arrives as an owl post letter, which doubles as the quest log
+  questLetter() {
+    if (G.save.year !== 1) return;
+    const q = QUESTS[this.stage];
+    if (!q || this.stage >= 11) return;
+    const from = Y1_FROM[this.stage] || 'Headmistress Aldmoor';
+    sendOwl(`y1-q${this.stage}`, from, q.title, q.objective, { quest: true, silent: this.stage === 0 });
+  }
+  // ------------------------------------------------------------ year / quest log API
+  resume() {
+    this.placeNPCs();
+    G.ui.setQuest(this.currentQuest());
+  }
+  currentQuest() {
+    if (this.journeyQuest?.quest) return this.journeyQuest.quest;
+    if (G.save.yearDone) return { title: `Year ${G.save.year} complete`, objective: this.yearAvailable(G.save.year + 1) ? `Begin Year ${G.save.year + 1}: open the pause menu → School Years, or talk to the Headmistress.` : 'Explore, find collectibles and play minigames. More years arrive in a later update.' };
+    return QUESTS[Math.min(this.stage, QUESTS.length - 1)];
+  }
+  completedQuests() { return QUESTS.slice(0, Math.min(this.stage, 11)).map((q) => q.title); }
+  yearFraction() { return G.save.yearDone ? 1 : Math.min(1, this.stage / 11); }
+  yearAvailable(n) { return n >= 1 && n <= BUILT_YEARS; }
+  async beginYear(n) { const { beginYear } = await import('./journey.js'); return beginYear(n); }
+  async startYear(n) { /* years 2–7 are driven by js/years/ (added year by year) */ }
+  offerNextYear() {
+    const n = G.save.year + 1;
+    if (!G.save.yearDone) return;
+    if (!this.yearAvailable(n)) { if (n <= 7) G.ui.toast(`Year ${n} — ${YEARS[n - 1].title} — arrives in a later update. Keep exploring!`, 'info', 5000); return; }
+    G.ui.toast(`Year ${n} awaits! Talk to the Headmistress, or open School Years from the pause menu.`, 'quest', 5000);
   }
 
   // ------------------------------------------------------------ house points
@@ -130,9 +171,12 @@ export class Story {
   }
 
   // ------------------------------------------------------------ NPCs
+  registerNPC(id, d) { NPC_LOOKS[id] = d; }
+  hideNPC(id) { const n = this.npcs[id]; if (n) { n.root.parent?.remove(n.root); n.zone = null; } }
+  cardName(i) { return CARDS[i]; }
   npc(id) {
     if (this.npcs[id]) return this.npcs[id];
-    const d = NPC_LOOKS[id];
+    const d = NPC_LOOKS[id] || (FRIENDS[id] && { name: FRIENDS[id].name, voice: FRIENDS[id].voice, color: FRIENDS[id].color, look: FRIENDS[id].look });
     const m = makeWizard({ ...d.look, house: d.look.house || null, scarf: !!d.look.house });
     const n = { id, d, model: m, root: m.root, zone: null, pos: new THREE.Vector3(), yaw: 0, talk: false };
     this.npcs[id] = n;
@@ -164,6 +208,8 @@ export class Story {
     const pad = SPOTS.paddock;
     this.placeNPC('brannoc', 'grounds', new THREE.Vector3(pad.x - 18, groundHeight(pad.x - 18, pad.z - 6), pad.z - 6), Math.PI / 2);
     this.placeNPC('pip', 'grounds', new THREE.Vector3(6, PLATEAU, 6), -2.4);
+    for (const id of FRIEND_IDS) if (id !== 'pip' && this.npcs[id] && !this.journeyQuest) this.hideNPC(id);
+    this.placeFriends?.();
   }
   buildNPCs() {
     this.placeNPCs();
@@ -319,7 +365,12 @@ export class Story {
     npcAct('duskwood', () => 'Talk to Professor Duskwood', () => this.talkDuskwood());
     npcAct('hale', () => 'Talk to Madam Hale', () => this.talkHale());
     npcAct('brannoc', () => 'Talk to Brannoc', () => this.talkBrannoc());
-    npcAct('pip', () => 'Talk to Pip', () => this.talkPip());
+    for (const id of FRIEND_IDS) npcAct(id, () => `Talk to ${FRIENDS[id].short}`, async () => {
+      if (this.friendTalkOverride && (await this.friendTalkOverride(id))) return;
+      if (this.friendTalk) return this.friendTalk(id);
+      if (id === 'pip') return this.talkPip();
+      return this.talk(id, ['Hello!']);
+    });
     I.push({ zone: 'dungeon', pos: W.dungeon.cauldron.pos, r: 2.4, label: () => 'Brew a potion', cond: () => this.stage > 3, act: () => this.playPotions() });
     I.push({ zone: 'corridor', pos: W.corridor.spots.lectern, r: 2.4, label: () => 'Wand practice', cond: () => this.stage > 1, act: () => this.playWand() });
     I.push({ zone: 'greatHall', pos: W.greatHall.W(0, 0, -21), r: 3, label: () => 'House points board', act: () => this.showBoard() });
@@ -330,7 +381,7 @@ export class Story {
     let best = null, bd = Infinity;
     for (const it of this.interactables) {
       let pos, zone;
-      if (it.npc) { const n = this.npcs[it.npc]; pos = n.pos; zone = n.zone; }
+      if (it.npc) { const n = this.npcs[it.npc]; if (!n || !n.zone) continue; pos = n.pos; zone = n.zone; }
       else { pos = it.pos; zone = it.zone; }
       if (zone !== G.zone.name) continue;
       if (it.cond && !it.cond()) continue;
@@ -391,6 +442,17 @@ export class Story {
   async beginNewGame() {
     G.save.started = true;
     this.stage = 0;
+    this.questLetter();
+    autoSave(true);
+    if (!G.save.flags.y1journey) {
+      const { runJourney } = await import('./journey.js');
+      G.ui.fade(0, 0.6);
+      if (!(await runJourney(1))) return;
+    }
+    return this.sortingAfterJourney();
+  }
+  async sortingAfterJourney() {
+    G.save.flags.y1journey = true;
     G.world.setZone('greatHall', { pos: G.world.zones.greatHall.W(0, 0, -24), yaw: Math.PI });
     G.mode = 'cutscene';
     G.ui.showHUD(false);
@@ -502,6 +564,11 @@ export class Story {
       return;
     }
     if (s === 10) return this.houseCup();
+    if (G.save.yearDone && this.yearAvailable(G.save.year + 1)) {
+      const c = await this.talk('headmistress', [{ who: NPC_LOOKS.headmistress.name, color: NPC_LOOKS.headmistress.color, text: `Summer is nearly over, ${G.save.name}. Are you ready for your ${['', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh'][G.save.year]} year?`, choices: [`Begin Year ${G.save.year + 1}`, 'Not yet'], speaker: (on) => this.npcs.headmistress.model.anim.set(on ? 'talk' : 'idle') }]);
+      if (c === 0) { this.busy = false; this.beginYear(G.save.year + 1); }
+      return;
+    }
     const lines = {
       0: ['Take your seat, the Hat is waiting.'],
       1: ['Charms is up the Grand Staircase. Professor Thornwick will be delighted to meet you.'],
@@ -626,7 +693,7 @@ export class Story {
 
   async talkPip() {
     if (this.stage < 2) {
-      await this.talk('pip', ['Hi! I’m Pip, Hufflepuff, second year. If you’re lost: the big doors lead to the Great Hall, and the Grand Staircase is through the side door by the dais.', 'Oh — and there are Chocolate Frog cards hidden all over the castle. Some only show up in Lumos light!']);
+      await this.talk('pip', ['Hi again! Pip — from the train, remember? If you’re lost: the big doors lead to the Great Hall, and the Grand Staircase is through the side door by the dais.', 'Oh — and there are Chocolate Frog cards hidden all over the castle. Some only show up in Lumos light!']);
       return;
     }
     const c = await this.talk('pip', [
@@ -659,7 +726,7 @@ export class Story {
       pip: s >= 2 && ['Catch the frogs!', () => runMinigame('frogs', {})],
     };
     const offer = offers[id];
-    const d = NPC_LOOKS[id];
+    const d = this.npcs[id]?.d || NPC_LOOKS[id];
     if (!offer) { await this.talk(id, lines); return; }
     const c = await this.talk(id, [{ who: d.name, color: d.color, voice: d.voice, text: lines[0], choices: [offer[0], 'Not now'], speaker: (on) => this.npcs[id].model.anim.set(on ? 'talk' : 'idle') }]);
     if (c === 0) await offer[1]();
@@ -822,9 +889,18 @@ export class Story {
     await sleep(2800);
     G.save.completed = true;
     this.advance(11);
-    writeSave();
+    this.finishYear(winner);
     G.cam.setCinematic(null);
     openCredits(winner === G.save.house);
+  }
+
+  finishYear(winner) {
+    const s = G.save;
+    s.yearDone = true;
+    if (!s.yearsDone.some((y) => y.year === s.year)) s.yearsDone.push({ year: s.year, cup: winner });
+    addXP(500 + s.year * 100, `Year ${s.year} complete`);
+    sendOwl(`y${s.year}-end`, 'Headmistress Aldmoor', `End of Year ${s.year}`, `Congratulations on completing your ${['first', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh'][s.year - 1]} year. ${HOUSES[winner].name} won the House Cup. Enjoy the summer — and keep your wand out of sight of Muggles!`, { silent: true });
+    autoSave(false);
   }
 
   // ------------------------------------------------------------ per-frame
@@ -833,6 +909,8 @@ export class Story {
     const s = this.stage;
     const W = G.world.zones;
     let t = null;
+    if (this.journeyQuest) { t = this.journeyQuest.target; return t && t.zone === G.zone.name ? t : null; }
+    if (this.yearMarker) { t = this.yearMarker(); return t ? this.routeTo(t) : null; }
     const npcT = (id) => { const n = this.npcs[id]; return n ? { zone: n.zone, pos: n.pos.clone().setY(n.pos.y + 2.4) } : null; };
     if (s === 1) t = G.save.flags.pixiesDone || G.zone.name !== 'corridor' ? npcT('thornwick') : null;
     else if (s === 2) t = npcT('duskwood');
@@ -844,6 +922,9 @@ export class Story {
     else if (s === 8) t = { zone: 'grounds', pos: W.grounds.pierEnd.clone().setY(W.grounds.pierEnd.y + 2) };
     else if (s === 9) { const C = SPOTS.clearing; t = { zone: 'grounds', pos: new THREE.Vector3(C.x, groundHeight(C.x, C.z) + 3, C.z) }; }
     else if (s === 10) t = { zone: 'greatHall', pos: W.greatHall.W(0, 3, -30) };
+    return this.routeTo(t);
+  }
+  routeTo(t) {
     if (!t) return null;
     if (t.zone === G.zone.name) return t;
     const next = route(G.zone.name, t.zone);
@@ -857,7 +938,7 @@ export class Story {
     for (const n of Object.values(this.npcs)) {
       if (n.zone !== G.zone?.name) continue;
       const d = n.pos.distanceTo(p.pos);
-      if (d < 7 && G.mode === 'play') n.root.rotation.y = dampAngle(n.root.rotation.y, Math.atan2(p.pos.x - n.pos.x, p.pos.z - n.pos.z), 4, dt);
+      if (d < 7 && G.mode === 'play' && n.state !== 'sit') n.root.rotation.y = dampAngle(n.root.rotation.y, Math.atan2(p.pos.x - n.pos.x, p.pos.z - n.pos.z), 4, dt);
       n.model.anim.update(dt, 0);
       if (!n.waveT || n.waveT < 0) { if (d < 6 && d > 3 && Math.random() < 0.002) { n.model.anim.trigger('wave'); n.waveT = 20; } }
       else n.waveT -= dt;
@@ -884,6 +965,7 @@ export class Story {
       h.anim.update(dt, sp);
     }
     this.updateCollectibles(dt);
+    for (const f of this.tickers.values()) f(dt);
     // triggered encounters by position (online, only the host's screen starts them)
     const s = this.stage;
     const leads = !G.net?.isGuest;

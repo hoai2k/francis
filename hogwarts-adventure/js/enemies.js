@@ -7,6 +7,7 @@ import { ENEMY_SPELLS } from './spells.js';
 import { clamp, damp, dampAngle, rand, pick, lerp } from './util.js';
 import { setFrost, postFlash } from './engine.js';
 import { glowSprite } from './textures.js';
+import { controlMult, comboMult, addXP } from './progress.js';
 
 const _v = new THREE.Vector3(), _w = new THREE.Vector3();
 // story banners and tips during fights are shown to friends in the same room too
@@ -171,6 +172,7 @@ export class Enemy {
       return;
     }
     if (this.status.frozen > 0 && !h.combo) mult *= 1.2;
+    if (h.combo) mult *= comboMult();
     dmg *= mult;
     if (G.player.buffs.luck && Math.random() < 0.25) { dmg *= 2; G.ui.floatText(this.pos.clone().setY(this.pos.y + this.height + 0.6), 'Lucky!', 'combo'); }
     this.hp -= dmg;
@@ -183,7 +185,7 @@ export class Enemy {
     this.aggro = true;
     // spell effects
     if (this.hp > 0) {
-      if (sp === 'stupefy') this.status.stun = Math.max(this.status.stun, this.def.boss ? 0.5 : 1.7);
+      if (sp === 'stupefy') this.status.stun = Math.max(this.status.stun, (this.def.boss ? 0.5 : 1.7) * controlMult());
       if (sp === 'expelliarmus') {
         if (this.type === 'wizard' || this.type === 'duelist') this.disarm();
         if (h.dir) this.vel.addScaledVector(h.dir, this.def.boss ? 2 : 7);
@@ -191,7 +193,7 @@ export class Enemy {
       if (sp === 'incendio') this.status.burn = 3;
       if (sp === 'petrificus') {
         if (this.type === 'dementor') G.ui.floatText(top, 'No effect', 'warn');
-        else { this.status.frozen = this.def.boss ? 1.4 : 3.5; G.audio.sfx('petrificus'); }
+        else { this.status.frozen = (this.def.boss ? 1.4 : 3.5) * controlMult(); G.audio.sfx('petrificus'); }
       }
       if (sp === 'leviosa') this.lift(h.remote);
       if (sp === 'patronum' && this.type === 'dementor') this.flee = 3;
@@ -218,7 +220,7 @@ export class Enemy {
   lift(remote) {
     if (this.def.boss && this.type !== 'troll') { G.ui.floatText(this.pos.clone().setY(this.pos.y + 2.4), 'Too strong', 'warn'); return; }
     if (this.type === 'troll') return; // handled by trollHit (the club)
-    this.status.lifted = 3.5;
+    this.status.lifted = 3.5 * controlMult();
     this.liftBase = this.pos.y;
     if (!remote) G.spells.holdEnemy(this); // a friend's Leviosa: they hold it on their screen
     G.ui.floatText(this.pos.clone().setY(this.pos.y + 2.4), 'Levitating', 'combo');
@@ -919,6 +921,7 @@ export class Enemies {
     const p = G.player;
     if (G.cam.lockTarget === e) G.cam.lockTarget = null;
     const house = e.creditHouse || G.save.house;
+    addXP((e.def.xp ?? (e.def.boss ? 400 : 12 + e.def.points * 6)) * (e.o.xpScale ?? 1));
     if (house && e.def.points) G.story?.addPoints(house, e.def.points, e.def.boss ? `Defeated ${e.name}` : null, !e.def.boss);
     // drops
     const n = e.def.boss ? 8 : e.type === 'pixie' ? (Math.random() < 0.4 ? 1 : 0) : 2;

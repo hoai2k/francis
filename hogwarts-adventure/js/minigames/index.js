@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { G } from '../state.js';
 import { writeSave } from '../save.js';
 import { openResults } from '../menus.js';
+import { addXP } from '../progress.js';
 
 export async function runMinigame(id, opts = {}) {
   const mod = await import(`./${id}.js`);
@@ -26,6 +27,7 @@ export async function runMinigame(id, opts = {}) {
     let pts = result.points || 0;
     if (opts.practice && !G.save.house) pts = 0;
     if (pts && G.save.house) G.story.addPoints(G.save.house, pts, result.title, true);
+    if (!opts.practice || G.save.started) addXP(20 + Math.max(0, pts) * 4);
     G.audio.sfx(result.success ? 'victory' : 'fail');
     G.mode = 'results';
     G.ui.showHUD(false);
