@@ -517,10 +517,11 @@ export class Online {
     }
     return { n: 'choosing a name…', d: 'choosing a driver…', k: 'choosing a kart…', g: 'choosing a glider…', r: 'ready ✓' }[h.ph] || 'connecting…';
   }
-  // With 4 people or fewer in the room, the select screen shows everyone as a preview, like local
+  // With 4 people or fewer in the room, the select screen (on a desktop or tablet) shows everyone as a preview, like local
   // multiplayer: the other screens' players (live from their presence) after ours. More than that
   // and it's the room panel and bubbles.
-  previewMode(hs = this.humans()) { return hs.length > 0 && hs.length <= 4 && ['select', 'track', 'confirm'].includes(this.view); }
+  // (desktops and tablets: a phone keeps its own big preview and the room panel)
+  previewMode(hs = this.humans()) { return !isPhoneScreen() && hs.length > 0 && hs.length <= 4 && ['select', 'track', 'confirm'].includes(this.view); }
   previewRemotes() {
     const hs = this.humans();
     if (!this.previewMode(hs)) return [];

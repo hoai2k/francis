@@ -509,7 +509,7 @@ class Game {
     const show = new Showcase(canvas, { cam: [5.6, 3.6, 8.4], look: [0, 1.25, 0], spin: 0.4, cells: cellRects });
     this.cleanup = () => show.dispose();
     const slotKeys = [], slotHtml = [];   // what each preview cell currently shows
-    // online, with 4 people or fewer in the room: the other screens' players get preview cells too,
+    // online, with 4 people or fewer in the room (desktops and tablets): the other screens' players get preview cells too,
     // after ours, live from their presence ({ remote: true, key, name, color, phase, sub, dcur, kcur,
     // gcur, stale, status }). rstate remembers each one's step, to mirror their lock-in moves.
     const remotes = () => (online ? online.previewRemotes() : []);
@@ -564,17 +564,6 @@ class Game {
     // lay the preview cells out in the grid that keeps them closest to square
     const layoutCells = () => {
       const n = Math.max(1, cellsEl.children.length), W = stageEl.clientWidth || 1, H = stageEl.clientHeight || 1;
-      // a phone online: its own player big, the others as small live previews down the side
-      if (phone && n > 1) {
-        const key = 'thumbs' + n;
-        if (key === gridKey) return;
-        gridKey = key;
-        cellsEl.style.gridTemplateColumns = '1fr 27%';
-        cellsEl.style.gridTemplateRows = `repeat(${n - 1}, 1fr)`;
-        cellsEl.firstElementChild.style.gridRow = `1 / span ${n - 1}`;
-        return;
-      }
-      if (cellsEl.firstElementChild) cellsEl.firstElementChild.style.gridRow = '';
       let cols = 1, best = -Infinity;
       for (let c = 1; c <= n; c++) {
         const r = Math.ceil(n / c), score = Math.min(W / c, (H / r) * 1.2) - (c * r - n) * 8;
@@ -619,7 +608,6 @@ class Game {
       const tag = p.status ? `${who}<span class="rst">${esc(p.status)}</span>`
         : p.phase === 'name' ? `${who}choosing a name…` : p.phase === 'driver' ? `${who}picking a <b>driver</b>`
         : p.phase === 'kart' ? `${who}picking a <b>${glideStep ? 'glider' : 'kart'}</b>` : `${who}is ready!`;
-      if (phone) return `<div class="pvstep">${tag}</div><div class="pvinfo"><div class="pvname">${esc(glideStep ? gl.name : kartStep ? ch.vehicle : d.name)}</div></div>`;
       const u = glideStep ? gGroup(gl) : uni(d.from);
       const sw = p.swDir && performance.now() - p.swAt < 700 ? ` sw${p.swDir > 0 ? 'd' : 'u'}` : '';
       return `<div class="pvstep">${tag}</div>
@@ -652,8 +640,7 @@ class Game {
       while (cellsEl.children.length > list.length) cellsEl.lastElementChild.remove();
       while (cellsEl.children.length < list.length) cellsEl.appendChild(document.createElement('div'));
       show.trim(list.length); slotKeys.length = slotHtml.length = list.length;
-      ui.querySelector('.csel').classList.toggle('multi', list.length > 1 && !phone);
-      ui.querySelector('.csel').classList.toggle('thumbs', list.length > 1 && phone);
+      ui.querySelector('.csel').classList.toggle('multi', list.length > 1);
       layoutCells();
       list.forEach((p, i) => {
         const move = p?.remote ? remoteMoves(p, i) : null;
@@ -661,7 +648,7 @@ class Game {
         // while choosing a driver they stand on their own; the kart joins once they lock in (after
         // their lock-in jump-spin)
         const standing = !p || p.phase === 'driver' || p.phase === 'name' || (p.phase === 'kart' && performance.now() < (p.kartAt || 0));
-        const key = (p ? p.id : '-') + '|' + d.id + '|' + (standing ? 'stand' : ch.id), phase = p?.phase === 'done' ? 'win' : 'pre';
+        const key = (p ? (p.remote ? p.key : p.id) : '-') + '|' + d.id + '|' + (standing ? 'stand' : ch.id), phase = p?.phase === 'done' ? 'win' : 'pre';
         const gl = GLIDERS[p?.gcur ?? 0], glide = !standing && p?.phase === 'kart' && p.sub === 'glider';
         if (key !== slotKeys[i]) {
           const ry = show.items[i]?.m.root.rotation.y ?? 0.6;

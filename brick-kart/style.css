@@ -497,10 +497,3 @@ canvas.pod3d { display: block; width: min(640px, 100%); height: min(300px, 38vh)
 .pvcell.away::after { content: ''; position: absolute; inset: 0; border-radius: inherit; background: rgba(8,12,24,.55); }
 .pvcell.away .pvstep { z-index: 1; }
 .olroster.slim:empty { display: none; }
-/* a phone: its own player big, the others as small live previews down the side */
-.csel.thumbs .pvcells { gap: 4px; padding: 0; }
-.csel.thumbs .pvcell.remote { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--pc) 70%, transparent); background: linear-gradient(180deg, rgba(40,70,140,.2), color-mix(in srgb, var(--pc) 22%, transparent)); }
-.csel.thumbs .pvcell.remote .pvstep { top: 3px; left: 3px; right: 3px; font-size: 10px; padding: 1px 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.csel.thumbs .pvcell.remote .pvstep b { color: inherit; }
-.csel.thumbs .pvcell.remote .pvinfo { left: 4px; right: 4px; bottom: 3px; }
-.csel.thumbs .pvcell.remote .pvname { font-size: 12px; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
