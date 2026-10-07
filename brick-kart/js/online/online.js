@@ -1031,10 +1031,11 @@ export class Online {
     const medal = ['🥇', '🥈', '🥉'];
     const stand = order.map((p, n) => {
       const d = DRIVERS.find((x) => x.id === p[3]) || DRIVERS[0], me = p[0].startsWith(this.uid + ':');
-      return `<div class="rrow${me ? ' me' : ''}${p[4] ? ' ol' : ''}" style="${me ? '--pc:#ff4a3a' : p[4] ? '--pc:#3b8bff' : ''}"><span class="pl">${last && n < 3 ? medal[n] : ORD(n + 1)}</span><img src="${driverPortrait(d)}" alt=""><span class="nm">${esc(p[1])}${p[4] ? '' : ' <em class="cpu">CPU</em>'}</span><span class="pts big">${p[2]}</span></div>`;
+      return `<div class="rrow${me ? ' me' : ''}${p[4] ? ' ol' : ''}" style="${me ? '--pc:#ff4a3a' : p[4] ? '--pc:#3b8bff' : ''}"><span class="pl">${last && n < 3 ? medal[n] : ORD(n + 1)}</span><img src="${driverPortrait(d)}" alt=""><span class="nm">${esc(p[4] ? p[1] : d.name)}${p[4] ? '' : ' <em class="cpu">CPU</em>'}</span><span class="pts big">${p[2]}</span></div>`;
     }).join('');
     const next = TRACKS.find((t) => t.id === gp.tracks[gp.round]);
-    const head = last ? `🏆 ${esc(order[0]?.[1] || '')} wins the ${esc(gp.name)}!` : `Standings after race ${gp.round} of ${gp.tracks.length}`;
+    const winner = order[0] ? (order[0][4] ? order[0][1] : DRIVERS.find((x) => x.id === order[0][3])?.name || order[0][1]) : '';
+    const head = last ? `🏆 ${esc(winner)} wins the ${esc(gp.name)}!` : `Standings after race ${gp.round} of ${gp.tracks.length}`;
     const items = this.isHost
       ? last ? [{ label: 'New race ▶︎', action: () => { this.R.gp = null; this.hostNext(false); } }, { label: 'Leave room', action: () => this.toLobby() }]
         : [{ label: `Next: ${next?.name || 'race'} ▶︎`, action: () => this.hostNext(true) }, { label: 'Leave room', action: () => this.toLobby() }]
