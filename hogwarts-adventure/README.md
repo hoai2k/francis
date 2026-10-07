@@ -66,24 +66,55 @@ years. Sweets and gifts go in your **Satchel** (pause menu).
 
 ## Spells
 
-| # | Spell | Effect |
-|---|-------|--------|
-| 1 | Expelliarmus | Disarms wizards and knocks them back. Breaks Malachar's shield. |
-| 2 | Stupefy | Fast stunning bolt. |
-| 3 | Incendio | Fireball that bursts and sets foes alight. |
-| 4 | Protego | Hold to block. Raise it just in time to reflect a spell. |
-| 5 | Lumos | Wand light. The flash dazzles pixies, hurts Dementors and reveals hidden collectibles. |
-| 6 | Wingardium Leviosa | Lifts foes or barrels. Cast again to throw. |
-| 7 | Petrificus Totalus | Freezes a foe solid. |
-| 8 | Expecto Patronum | A silver stag that charges Dementors. |
+Thirty spells, learned year by year in classes, quests and from friends. Each
+has its own particles, sound and effects, levels up with use, and many solve
+puzzles. Protego is always on the block button; the rest go in your loadouts.
+
+| Year | Spells |
+|------|--------|
+| 1 | Expelliarmus, Stupefy, Incendio, Protego, Lumos, Wingardium Leviosa, Petrificus Totalus, Expecto Patronum |
+| 2 | Flipendo (knockback), Alohomora (unlock), Reparo (mend), Accio (summon / fetch), Rictusempra (tickle), Episkey (heal) |
+| 3 | Glacius (chill, then freeze), Depulso (banish), Arresto Momentum (slowing dome), Finite Incantatem (dispel) |
+| 4 | Confringo (blasting curse), Diffindo (piercing blade), Descendo (slam down), Aguamenti (water jet) |
+| 5 | Bombarda (delayed bomb), Silencio, Obscuro (blind), Incarcerous (bind) |
+| 6 | Levicorpus (hoist), Ventus (gust cone), Reducto (shatter) |
+| 7 | Oppugno (a flock of golden birds) |
 
 **Combos:** Leviosa → Incendio = *Fire Comet* · Leviosa → Stupefy = *Meteor
 Slam* · Petrificus → Stupefy/Expelliarmus = *Shatter* · Incendio →
-Petrificus = *Steam Blast* · Expelliarmus → Stupefy = *Knockout*.
+Petrificus = *Steam Blast* · Expelliarmus → Stupefy = *Knockout* · Aguamenti →
+Glacius = *Deep Freeze* · Glacius → Incendio/Confringo = *Thermal Shock* ·
+Leviosa/Levicorpus → Descendo = *Ground Pound* · Accio → Depulso = *Slingshot*
+· Arresto Momentum → Bombarda = *Time Bomb* · Incendio → Ventus = *Firestorm* ·
+Obscuro → any damaging spell = *Sneak Attack* · Rictusempra → Stupefy =
+*Giggle Knockout* · Incarcerous → Incendio/Confringo = *Firebrand*.
+
+**Puzzles:** Alohomora opens locked chests and gates, Reparo mends statues,
+bridges and brooms, Incendio lights braziers (Aguamenti and Ventus douse them),
+Confringo / Bombarda / Reducto blast cracked walls, Diffindo or fire clears webs,
+Finite dissolves magical barriers, Accio fetches things from ledges, Depulso and
+Flipendo push blocks onto pressure plates, Ventus turns windmills and Glacius
+freezes water into ice.
 
 **Weaknesses:** pixies take double damage from fire and ice. Trolls shrug
 off Stupefy, but their club can be levitated. Dementors only fear the
-Patronus and Lumos.
+Patronus and Lumos. Bosses resist crowd control.
+
+## Year 2 — The Hidden Chamber
+
+A snake loose on the Hogwarts Express is only the start. Learn Flipendo from
+the new Defence teacher, Professor Crane; Alohomora and Reparo in Charms; and
+Accio at the Duelling Club, where your rival Cassius Vane challenges you.
+Serpents slither out of the walls, a message appears in blood-red letters, and
+at Christmas two students are found turned to stone. Brew the Mandrake
+Draught, follow Oren's clue to the old troll hall, and descend into the
+**Undercroft**: a locked gate, a broken bridge over a chasm, a hall of braziers
+(with an optional block puzzle, a ledge to Accio from and a chest), a duel with
+the possessed professor and finally **the Wyrm of the Undercroft** — a giant
+serpent that lunges, spits venom, sweeps its tail, hides in the pools and
+petrifies anyone who looks into its eyes (look away, block, or dazzle it with
+Lumos). Side quests: Kofi's secret stash (teaches Rictusempra), Pip's treasure
+hunt, Madam Hale's broken brooms and Cassius's stolen wand.
 
 ## Minigames
 

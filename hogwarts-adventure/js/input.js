@@ -32,6 +32,7 @@ export const BINDINGS = [
   ['Interact / talk', 'E', 'X'],
   ['Spellbook (open / close)', 'B', 'View'],
   ['Owl post / quest log', 'J', 'From the pause menu'],
+  ['Companion orders (hold)', 'G', 'Hold D-pad ←'],
   ['Pause / menu', 'Esc / P', 'Menu'],
   ['Mute', 'M', '—'],
   ['Menus', 'Arrows · Enter · Esc', 'D-pad · A · B'],
@@ -403,6 +404,8 @@ export class Input {
     btn('t-lock', '<span>◎</span>', 'lock', false);
     btn('t-pause', '<span>❚❚</span>', 'pause', false);
     btn('t-book', '<span>📖</span>', 'book', false);
+    const cmd = btn('t-cmd', '<span>👥</span>', 'commandTouch', false);
+    cmd.addEventListener('touchstart', () => { if (G.ui.cmd) G.ui.closeCommand(false); else G.ui.openCommand('commandTouch'); });
     const bar = document.createElement('div');
     bar.className = 't-spells';
     root.appendChild(bar);

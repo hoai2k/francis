@@ -2,7 +2,7 @@
 // minigame select, results and credits. All navigable with mouse, touch, keys and d-pad.
 import * as THREE from 'three';
 import { G, HOUSES, HOUSE_KEYS } from './state.js';
-import { SPELLS, spellIcon } from './spelldata.js';
+import { SPELLS, spellIcon, COMBOS } from './spelldata.js';
 import { BINDINGS, glyph, padGlyphSet } from './input.js';
 import { crestSVG } from './ui.js';
 import { saveSettings, hasSave, loadSave, newSave, writeSave, deleteSave, SLOTS, peekSlot, currentSlot, setSlot, latestSlot, anySave, loadYearSnapshot } from './save.js';
@@ -144,7 +144,7 @@ export function startFromSave() {
     const zone = G.world.zones[G.save.zone] && !G.world.zones[G.save.zone].noSave ? G.save.zone : 'greatHall';
     const p = G.save.pos;
     G.world.setZone(zone, p ? { pos: new THREE.Vector3(p[0], p[1], p[2]), yaw: p[3] } : null);
-    G.story.resume();
+    await G.story.resume();
     if (G.save.journey) {
       const { runJourney } = await import('./journey.js');
       const j = G.save.journey;
@@ -158,6 +158,8 @@ export function startFromSave() {
     G.cam.setCinematic(null);
     G.cam.snap();
     G.mode = 'play';
+    const { restoreCompanion } = await import('./friendsCompanion.js');
+    restoreCompanion();
     G.ui.refreshHUD();
     G.ui.showHUD(true);
     G.story.onArrive(zone);
@@ -181,6 +183,7 @@ export function openPause() {
     G.ui.button(c, 'Spellbook', () => openSpellbook());
     G.ui.button(c, `Owl Post & Journal${unreadBadge()}`, () => openJournal());
     G.ui.button(c, `Satchel <small>${coins()} Sickles</small>`, () => openSatchel());
+    G.ui.button(c, 'Friends', () => openFriends());
     G.ui.button(c, 'School Years', () => openYears());
     G.ui.button(c, 'House Points', () => openHouseBoard());
     G.ui.button(c, 'Settings', () => openSettings());
@@ -211,6 +214,7 @@ export function openSettings() {
     G.ui.option(o, 'Day length', [6, 12, 24, 0], () => S.dayLength, (v) => { S.dayLength = v; save(); }, (v) => (v ? v + ' min' : 'Frozen'));
     G.ui.option(o, 'Screen shake', [true, false], () => S.shake, (v) => { S.shake = v; save(); }, (v) => (v ? 'On' : 'Off'));
     if (canFullscreen()) G.ui.option(o, 'Fullscreen when playing', [true, false], () => S.fullscreen !== false, (v) => { S.fullscreen = v; save(); }, (v) => (v ? 'On' : 'Off'));
+    G.ui.option(o, 'Snow and weather', [true, false], () => S.weather !== false, (v) => { S.weather = v; save(); }, (v) => (v ? 'On' : 'Off'));
     G.ui.option(o, 'FPS counter', [false, true], () => S.fps, (v) => { S.fps = v; save(); }, (v) => (v ? 'On' : 'Off'));
     sec('Audio');
     G.ui.slider(o, 'Music volume', 0, 1, 0.05, () => S.music, (v) => { S.music = v; save(); }, (v) => Math.round(v * 100) + '%');
@@ -332,14 +336,7 @@ function buildTalents(body, rebuild) {
   }
   G.ui.button(c, 'Reset talents (free)', () => { resetTalents(); G.ui.updateXP(); rebuild(); });
 }
-const COMBOS = [
-  { name: 'Fire Comet', how: 'Leviosa → Incendio', need: ['leviosa', 'incendio'] },
-  { name: 'Meteor Slam', how: 'Leviosa → Stupefy', need: ['leviosa', 'stupefy'] },
-  { name: 'Shatter', how: 'Petrificus → Stupefy/Expelliarmus', need: ['petrificus', 'stupefy'] },
-  { name: 'Steam Blast', how: 'Incendio → Petrificus', need: ['incendio', 'petrificus'] },
-  { name: 'Knockout', how: 'Expelliarmus → Stupefy', need: ['expelliarmus', 'stupefy'] },
-];
-export function registerCombo(c) { COMBOS.push(c); }
+
 function unlockHint(id) {
   return {
     stupefy: 'Learned at the Sorting.', protego: 'Learned at the Sorting.', lumos: 'Learned at the Sorting.',
@@ -428,6 +425,35 @@ export function openSatchel() {
   build();
 }
 
+// ---------------------------------------------------------------- friends
+export async function openFriends() {
+  const { FRIENDS, FRIEND_IDS, friendship, friendLevel, FRIEND_LEVELS } = await import('./friends.js');
+  const { setCompanion } = await import('./friendsCompanion.js');
+  const { SPECIALS } = await import('./companion.js');
+  let entry;
+  const build = (focus = 0) => {
+    entry = G.ui.open((w) => {
+      const met = FRIEND_IDS.filter((id) => G.save.friends?.[id]);
+      w.innerHTML = `<div class="panel wide">${title('Friends', 'Talk, give gifts, study and adventure together. Friends (♥♥) can join you; bring one along at a time.')}<div class="menu-col friends"></div><div class="row"></div></div>`;
+      const c = w.querySelector('.friends');
+      if (!met.length) c.innerHTML = '<p class="small">You have not made any friends yet. Look for classmates on the Hogwarts Express and around the castle.</p>';
+      for (const id of met) {
+        const F = FRIENDS[id], L = friendLevel(id), f = friendship(id);
+        const isC = G.companion?.id === id;
+        const canJoin = L >= 2 && (!F.rival || G.save.year >= 6);
+        const sp = SPECIALS[id];
+        G.ui.button(c, `<span class="t-ico">${crestSVG(F.house, 34)}</span><span class="t-txt"><b>${F.name}</b>${F.rival ? ' <small class="rival">rival</small>' : ''} <span class="pips">${'♥'.repeat(L)}${'♡'.repeat(4 - L)}</span> <small>${FRIEND_LEVELS[L]} · ${f}/100 · from ${F.home}</small><small>${F.personality}${L >= 1 ? ` Likes: ${F.likes.join(', ')}.` : ''}</small><small>${canJoin ? `Companion special: ${sp.name} (${sp.desc}).` : F.rival && L >= 2 ? 'Cassius won’t fight at your side… yet.' : 'Become friends to adventure together.'}</small><span class="fbar"><i style="width:${f}%"></i></span></span><span class="t-plus">${isC ? '✔' : ''}</span>`, () => {
+          if (!canJoin) { G.audio.sfx('fail'); G.ui.toast(`Get to know ${F.short} better first.`, 'info'); return; }
+          setCompanion(isC ? null : id);
+          const fcs = entry.focus; G.ui.close(entry); build(fcs);
+        }, 'talent-btn friend-btn');
+      }
+      G.ui.button(w.querySelector('.row'), 'Close', () => G.ui.close(entry), 'primary');
+    }, { cls: 'friendscr', focus });
+  };
+  build();
+}
+
 // ---------------------------------------------------------------- school years
 export function openYears() {
   G.ui.open((w) => {
@@ -438,14 +464,16 @@ export function openYears() {
       const cur = G.save.year === y.n;
       const snap = loadYearSnapshot(y.n);
       const ready = G.story.yearAvailable ? G.story.yearAvailable(y.n) : y.n === 1;
-      const status = done ? '✔ Complete' : cur ? 'In progress' : ready ? 'Locked' : 'Coming in a later update';
+      const next = G.save.yearDone && y.n === G.save.year + 1 && ready;
+      const status = next ? '▶ Ready to begin — select to travel to King’s Cross' : done ? '✔ Complete' : cur ? 'In progress' : ready ? 'Locked' : 'Coming in a later update';
       const b = G.ui.button(c, `<span class="sl-n">${y.n}</span><span class="sl-d"><b>${y.title}</b> <small>${y.sub} · ${status}${snap && !cur ? ' · replay available' : ''}</small></span>`, () => {
+        if (G.save.yearDone && y.n === G.save.year + 1 && ready) { G.ui.closeAll(); G.paused = false; G.story.beginYear(y.n); return; }
         if (!snap || cur) { G.audio.sfx('fail'); return; }
         confirmBox(`Replay Year ${y.n} from its start? Your current progress in this slot will be replaced by that autosave.`, () => {
           G.ui.closeAll(); G.paused = false; G.save = snap; startFromSave();
         });
       }, 'slot-btn' + (cur ? ' cur' : ''));
-      if (!snap || cur) b.classList.add('dim');
+      if ((!snap || cur) && !next) b.classList.add('dim');
     }
     G.ui.button(w.querySelector('.row'), 'Back', () => G.ui.close(), 'primary');
   }, { cls: 'yearscr' });
@@ -548,16 +576,18 @@ export function openResults(r) {
   });
 }
 
-export function openCredits(won, fromMenu) {
+export function openCredits(won, fromMenu, year = 1) {
   G.ui.open((w) => {
     w.innerHTML = `<div class="panel">${title(fromMenu ? 'Credits' : won ? 'The House Cup is yours!' : 'The End of Term')}
       <div class="credits">
-      ${fromMenu ? '' : `<p>${won ? 'Your house lifts the House Cup — thanks in no small part to you.' : 'Another house took the Cup this year, but Hogwarts is safe thanks to you.'} You can keep exploring, hunt for collectibles and play the minigames to earn more points.</p>`}
+      ${fromMenu ? '' : `<p>${won ? 'Your house lifts the House Cup — thanks in no small part to you.' : 'Another house took the Cup this year, but Hogwarts is safe thanks to you.'} ${G.story.yearAvailable(year + 1) ? `Year ${year + 1} is waiting — or keep exploring for now, hunt collectibles and play minigames. You can start it later from the pause menu (School Years) or by talking to the Headmistress.` : 'You can keep exploring, hunt for collectibles and play the minigames to earn more points.'}</p>`}
       <p><b>Hogwarts Adventure</b> — a fan-made, Harry Potter–inspired game. Not affiliated with or endorsed by J.K. Rowling, Warner Bros. or Wizarding World.</p>
       <p>Everything you see and hear is generated in code: procedural castle, characters, textures, particles, an original orchestral-style score and synthesized sound effects (Web Audio). No external models or sound files.</p>
       <p>Built with <a href="https://threejs.org" target="_blank" rel="noopener">three.js</a> (MIT) — WebGL rendering, EffectComposer, UnrealBloom, GTAO.</p>
       <p>Fonts: Cinzel, Cinzel Decorative and EB Garamond (SIL Open Font License) via Google Fonts.</p>
       </div><div class="row"></div></div>`;
-    G.ui.button(w.querySelector('.row'), fromMenu ? 'Back' : 'Keep exploring', () => { G.ui.close(); if (!fromMenu) { G.mode = 'play'; G.ui.showHUD(true); } }, 'primary');
+    const row = w.querySelector('.row');
+    if (!fromMenu && G.story.yearAvailable(year + 1)) G.ui.button(row, `Begin Year ${year + 1} ›`, () => { G.ui.close(); G.mode = 'play'; G.story.beginYear(year + 1); }, 'primary');
+    G.ui.button(row, fromMenu ? 'Back' : 'Keep exploring', () => { G.ui.close(); if (!fromMenu) { G.mode = 'play'; G.ui.showHUD(true); G.story.offerNextYear(); } }, fromMenu || !G.story.yearAvailable(year + 1) ? 'primary' : '');
   }, { cls: 'creditscr' });
 }

@@ -62,11 +62,11 @@ class Telegraph {
 
 // ------------------------------------------------------------------ types
 export const TYPES = {
-  pixie: { name: 'Cornish Pixie', hp: 22, radius: 0.35, height: 0.6, speed: 7, weak: { incendio: 2, petrificus: 2, stupefy: 1.2 }, resist: { expelliarmus: 0.4 }, points: 1, flying: true },
+  pixie: { name: 'Cornish Pixie', hp: 22, radius: 0.35, height: 0.6, speed: 7, weak: { incendio: 2, petrificus: 2, stupefy: 1.2, glacius: 2, ventus: 2, flipendo: 2, confringo: 1.5 }, resist: { expelliarmus: 0.4 }, points: 1, flying: true },
   wizard: { name: 'Dark Wizard', hp: 95, radius: 0.4, height: 1.8, speed: 4.2, weak: { expelliarmus: 1.3 }, resist: {}, points: 3 },
   duelist: { name: 'Duellist', hp: 90, radius: 0.4, height: 1.8, speed: 4.4, weak: {}, resist: {}, points: 0 },
   dementor: { name: 'Dementor', hp: 160, radius: 0.7, height: 3.2, speed: 2.6, weak: { patronum: 1 }, resist: { all: 0.06, lumos: 1 }, points: 5, flying: true },
-  troll: { name: 'Mountain Troll', hp: 700, radius: 1.3, height: 4.2, speed: 2.6, weak: { thrown: 1.5, combo: 1.3 }, resist: { stupefy: 0.45, expelliarmus: 0.3 }, points: 50, boss: true },
+  troll: { name: 'Mountain Troll', hp: 700, radius: 1.3, height: 4.2, speed: 2.6, weak: { thrown: 1.5, combo: 1.3, reducto: 1.6, bombarda: 1.3 }, resist: { stupefy: 0.45, expelliarmus: 0.3, depulso: 0.3, flipendo: 0.3 }, points: 50, boss: true },
   malachar: { name: 'Malachar the Hollow', hp: 1600, radius: 0.55, height: 2.3, speed: 4.5, weak: { expelliarmus: 1.2 }, resist: { stupefy: 0.8 }, points: 100, boss: true },
 };
 
@@ -83,11 +83,12 @@ export class Enemy {
     this.yaw = o.yaw ?? 0;
     this.radius = def.radius;
     this.height = def.height;
-    this.maxHp = Math.round((o.hp || def.hp) * (G.enemies.hpScale || 1));
+    const hs = G.enemies.hpScale || 1;
+    this.maxHp = Math.round((o.hp || def.hp) * (def.boss ? 1 + (hs - 1) * 0.3 : hs) * (G.diffHp ?? 1));
     this.hp = this.maxHp;
     this.alive = true;
     this.team = 'enemy';
-    this.status = { stun: 0, frozen: 0, burn: 0, lifted: 0, disarmed: 0 };
+    this.status = { stun: 0, frozen: 0, burn: 0, lifted: 0, disarmed: 0, wet: 0, chill: 0, blind: 0, silence: 0, bound: 0, laugh: 0 };
     this.o = o;
     this.level = o.level || 1;
     this.t = rand(0, 3);
@@ -106,13 +107,20 @@ export class Enemy {
   }
 
   build(o) {
+    if (this.def.model) {
+      this.model = this.def.model(o);
+      this.root = new THREE.Group();
+      this.root.add(this.model.root);
+      this.anim = this.model.anim;
+      return;
+    }
     if (this.type === 'pixie') { this.model = makePixie(); }
     else if (this.type === 'troll') { this.model = makeTroll(); }
-    else if (this.type === 'dementor') { this.model = makeDementor(); }
+    else if (this.type === 'dementor') { this.model = makeDementor(); if (o.lord) { this.model.root.scale.setScalar(1.8); this.radius = 1.2; this.height = 5.6; } }
     else if (this.type === 'malachar') {
       this.model = makeWizard({ robeColor: '#101014', liningColor: '#1a4a2a', hood: true, mask: true, eyeGlow: '#40ff70', scale: 1.28, skin: '#d8d0c8' });
     } else if (this.type === 'duelist') {
-      this.model = makeWizard({ house: o.house, skin: pick(SKIN_TONES), hairColor: pick(HAIR_COLORS), hairStyle: pick(['short', 'long', 'curly', 'bun', 'messy']), glasses: Math.random() < 0.3, hat: o.hat, robeColor: o.robe || '#17161c' });
+      this.model = o.look ? makeWizard({ ...o.look, scarf: true }) : makeWizard({ house: o.house, skin: pick(SKIN_TONES), hairColor: pick(HAIR_COLORS), hairStyle: pick(['short', 'long', 'curly', 'bun', 'messy']), glasses: Math.random() < 0.3, hat: o.hat, robeColor: o.robe || '#17161c' });
     } else {
       this.model = makeWizard({ robeColor: '#1a1a1e', liningColor: '#3a0a0a', hood: true, mask: true, eyeGlow: '#ff3030', skin: '#c8b8a8' });
     }
@@ -121,7 +129,7 @@ export class Enemy {
     this.anim = this.model.anim;
   }
 
-  get canAct() { return this.alive && this.status.stun <= 0 && this.status.frozen <= 0 && !(this.status.lifted > 0) && !this.thrown; }
+  get canAct() { const S = this.status; return this.alive && S.stun <= 0 && S.frozen <= 0 && !(S.lifted > 0) && !(S.bound > 0) && !(S.laugh > 0) && !this.thrown; }
 
   takeHit(h) {
     if (!this.alive) return;
@@ -137,7 +145,7 @@ export class Enemy {
     if (this.shield > 0 && !h.splash && sp !== 'patronum') {
       if (this.type === 'malachar') {
         // his shield cracks under any spell; Expelliarmus shatters it at once
-        this.shieldHits = (this.shieldHits ?? 3) - (sp === 'expelliarmus' ? 3 : 1);
+        this.shieldHits = (this.shieldHits ?? 3) - (sp === 'expelliarmus' || sp === 'finite' || sp === 'reducto' ? 3 : 1);
         if (this.shieldHits <= 0) {
           this.shield = 0;
           this.shieldMesh && (this.shieldMesh.visible = false);
@@ -151,6 +159,7 @@ export class Enemy {
         }
         return;
       }
+      if (sp === 'finite' || sp === 'reducto') { this.shield = 0; this.blockT = 0; if (this.shieldMesh) this.shieldMesh.visible = false; G.audio.sfx('shatter'); G.ui.floatText(this.pos.clone().setY(this.pos.y + 2.3), 'Shield broken!', 'combo'); return; }
       if (this.type !== 'malachar' && h.proj && Math.random() < 0.5 + this.level * 0.08) {
         // reflect back at the player
         G.audio.sfx('reflect');
@@ -197,6 +206,37 @@ export class Enemy {
       if (!this.status.stun && !this.status.frozen && this.anim.trigger) this.anim.trigger('hit');
     }
     if (this.hp <= 0) this.die(h);
+    else if (this.o.fleeAt && this.hp < this.maxHp * this.o.fleeAt) {
+      // escapes rather than falling: a swirl of smoke, then gone
+      G.fx.smokePuff(this.pos.clone().setY(this.pos.y + 1), 0x101810, 30, { size: 1.5, size1: 4, speed: 4, alpha: 0.6 });
+      G.audio.sfx('dementor');
+      if (this.o.fleeLine) G.ui.banner(this.name + ' escapes!', this.o.fleeLine, '');
+      this.fled = true;
+      this.root.visible = false;
+      this.die({ fled: true });
+    }
+  }
+
+  // blinded foes stumble about and cannot aim
+  wanderBlind(dt) {
+    this.blindT = (this.blindT ?? 0) - dt;
+    if (this.blindT <= 0) { this.blindT = rand(0.8, 1.6); this.blindDir = new THREE.Vector3(rand(-1, 1), 0, rand(-1, 1)).normalize(); }
+    this.moveToward(this.pos.clone().addScaledVector(this.blindDir, 3), this.def.speed * 0.4, dt, 3);
+    this.yaw = Math.atan2(this.blindDir.x, this.blindDir.z);
+    this.castWind = 0;
+    this.anim.update?.(dt, 1);
+  }
+  statusFX(dt) {
+    const S = this.status, r = Math.random();
+    const at = () => _v.copy(this.pos).setY(this.pos.y + rand(0.2, this.height));
+    if (S.wet > 0 && r < 0.3) G.fx.emit({ pos: at(), color: 0x6ab8ff, count: 1, speed: 0.3, size: 0.1, life: 0.5, intensity: 1.6, gravity: 9, noScale: true });
+    if (S.chill > 0 && r < 0.3) G.fx.emit({ pos: at(), color: 0xd8f8ff, count: 1, speed: 0.4, size: 0.14, life: 0.7, intensity: 2.2, noScale: true });
+    if (S.blind > 0 && r < 0.25) G.fx.smokePuff(_v.copy(this.pos).setY(this.pos.y + this.height * 0.9), 0x14101c, 1, { size: 0.4, size1: 0.8, life: 0.5, alpha: 0.5 });
+    if (S.silence > 0 && r < 0.12) G.fx.emit({ pos: _v.copy(this.pos).setY(this.pos.y + this.height + 0.3), color: 0xc0c8d8, count: 1, speed: 0.4, size: 0.18, life: 0.6, intensity: 2, noScale: true });
+    if (S.bound > 0 && r < 0.3) G.fx.emit({ pos: at(), color: 0xd8b070, count: 1, speed: 0.6, size: 0.12, life: 0.4, intensity: 1.8, noScale: true });
+    if (S.laugh > 0) { if (r < 0.15) G.fx.emit({ pos: _v.copy(this.pos).setY(this.pos.y + this.height + 0.2), color: 0xffd040, count: 1, speed: 1.2, size: 0.15, life: 0.5, intensity: 3, noScale: true }); this.root.rotation.z = Math.sin(this.t * 25) * 0.08; }
+    else if (this.root.rotation.z) this.root.rotation.z = 0;
+    if (this.tumble > 0) { this.tumble -= dt; this.model.root.rotation.x = (1 - this.tumble / 0.7) * Math.PI * 2; if (this.tumble <= 0) this.model.root.rotation.x = 0; }
   }
 
   disarm() {
@@ -223,6 +263,7 @@ export class Enemy {
   }
   endLift(slam) {
     this.status.lifted = 0;
+    if (this.hoisted) { this.hoisted = false; this.root.rotation.x = 0; }
     if (slam) {
       this.vel.y = -22;
       this.slamming = true;
@@ -266,12 +307,16 @@ export class Enemy {
       G.audio.sfx('dementor');
     }
     if (this.cleanupBoss) this.cleanupBoss();
+    this.def.onDie?.call(this, h);
   }
 
   // ------------------------------------------------------------ per-frame
-  update(dt) {
-    this.t += dt;
+  update(dt0) {
     const S = this.status;
+    // Glacius chill and Arresto Momentum slow everything this foe does
+    this.inSlow = G.spells.fields?.length ? G.spells.inSlowField(this.pos) : false;
+    const dt = dt0 * (this.inSlow ? 0.3 : 1) * (S.chill > 0 ? 0.55 : 1);
+    this.t += dt;
     const p = G.player;
     if (!this.alive) {
       this.deadT += dt;
@@ -286,7 +331,17 @@ export class Enemy {
       if (this.deadT > 3.5) this.remove = true;
       return;
     }
-    for (const k of ['stun', 'frozen', 'disarmed']) S[k] = Math.max(0, S[k] - dt);
+    for (const k of ['stun', 'frozen', 'disarmed', 'wet', 'chill', 'blind', 'silence', 'bound', 'laugh']) S[k] = Math.max(0, S[k] - dt0);
+    this.pulledT = Math.max(0, (this.pulledT || 0) - dt0);
+    this.grounded = Math.max(0, (this.grounded || 0) - dt0);
+    this.statusFX(dt0);
+    // banished foes slammed into walls are stunned
+    if (this.banished > 0) {
+      this.banished -= dt0;
+      const sp0 = Math.hypot(this.vel.x, this.vel.z);
+      if (this._lastSp > 8 && sp0 < this._lastSp * 0.4) { this.banished = 0; this.takeHit({ dmg: 18, spell: 'thrown' }); this.status.stun = Math.max(this.status.stun, 2); G.audio.sfx('slam'); G.cam.shake(0.2); G.fx.smokePuff(this.pos, 0x6a5a4a, 8); }
+      this._lastSp = sp0;
+    }
     if (S.disarmed <= 0 && this.model.parts?.wand) this.model.parts.wand.visible = true;
     // burning
     if (S.burn > 0) {
@@ -303,10 +358,12 @@ export class Enemy {
       const g = G.zone.colliders.ground(this.pos.x, this.pos.z, this.pos.y + 1).y;
       this.pos.y = damp(this.pos.y, g + 2.6, 4, dt);
       this.root.rotation.y += dt * 1.5;
+      if (this.hoisted) { this.root.rotation.x = Math.PI; this.root.position.y = this.pos.y + this.height; }
       this.anim.set?.(this.type === 'wizard' || this.type === 'duelist' ? 'lifted' : 'idle');
       if (Math.random() < 0.5) G.fx.emit({ pos: this.pos, color: 0xc28bff, count: 1, speed: 0.8, size: 0.2, life: 0.6, intensity: 3, spread: 1, noScale: true });
-      if (S.lifted <= 0) this.vel.y = -2;
-      this.root.position.copy(this.pos);
+      if (S.lifted <= 0) { this.vel.y = -2; this.hoisted = false; this.root.rotation.x = 0; }
+      if (!this.hoisted) this.root.position.copy(this.pos);
+      else this.root.position.set(this.pos.x, this.pos.y + this.height, this.pos.z);
       this.anim.update?.(dt, 0);
       return;
     }
@@ -339,14 +396,16 @@ export class Enemy {
       if (Math.random() < 0.15) G.fx.emit({ pos: _v.copy(this.pos).setY(this.pos.y + this.height + 0.2), color: 0xffe060, count: 1, speed: 1, size: 0.15, life: 0.5, intensity: 3, noScale: true });
     }
     // AI
-    if (this.canAct && G.mode === 'play' && p.alive) this[this.type === 'duelist' ? 'aiWizard' : 'ai_' + this.type]?.(dt, p);
+    if (this.canAct && this.status.blind > 0 && G.mode === 'play') this.wanderBlind(dt);
+    else if (this.canAct && G.mode === 'play' && p.alive && this.def.ai) this.def.ai.call(this, dt, p);
+    else if (this.canAct && G.mode === 'play' && p.alive) this[this.type === 'duelist' ? 'aiWizard' : 'ai_' + this.type]?.(dt, p);
     else { this.vel.x = damp(this.vel.x, 0, 6, dt); this.vel.z = damp(this.vel.z, 0, 6, dt); }
     // physics
     if (this.def.flying) {
       this.pos.addScaledVector(this.vel, dt);
       // flyers hover over water rather than sinking to the lake bed
       const g = Math.max(G.zone.colliders.ground(this.pos.x, this.pos.z, this.pos.y + 3).y, G.zone.colliders.water);
-      this.pos.y = damp(this.pos.y, g + this.hoverY, 3, dt);
+      this.pos.y = damp(this.pos.y, g + (this.grounded > 0 ? 0 : this.hoverY), 3, dt);
     } else {
       this.vel.y -= 20 * dt;
       this.pos.addScaledVector(this.vel, dt);
@@ -480,7 +539,7 @@ export class Enemy {
       }
     }
     // casting with a readable wind-up
-    if (this.status.disarmed > 0 || this.blocking) { this.castWind = 0; return; }
+    if (this.status.disarmed > 0 || this.blocking || this.status.silence > 0) { this.castWind = 0; return; }
     this.castCd -= dt;
     if (this.castWind > 0) {
       this.castWind -= dt;
@@ -510,6 +569,15 @@ export class Enemy {
   // ------------------------------------------------------------ AI: dementor
   ai_dementor(dt, p) {
     this.anim.update(dt);
+    if (this.o.lord) {
+      this.summonT = (this.summonT ?? 6) - dt;
+      if (this.summonT <= 0 && G.enemies.list.filter((e) => e.alive && e.type === 'dementor').length < 6) {
+        this.summonT = 11;
+        for (let i = 0; i < 2; i++) { const e = G.enemies.spawn('dementor', this.pos.clone().add(new THREE.Vector3(rand(-6, 6), 0, rand(-6, 6))), { aggro: true }); e.summon = true; }
+        G.ui.toast('The Dementor lord calls more of its kind!', 'info');
+        G.audio.sfx('dementor');
+      }
+    }
     this.hoverY = 0;
     const d = this.pos.distanceTo(p.pos);
     if (!this.aggro && d > 22) return;
@@ -832,6 +900,7 @@ export class Enemy {
   }
 
   dispose() {
+    this.def.dispose?.call(this);
     G.scene.remove(this.root);
     if (this.shieldMesh) G.scene.remove(this.shieldMesh);
   }
@@ -849,6 +918,7 @@ export class Enemies {
     this.hpScale = 1;
     this.dmgScale = 1;
     this.floatingClub = null;
+    this.hazards = [];
     this.dropGeo = new THREE.SphereGeometry(0.12, 8, 6);
   }
   spawn(type, pos, o = {}) {
@@ -862,6 +932,13 @@ export class Enemies {
     this.telegraphs.push(t);
     return t;
   }
+  // lingering damaging puddle (venom, fire, cursed ground)
+  hazard(pos, r, dur, dps, color) {
+    const m = new THREE.Mesh(new THREE.CircleGeometry(r, 24), new THREE.MeshBasicMaterial({ color: new THREE.Color(color).multiplyScalar(0.8), transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false }));
+    m.rotation.x = -Math.PI / 2; m.position.copy(pos).setY(pos.y + 0.05);
+    G.scene.add(m);
+    this.hazards.push({ pos: pos.clone(), r, t: dur, dps, color, m });
+  }
   get aliveCount() { return this.list.filter((e) => e.alive).length; }
   clearZone() {
     for (const e of this.list) e.dispose();
@@ -870,6 +947,8 @@ export class Enemies {
     this.telegraphs = [];
     for (const w of this.waves) G.scene.remove(w.mesh);
     this.waves = [];
+    for (const h of this.hazards) G.scene.remove(h.m);
+    this.hazards = [];
     for (const d of this.drops) G.scene.remove(d.m);
     this.drops = [];
     if (this.floatingClub) { G.scene.remove(this.floatingClub.club); this.floatingClub = null; }
@@ -923,6 +1002,14 @@ export class Enemies {
       if (w.r > 22) { G.scene.remove(w.mesh); w.done = true; }
     }
     this.waves = this.waves.filter((w) => !w.done);
+    for (const h of this.hazards) {
+      h.t -= dt;
+      h.m.material.opacity = Math.min(0.5, h.t) * (0.8 + Math.sin(G.time * 6) * 0.2);
+      if (Math.random() < 0.2) G.fx.emit({ pos: h.pos.clone().add(new THREE.Vector3(rand(-h.r, h.r), 0.1, rand(-h.r, h.r))), color: h.color, count: 1, speed: 0.6, size: 0.2, life: 0.6, intensity: 2, up: 1, noScale: true });
+      if (Math.hypot(p.pos.x - h.pos.x, p.pos.z - h.pos.z) < h.r && p.pos.y - h.pos.y < 1) { p.hp -= h.dps * dt * this.dmgScale * (G.diffDmg ?? 1); p.lastHurt = 0; if (p.hp <= 0 && p.alive) p.faint(); }
+      if (h.t <= 0) { G.scene.remove(h.m); h.done = true; }
+    }
+    this.hazards = this.hazards.filter((h) => !h.done);
     // floating troll club: hovers, then drops on the troll's head
     const fc = this.floatingClub;
     if (fc) {

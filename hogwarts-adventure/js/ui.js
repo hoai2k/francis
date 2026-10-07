@@ -566,6 +566,52 @@ export class UI {
     this.wheelEl.classList.add('hidden');
   }
 
+  // ------------------------------------------------------------ companion command wheel
+  openCommand(holdAction) {
+    const c = G.companion;
+    if (!c || this.cmd || this.wheel) return;
+    const w = this.cmdEl ||= (() => { const e = el('div', 'wheel cmdwheel hidden'); document.body.appendChild(e); return e; })();
+    w.classList.remove('hidden');
+    w.innerHTML = '<div class="w-center"></div>';
+    const opts = [['follow', '⬆', 'Follow me'], ['attack', '⚔', 'Attack my target'], ['hold', '✋', 'Hold position'], ['special', '✦', c.specialCd > 0 ? `Special (${Math.ceil(c.specialCd)}s)` : 'Use special']];
+    opts.forEach(([k, ico], i) => {
+      const a = (i / 4) * Math.PI * 2 - Math.PI / 2;
+      const d = el('div', 'w-item', `<span style="font-size:28px">${ico}</span>`);
+      d.style.left = 50 + Math.cos(a) * 34 + '%';
+      d.style.top = 50 + Math.sin(a) * 34 + '%';
+      d.addEventListener('click', () => { this.cmd.pick = i; this.closeCommand(true); });
+      w.appendChild(d);
+    });
+    this.cmd = { pick: -1, opts, hold: holdAction, mx: 0, my: 0, t: 0 };
+    G.audio?.sfx('wheel');
+  }
+  updateCommand() {
+    const C = this.cmd, I = G.input;
+    C.t += G.realDt || 0.016;
+    let x = I.device === 'pad' ? I.rstick.x || I.lstick.x : 0, y = I.device === 'pad' ? -(I.rstick.y || I.lstick.y) : 0;
+    if (I.device === 'kbm') { C.mx += I.look.x * 90; C.my += I.look.y * 90; const l = Math.hypot(C.mx, C.my); if (l > 1) { C.mx /= l; C.my /= l; } x = C.mx; y = C.my; }
+    if (Math.hypot(x, y) > 0.5) {
+      let a = Math.atan2(y, x) + Math.PI / 2;
+      if (a < 0) a += Math.PI * 2;
+      const i = Math.round(a / (Math.PI / 2)) % 4;
+      if (i !== C.pick) G.audio?.sfx('uimove');
+      C.pick = i;
+    }
+    this.cmdEl.querySelectorAll('.w-item').forEach((it, i) => it.classList.toggle('sel', i === C.pick));
+    const o = C.opts[C.pick];
+    this.cmdEl.querySelector('.w-center').innerHTML = `<b style="color:${G.companion?.F.color}">${G.companion?.name}</b><small>${o ? o[2] : 'Pick an order'}</small>`;
+    // released: give the order (touch keeps it open until an item is tapped)
+    if (I.device !== 'touch' && !I.isHeld(C.hold) && C.t > 0.05) this.closeCommand(true);
+  }
+  closeCommand(apply) {
+    const C = this.cmd;
+    if (!C) return;
+    this.cmd = null;
+    this.cmdEl.classList.add('hidden');
+    if (apply && C.pick >= 0 && G.companion) G.companion.command(C.opts[C.pick][0]);
+  }
+  updateCompanion() { document.body.classList.toggle('has-companion', !!G.companion); }
+
   setLoading(text, f) {
     const t = document.getElementById('load-text'), fill = document.getElementById('load-fill');
     if (t) t.textContent = text;

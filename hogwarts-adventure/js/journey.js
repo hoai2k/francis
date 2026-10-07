@@ -55,6 +55,7 @@ export const J = { active: false, year: 1, step: null, seat: new THREE.Vector3()
 
 export async function runJourney(year, from = 'station') {
   register();
+  if (year >= 2) await import(`./years/y${year}.js`); // registers the year's train event
   const s = G.save;
   const st = G.story;
   Object.assign(J, { active: true, year, step: from, canSit: false, sit: false, departed: false, met: new Set() });
@@ -136,8 +137,9 @@ async function stationStep(year) {
       } else if (through <= 0) { stn.barrierCol.disabled = false; stn.barrierMat.emissiveIntensity = 1; }
     }
   });
-  const ok = await until(() => passed);
-  if (!ok) return;
+  const ok = await until(() => passed || G.zone.name === 'train');
+  st.tickers.delete('barrier');
+  if (!ok || G.zone.name === 'train') return;
   addXP(30, 'Platform 9¾');
   J.quest = { title: 'The Hogwarts Express', objective: 'Board the train: walk into one of the carriage doors.' };
   J.target = { zone: 'station', pos: stn.doors[1].clone().setY(2.5) };

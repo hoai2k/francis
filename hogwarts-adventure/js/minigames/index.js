@@ -28,6 +28,8 @@ export async function runMinigame(id, opts = {}) {
     if (opts.practice && !G.save.house) pts = 0;
     if (pts && G.save.house) G.story.addPoints(G.save.house, pts, result.title, true);
     if (!opts.practice || G.save.started) addXP(20 + Math.max(0, pts) * 4);
+    // your companion counts as your duelling / study partner
+    if (G.save.companion && G.save.started && !opts.fromMenu) { const { addFriendship } = await import('../friends.js'); addFriendship(G.save.companion, result.success ? 6 : 3); }
     G.audio.sfx(result.success ? 'victory' : 'fail');
     G.mode = 'results';
     G.ui.showHUD(false);

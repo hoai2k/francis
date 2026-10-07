@@ -429,3 +429,18 @@ body[data-device='kbm'] .pt-heat-btns { display: none; }
 .talent-btn .t-plus { font-size: 26px; color: #9fe08a; min-width: 20px; }
 .t-sp.t-ldo b { font-family: 'Cinzel', serif; color: var(--gold2); font-size: 16px; }
 @media (max-width: 640px) { .ldo-slots .o-val { min-width: 150px; font-size: 12px; } .j-cols { grid-template-columns: 1fr; } }
+.float.heal { color: #80ff9a; font-size: 18px; }
+ul.sq { margin: 0; padding-left: 18px; }
+.sq li { margin: 2px 0; font-size: 15px; }
+.sq .sq-done { color: #b8e0a8; }
+.sq .sq-off { color: var(--dim); }
+.cmdwheel .w-item { width: 64px; height: 64px; }
+.t-cmd { display: none; }
+body.has-companion .t-cmd { display: grid; }
+.fbar { display: block; height: 5px; border-radius: 3px; background: rgba(255,255,255,.12); margin-top: 4px; overflow: hidden; }
+.fbar i { display: block; height: 100%; background: linear-gradient(90deg, #ff7aa0, #ffd0e0); }
+.friend-btn small { display: block; }
+.friend-btn .rival { display: inline; color: #c4c9cf; border: 1px solid #c4c9cf; border-radius: 4px; padding: 0 4px; font-size: 11px; }
+.price { font-family: 'Cinzel', serif; color: var(--gold2); min-width: 34px; text-align: right; }
+.t-cmd { right: calc(104px + var(--safe-r)); top: calc(112px + var(--safe-t)); width: 40px; height: 40px; font-size: 16px; }
+@media (max-height: 500px) { .t-cmd { top: calc(8px + var(--safe-t)); right: calc(256px + var(--safe-r)); width: 36px; height: 36px; } }

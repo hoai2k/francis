@@ -5,6 +5,7 @@ import { buildGrounds } from './grounds.js';
 import { buildGreatHall, buildStaircase, buildCorridor, buildDungeon, buildTower } from './interiors.js';
 import { PLATEAU } from './terrain.js';
 import { buildStation, buildTrain, buildCountryside } from './journey.js';
+import { buildUndercroft, addUndercroftDoor } from './years.js';
 
 export class World {
   constructor() {
@@ -24,6 +25,7 @@ export class World {
       ['station', () => buildStation(Q), 'Finding Platform Nine and Three-Quarters'],
       ['train', () => buildTrain(Q), 'Stoking the Hogwarts Express'],
       ['countryside', () => buildCountryside(Q), 'Laying track across the Highlands'],
+      ['undercroft', () => buildUndercroft(Q), 'Hiding the Undercroft'],
     ];
     for (let i = 0; i < steps.length; i++) {
       const [name, fn, label] = steps[i];
@@ -36,6 +38,7 @@ export class World {
     }
     const g = this.zones.grounds;
     g.portals.push({ pos: new THREE.Vector3(0, PLATEAU, -22.5), r: 3.2, to: 'greatHall', at: 'fromGrounds', label: 'Enter the Great Hall' });
+    addUndercroftDoor();
     g.entries = {
       hallDoor: { pos: new THREE.Vector3(0, PLATEAU, -18), yaw: 0 },
       spawn: g.spawn,

@@ -7,7 +7,7 @@ import { SPELL_BY_ID } from './spelldata.js';
 import { glyph } from './input.js';
 import { writeSave, autoSave } from './save.js';
 import { addXP, sendOwl, YEARS } from './progress.js';
-import { FRIENDS, FRIEND_IDS } from './friends.js';
+import { FRIENDS, FRIEND_IDS, friendTalk, placeFriends, addFriendship } from './friends.js';
 import { addCoins } from './items.js';
 import { runMinigame } from './minigames/index.js';
 import { PLATEAU, SPOTS, groundHeight, WATER_Y } from './world/terrain.js';
@@ -35,7 +35,7 @@ const CARD_LORE = {
 const BEAN_FLAVOURS = ['earwax', 'toffee', 'grass', 'cherry', 'soap', 'black pepper', 'marmalade', 'sprouts', 'sardine', 'bogey', 'strawberry', 'dirt', 'buttered toast', 'vomit', 'lemon sherbet', 'spinach'];
 
 // zone adjacency for the objective marker (route through portals)
-const ADJ = { grounds: ['greatHall'], greatHall: ['grounds', 'staircase'], staircase: ['greatHall', 'corridor', 'dungeon', 'tower'], corridor: ['staircase'], dungeon: ['staircase'], tower: ['staircase'] };
+export const ADJ = { grounds: ['greatHall'], greatHall: ['grounds', 'staircase'], staircase: ['greatHall', 'corridor', 'dungeon', 'tower'], corridor: ['staircase'], dungeon: ['staircase', 'undercroft'], tower: ['staircase'], undercroft: ['dungeon'] };
 function route(from, to) {
   if (from === to) return null;
   const prev = { [from]: null };
@@ -49,7 +49,7 @@ function route(from, to) {
   return cur;
 }
 
-export const BUILT_YEARS = 1;
+export const BUILT_YEARS = 2;
 const Y1_FROM = ['Headmistress Aldmoor', 'Headmistress Aldmoor', 'Professor Thornwick', 'Professor Duskwood', 'Professor Vexley', 'Professor Vexley', 'Madam Hale', 'Brannoc the Groundskeeper', 'Headmistress Aldmoor', 'Headmistress Aldmoor', 'Brannoc the Groundskeeper'];
 
 export const QUESTS = [
@@ -79,6 +79,8 @@ export class Story {
     this.tickers = new Map();
     this.journeyQuest = null;
     this.friendTalkOverride = null;
+    this.friendTalk = (id) => this.friendActivity(id);
+    this.placeFriends = placeFriends;
     this.buildNPCs();
     this.buildCollectibles();
     this.buildStations();
@@ -114,20 +116,68 @@ export class Story {
     sendOwl(`y1-q${this.stage}`, from, q.title, q.objective, { quest: true, silent: this.stage === 0 });
   }
   // ------------------------------------------------------------ year / quest log API
-  resume() {
+  async resume() {
+    this.yearEngine = null;
+    if (G.save.year >= 2 && !G.save.yearDone && !G.save.journey) await this.loadYear(G.save.year, false);
     this.placeNPCs();
+    this.yearEngine?.def.placeNPCs?.(this.yearEngine);
     G.ui.setQuest(this.currentQuest());
   }
+  async loadYear(n, fresh) {
+    const mod = await import(`./years/y${n}.js`);
+    const { YearEngine } = await import('./years/engine.js');
+    if (fresh === undefined) return mod;
+    this.yearEngine = new YearEngine(mod.default);
+    this.yearEngine.start(fresh);
+    return mod;
+  }
+  undercroftOpen() { return !!G.save.flags.y2?.undercroft; }
   currentQuest() {
     if (this.journeyQuest?.quest) return this.journeyQuest.quest;
+    if (this.yearEngine && !G.save.yearDone) return this.yearEngine.objective();
     if (G.save.yearDone) return { title: `Year ${G.save.year} complete`, objective: this.yearAvailable(G.save.year + 1) ? `Begin Year ${G.save.year + 1}: open the pause menu → School Years, or talk to the Headmistress.` : 'Explore, find collectibles and play minigames. More years arrive in a later update.' };
     return QUESTS[Math.min(this.stage, QUESTS.length - 1)];
   }
-  completedQuests() { return QUESTS.slice(0, Math.min(this.stage, 11)).map((q) => q.title); }
-  yearFraction() { return G.save.yearDone ? 1 : Math.min(1, this.stage / 11); }
+  completedQuests() { if (this.yearEngine) return this.yearEngine.def.quests.slice(0, this.yearEngine.qi).map((q) => q.title); return G.save.year > 1 ? [] : QUESTS.slice(0, Math.min(this.stage, 11)).map((q) => q.title); }
+  yearFraction() { return G.save.yearDone ? 1 : this.yearEngine ? this.yearEngine.fraction() : G.save.year > 1 ? 0 : Math.min(1, this.stage / 11); }
   yearAvailable(n) { return n >= 1 && n <= BUILT_YEARS; }
   async beginYear(n) { const { beginYear } = await import('./journey.js'); return beginYear(n); }
-  async startYear(n) { /* years 2–7 are driven by js/years/ (added year by year) */ }
+  // the welcome feast, then the year's first quest
+  async startYear(n) {
+    const mod = await import(`./years/y${n}.js`);
+    const def = mod.default;
+    const gh = G.world.zones.greatHall;
+    G.world.setZone('greatHall', { pos: gh.W(0, 0, -16), yaw: Math.PI });
+    this.placeNPCs();
+    this.placeNPC('headmistress', 'greatHall', gh.W(0, 0.8, -32.5), 0);
+    G.skyObj.tod = 0.85;
+    G.mode = 'cutscene';
+    G.ui.showHUD(false);
+    G.audio.music('hall');
+    G.cam.setCinematic(gh.W(0, 5, 6), gh.W(0, 4, -30), 100);
+    await G.ui.fade(0, 1);
+    G.ui.banner('The Welcome Feast', `Year ${n} · ${YEARS[n - 1].title}`, 'quest');
+    const hm = this.speaker('headmistress');
+    await this.run(async () => {
+      await G.ui.say((def.feast || ['Welcome back!']).map((t) => (typeof t === 'string' ? { ...hm, text: t } : t)));
+      for (const s of this.students) s.anim.trigger('cheer', 1.4);
+    });
+    G.cam.setCinematic(null);
+    G.player.teleport(gh.W(0, 0, -16), Math.PI);
+    G.cam.snap();
+    this.yearEngine = null;
+    await this.loadYear(n, true);
+    G.mode = 'play';
+    G.ui.showHUD(true);
+    G.ui.refreshHUD();
+    G.ui.setQuest(this.currentQuest());
+  }
+  journalExtra() {
+    const Y = this.yearEngine;
+    if (!Y || !Y.def.side) return '';
+    const rows = Y.sideList().map((q) => `<li class="${q.done ? 'sq-done' : q.on ? 'sq-on' : 'sq-off'}"><b>${q.title}</b> — ${q.obj}</li>`).join('');
+    return `<h3>Side quests</h3><ul class="sq">${rows}</ul>`;
+  }
   offerNextYear() {
     const n = G.save.year + 1;
     if (!G.save.yearDone) return;
@@ -145,7 +195,31 @@ export class Story {
   }
 
   // ------------------------------------------------------------ NPCs
+  // friends: their activity (frog chase, practice duel…) comes first when there is one
+  async friendActivity(id) {
+    const acts = {
+      pip: this.stage >= 2 || G.save.year > 1 ? ['Chase Chocolate Frogs with Pip', () => runMinigame('frogs', {})] : null,
+      mei: ['Practice duel with Mei', () => runMinigame('duel', { opponents: [{ name: 'Mei Lin Chau', house: 'ravenclaw', level: 2 + G.save.year, hp: 100 + G.save.year * 25, spells: ['stupefyE', 'expelliarmusE'], rate: 1.6, block: 0.35, dodge: 0.3, line: 'No holding back!', look: FRIENDS.mei.look }], winTitle: 'You beat Mei!' })],
+      ruairi: this.stage >= 7 || G.save.year > 1 ? ['Visit Silvermane with Ruairí', () => runMinigame('creatures', {})] : null,
+      tamsin: this.stage >= 6 || G.save.year > 1 ? ['Flying practice with Tamsin', () => runMinigame('quidditch', {})] : null,
+    }[id];
+    if (acts) {
+      const c = await this.talk(id, [{ ...this.speaker(id), text: 'What shall we do?', choices: [acts[0], 'Just talk', 'Not now'] }]);
+      if (c === 0) { const r = await acts[1](); if (r && !r.aborted) addFriendship(id, r.success ? 8 : 4); return; }
+      if (c !== 1) return;
+    }
+    return friendTalk(id);
+  }
   registerNPC(id, d) { NPC_LOOKS[id] = d; }
+  // an NPC added by a later year: talking to them goes through the year engine
+  addTalker(id, label, fallback) {
+    if (this.interactables.some((i) => i.npc === id)) return;
+    this.npcAct(id, () => label, fallback || (() => this.talk(id, ['Hello.'])));
+  }
+  speaker(id) {
+    const d = NPC_LOOKS[id] || (FRIENDS[id] && { name: FRIENDS[id].name, voice: FRIENDS[id].voice, color: FRIENDS[id].color });
+    return { who: d?.name, color: d?.color, voice: d?.voice, speaker: (on) => this.npcs[id]?.model.anim.set(on ? 'talk' : (this.npcs[id].state === 'sit' ? 'sit' : 'idle')) };
+  }
   hideNPC(id) { const n = this.npcs[id]; if (n) { n.root.parent?.remove(n.root); n.zone = null; } }
   cardName(i) { return CARDS[i]; }
   npc(id) {
@@ -304,7 +378,8 @@ export class Story {
   buildStations() {
     const I = this.interactables;
     const W = G.world.zones;
-    const npcAct = (id, label, fn) => I.push({ npc: id, label: () => label(), act: fn, r: 2.6 });
+    const npcAct = (id, label, fn) => I.push({ npc: id, label: () => label(), act: async () => { if (this.yearEngine && (await this.yearEngine.talk(id))) return; return fn(); }, r: 2.6 });
+    this.npcAct = npcAct;
     npcAct('headmistress', () => 'Talk to Headmistress Aldmoor', () => this.talkHeadmistress());
     npcAct('thornwick', () => 'Talk to Professor Thornwick', () => this.talkThornwick());
     npcAct('vexley', () => 'Talk to Professor Vexley', () => this.talkVexley());
@@ -320,6 +395,8 @@ export class Story {
     I.push({ zone: 'dungeon', pos: W.dungeon.cauldron.pos, r: 2.4, label: () => 'Brew a potion', cond: () => this.stage > 3, act: () => this.playPotions() });
     I.push({ zone: 'corridor', pos: W.corridor.spots.lectern, r: 2.4, label: () => 'Wand practice', cond: () => this.stage > 1, act: () => this.playWand() });
     I.push({ zone: 'greatHall', pos: W.greatHall.W(0, 0, -21), r: 3, label: () => 'House points board', act: () => this.showBoard() });
+    // talking to the friend who walks with you
+    I.push({ get zone() { return G.companion ? G.zone?.name : null; }, get pos() { return G.companion ? G.companion.pos : new THREE.Vector3(1e9, 0, 0); }, r: 1.8, cond: () => !!G.companion && G.companion.alive, label: () => `Talk to ${G.companion.name}`, act: () => friendTalk(G.companion.id) });
   }
 
   nearestInteract() {
@@ -662,12 +739,14 @@ export class Story {
 
   // ------------------------------------------------------------ encounters
   onArrive(zone) {
+    this.yearEngine?.onArrive(zone);
     const s = this.stage;
     if (zone === 'corridor' && s === 1 && !G.save.flags.pixiesDone) this.startPixies();
     if (zone === 'dungeon' && s === 4) this.startTroll();
     if (zone === 'greatHall' && s === 10) setTimeout(() => this.run(() => this.houseCup()), 800);
   }
   onRespawn() {
+    if (this.yearEngine?.onRespawn()) return;
     const s = this.stage;
     G.enemies.clearZone();
     if (this.encounter === 'troll') { G.world.setZone('dungeon', { pos: G.world.zones.dungeon.W(0, 0, -36), yaw: Math.PI }); this.startTroll(); }
@@ -720,6 +799,7 @@ export class Story {
   }
 
   onEvent(type, data) {
+    this.yearEngine?.onEvent(type, data);
     const s = this.stage;
     if (type === 'kill') {
       const alive = G.enemies.list.filter((e) => e.alive).length;
@@ -817,7 +897,7 @@ export class Story {
     const W = G.world.zones;
     let t = null;
     if (this.journeyQuest) { t = this.journeyQuest.target; return t && t.zone === G.zone.name ? t : null; }
-    if (this.yearMarker) { t = this.yearMarker(); return t ? this.routeTo(t) : null; }
+    if (this.yearEngine && !G.save.yearDone) { t = this.yearEngine.marker() || this.yearEngine.sideMarkers()[0]; return t ? this.routeTo(t) : null; }
     const npcT = (id) => { const n = this.npcs[id]; return n ? { zone: n.zone, pos: n.pos.clone().setY(n.pos.y + 2.4) } : null; };
     if (s === 1) t = G.save.flags.pixiesDone || G.zone.name !== 'corridor' ? npcT('thornwick') : null;
     else if (s === 2) t = npcT('duskwood');
@@ -873,6 +953,7 @@ export class Story {
     }
     this.updateCollectibles(dt);
     for (const f of this.tickers.values()) f(dt);
+    this.yearEngine?.update(dt);
     // triggered encounters by position
     const s = this.stage;
     if (G.zone?.name === 'grounds' && G.mode === 'play') {

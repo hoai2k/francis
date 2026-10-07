@@ -13,6 +13,10 @@ import { Player } from './player.js';
 import { CameraRig } from './camera.js';
 import { Spells } from './spells.js';
 import { Enemies } from './enemies.js';
+import './enemies2.js';
+import { Puzzles } from './puzzles.js';
+import { updateCompanion, restoreCompanion } from './friendsCompanion.js';
+import { Weather } from './weather.js';
 import { Story } from './story.js';
 import { loadSettings, loadSave, newSave, writeSave } from './save.js';
 import { openMainMenu, openPause, openSpellbook, openJournal, menuBackdrop } from './menus.js';
@@ -52,6 +56,7 @@ async function boot() {
   await G.world.build(Q, (label, f) => step(label + '…', 0.08 + f * 0.7));
   await step('Summoning sparkles…', 0.8);
   G.fx = new FX(G.scene, Q.particles);
+  G.weather = new Weather(G.scene, Q.particles);
   G.player = new Player();
   G.cam = new CameraRig(G.camera);
   G.spells = new Spells();
@@ -59,8 +64,10 @@ async function boot() {
   G.input.buildTouch(document.getElementById('touch'));
   G.input.on(() => { ui.showHUD(G.mode === 'play'); ui.refreshPrompts?.(); });
   await step('Writing the story…', 0.88);
+  G.puzzles = new Puzzles();
   G.story = new Story();
   G.world.setZone('grounds', 'spawn');
+  G.events.on('zone', () => G.companion?.placeNear());
   await step('Compiling enchantments…', 0.93);
   G.world.precompile();
   G.composer.render();
@@ -86,7 +93,7 @@ function loop(now) {
   G.realTime += realDt;
   // slow motion for finishing blows and the spell wheel
   if (G.slowmo > 0) G.slowmo -= realDt;
-  const target = G.slowmo > 0 ? 0.22 : G.ui.wheel ? 0.25 : 1;
+  const target = G.slowmo > 0 ? 0.22 : G.ui.wheel || G.ui.cmd ? 0.25 : 1;
   G.timeScale += (target - G.timeScale) * Math.min(1, realDt * 10);
   const I = G.input;
   I.update(realDt);
@@ -99,6 +106,7 @@ function loop(now) {
     else if (G.mode === 'play' && !G.minigame && I.isPressed('journal')) openJournal(true);
   }
   if (G.ui.wheel) G.ui.updateWheel();
+  if (G.ui.cmd) G.ui.updateCommand();
   const paused = G.paused;
   const dt = paused ? 0 : realDt * G.timeScale;
   if (!paused) {
@@ -118,6 +126,9 @@ function loop(now) {
       G.enemies.list.forEach((e) => e.anim.update?.(dt, 0));
     }
     G.story.update(dt);
+    G.puzzles.update(dt);
+    updateCompanion(dt);
+    G.weather.update(dt);
     G.fx.update(dt);
     G.lights.update(dt, G.camera.position.clone().lerp(focus, 0.5));
     if (G.mode === 'menu') menuBackdrop(false, realDt);

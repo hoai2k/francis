@@ -7,6 +7,7 @@ import { makeStag } from './models.js';
 import { postFlash } from './engine.js';
 import { glowSprite } from './textures.js';
 import { clamp, rand } from './util.js';
+import { tryCombo2, trail2, spellsMixin } from './spells2.js';
 import { currentLoadout, slotCount, autoEquip, seedLoadouts, addMastery, masteryDmg, masteryCd, masteryArea, dmgMult, cdMult, comboMult, controlMult, addXP } from './progress.js';
 
 const _v = new THREE.Vector3(), _w = new THREE.Vector3(), _u = new THREE.Vector3();
@@ -156,12 +157,13 @@ export class Spells {
       // controller: d-pad left/right also cycles spells; flick the right stick to switch lock-on target
       if (I.device === 'pad') {
         if (I.isPressed('right')) this.cycle(1);
-        if (I.isPressed('left')) this.cycle(-1);
+        if (I.isPressed('left')) { if (G.companion) G.ui.openCommand('left'); else this.cycle(-1); }
         const lt = G.cam.lockTarget;
         if (lt && Math.abs(I.rstick.x) > 0.75) { if (!this.flickLatch) { this.flickLatch = true; this.switchLock(Math.sign(I.rstick.x)); } }
         else this.flickLatch = false;
       }
       if (I.isPressed('wheel')) G.ui.openWheel();
+      if (I.isPressed('command') && G.companion) G.ui.openCommand('command');
       if (I.isPressed('lock')) this.toggleLock();
       else if (I.device === 'pad' && I.isReleased('lock')) G.cam.lockTarget = null; // LT is hold-to-lock
       const cur = this.current;
@@ -182,6 +184,9 @@ export class Spells {
     this.updateProjectiles(dt);
     this.updateStags(dt);
     this.updateThrown(dt);
+    this.updateFields(dt);
+    this.updateBombs(dt);
+    this.updateBirds(dt);
     // shield visual
     this.shieldMat.uniforms.time.value += dt;
     this.shieldHit = Math.max(0, this.shieldHit - dt * 3);
@@ -285,9 +290,10 @@ export class Spells {
     if ((this.cooldowns[s.id] || 0) > 0) return;
     if (!s.id) return;
     if (s.id === 'lumos') { this.toggleLumos(!this.lumosOn); this.cooldowns.lumos = s.cd; addMastery('lumos'); return; }
-    if (s.cast) { // spells with their own behaviour (spellbook2.js)
+    if (s.pre && p.mana >= s.mana && s.pre(s, p)) { this.payFor(s); addMastery(s.id); return; }
+    if (s.cast) { // spells with their own behaviour (spells2.js)
       if (!this.payFor(s)) return;
-      s.cast(this, p);
+      s.cast(s, p);
       addMastery(s.id);
       G.story?.onEvent('cast', s.id);
       return;
@@ -381,6 +387,8 @@ export class Spells {
         pr.vel.lerp(want, Math.min(1, dt * (pr.team === 'player' ? 6 : 1.5)));
       }
       if (pr.def.gravity) pr.vel.y -= pr.def.gravity * dt;
+      // Arresto Momentum slows enemy spells inside its dome
+      if (pr.team === 'enemy' && this.fields?.length) { const sl = this.inSlowField(pr.pos); if (sl && !pr.slowed) { pr.slowed = true; pr.vel.multiplyScalar(0.25); pr.life += 4; } }
       const step = pr.vel.length() * dt;
       const dir = _w.copy(pr.vel).normalize();
       // world collision via raycast along the step
@@ -393,13 +401,14 @@ export class Spells {
       // entities
       const targets = pr.team === 'player' ? G.enemies.list : [G.player, ...G.enemies.allies];
       for (const e of targets) {
-        if (!e.alive || e.hidden || e === pr.owner) continue;
+        if (!e.alive || e.hidden || e === pr.owner || pr.hitSet?.has(e)) continue;
         const c = _u.copy(e.pos);
         const dy = pr.pos.y - (c.y + e.height * 0.5);
         const dxz = Math.hypot(pr.pos.x - c.x, pr.pos.z - c.z);
         if (dxz < e.radius + pr.radius && Math.abs(dy) < e.height * 0.5 + pr.radius) {
           this.hitEntity(pr, e);
-          done = true;
+          if (pr.team === 'player' && pr.def.pierce && (pr.pierceLeft = (pr.pierceLeft ?? pr.def.pierce) - 1) > 0) (pr.hitSet ||= new Set()).add(e);
+          else done = true;
           break;
         }
       }
@@ -414,8 +423,11 @@ export class Spells {
           }
         }
       }
+      // puzzle objects react to the right spells
+      if (!done && pr.team === 'player' && G.puzzles?.hitProjectile(pr)) { this.impactFX(pr.pos, pr.def, 0.6); done = true; }
       if (!done && hitW !== Infinity) {
         this.impactFX(pr.pos, pr.def, 0.8);
+        if (pr.team === 'player') pr.def.onWorld?.(pr.pos.clone(), pr);
         if (pr.def.splash) this.splash(pr.pos, pr.def, pr.team, null);
         if (pr.def.kind === 'boulder') {
           G.audio.sfx('slam'); G.cam.shake(0.25);
@@ -442,6 +454,7 @@ export class Spells {
     const p = pr.pos;
     const id = d.id;
     const back = _u.copy(pr.vel).multiplyScalar(-0.05);
+    if (d.trail && trail2(pr, d)) return;
     if (id === 'incendio') {
       G.fx.emit({ pos: p, color: 0xffc040, color2: 0xff3000, count: 4, speed: 1, size: 0.55, size1: 0.1, life: 0.35, intensity: 3, intensity2: 1.5, vel: back, up: 1.5, spread: 0.3 });
       if (Math.random() < 0.4) G.fx.smokePuff(p, 0x2a2420, 1, { size: 0.5, size1: 1.4, life: 0.8 });
@@ -492,6 +505,7 @@ export class Spells {
     const def = pr.def;
     if (pr.team === 'enemy') {
       // enemy spell hitting the player (or allies)
+      if (e !== G.player) { if (e.damage) { e.damage(def.dmg * (G.enemies.dmgScale || 1), { proj: pr }); this.impactFX(pr.pos, def, 0.5); } return; }
       if (e === G.player) {
         const knock = def.knock ? _v.copy(pr.vel).setY(0).normalize().multiplyScalar(def.knock) : null;
         const hit = G.player.damage(def.dmg * (G.enemies.dmgScale || 1), { proj: pr, knock: knock?.clone() });
@@ -503,12 +517,13 @@ export class Spells {
       return;
     }
     this.impactFX(pr.pos, def);
-    G.cam.shake(0.08);
-    G.input.rumble(0.2, 0.4, 70);
+    if (pr.owner === G.player) { G.cam.shake(0.08); G.input.rumble(0.2, 0.4, 70); }
     const dir = _v.copy(pr.vel).setY(0).normalize().clone();
     // combos are resolved before normal effects
     if (this.tryCombo(def, e, dir)) return;
-    e.takeHit({ dmg: def.dmg, spell: def.id, dir, proj: pr });
+    if (def.onHit) def.onHit(e, pr, dir);
+    if (pr.def.dmg > 0) e.takeHit({ dmg: pr.def.dmg, spell: def.id, dir, proj: pr });
+    else if (!def.onHit) G.ui.floatText(e.pos.clone().setY(e.pos.y + e.height + 0.3), 'No effect', 'warn');
     if (def.splash) this.splash(pr.pos, def, 'player', e);
   }
 
@@ -545,6 +560,7 @@ export class Spells {
       e.takeHit({ dmg: def.dmg * 1.6, spell: 'stupefy', dir, combo: true });
       s.stun = 4;
     }
+    if (!name) name = tryCombo2(def, e, dir);
     if (!name) return false;
     G.ui.combo(name);
     G.audio.sfx('combo');
@@ -768,6 +784,8 @@ export class Spells {
     this.stags = [];
     this.held = null;
     this.thrown = [];
+    this.clear2();
     for (const p of G.zone?.props || []) { p.mesh.position.copy(p.home); p.mesh.rotation.set(0, 0, 0); p.lifted = false; }
   }
 }
+Object.assign(Spells.prototype, spellsMixin);
