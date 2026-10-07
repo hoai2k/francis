@@ -380,7 +380,9 @@ export class Online {
     if (!s || s.isHost) return;
     const R = s.hostP?.R;
     if (!R || typeof R !== 'object') {
-      if (this.view === 'joining' && performance.now() - (this.joinedAt || 0) > 10000) this.onFatal(s, 'nohost');
+      // (a host that is busy - building previews or a track on a slow device - gets as long as the
+      // menus' silent-host limit before we give up on it)
+      if (this.view === 'joining' && performance.now() - (this.joinedAt || 0) > 25000) this.onFatal(s, 'nohost');
       return;
     }
     const ph = ['sel', 'trk', 'load', 'race', 'res'].includes(R.ph) ? R.ph : 'sel';
