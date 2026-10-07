@@ -452,7 +452,7 @@ export class Enemy {
     this.root.position.copy(this.pos);
     this.root.rotation.y = dampAngle(this.root.rotation.y, this.yaw, 10, dt);
     const sp = Math.hypot(this.vel.x, this.vel.z);
-    if (S.stun <= 0 && this.anim.set && (this.type === 'wizard' || this.type === 'duelist' || this.type === 'malachar' || this.type === 'hollowking')) {
+    if (S.stun <= 0 && this.anim.set && (this.type === 'wizard' || this.type === 'duelist' || this.type === 'malachar' || this.type === 'hollowking' || this.type === 'inquisitor' || this.type === 'vesper')) {
       this.anim.set(this.blocking ? 'block' : this.castWind > 0 ? 'aim' : 'idle');
     }
     this.anim.update?.(dt, sp);

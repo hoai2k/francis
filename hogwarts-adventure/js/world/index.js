@@ -8,6 +8,7 @@ import { buildStation, buildTrain, buildCountryside } from './journey.js';
 import { buildUndercroft, addUndercroftDoor } from './years.js';
 import { buildHogsmeade } from './hogsmeade.js';
 import { buildLakebed, buildMaze, buildGraveyard } from './years4.js';
+import { buildRequirement, addRequirementDoor, buildArcana } from './years5.js';
 
 export class World {
   constructor() {
@@ -32,6 +33,8 @@ export class World {
       ['lakebed', () => buildLakebed(Q), 'Filling the Black Lake'],
       ['maze', () => buildMaze(Q), 'Growing the hedge maze'],
       ['graveyard', () => buildGraveyard(Q), 'Digging a forgotten graveyard'],
+      ['requirement', () => buildRequirement(Q), 'Asking the Room for what you need'],
+      ['arcana', () => buildArcana(Q), 'Sealing the Department of Arcana'],
     ];
     for (let i = 0; i < steps.length; i++) {
       const [name, fn, label] = steps[i];
@@ -45,6 +48,7 @@ export class World {
     const g = this.zones.grounds;
     g.portals.push({ pos: new THREE.Vector3(0, PLATEAU, -22.5), r: 3.2, to: 'greatHall', at: 'fromGrounds', label: 'Enter the Great Hall' });
     addUndercroftDoor();
+    addRequirementDoor();
     // the path to Hogsmeade at the bottom of the castle road (third years and up)
     const hy = g.groundY(0, 98);
     g.portals.push({ pos: new THREE.Vector3(0, hy, 99), r: 3, to: 'hogsmeade', at: 'fromCastle', label: 'Path to Hogsmeade', locked: () => (G.save?.year || 1) < 3, lockedMsg: 'Hogsmeade visits begin in third year' });

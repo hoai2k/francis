@@ -21,6 +21,7 @@ export const ITEMS = {
   polish: { name: 'Broomstick polish', short: 'Broom polish', icon: '🧹', price: 10, tags: ['broom'], gift: true },
   feather: { name: 'Hippogriff feather', short: 'Feather', icon: '🪶', price: 0, tags: ['creature', 'book'], gift: true },
   egg: { name: 'Golden egg', short: 'Golden egg', icon: '🥚', price: 0, tags: [], gift: false },
+  orb: { name: 'Prophecy orb', short: 'Prophecy', icon: '🔮', price: 0, tags: [], gift: false },
   shell: { name: 'Lake shell', short: 'Shell', icon: '🐚', price: 0, tags: ['creature', 'plant'], gift: true },
 };
 export const SHOPS = {

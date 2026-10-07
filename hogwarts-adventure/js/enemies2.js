@@ -494,3 +494,101 @@ TYPES.hollowking = {
     if (Math.random() < 0.4) G.fx.emit({ pos: this.pos.clone().setY(this.pos.y + rand(0.2, 2.4)), color: 0x40ff70, count: 1, speed: 0.4, size: 0.25, life: 0.8, intensity: 2.5, noScale: true });
   },
 };
+
+// ------------------------------------------------------------------ Educational Decree totems (Year 5: they shield the Inquisitor)
+TYPES.decree = {
+  name: 'Educational Decree', hp: 90, radius: 0.6, height: 2.6, speed: 0, weak: { bombarda: 3, confringo: 2.5, finite: 3, reducto: 3, diffindo: 1.5 }, resist: { all: 0.35 }, points: 2, xp: 12,
+  model: () => {
+    const root = new THREE.Group();
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 2.2, 6), new THREE.MeshStandardMaterial({ color: 0xc8a0c0, metalness: 0.6, roughness: 0.3 }));
+    post.position.y = 1.1; root.add(post);
+    const plaque = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.8, 0.08), new THREE.MeshStandardMaterial({ color: 0xffc0e0, emissive: 0xc04080, emissiveIntensity: 0.9, roughness: 0.4 }));
+    plaque.position.y = 2.4; root.add(plaque);
+    const anim = { set() {}, trigger() {}, update(dt) { plaque.rotation.y += dt * 1.2; } };
+    return { root, anim, height: 2.8 };
+  },
+  ai(dt) {
+    this.vel.set(0, 0, 0);
+    // a pink tether to the Inquisitor
+    const boss = G.enemies.list.find((e) => e.alive && e.type === 'inquisitor');
+    if (boss && Math.random() < 0.5) {
+      const a = this.pos.clone().setY(this.pos.y + 2.4), b = boss.pos.clone().setY(boss.pos.y + 1.2);
+      G.fx.emit({ pos: a.lerp(b, Math.random()), color: 0xff70c0, count: 1, speed: 0.2, size: 0.18, life: 0.4, intensity: 3, noScale: true });
+    }
+  },
+};
+
+// ------------------------------------------------------------------ the High Inquisitor (Year 5 boss)
+ENEMY_SPELLS.decreeBolt = { id: 'curse', name: 'Decree', color: 0xff60c0, color2: 0xffe0f0, dmg: 13, speed: 24, radius: 0.4, kind: 'bolt', enemy: true };
+TYPES.inquisitor = {
+  name: 'High Inquisitor Grimshaw', hp: 1700, radius: 0.45, height: 1.8, speed: 4, weak: { expelliarmus: 1.2 }, resist: { stupefy: 0.7 }, points: 120, boss: true, xp: 1100,
+  model: () => makeWizard({ robeColor: '#d890b8', liningColor: '#ffe0f0', hairStyle: 'bun', hairColor: '#4a3a2a', skin: SKIN_TONES[0], hat: true, hatColor: '#d890b8', eyeGlow: '#40ff70', scale: 0.95 }),
+  ai(dt, p) {
+    const f = this.hp / this.maxHp;
+    const ph = f > 0.66 ? 1 : f > 0.33 ? 2 : 3;
+    const C = this.o.center || this.pos;
+    if (ph !== this.phase) {
+      this.phase = ph;
+      this.phaseLabel = ['', 'Phase I', 'Phase II — Educational Decrees', 'Phase III — the Ministry’s Dementors'][ph];
+      postFlash(0.2);
+      if (ph === 2) {
+        G.ui.banner('Educational Decree Twenty-Nine!', 'She is shielded while her Decrees stand. Bombarda, Confringo or Finite them!', '');
+        for (let i = 0; i < 3; i++) { const a = (i / 3) * Math.PI * 2 + 0.5; const e = G.enemies.spawn('decree', C.clone().add(new THREE.Vector3(Math.cos(a) * 10, 0, Math.sin(a) * 10))); e.summon = true; }
+        this.invuln = true; this.ensureShield(); this.shieldMesh.visible = true;
+      }
+      if (ph === 3) {
+        G.ui.banner('“The Dementors answer to ME!”', 'Patronus the Dementors — and dodge her decrees', '');
+        G.audio.sfx('dementor');
+        for (let i = 0; i < 2; i++) { const e = G.enemies.spawn('dementor', C.clone().add(new THREE.Vector3(i ? 9 : -9, 0, -6)), { aggro: true }); e.summon = true; }
+      }
+    }
+    if (this.invuln && !G.enemies.list.some((e) => e.alive && e.type === 'decree')) {
+      this.invuln = false; if (this.shieldMesh) this.shieldMesh.visible = false;
+      G.ui.floatText(this.pos.clone().setY(this.pos.y + 2.4), 'Shield down!', 'combo'); G.audio.sfx('shatter'); this.status.stun = 2;
+    }
+    this.level = 3 + ph;
+    this.o.spells = ['decreeBolt', 'decreeBolt', ph >= 2 ? 'stupefyE' : 'decreeBolt'];
+    this.o.volley = ph === 3 ? 3 : 2;
+    this.o.range = 12;
+    this.specT = (this.specT ?? 5) - dt;
+    if (this.specT <= 0 && this.canAct) {
+      this.specT = ph === 3 ? 4 : 6;
+      if (ph === 3 && Math.random() < 0.5) this.meteorRain(); else this.eruptions(ph + 1, 1.1);
+    }
+    this.aiWizard(dt, p);
+  },
+};
+
+// ------------------------------------------------------------------ Vesper Mordaunt, the Hollow King's duellist (Year 5 boss)
+TYPES.vesper = {
+  name: 'Vesper Mordaunt', hp: 1900, radius: 0.45, height: 1.9, speed: 5.2, weak: { silencio: 1.4 }, resist: { stupefy: 0.6 }, points: 150, boss: true, xp: 1300,
+  model: () => makeWizard({ robeColor: '#14101a', liningColor: '#5a1030', hairStyle: 'long', hairColor: '#0a0808', skin: SKIN_TONES[0], eyeGlow: '#ff4080', scale: 1.02 }),
+  ai(dt, p) {
+    const f = this.hp / this.maxHp;
+    const ph = f > 0.66 ? 1 : f > 0.4 ? 2 : 3;
+    const C = this.o.center || this.pos;
+    if (ph !== this.phase) {
+      this.phase = ph;
+      this.phaseLabel = ['', 'Phase I', 'Phase II — phantoms', 'Phase III — the killing light'][ph];
+      postFlash(0.2);
+      if (ph === 2) {
+        G.ui.banner('Vesper splits into phantoms!', 'Only the real one casts green — Lumos or Obscuro reveal her', '');
+        for (let i = 0; i < 3; i++) { const a = (i / 3) * Math.PI * 2; const e = G.enemies.spawn('duelist', C.clone().add(new THREE.Vector3(Math.cos(a) * 8, 0, Math.sin(a) * 8)), { aggro: true, level: 3, hp: 60, name: 'Vesper’s phantom', spells: ['stupefyE'], look: { robeColor: '#14101a', liningColor: '#5a1030', hairStyle: 'long', hairColor: '#0a0808', skin: SKIN_TONES[0], eyeGlow: '#ff4080' } }); e.summon = true; e.maxHp = e.hp = 60; }
+      }
+      if (ph === 3) { G.ui.banner('Vesper laughs', 'She is fighting to kill now — keep moving!', ''); G.audio.sfx('curse'); }
+    }
+    this.level = 5 + ph;
+    this.o.spells = ph === 3 ? ['killing', 'curse', 'incendioE'] : ['curse', 'stupefyE', 'incendioE'];
+    this.o.volley = ph === 3 ? 3 : 2;
+    this.o.range = 10;
+    this.o.block = 0.35; this.o.dodge = 0.35;
+    this.specT = (this.specT ?? 6) - dt;
+    if (this.specT <= 0 && this.canAct) {
+      this.specT = ph === 3 ? 4.5 : 7;
+      const r = Math.random();
+      if (ph === 3 && r < 0.4) this.beam(); else if (r < 0.7) this.volley(ph + 2, 0.12); else this.eruptions(ph + 1, 1.0);
+    }
+    this.aiWizard(dt, p);
+    if (Math.random() < 0.25) G.fx.emit({ pos: this.pos.clone().setY(this.pos.y + rand(0.3, 1.8)), color: 0xff4080, count: 1, speed: 0.3, size: 0.18, life: 0.6, intensity: 2.5, noScale: true });
+  },
+};

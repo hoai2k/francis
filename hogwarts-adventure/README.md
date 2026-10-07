@@ -197,6 +197,34 @@ Isolde and Aguamenti from Bram.
 Side quests: Tamsin's Confringo challenge, Mei's camera, the Durmvald lantern,
 Kofi's Dungbomb and a rematch duel with Cassius.
 
+## Year 5 — The Inquisitor
+
+The Ministry denies the Hollow King's return and appoints Prudence Grimshaw,
+now cleared of every charge, as High Inquisitor. Her Defence lessons ban
+wands, so you train in secret in the **Room of Requirement**: a door appears
+on the Charms Corridor's west wall, and from Year 5 on the room stays open for
+practice. You learn Bombarda there, Silencio from Thornwick, Obscuro from Mei
+and Incarcerous from Rowan Ashdown.
+
+Along the way you feed the Thestrals, found the **Wand Circle**, and fight off
+Grimshaw's Inquisitorial Squad when it storms the Christmas party. Grimshaw
+ousts the Headmistress. You sit your O.W.L.s (Potions and Charms) until a
+false vision lures you to the Ministry.
+
+- **Boss: the High Inquisitor.** Grimshaw fights in the forest clearing. In her
+  second phase, Educational Decree totems shield her until you blast them
+  apart. In her third, she summons Dementors.
+- **The Department of Arcana.** Fly there on Thestrals. Light sconces to stop
+  the spinning Hall of Doors, and dispel the seal on the true door. In the
+  Hall of Prophecies, take the orb and survive an ambush among the shelves.
+- **Boss: Vesper Mordaunt.** Duel her in the Veil Chamber. She fights in three
+  phases: duelling volleys, then phantom copies of herself, then lances,
+  beams and eruptions. After that the Hollow King and the Headmistress duel,
+  and the Minister sees him with his own eyes.
+
+Side quests: break Grimshaw's wards, recover Kofi's niffler stashes, open the
+chest the Room hid for Bram, and hear Cassius's doubts.
+
 ## Minigames
 
 All six can also be played from **Minigames** on the title screen.

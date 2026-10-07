@@ -49,7 +49,7 @@ function route(from, to) {
   return cur;
 }
 
-export const BUILT_YEARS = 4;
+export const BUILT_YEARS = 5;
 const Y1_FROM = ['Headmistress Aldmoor', 'Headmistress Aldmoor', 'Professor Thornwick', 'Professor Duskwood', 'Professor Vexley', 'Professor Vexley', 'Madam Hale', 'Brannoc the Groundskeeper', 'Headmistress Aldmoor', 'Headmistress Aldmoor', 'Brannoc the Groundskeeper'];
 
 export const QUESTS = [
@@ -153,6 +153,7 @@ export class Story {
     return mod;
   }
   undercroftOpen() { return !!G.save.flags.y2?.undercroft; }
+  requirementOpen() { return (G.save.year || 1) > 5 || !!G.save.flags.y5?.room; }
   currentQuest() {
     if (this.journeyQuest?.quest) return this.journeyQuest.quest;
     if (this.yearEngine && !G.save.yearDone) return this.yearEngine.objective();
@@ -280,6 +281,8 @@ export class Story {
   }
   placeNPCs() {
     const W = G.world.zones;
+    if (W.dungeon.undercroftDoor) W.dungeon.undercroftDoor.visible = this.undercroftOpen();
+    if (W.corridor.requirementDoor) W.corridor.requirementDoor.visible = this.requirementOpen();
     const s = this.stage;
     const gh = W.greatHall, co = W.corridor, du = W.dungeon, to = W.tower;
     this.placeNPC('headmistress', s >= 7 && s < 10 ? 'tower' : 'greatHall', s >= 7 && s < 10 ? to.spots.headmistress : gh.W(0, 0.8, -32.5), 0);
