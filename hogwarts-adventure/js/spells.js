@@ -128,7 +128,7 @@ export class Spells {
       const d = to.length();
       if (d > 60) continue;
       const ang = Math.acos(clamp(to.dot(dir) / d, -1, 1));
-      const cone = G.input.device === 'kbm' ? 0.09 : 0.2;
+      const cone = (G.input.device === 'kbm' ? 0.09 : 0.2) * (G.settings.aimAssist ?? 1);
       if (ang < cone + e.radius / d) {
         const score = ang * 10 + d * 0.02;
         if (score < bestScore) { bestScore = score; best = e; }

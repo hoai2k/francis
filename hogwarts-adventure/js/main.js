@@ -19,6 +19,7 @@ import { updateCompanion, restoreCompanion } from './friendsCompanion.js';
 import { Weather } from './weather.js';
 import { Story } from './story.js';
 import { loadSettings, loadSave, newSave, writeSave } from './save.js';
+import { applyAccess } from './access.js';
 import { openMainMenu, openPause, openSpellbook, openJournal, menuBackdrop } from './menus.js';
 import { nextFrame } from './util.js';
 import { initFullscreen } from './fullscreen.js';
@@ -33,6 +34,7 @@ class Emitter {
 async function boot() {
   const canvas = document.getElementById('gl');
   G.settings = loadSettings();
+  applyAccess();
   G.save = loadSave() || newSave();
   const q = G.settings.quality;
   const Q = QUALITY[q];
@@ -104,6 +106,7 @@ function loop(now) {
     if (I.isPressed('pause')) openPause();
     else if (G.mode === 'play' && !G.minigame && I.isPressed('book')) openSpellbook(true);
     else if (G.mode === 'play' && !G.minigame && I.isPressed('journal')) openJournal(true);
+    else if (G.mode === 'play' && !G.minigame && I.isPressed('map') && !G.net?.isGuest) import('./map.js').then((m) => m.openMap(true));
   }
   if (G.ui.wheel) G.ui.updateWheel();
   if (G.ui.cmd) G.ui.updateCommand();

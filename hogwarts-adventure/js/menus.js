@@ -5,6 +5,7 @@ import { G, HOUSES, HOUSE_KEYS } from './state.js';
 import { SPELLS, spellIcon, COMBOS } from './spelldata.js';
 import { BINDINGS, glyph, padGlyphSet } from './input.js';
 import { crestSVG } from './ui.js';
+import { DIFFICULTY, AIM, applyAccess } from './access.js';
 import { saveSettings, hasSave, loadSave, newSave, writeSave, deleteSave, SLOTS, peekSlot, currentSlot, setSlot, latestSlot, anySave, loadYearSnapshot } from './save.js';
 import { TALENTS, TALENT_MAX, spendTalent, resetTalents, slotCount, slotsFor, equippable, setSlot as setSpellSlot, masteryLevel, MASTERY_STEPS, YEARS, today, xpForLevel, levelProgress } from './progress.js';
 import { SPELL_BY_ID } from './spelldata.js';
@@ -219,6 +220,8 @@ export function openPause() {
     G.ui.button(c, `Owl Post & Journal${unreadBadge()}`, () => openJournal());
     G.ui.button(c, `Satchel <small>${coins()} Sickles</small>`, () => openSatchel());
     G.ui.button(c, 'Friends', () => openFriends());
+    G.ui.button(c, 'Gear', async () => { const { openGear } = await import('./gear.js'); openGear(); });
+    if (!net?.isGuest) G.ui.button(c, 'Map & Fast Travel', async () => { const { openMap } = await import('./map.js'); openMap(); });
     G.ui.button(c, 'Quidditch', async () => { const { openQuidditch } = await import('./quidditch.js'); openQuidditch(); });
     if (!net?.isGuest) G.ui.button(c, 'School Years', () => openYears());
     G.ui.button(c, 'House Points', () => openHouseBoard());
@@ -276,6 +279,13 @@ export function openSettings() {
       o.appendChild(row);
       o.appendChild(el('p', 'o-note', 'Friends on other devices choose <b>Join Online World</b> on the title screen. You lead the story; they join in as your supporting cast.'));
     }
+    sec('Difficulty & accessibility');
+    G.ui.option(o, 'Difficulty', Object.keys(DIFFICULTY), () => S.difficulty || 'normal', (v) => { S.difficulty = v; save(); applyAccess(); }, (v) => DIFFICULTY[v].label);
+    G.ui.option(o, 'Aim assist', [0, 0.6, 1, 1.8], () => S.aimAssist ?? 1, (v) => { S.aimAssist = v; save(); }, (v) => AIM[v]);
+    G.ui.option(o, 'Sound captions', [false, true], () => !!S.captions, (v) => { S.captions = v; save(); }, (v) => (v ? 'On' : 'Off'));
+    G.ui.option(o, 'Colour-blind friendly danger zones', [false, true], () => !!S.cbTelegraphs, (v) => { S.cbTelegraphs = v; save(); applyAccess(); }, (v) => (v ? 'On (yellow, striped)' : 'Off'));
+    G.ui.option(o, 'Larger text', [false, true], () => !!S.bigText, (v) => { S.bigText = v; save(); applyAccess(); }, (v) => (v ? 'On' : 'Off'));
+    o.appendChild(el('p', 'o-note', 'Story difficulty halves the damage you take and weakens enemies. Hard makes every fight tougher. Changes apply immediately (enemy health from the next fight).'));
     sec('Audio');
     G.ui.slider(o, 'Music volume', 0, 1, 0.05, () => S.music, (v) => { S.music = v; save(); }, (v) => Math.round(v * 100) + '%');
     G.ui.slider(o, 'Effects volume', 0, 1, 0.05, () => S.sfx, (v) => { S.sfx = v; save(); }, (v) => Math.round(v * 100) + '%');

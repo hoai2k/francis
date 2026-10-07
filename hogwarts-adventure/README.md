@@ -64,6 +64,19 @@ years. Sweets and gifts go in your **Satchel** (pause menu).
   **T** or the **D-pad ↑ ↓** (touch: the number button next to your spells).
 - **Owl post:** every new quest arrives as a letter. The Owl Post & Journal
   screen is the quest log, with the school calendar date.
+- **Map and fast travel:** press **N** (or Pause → Map & Fast Travel) for a
+  map of the grounds with your position and quest marker. Jump to any place
+  you can reach: the Great Hall, courtyard, staircase, corridor, dungeons,
+  pitch, Brannoc's hut, the paddock, the lake shore, the forest edge,
+  Hogsmeade or the Room of Requirement. Fast travel is not available during
+  fights, cutscenes or the trip to school.
+- **Gear:** Pause → Gear. Wands give spell power, faster cooldowns or more
+  magic. Robes reduce the damage you take or add health. Hats are just for
+  looks. Order them by owl with Sickles, or earn them in the story: the
+  dragonhide coat after the First Task, the Elder Branch at the very end.
+- **Difficulty and accessibility:** Settings has **Story / Normal / Hard**
+  difficulty, aim assist (off to high), captions for important sounds,
+  colour-blind-friendly danger zones (yellow and striped) and larger text.
 - **Save slots:** three save slots plus an autosave at the start and end of
   every year.
 
@@ -321,6 +334,7 @@ and 30 Bertie Bott's beans.
 | Dodge roll (hold to sprint) | Shift | B / ◯ (L3 sprints) |
 | Interact | E | X / ☐ |
 | Companion orders (hold) | G | D-pad ← |
+| Map & fast travel | N | Pause menu → Map |
 | Spellbook (loadouts, talents) / owl post | B / J | View / pause menu |
 | Pause | Esc or P | Menu / Options |
 

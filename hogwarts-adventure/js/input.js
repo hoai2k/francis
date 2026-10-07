@@ -33,6 +33,7 @@ export const BINDINGS = [
   ['Spellbook (open / close)', 'B', 'View'],
   ['Owl post / quest log', 'J', 'From the pause menu'],
   ['Companion orders (hold)', 'G', 'Hold D-pad ←'],
+  ['Map & fast travel', 'N', 'Pause menu → Map'],
   ['Pause / menu', 'Esc / P', 'Menu'],
   ['Mute', 'M', '—'],
   ['Menus', 'Arrows · Enter · Esc', 'D-pad · A · B'],

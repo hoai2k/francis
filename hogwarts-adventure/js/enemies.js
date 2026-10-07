@@ -18,16 +18,16 @@ const tip = (t, kind) => { G.ui.toast(t, kind); G.net?.share('toast', t.replace(
 const teleMat = (color) => new THREE.ShaderMaterial({
   transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
   polygonOffset: true, polygonOffsetFactor: -2,
-  uniforms: { progress: { value: 0 }, color: { value: new THREE.Color(color) }, line: { value: 0 } },
+  uniforms: { progress: { value: 0 }, color: { value: new THREE.Color(color) }, line: { value: 0 }, hatch: { value: 0 } },
   vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
-  fragmentShader: `uniform float progress, line; uniform vec3 color; varying vec2 vUv;
+  fragmentShader: `uniform float progress, line, hatch; uniform vec3 color; varying vec2 vUv;
     void main(){
       float r = line > 0.5 ? abs(vUv.x - 0.5) * 2.0 : length(vUv - 0.5) * 2.0;
       float along = line > 0.5 ? vUv.y : r;
       if (r > 1.0) discard;
       float edge = smoothstep(0.9, 0.97, r) * (1.0 - smoothstep(0.97, 1.0, r));
       float fill = line > 0.5 ? step(along, progress) * 0.35 : step(r, progress) * 0.35;
-      float a = edge * 0.9 + fill + 0.08;
+      float a = edge * 0.9 + fill + 0.08 + hatch * step(0.5, fract((vUv.x + vUv.y) * 9.0)) * 0.22;
       gl_FragColor = vec4(color * a * 2.0, a);
     }`,
 });
@@ -38,7 +38,8 @@ class Telegraph {
     const geo = opts.line ? new THREE.PlaneGeometry(opts.width || 2, opts.length || 12) : new THREE.CircleGeometry(1, 40);
     if (opts.line) geo.translate(0, (opts.length || 12) / 2, 0);
     geo.rotateX(Math.PI / 2);
-    const mat = teleMat(opts.color ?? 0xff3020);
+    const mat = teleMat(G.settings?.cbTelegraphs ? 0xffd000 : opts.color ?? 0xff3020);
+    mat.uniforms.hatch.value = G.settings?.cbTelegraphs ? 1 : 0;
     mat.uniforms.line.value = opts.line ? 1 : 0;
     this.mesh = new THREE.Mesh(geo, mat);
     this.mesh.position.copy(pos).setY(pos.y + 0.06);

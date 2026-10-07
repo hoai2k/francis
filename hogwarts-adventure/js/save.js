@@ -15,6 +15,7 @@ export function defaultSettings() {
   return {
     quality, music: 0.6, sfx: 0.8, muted: false, deadzone: 0.18, sensitivity: 1, padSensitivity: 1,
     invertY: false, shake: true, rumble: true, prompts: 'auto', dayLength: 12, fps: false, ao: true, pointerLock: true, fullscreen: true,
+    difficulty: 'normal', aimAssist: 1, captions: false, cbTelegraphs: false, bigText: false,
   };
 }
 

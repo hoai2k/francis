@@ -1,6 +1,7 @@
 // Web Audio: a small orchestral synth (strings, horns, celesta, harp, choir, timpani)
 // playing original procedural scores, plus synthesized spell & world sound effects.
 import { G } from './state.js';
+import { caption } from './access.js';
 
 const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
 const N = (name) => {
@@ -362,6 +363,7 @@ export class AudioSys {
 
   // ------------------------------------------------------------ sfx
   sfx(name, o = {}) {
+    caption(name);
     const ctx = this.ctx;
     if (!ctx) return;
     const t = ctx.currentTime + 0.005;
