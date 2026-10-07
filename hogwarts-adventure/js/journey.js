@@ -176,11 +176,15 @@ async function trainStep(year) {
   G.ui.setQuest(J.quest);
   // say hello to everyone in the compartment
   for (const id of friends) J.met.delete(id);
+  // talking to anyone in the compartment greets the whole group
   st.friendTalkOverride = async (id) => {
-    if (!J.active || !friends.includes(id) || J.met.has(id)) return false;
-    await trainHello(id, year);
-    J.met.add(id);
-    meet(id);
+    if (!J.active || !friends.includes(id) || friends.every((f) => J.met.has(f))) return false;
+    for (const f of [id, ...friends.filter((x) => x !== id)]) {
+      if (J.met.has(f)) continue;
+      await trainHello(f, year);
+      J.met.add(f);
+      meet(f);
+    }
     return true;
   };
   await until(() => friends.every((f) => J.met.has(f)));

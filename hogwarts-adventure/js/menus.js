@@ -17,6 +17,7 @@ import { PLATEAU } from './world/terrain.js';
 
 const MINIGAMES = [
   { id: 'quidditch', name: 'Quidditch Practice', desc: 'Fly through rings, dodge Bludgers, catch the Snitch.', icon: '🧹' },
+  { id: 'match', name: 'Quidditch Match', desc: 'A full seven-a-side match in your team position (Seeker if you have none).', icon: '🏆' },
   { id: 'potions', name: 'Potions Class', desc: 'Add ingredients on the beat, stir and keep the heat steady.', icon: '⚗️' },
   { id: 'duel', name: 'Duelling Club', desc: 'A tournament of five ever-tougher duellists.', icon: '⚡' },
   { id: 'wanddraw', name: 'Wand Drawing', desc: 'Trace spell shapes quickly and neatly.', icon: '🪄' },
@@ -184,6 +185,7 @@ export function openPause() {
     G.ui.button(c, `Owl Post & Journal${unreadBadge()}`, () => openJournal());
     G.ui.button(c, `Satchel <small>${coins()} Sickles</small>`, () => openSatchel());
     G.ui.button(c, 'Friends', () => openFriends());
+    G.ui.button(c, 'Quidditch', async () => { const { openQuidditch } = await import('./quidditch.js'); openQuidditch(); });
     G.ui.button(c, 'School Years', () => openYears());
     G.ui.button(c, 'House Points', () => openHouseBoard());
     G.ui.button(c, 'Settings', () => openSettings());

@@ -35,7 +35,7 @@ const CARD_LORE = {
 const BEAN_FLAVOURS = ['earwax', 'toffee', 'grass', 'cherry', 'soap', 'black pepper', 'marmalade', 'sprouts', 'sardine', 'bogey', 'strawberry', 'dirt', 'buttered toast', 'vomit', 'lemon sherbet', 'spinach'];
 
 // zone adjacency for the objective marker (route through portals)
-export const ADJ = { grounds: ['greatHall'], greatHall: ['grounds', 'staircase'], staircase: ['greatHall', 'corridor', 'dungeon', 'tower'], corridor: ['staircase'], dungeon: ['staircase', 'undercroft'], tower: ['staircase'], undercroft: ['dungeon'] };
+export const ADJ = { hogsmeade: ['grounds'], grounds: ['greatHall', 'hogsmeade'], greatHall: ['grounds', 'staircase'], staircase: ['greatHall', 'corridor', 'dungeon', 'tower'], corridor: ['staircase'], dungeon: ['staircase', 'undercroft'], tower: ['staircase'], undercroft: ['dungeon'] };
 function route(from, to) {
   if (from === to) return null;
   const prev = { [from]: null };
@@ -209,6 +209,14 @@ export class Story {
       if (c !== 1) return;
     }
     return friendTalk(id);
+  }
+  async hogsDoor(d) {
+    const { openShop, openJournal } = await import('./menus.js');
+    if (d.kind === 'owls') return openJournal(true);
+    if (d.kind === 'brooms') { const { openBroomShop } = await import('./quidditch.js'); return openBroomShop(); }
+    G.audio.sfx('door');
+    if (this.yearEngine?.def.hogsDoor && (await this.yearEngine.def.hogsDoor(this.yearEngine, d))) return;
+    await openShop(d.kind);
   }
   registerNPC(id, d) { NPC_LOOKS[id] = d; }
   // an NPC added by a later year: talking to them goes through the year engine
@@ -395,6 +403,8 @@ export class Story {
     I.push({ zone: 'dungeon', pos: W.dungeon.cauldron.pos, r: 2.4, label: () => 'Brew a potion', cond: () => this.stage > 3, act: () => this.playPotions() });
     I.push({ zone: 'corridor', pos: W.corridor.spots.lectern, r: 2.4, label: () => 'Wand practice', cond: () => this.stage > 1, act: () => this.playWand() });
     I.push({ zone: 'greatHall', pos: W.greatHall.W(0, 0, -21), r: 3, label: () => 'House points board', act: () => this.showBoard() });
+    // Hogsmeade shop doors
+    for (const d of W.hogsmeade.doors) I.push({ zone: 'hogsmeade', pos: d.pos, r: 2.6, label: () => (d.kind === 'brooms' ? 'Spintwitch’s Broom Shop' : d.kind === 'owls' ? 'Owl Post Office (read your letters)' : `Go into ${d.label}`), act: () => this.hogsDoor(d) });
     // talking to the friend who walks with you
     I.push({ get zone() { return G.companion ? G.zone?.name : null; }, get pos() { return G.companion ? G.companion.pos : new THREE.Vector3(1e9, 0, 0); }, r: 1.8, cond: () => !!G.companion && G.companion.alive, label: () => `Talk to ${G.companion.name}`, act: () => friendTalk(G.companion.id) });
   }
@@ -427,8 +437,9 @@ export class Story {
     }
   }
 
+  // story scripts run one at a time; a script started while another runs waits its turn
   async run(fn) {
-    if (this.busy) return;
+    while (this.busy) { if (G.quitting) return; await sleep(60); }
     this.busy = true;
     try { await fn(); } catch (e) { console.error(e); }
     this.busy = false;
@@ -679,6 +690,7 @@ export class Story {
   }
 
   async talkHale() {
+    if ((this.stage >= 6 || G.save.year > 1) && G.save.house) { const { haleTalk } = await import('./quidditch.js'); if (await haleTalk()) return; }
     if (this.stage < 5) { await this.talk('hale', ['Flying lessons come after your castle classes. Off you go — and no brooms in the corridors!']); return; }
     const first = this.stage === 5;
     const c = await this.talk('hale', [
@@ -827,7 +839,7 @@ export class Story {
         G.ui.banner('The Dementors are gone', 'But green light flickers deep in the Forbidden Forest…', 'quest');
         this.advance(9);
       }
-      if (data.type === 'malachar') {
+      if (data.type === 'malachar' && G.save.year === 1) {
         this.encounter = 'bossDone';
         G.save.flags.malacharDefeated = true;
         writeSave();
@@ -956,7 +968,7 @@ export class Story {
     this.yearEngine?.update(dt);
     // triggered encounters by position
     const s = this.stage;
-    if (G.zone?.name === 'grounds' && G.mode === 'play') {
+    if (G.zone?.name === 'grounds' && G.mode === 'play' && G.save.year === 1) {
       if (s === 8 && this.encounter !== 'lake' && p.pos.distanceTo(G.world.zones.grounds.pierEnd) < 45) this.startLake();
       const C = SPOTS.clearing;
       if (s === 9 && G.save.flags.malacharDefeated && !this.encounter && !this.busy) { this.encounter = 'bossDone'; this.advance(10); }

@@ -10,6 +10,8 @@ export const ITEMS = {
   cake: { name: 'Cauldron Cake', short: 'Cauldron Cake', icon: '🧁', price: 4, tags: ['cake', 'sweet'], eat: '+40 magic, heal 10' },
   liquorice: { name: 'Liquorice Wand', short: 'Liquorice Wand', icon: '🍬', price: 2, tags: ['liquorice', 'sweet'], eat: 'Swiftness for 30 s' },
   fizz: { name: 'Fizzing Whizzbee', short: 'Whizzbee', icon: '🐝', price: 3, tags: ['sweet', 'joke'], eat: 'float a little higher… briefly' },
+  mead: { name: 'Hot Honeymead', short: 'Honeymead', icon: '🍯', price: 3, tags: ['sweet', 'pasty'], eat: 'heal 40, warms you through' },
+  scone: { name: 'Scone with jam', short: 'Scone', icon: '🫓', price: 3, tags: ['sweet', 'cake'], eat: 'heal 25' },
   // gifts and found items
   book: { name: 'Second-hand spellbook', short: 'Old book', icon: '📕', price: 8, tags: ['book'], gift: true },
   plant: { name: 'Potted Puffapod', short: 'Puffapod', icon: '🪴', price: 7, tags: ['plant'], gift: true },
@@ -24,6 +26,8 @@ export const SHOPS = {
   trolley: { title: 'The Trolley', sub: 'Mrs Pennywhistle’s sweets trolley', items: ['frog', 'beans', 'pasty', 'cake', 'liquorice'] },
   sweetshop: { title: 'Honeydew’s Sweet Shop', sub: 'Hogsmeade’s finest confectioner', items: ['frog', 'beans', 'liquorice', 'fizz', 'cake', 'pasty'] },
   jokeshop: { title: 'Grinwick’s Jokes', sub: 'Mischief for every occasion', items: ['joke', 'fizz', 'beans'] },
+  pub: { title: 'The Three Lanterns', sub: 'Warm drinks and warmer gossip', items: ['mead', 'pasty', 'cake'] },
+  tea: { title: 'Madam Puddock’s Tea Shop', sub: 'Frills, doilies and very good scones', items: ['scone', 'cake'] },
   general: { title: 'Scrivenshaw’s', sub: 'Quills, books and oddments', items: ['book', 'plant', 'creature', 'polish', 'potion'] },
 };
 const FLAVOURS = ['earwax', 'toffee', 'grass', 'cherry', 'soap', 'black pepper', 'marmalade', 'sprouts', 'sardine', 'bogey', 'strawberry', 'dirt', 'buttered toast', 'lemon sherbet', 'spinach', 'candyfloss'];
@@ -53,6 +57,8 @@ export function useItem(id) {
     liquorice: () => { p.buffs.swift = 30; G.ui.updateBuffs(); return 'You feel light on your feet.'; },
     fizz: () => { p.vel.y = 9; return 'You float off the ground!'; },
     potion: () => { p.heal(50); return 'Steam pours out of your ears.'; },
+    mead: () => { p.heal(40); return 'Warm all the way to your toes.'; },
+    scone: () => { p.heal(25); return 'Crumbly and delicious.'; },
   }[id]?.();
   G.audio.sfx('pickup');
   G.ui.toast(`${ITEMS[id].icon} ${msg}`, 'info');

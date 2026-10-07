@@ -236,7 +236,7 @@ export class YearEngine {
     G.enemies.dmgScale = 1 + (this.n - 1) * 0.12;
     const run = async () => {
       if (st.intro) await G.story.run(() => st.intro(this));
-      if (this.step !== st) return;
+      if (this.step !== st || !this.encounter) return;
       this.encounter.wave = 0;
       if (st.waves) st.waves[0](this); else st.spawn(this);
     };

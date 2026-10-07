@@ -8,6 +8,7 @@ import { glyph } from '../input.js';
 import { rand, clamp } from '../util.js';
 import { postHit, postFlash } from '../engine.js';
 import { SPOTS } from '../world/terrain.js';
+import { broomStats } from '../quidditch.js';
 
 export async function play() {
   const g = G.world.zones.grounds;
@@ -24,7 +25,8 @@ export async function play() {
   broom.position.set(0, 0.92, 0.05);
   p.model.root.add(broom);
   p.model.root.position.y = -0.55;
-  const flight = new Flight({ pos: new THREE.Vector3(P.x - 40, py + 12, P.z), yaw: Math.PI / 2, speed: 17, boost: 31, mount: p.root, bounds: { cx: P.x, cz: P.z, r: 120 }, minAlt: 1.6, maxAlt: 70 });
+  const bs = broomStats();
+  const flight = new Flight({ pos: new THREE.Vector3(P.x - 40, py + 12, P.z), yaw: Math.PI / 2, speed: bs.speed, boost: bs.boost, turn: bs.turn, mount: p.root, bounds: { cx: P.x, cz: P.z, r: 120 }, minAlt: 1.6, maxAlt: 70 });
   // ring course: the six goal hoops plus rings looping the stands
   const rings = [];
   const course = [];

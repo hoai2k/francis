@@ -100,6 +100,43 @@ freezes water into ice.
 off Stupefy, but their club can be levitated. Dementors only fear the
 Patronus and Lumos. Bosses resist crowd control.
 
+## Friends and companions
+
+Nine classmates across the four houses, each with a personality, a home town,
+favourite gifts and a friendship meter: Pip Fenwick, Oren Achterberg, Tamsin
+Hollowell, Kofi Mensah-Lowe, Isolde Varga, Ruairí Doyle, Mei Lin Chau, Bram
+Okonkwo-Hale and your rival, Cassius Vane. Meet them on the Hogwarts Express
+and around the castle. Raise friendship by chatting, giving gifts (sweets and
+found items, liked gifts count most), studying together, their side quests,
+and choosing them as your duelling or study partner (Pip's frog chase, a
+practice duel with Mei, flying with Tamsin, Silvermane with Ruairí).
+
+- **Friend (♥♥):** they can join you as a companion with their own AI and
+  spells. One at a time; they follow you, fight, step out of telegraphed
+  attacks and use a special (Pip heals, Bram shields, Tamsin blasts…).
+- **Orders:** hold **G** / **D-pad ←** (touch: 👥) for the command wheel:
+  follow, attack my target, hold position, special.
+- **Good friend (♥♥♥):** they teach you their spell.
+- **Rival:** Cassius starts cold. Win him over and, from your sixth year, he
+  will fight beside you.
+- The **Friends** screen in the pause menu shows everyone's meter and lets you
+  pick a companion.
+
+## Quidditch career (optional)
+
+Talk to Madam Hale at the pitch: tryouts open in your second year (or your
+first, if your practice score is high enough). Three drills — rings,
+catching Quaffles and surviving Bludgers — then pick a position: **Seeker**
+(catch the Snitch), **Chaser** (carry, pass and shoot the Quaffle; tackle the
+carrier), **Keeper** (block shots at your hoops) or **Beater** (bat Bludgers at
+the other team). Matches are seven-a-side with AI teammates and opponents, two
+Bludgers, the Snitch, live commentary and cheering stands. Each year has three
+fixtures against the other houses, a league table and the Quidditch Cup; wins
+earn house points, Sickles and experience. Better brooms (Swiftwind 5,
+Thunderhawk, Starfall X) come from Spintwitch's in Hogsmeade or as Cup rewards.
+The **Quidditch** screen in the pause menu has your fixtures, the table and
+your brooms.
+
 ## Year 2 — The Hidden Chamber
 
 A snake loose on the Hogwarts Express is only the start. Learn Flipendo from
@@ -152,6 +189,7 @@ and 30 Bertie Bott's beans.
 | Jump | Space | A / ✕ |
 | Dodge roll (hold to sprint) | Shift | B / ◯ (L3 sprints) |
 | Interact | E | X / ☐ |
+| Companion orders (hold) | G | D-pad ← |
 | Spellbook (loadouts, talents) / owl post | B / J | View / pause menu |
 | Pause | Esc or P | Menu / Options |
 

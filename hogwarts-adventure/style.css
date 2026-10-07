@@ -444,3 +444,8 @@ body.has-companion .t-cmd { display: grid; }
 .price { font-family: 'Cinzel', serif; color: var(--gold2); min-width: 34px; text-align: right; }
 .t-cmd { right: calc(104px + var(--safe-r)); top: calc(112px + var(--safe-t)); width: 40px; height: 40px; font-size: 16px; }
 @media (max-height: 500px) { .t-cmd { top: calc(8px + var(--safe-t)); right: calc(256px + var(--safe-r)); width: 36px; height: 36px; } }
+.qlog { font-family: 'EB Garamond', serif; font-size: 14px; text-align: left; margin: 4px auto 2px; max-width: 460px; }
+.qlog div { opacity: .55; }
+.qlog div:first-child { opacity: 1; }
+.qtable td, .qtable th { padding: 3px 6px; }
+.qtable tr.mine td { color: var(--gold2); font-weight: 600; }
