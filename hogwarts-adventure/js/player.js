@@ -6,6 +6,7 @@ import { clamp, damp, dampAngle, wrapAngle } from './util.js';
 import { postHit } from './engine.js';
 import { WATER_Y } from './world/terrain.js';
 import { defMult, regenMult, applyStats } from './progress.js';
+import { gearLook } from './gear.js';
 
 const _v = new THREE.Vector3();
 const UP = new THREE.Vector3(0, 1, 0);
@@ -51,13 +52,15 @@ export class Player {
     const s = G.save || {};
     const look = s.look || {};
     if (this.model) this.root.remove(this.model.root);
+    const gl = s.started ? gearLook() : {};
     this.model = makeWizard({
+      robeColor: gl.robeColor, liningColor: gl.liningColor, hatColor: gl.hatColor,
       house: s.house || null,
       skin: SKIN_TONES[look.skin ?? 1],
       hairColor: HAIR_COLORS[look.hairColor ?? 1],
       hairStyle: look.hairStyle || 'short',
       glasses: !!look.glasses,
-      hat: !!look.hat,
+      hat: gl.hat ?? !!look.hat,
       wandColor: WAND_WOODS[look.wand || 'holly'],
       eyeColor: look.eyes || '#3a2a1a',
       scarf: true,

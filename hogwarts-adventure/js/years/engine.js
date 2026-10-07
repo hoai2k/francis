@@ -85,6 +85,7 @@ export class YearEngine {
   }
   completeQuest() {
     const q = this.quest;
+    G.save.flags.xmas = 0; // Christmas snow lasts only for the quest that brought it
     G.ui.banner('Quest complete', q.title, 'quest');
     G.audio.sfx('quest');
     addXP(140 + this.n * 40, q.title);

@@ -18,16 +18,16 @@ const tip = (t, kind) => { G.ui.toast(t, kind); G.net?.share('toast', t.replace(
 const teleMat = (color) => new THREE.ShaderMaterial({
   transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
   polygonOffset: true, polygonOffsetFactor: -2,
-  uniforms: { progress: { value: 0 }, color: { value: new THREE.Color(color) }, line: { value: 0 } },
+  uniforms: { progress: { value: 0 }, color: { value: new THREE.Color(color) }, line: { value: 0 }, hatch: { value: 0 } },
   vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
-  fragmentShader: `uniform float progress, line; uniform vec3 color; varying vec2 vUv;
+  fragmentShader: `uniform float progress, line, hatch; uniform vec3 color; varying vec2 vUv;
     void main(){
       float r = line > 0.5 ? abs(vUv.x - 0.5) * 2.0 : length(vUv - 0.5) * 2.0;
       float along = line > 0.5 ? vUv.y : r;
       if (r > 1.0) discard;
       float edge = smoothstep(0.9, 0.97, r) * (1.0 - smoothstep(0.97, 1.0, r));
       float fill = line > 0.5 ? step(along, progress) * 0.35 : step(r, progress) * 0.35;
-      float a = edge * 0.9 + fill + 0.08;
+      float a = edge * 0.9 + fill + 0.08 + hatch * step(0.5, fract((vUv.x + vUv.y) * 9.0)) * 0.22;
       gl_FragColor = vec4(color * a * 2.0, a);
     }`,
 });
@@ -38,7 +38,8 @@ class Telegraph {
     const geo = opts.line ? new THREE.PlaneGeometry(opts.width || 2, opts.length || 12) : new THREE.CircleGeometry(1, 40);
     if (opts.line) geo.translate(0, (opts.length || 12) / 2, 0);
     geo.rotateX(Math.PI / 2);
-    const mat = teleMat(opts.color ?? 0xff3020);
+    const mat = teleMat(G.settings?.cbTelegraphs ? 0xffd000 : opts.color ?? 0xff3020);
+    mat.uniforms.hatch.value = G.settings?.cbTelegraphs ? 1 : 0;
     mat.uniforms.line.value = opts.line ? 1 : 0;
     this.mesh = new THREE.Mesh(geo, mat);
     this.mesh.position.copy(pos).setY(pos.y + 0.06);
@@ -207,6 +208,7 @@ export class Enemy {
       if (sp === 'leviosa') this.lift(h.remote);
       if (sp === 'patronum' && this.type === 'dementor') this.flee = 3;
       if (this.type === 'troll') this.trollHit(sp);
+      this.def.onSpell?.call(this, sp, h);
       if (!this.status.stun && !this.status.frozen && this.anim.trigger) this.anim.trigger('hit');
     }
     if (this.hp <= 0) this.die(h);
@@ -444,14 +446,14 @@ export class Enemy {
       const dx = this.pos.x - e.pos.x, dz = this.pos.z - e.pos.z, d = Math.hypot(dx, dz), m = this.radius + e.radius;
       if (d < m && d > 0.001) { this.pos.x += (dx / d) * (m - d) * 0.5; this.pos.z += (dz / d) * (m - d) * 0.5; }
     }
-    if (!this.def.flying || this.type === 'dementor') {
+    if (!this.def.flying || this.type === 'dementor' || this.type === 'dragon') {
       const dx = this.pos.x - p.pos.x, dz = this.pos.z - p.pos.z, d = Math.hypot(dx, dz), m = this.radius + p.radius;
       if (d < m && d > 0.001) { this.pos.x += (dx / d) * (m - d); this.pos.z += (dz / d) * (m - d); }
     }
     this.root.position.copy(this.pos);
     this.root.rotation.y = dampAngle(this.root.rotation.y, this.yaw, 10, dt);
     const sp = Math.hypot(this.vel.x, this.vel.z);
-    if (S.stun <= 0 && this.anim.set && (this.type === 'wizard' || this.type === 'duelist' || this.type === 'malachar')) {
+    if (S.stun <= 0 && this.anim.set && (this.type === 'wizard' || this.type === 'duelist' || this.type === 'malachar' || this.type === 'hollowking' || this.type === 'inquisitor' || this.type === 'vesper' || this.type === 'hollowkingFinal')) {
       this.anim.set(this.blocking ? 'block' : this.castWind > 0 ? 'aim' : 'idle');
     }
     this.anim.update?.(dt, sp);

@@ -1,5 +1,6 @@
 // Quests, NPCs, interactions, collectibles, house points, the Sorting ceremony
 // and the final House Cup.
+import { setupClasses, placeClassNPCs } from './classes.js';
 import * as THREE from 'three';
 import { G, HOUSES, HOUSE_KEYS } from './state.js';
 import { makeWizard, makeSortingHat, makeCard, makeBean, makeHippogriff, HAIR_COLORS, SKIN_TONES } from './models.js';
@@ -49,7 +50,7 @@ function route(from, to) {
   return cur;
 }
 
-export const BUILT_YEARS = 3;
+export const BUILT_YEARS = 7;
 const Y1_FROM = ['Headmistress Aldmoor', 'Headmistress Aldmoor', 'Professor Thornwick', 'Professor Duskwood', 'Professor Vexley', 'Professor Vexley', 'Madam Hale', 'Brannoc the Groundskeeper', 'Headmistress Aldmoor', 'Headmistress Aldmoor', 'Brannoc the Groundskeeper'];
 
 export const QUESTS = [
@@ -153,10 +154,11 @@ export class Story {
     return mod;
   }
   undercroftOpen() { return !!G.save.flags.y2?.undercroft; }
+  requirementOpen() { return (G.save.year || 1) > 5 || !!G.save.flags.y5?.room; }
   currentQuest() {
     if (this.journeyQuest?.quest) return this.journeyQuest.quest;
     if (this.yearEngine && !G.save.yearDone) return this.yearEngine.objective();
-    if (G.save.yearDone) return { title: `Year ${G.save.year} complete`, objective: this.yearAvailable(G.save.year + 1) ? `Begin Year ${G.save.year + 1}: open the pause menu → School Years, or talk to the Headmistress.` : 'Explore, find collectibles and play minigames. More years arrive in a later update.' };
+    if (G.save.yearDone) return { title: `Year ${G.save.year} complete`, objective: this.yearAvailable(G.save.year + 1) ? `Begin Year ${G.save.year + 1}: open the pause menu → School Years, or talk to the Headmistress.` : (G.save.year >= 7 ? 'The saga is complete! Replay any year from the pause menu (School Years), explore and hunt collectibles.' : 'Explore, find collectibles and play minigames. More years arrive in a later update.') };
     return QUESTS[Math.min(this.stage, QUESTS.length - 1)];
   }
   completedQuests() { if (this.yearEngine) return this.yearEngine.def.quests.slice(0, this.yearEngine.qi).map((q) => q.title); return G.save.year > 1 ? [] : QUESTS.slice(0, Math.min(this.stage, 11)).map((q) => q.title); }
@@ -280,6 +282,9 @@ export class Story {
   }
   placeNPCs() {
     const W = G.world.zones;
+    if (W.dungeon.undercroftDoor) W.dungeon.undercroftDoor.visible = this.undercroftOpen();
+    if (W.corridor.requirementDoor) W.corridor.requirementDoor.visible = this.requirementOpen();
+    placeClassNPCs(this);
     const s = this.stage;
     const gh = W.greatHall, co = W.corridor, du = W.dungeon, to = W.tower;
     this.placeNPC('headmistress', s >= 7 && s < 10 ? 'tower' : 'greatHall', s >= 7 && s < 10 ? to.spots.headmistress : gh.W(0, 0.8, -32.5), 0);
@@ -460,6 +465,7 @@ export class Story {
     I.push({ zone: 'greatHall', pos: W.greatHall.W(0, 0, -21), r: 3, label: () => 'House points board', act: () => this.showBoard() });
     // Hogsmeade shop doors
     for (const d of W.hogsmeade.doors) I.push({ zone: 'hogsmeade', pos: d.pos, r: 2.6, label: () => (d.kind === 'brooms' ? 'Spintwitch’s Broom Shop' : d.kind === 'owls' ? 'Owl Post Office (read your letters)' : `Go into ${d.label}`), act: () => this.hogsDoor(d) });
+    setupClasses(this);
     // talking to the friend who walks with you
     I.push({ get zone() { return G.companion ? G.zone?.name : null; }, get pos() { return G.companion ? G.companion.pos : new THREE.Vector3(1e9, 0, 0); }, r: 1.8, cond: () => !!G.companion && G.companion.alive, label: () => `Talk to ${G.companion.name}`, act: () => friendTalk(G.companion.id) });
   }

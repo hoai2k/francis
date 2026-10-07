@@ -5,6 +5,7 @@ import { G, HOUSES, HOUSE_KEYS } from './state.js';
 import { SPELLS, spellIcon, COMBOS } from './spelldata.js';
 import { BINDINGS, glyph, padGlyphSet } from './input.js';
 import { crestSVG } from './ui.js';
+import { DIFFICULTY, AIM, applyAccess } from './access.js';
 import { saveSettings, hasSave, loadSave, newSave, writeSave, deleteSave, SLOTS, peekSlot, currentSlot, setSlot, latestSlot, anySave, loadYearSnapshot } from './save.js';
 import { TALENTS, TALENT_MAX, spendTalent, resetTalents, slotCount, slotsFor, equippable, setSlot as setSpellSlot, masteryLevel, MASTERY_STEPS, YEARS, today, xpForLevel, levelProgress } from './progress.js';
 import { SPELL_BY_ID } from './spelldata.js';
@@ -19,10 +20,16 @@ const MINIGAMES = [
   { id: 'quidditch', name: 'Quidditch Practice', desc: 'Fly through rings, dodge Bludgers, catch the Snitch.', icon: '🧹' },
   { id: 'match', name: 'Quidditch Match', desc: 'A full seven-a-side match in your team position (Seeker if you have none).', icon: '🏆' },
   { id: 'potions', name: 'Potions Class', desc: 'Add ingredients on the beat, stir and keep the heat steady.', icon: '⚗️' },
-  { id: 'duel', name: 'Duelling Club', desc: 'A tournament of five ever-tougher duellists.', icon: '⚡' },
+  { id: 'duel', name: 'Duelling Club', desc: 'A ladder of five ever-tougher duellists that grows harder each school year.', icon: '⚡' },
   { id: 'wanddraw', name: 'Wand Drawing', desc: 'Trace spell shapes quickly and neatly.', icon: '🪄' },
   { id: 'creatures', name: 'Hippogriff Flight', desc: 'Bow to Silvermane, then fly the rings over the grounds.', icon: '🦅' },
   { id: 'frogs', name: 'Chocolate Frog Chase', desc: 'Catch the escaped frogs before time runs out.', icon: '🐸' },
+  { id: 'herbology', name: 'Herbology', desc: 'Repot Mandrakes — and wear your earmuffs when they scream.', icon: '🌱' },
+  { id: 'astronomy', name: 'Astronomy', desc: 'Chart three constellations through the telescope.', icon: '🔭' },
+  { id: 'transfig', name: 'Transfiguration', desc: 'Repeat the wand patterns and transform a mouse.', icon: '🐭' },
+  { id: 'divination', name: 'Divination', desc: 'Match the omens in the crystal mist.', icon: '🔮' },
+  { id: 'dance', name: 'Yule Ball', desc: 'Dance on the beat with a partner.', icon: '💃' },
+  { id: 'poison', name: 'Poison Riddle', desc: 'Find the antidote among six phials.', icon: '🧪' },
 ];
 
 function title(h, sub) { return `<h2 class="m-title">${h}</h2>${sub ? `<p class="m-sub">${sub}</p>` : ''}`; }
@@ -219,6 +226,8 @@ export function openPause() {
     G.ui.button(c, `Owl Post & Journal${unreadBadge()}`, () => openJournal());
     G.ui.button(c, `Satchel <small>${coins()} Sickles</small>`, () => openSatchel());
     G.ui.button(c, 'Friends', () => openFriends());
+    G.ui.button(c, 'Gear', async () => { const { openGear } = await import('./gear.js'); openGear(); });
+    if (!net?.isGuest) G.ui.button(c, 'Map & Fast Travel', async () => { const { openMap } = await import('./map.js'); openMap(); });
     G.ui.button(c, 'Quidditch', async () => { const { openQuidditch } = await import('./quidditch.js'); openQuidditch(); });
     if (!net?.isGuest) G.ui.button(c, 'School Years', () => openYears());
     G.ui.button(c, 'House Points', () => openHouseBoard());
@@ -276,6 +285,13 @@ export function openSettings() {
       o.appendChild(row);
       o.appendChild(el('p', 'o-note', 'Friends on other devices choose <b>Join Online World</b> on the title screen. You lead the story; they join in as your supporting cast.'));
     }
+    sec('Difficulty & accessibility');
+    G.ui.option(o, 'Difficulty', Object.keys(DIFFICULTY), () => S.difficulty || 'normal', (v) => { S.difficulty = v; save(); applyAccess(); }, (v) => DIFFICULTY[v].label);
+    G.ui.option(o, 'Aim assist', [0, 0.6, 1, 1.8], () => S.aimAssist ?? 1, (v) => { S.aimAssist = v; save(); }, (v) => AIM[v]);
+    G.ui.option(o, 'Sound captions', [false, true], () => !!S.captions, (v) => { S.captions = v; save(); }, (v) => (v ? 'On' : 'Off'));
+    G.ui.option(o, 'Colour-blind friendly danger zones', [false, true], () => !!S.cbTelegraphs, (v) => { S.cbTelegraphs = v; save(); applyAccess(); }, (v) => (v ? 'On (yellow, striped)' : 'Off'));
+    G.ui.option(o, 'Larger text', [false, true], () => !!S.bigText, (v) => { S.bigText = v; save(); applyAccess(); }, (v) => (v ? 'On' : 'Off'));
+    o.appendChild(el('p', 'o-note', 'Story difficulty halves the damage you take and weakens enemies. Hard makes every fight tougher. Changes apply immediately (enemy health from the next fight).'));
     sec('Audio');
     G.ui.slider(o, 'Music volume', 0, 1, 0.05, () => S.music, (v) => { S.music = v; save(); }, (v) => Math.round(v * 100) + '%');
     G.ui.slider(o, 'Effects volume', 0, 1, 0.05, () => S.sfx, (v) => { S.sfx = v; save(); }, (v) => Math.round(v * 100) + '%');
@@ -641,7 +657,7 @@ export function openCredits(won, fromMenu, year = 1) {
   G.ui.open((w) => {
     w.innerHTML = `<div class="panel">${title(fromMenu ? 'Credits' : won ? 'The House Cup is yours!' : 'The End of Term')}
       <div class="credits">
-      ${fromMenu ? '' : `<p>${won ? 'Your house lifts the House Cup — thanks in no small part to you.' : 'Another house took the Cup this year, but Hogwarts is safe thanks to you.'} ${G.story.yearAvailable(year + 1) ? `Year ${year + 1} is waiting — or keep exploring for now, hunt collectibles and play minigames. You can start it later from the pause menu (School Years) or by talking to the Headmistress.` : 'You can keep exploring, hunt for collectibles and play the minigames to earn more points.'}</p>`}
+      ${!fromMenu && year === 7 && G.save.flags?.sagaComplete ? '<p><b>The saga is complete.</b> Seven years, seven vessels, and the Hollow King defeated. Thank you for playing. Replay any year from the pause menu (School Years), keep exploring the castle, or chase every collectible.</p>' : ''}${fromMenu ? '' : `<p>${won ? 'Your house lifts the House Cup — thanks in no small part to you.' : 'Another house took the Cup this year, but Hogwarts is safe thanks to you.'} ${G.story.yearAvailable(year + 1) ? `Year ${year + 1} is waiting — or keep exploring for now, hunt collectibles and play minigames. You can start it later from the pause menu (School Years) or by talking to the Headmistress.` : 'You can keep exploring, hunt for collectibles and play the minigames to earn more points.'}</p>`}
       <p><b>Hogwarts Adventure</b> — a fan-made, Harry Potter–inspired game. Not affiliated with or endorsed by J.K. Rowling, Warner Bros. or Wizarding World.</p>
       <p>Everything you see and hear is generated in code: procedural castle, characters, textures, particles, an original orchestral-style score and synthesized sound effects (Web Audio). No external models or sound files.</p>
       <p>Built with <a href="https://threejs.org" target="_blank" rel="noopener">three.js</a> (MIT) — WebGL rendering, EffectComposer, UnrealBloom, GTAO.</p>

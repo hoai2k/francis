@@ -1,9 +1,12 @@
 # Hogwarts Adventure
 
-A Harry Potter–inspired 3D adventure in the browser. You arrive as a new
-student, get sorted into a house, explore a candlelit castle, learn eight
-spells, fight dark wizards, a mountain troll and Dementors, and earn house
-points in six minigames. The House Cup is decided at the end-of-term feast.
+A Harry Potter–inspired 3D adventure in the browser: a full **seven-year
+saga**. You arrive as a new student and get sorted into a house. Each year you
+ride the Hogwarts Express back to a candlelit castle, learn about thirty
+spells, make friends and a rival, and fight dark wizards, trolls, Dementors, a
+giant serpent, a dragon, Inferi and, in the end, the Hollow King himself. Earn
+house points in quests and minigames; the House Cup is decided at every
+end-of-term feast.
 
 Play: <https://hoai2k.github.io/francis/hogwarts-adventure/>
 
@@ -45,8 +48,8 @@ years. Sweets and gifts go in your **Satchel** (pause menu).
 
 ## Progression (the seven-year update)
 
-- **School years:** the game is growing into a seven-year saga. Each year has
-  its own story, a mid-year twist and a final boss, and ends with the House Cup.
+- **School years:** all seven years are playable. Each year has its own story,
+  a mid-year twist and a final boss, and ends with the House Cup.
   Saves from before the update continue as *Year 1 complete*. **School Years**
   in the pause menu lists every year and can replay one from the autosave made
   when it began.
@@ -61,6 +64,19 @@ years. Sweets and gifts go in your **Satchel** (pause menu).
   **T** or the **D-pad ↑ ↓** (touch: the number button next to your spells).
 - **Owl post:** every new quest arrives as a letter. The Owl Post & Journal
   screen is the quest log, with the school calendar date.
+- **Map and fast travel:** press **N** (or Pause → Map & Fast Travel) for a
+  map of the grounds with your position and quest marker. Jump to any place
+  you can reach: the Great Hall, courtyard, staircase, corridor, dungeons,
+  pitch, Brannoc's hut, the paddock, the lake shore, the forest edge,
+  Hogsmeade or the Room of Requirement. Fast travel is not available during
+  fights, cutscenes or the trip to school.
+- **Gear:** Pause → Gear. Wands give spell power, faster cooldowns or more
+  magic. Robes reduce the damage you take or add health. Hats are just for
+  looks. Order them by owl with Sickles, or earn them in the story: the
+  dragonhide coat after the First Task, the Elder Branch at the very end.
+- **Difficulty and accessibility:** Settings has **Story / Normal / Hard**
+  difficulty, aim assist (off to high), captions for important sounds,
+  colour-blind-friendly danger zones (yellow and striped) and larger text.
 - **Save slots:** three save slots plus an autosave at the start and end of
   every year.
 
@@ -168,17 +184,154 @@ Forest: waves of Dementors, a Dementor lord, then Malachar, who escapes at half
 health. Ashdown teaches you Glacius before he leaves. Side quests: Oren's star
 charts, treats for the Hippogriff and moonpetals for Isolde.
 
+## Year 4 — The Ember Cup
+
+Kofi's escaped pixies and the Hollow Mark in the sky make for a busy train
+ride. Hogwarts hosts the **Ember Cup**: the Ember Goblet names champions from
+Durmvald (Anneliese Roth), Beaumanoir (Thibault Laurent) and Hogwarts (Aurelia
+Hartwell), and then, impossibly, you as a fourth. Learn Confringo from
+Professor Calloway, a retired Auror, Descendo from Thornwick, Diffindo from
+Isolde and Aguamenti from Bram.
+
+- **First Task:** subdue a Ridgeback dragon at the pitch. Its attacks are a
+  sweeping fire breath, a tail whip, a stomp and fireballs. In the second
+  phase it flies and strafes the arena with fire until Descendo drags it down,
+  and in the third it is enraged. Ice and water hurt it most. Then grab the
+  golden egg.
+- **Spiders' Hollow:** cut through acromantula webs in the Forbidden Forest
+  and fight their matriarch, Old Mokkra.
+- **Yule Ball:** pick a partner from your friends and open the ball in a
+  rhythm minigame (arrows, D-pad or on-screen pads). Afterwards you overhear
+  that Grimshaw entered your name and serves the Hollow King.
+- **Second Task:** swim the bed of the Black Lake with Gillyweed to free your
+  partner from the merfolk.
+- **Third Task:** find the Cup at the centre of a hedge maze full of spiders.
+- **The graveyard:** the Cup is a portkey. Malachar raises the Hollow King.
+  Fight the Hollowed and Malachar, then run from the Hollow King, carrying
+  Aurelia to the portkey.
+
+Side quests: Tamsin's Confringo challenge, Mei's camera, the Durmvald lantern,
+Kofi's Dungbomb and a rematch duel with Cassius.
+
+## Year 5 — The Inquisitor
+
+The Ministry denies the Hollow King's return and appoints Prudence Grimshaw,
+now cleared of every charge, as High Inquisitor. Her Defence lessons ban
+wands, so you train in secret in the **Room of Requirement**: a door appears
+on the Charms Corridor's west wall, and from Year 5 on the room stays open for
+practice. You learn Bombarda there, Silencio from Thornwick, Obscuro from Mei
+and Incarcerous from Rowan Ashdown.
+
+Along the way you feed the Thestrals, found the **Wand Circle**, and fight off
+Grimshaw's Inquisitorial Squad when it storms the Christmas party. Grimshaw
+ousts the Headmistress. You sit your O.W.L.s (Potions and Charms) until a
+false vision lures you to the Ministry.
+
+- **Boss: the High Inquisitor.** Grimshaw fights in the forest clearing. In her
+  second phase, Educational Decree totems shield her until you blast them
+  apart. In her third, she summons Dementors.
+- **The Department of Arcana.** Fly there on Thestrals. Light sconces to stop
+  the spinning Hall of Doors, and dispel the seal on the true door. In the
+  Hall of Prophecies, take the orb and survive an ambush among the shelves.
+- **Boss: Vesper Mordaunt.** Duel her in the Veil Chamber. She fights in three
+  phases: duelling volleys, then phantom copies of herself, then lances,
+  beams and eruptions. After that the Hollow King and the Headmistress duel,
+  and the Minister sees him with his own eyes.
+
+Side quests: break Grimshaw's wards, recover Kofi's niffler stashes, open the
+chest the Room hid for Bram, and hear Cassius's doubts.
+
+## Year 6 — Poisoned Waters
+
+Cassius is pacing the train with a task he cannot refuse. Professor Pell
+returns to teach Potions and lends you a battered textbook. Its margins,
+signed "the Lamplighter", teach you Levicorpus. In the **Mirrorbasin** the
+Headmistress shows you the young Varric Mordaunt and the secret of his
+survival: seven **vessels**, each holding a piece of his soul. You learn
+Ventus by spinning Brannoc's windmills and Reducto after a cursed opal
+necklace hurts Tamsin in Hogsmeade.
+
+- **Poisoned Mead** (the mid-year twist): at Pell's Christmas party, Oren
+  drinks mead that was meant for the Headmistress. Solve the **poison
+  puzzle**: six relabelled phials and a riddle of clues, with two guesses
+  before things go badly.
+- **Pell's Memory:** find the right way to persuade him, and he gives up the
+  memory that matters.
+- **Cassius cornered:** duel him in the Room of Requirement and learn why he
+  is doing this.
+- **Boss: the Sea Cave.** The Headmistress opens a blood-sealed door, and you
+  cross a black lake to an island basin. She drinks the poison while Inferi
+  rise from the water in waves, then the **Drowned Host** emerges. It slams
+  the ground and calls up more of the drowned. Fire drives them all back.
+- **Boss: the Tower.** The Hollowed come through Cassius's cabinet. Cassius
+  refuses to kill the Headmistress. You defend her tower against the Hollowed
+  and Malachar, and the locket turns out to be a fake left by "M.V.", who is
+  Cassius's lost uncle.
+
+Side quests: Isolde's bricked-up storerooms, Bram's runaway seed pods and
+Pell's Lantern Club brewing contest.
+
+## Year 7 — The Last Stand
+
+The Hollow King has seized the Ministry, and Hollowed searchers stop the
+train. The Headmistress's cursed hand gives her until summer, so you hunt the
+remaining **vessels**. You learn Oppugno, then take fangs from the Wyrm's
+bones in the Undercroft.
+
+- **The locket:** Cassius's uncle hid it in the family crypt. Its guardians
+  are Inferi, and it fights back with phantoms of your friends.
+- **The cup:** it lies in a vault beneath the Veil, guarded by a Dementor lord.
+- **The twist:** the last vessel is Malachar himself.
+- **The circlet:** it is in the Room of Hidden Things, surrounded by cursed
+  fire.
+- **Rallying the castle:** gather your friends, and Cassius chooses his side.
+- **The Battle of Hogwarts** is a six-wave defence of the courtyard against
+  the Hollowed, acromantulas, Dementors, a war troll, marching Inferi and
+  Vesper Mordaunt. Then Malachar comes, and he finally falls for good.
+- **The final duel:** face the Hollow King, mortal at last, in the Great Hall.
+  Phase I is a duel. In Phase II he is shielded while his Hollowed stand. In
+  Phase III he fights with beams, meteor rains and volleys of dark lances.
+- **Ever After:** your three closest friends (and Cassius, if redeemed) each
+  get their own ending scene, followed by the last House Cup.
+
+Side quests: barricades for Calloway, healing supplies for Isolde, Kofi's
+hidden fireworks, and one last duel with Rowan Ashdown.
+
+## Castle wings and classes (optional)
+
+New doors on the Grand Staircase lead to the **Library** (ground floor), the
+**Astronomy Tower** (first landing) and the **Divination Room** (second
+landing). **Greenhouse Three** stands on the grounds west of the castle road.
+All of them are on the fast-travel map.
+
+- **Herbology** with Professor Bramblewood: repot Mandrakes while they're
+  calm, and hold your earmuffs (block) when one screams.
+- **Astronomy** with Professor Starling: steer the telescope's cross-hair and
+  chart three constellations against the clock.
+- **Transfiguration** with Professor Marlowe, in the Library: repeat
+  ever-longer wand patterns and turn a mouse into, eventually, a dragon.
+- **Divination** with Madam Vey, from third year: match omens in the crystal
+  mist, then hear your fortune.
+- **The Restricted Section** sits behind a locked gate at the back of the
+  Library (Alohomora), with a forbidden book chained up high (Accio).
+- **The Owlery**, across the bridge from the Astronomy Tower, lets you send a
+  letter to a friend once a day for a little friendship.
+
+Every class can be repeated for house points and experience, and works with
+keyboard, mouse, touch and controller.
+
 ## Minigames
 
-All six can also be played from **Minigames** on the title screen.
+All of these can also be played from **Minigames** on the title screen, along with the class minigames, the Yule Ball dance and the poison riddle.
 
 - **Quidditch**: fly through the rings, dodge two Bludgers and catch the
   Golden Snitch.
 - **Potions**: drop ingredients in order on the beat, stir in circles and
   keep the heat in the band. A good brew gives a timed buff (Wiggenweld,
   Liquid Luck, Strength Draught, Focus Tonic).
-- **Duelling Club**: a five-round tournament against tougher and tougher
-  duellists.
+- **Duelling Club**: a five-round ladder against tougher and tougher
+  duellists. It gets harder every school year, with more health, faster
+  casting and nastier spells.
 - **Wand drawing**: trace glowing spell shapes quickly and accurately. A
   good run gives a Wand Mastery damage boost.
 - **Hippogriff**: bow when she is calm, then fly a ring course over the
@@ -205,6 +358,7 @@ and 30 Bertie Bott's beans.
 | Dodge roll (hold to sprint) | Shift | B / ◯ (L3 sprints) |
 | Interact | E | X / ☐ |
 | Companion orders (hold) | G | D-pad ← |
+| Map & fast travel | N | Pause menu → Map |
 | Spellbook (loadouts, talents) / owl post | B / J | View / pause menu |
 | Pause | Esc or P | Menu / Options |
 

@@ -428,6 +428,7 @@ export async function beginYear(n) {
   s.yearDone = false;
   s.yq = 0;
   s.flags[`y${n}`] = {};
+  G.story.yearEngine = null; // the old year's quests stop listening while you travel
   s.coins = (s.coins || 0) + 20;
   G.ui.closeAll();
   G.paused = false;

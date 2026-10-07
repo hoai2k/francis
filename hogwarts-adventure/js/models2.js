@@ -226,7 +226,7 @@ export function makeDragon(color = '#5a2a1a') {
   mesh(new THREE.ConeGeometry(0.3, 0.8, 4), horn, 0, 0, -0.6, tail[7]).rotation.x = -Math.PI / 2;
   // legs
   const legs = [];
-  for (const [x, z] of [[-1.1, 1.4], [1.1, 1.4], [-1.1, -1.4], [1.1, -1.4]]) { const g = new THREE.Group(); g.position.set(x, -0.6, z); body.add(g); mesh(new THREE.CapsuleGeometry(0.32, 1.4, 4, 8), skin, 0, -0.9, 0, g); legs.push(g); }
+  for (const [x, z] of [[-1.1, 1.4], [1.1, 1.4], [-1.1, -1.4], [1.1, -1.4]]) { const g = new THREE.Group(); g.position.set(x, -0.6, z); body.add(g); mesh(new THREE.CapsuleGeometry(0.5, 1.2, 4, 8), skin, 0, -0.85, 0, g); mesh(new THREE.BoxGeometry(0.8, 0.3, 1.1), skin, 0, -1.85, 0.25, g); legs.push(g); }
   // wings
   const wings = [-1, 1].map((s) => {
     const g = new THREE.Group(); g.position.set(s * 1.1, 0.9, 0.6); body.add(g);
