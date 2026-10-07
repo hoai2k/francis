@@ -70,7 +70,7 @@ export async function play(opts) {
   const resize = () => { cv.width = innerWidth * dpr; cv.height = innerHeight * dpr; };
   resize();
   addEventListener('resize', resize);
-  const S = { idx: 0, shape: null, path: null, next: 0, trace: [], drawing: false, cursor: [0, 0], t: 0, limit: 7, acc: [], results: [], sparks: [], done: false, cooldown: 0, off: 0 };
+  const S = { retried: {}, idx: 0, shape: null, path: null, next: 0, trace: [], drawing: false, cursor: [0, 0], t: 0, limit: 7, acc: [], results: [], sparks: [], done: false, cooldown: 0, off: 0 };
   // pointer handling
   const toNorm = (cx, cy) => {
     const R = Math.min(innerWidth, innerHeight) * 0.36;
@@ -86,7 +86,7 @@ export async function play(opts) {
     const key = list[S.idx];
     const def = SHAPES[key];
     const r = resample(def.pts(), 40);
-    S.shape = def; S.key = key; S.path = r.pts; S.next = 0; S.trace = []; S.t = 0; S.acc = []; S.limit = opts.patronus ? 10 : Math.max(4.5, 7.5 - S.idx * 0.6); S.off = 0;
+    S.shape = def; S.key = key; S.path = r.pts; S.next = 0; S.trace = []; S.t = 0; S.acc = []; S.limit = 25; S.off = 0; S.onPath = true;
     G.audio.sfx('wheel');
   };
   startShape();
@@ -103,14 +103,17 @@ export async function play(opts) {
       const ok = S.results.filter((r) => r.ok);
       const acc = ok.length ? ok.reduce((a, r) => a + r.acc, 0) / ok.length : 0;
       const time = ok.reduce((a, r) => a + r.time, 0);
-      const success = opts.patronus ? ok.length === 1 && acc > 0.5 : ok.length >= Math.ceil(list.length * 0.6) && acc > 0.55;
-      const score = Math.round(ok.reduce((a, r) => a + r.acc * 100 + Math.max(0, r.limit - r.time) * 20, 0));
-      if (success && !opts.patronus) { p.buffs.mastery = 90; G.ui.updateBuffs(); }
+      const grade = (a) => (a >= 0.88 ? 'Outstanding' : a >= 0.78 ? 'Exceeds Expectations' : a >= 0.65 ? 'Acceptable' : 'Poor');
+      // accuracy is what matters: every shape traced, cleanly
+      const success = opts.patronus ? ok.length === 1 && acc >= 0.65 : ok.length >= list.length - 1 && acc >= 0.65;
+      const score = Math.round(ok.reduce((a, r) => a + r.acc * 100, 0));
+      const buffSecs = Math.round(60 + acc * 90);
+      if (success && !opts.patronus) { p.buffs.mastery = buffSecs; G.ui.updateBuffs(); }
       resolve(aborted ? { aborted: true } : {
         title: opts.patronus ? (success ? 'Expecto Patronum!' : 'Only a silver wisp…') : success ? 'Charms mastered!' : 'Keep practising',
-        sub: success && !opts.patronus ? 'Wand Mastery: spells deal +25% damage for 90 seconds.' : '',
-        success, score, points: success ? 10 + Math.round(acc * 15) : 2,
-        lines: [['Shapes traced', `${ok.length} / ${list.length}`], ['Accuracy', Math.round(acc * 100) + '%'], ['Total time', time.toFixed(1) + 's'], ['Score', score]],
+        sub: success && !opts.patronus ? `Wand Mastery: spells deal +25% damage for ${buffSecs} seconds.` : success ? '' : 'Slow down and stay on the glowing line.',
+        success, score, points: success ? 5 + Math.round(acc * 25) : 2,
+        lines: [['Shapes traced', `${ok.length} / ${list.length}`], ['Accuracy', Math.round(acc * 100) + '%'], ['Grade', grade(acc)], ['Score', score]],
         restore: false, noRetry: !!opts.patronus && success,
       });
     };
@@ -139,8 +142,9 @@ export async function play(opts) {
             if (!last || Math.hypot(c[0] - last[0], c[1] - last[1]) > 0.012) {
               S.trace.push([c[0], c[1]]);
               const d = distToPath(c, S.path);
-              S.acc.push(clamp(1 - d / 0.22, 0, 1));
-              if (d > 0.25) S.off += dt;
+              S.acc.push(clamp(1 - (d - 0.05) / 0.15, 0, 1));
+              S.onPath = d < 0.12;
+              if (d > 0.2) S.off += dt;
               S.sparks.push({ x: c[0], y: c[1], vx: (Math.random() - 0.5) * 0.6, vy: (Math.random() - 0.5) * 0.6, l: 0.6 });
             }
             // advance checkpoints in order
@@ -152,9 +156,17 @@ export async function play(opts) {
           }
           if (S.next >= S.path.length) {
             const acc = S.acc.length ? S.acc.reduce((a, b) => a + b, 0) / S.acc.length : 0;
-            S.results.push({ ok: true, acc, time: S.t, limit: S.limit });
+            if (acc < 0.6 && !S.retried[S.idx]) {
+              // too wobbly: one more go at the same shape (the better attempt counts)
+              S.retried[S.idx] = acc;
+              G.audio.sfx('fail');
+              G.ui.floatText(p.pos.clone().setY(p.pos.y + 2.4), `Too wobbly (${Math.round(acc * 100)}%) — try again, slowly`, 'warn');
+              S.idx--; S.cooldown = 1.0; return;
+            }
+            const best = Math.max(acc, S.retried[S.idx] || 0);
+            S.results.push({ ok: true, acc: best, time: S.t, limit: S.limit });
             G.audio.sfx(SHAPES[S.key].spell);
-            G.ui.floatText(p.pos.clone().setY(p.pos.y + 2.4), `${S.shape.name}! ${Math.round(acc * 100)}%`, 'combo');
+            G.ui.floatText(p.pos.clone().setY(p.pos.y + 2.4), `${S.shape.name}! ${Math.round(best * 100)}% ${best >= 0.88 ? '— perfect!' : ''}`, 'combo');
             p.anim.trigger('cast');
             // the spell flies from the wand
             const s = SPELL_BY_ID[SHAPES[S.key].spell];
@@ -167,14 +179,15 @@ export async function play(opts) {
           } else if (S.t > S.limit) {
             S.results.push({ ok: false, acc: 0, time: S.limit, limit: S.limit });
             G.audio.sfx('fail');
-            G.ui.floatText(p.pos.clone().setY(p.pos.y + 2.4), 'Too slow!', 'warn');
+            G.ui.floatText(p.pos.clone().setY(p.pos.y + 2.4), 'Out of time', 'warn');
             S.cooldown = 1.0;
           }
         }
         if (opts.patronus && G.spells.stags.length) G.spells.updateStags(dt);
         draw(ctx, cv, S, dpr, list);
         const iconHint = I.device === 'pad' ? `Move the ${'<span class="glyph g-t">RS</span>'} along the shape` : I.device === 'touch' ? 'Trace the shape with your finger' : 'Hold the mouse button and trace';
-        G.ui.minigameHUD(`<div class="mg-row"><span>Shape <b>${Math.min(S.idx + 1, list.length)}</b>/${list.length}</span><span><b>${Math.max(0, S.limit - S.t).toFixed(1)}</b>s</span></div><small>${S.shape.name} — ${S.shape.hint}<br>${iconHint} · ${glyph('back')} to stop</small>`);
+        const liveAcc = S.acc.length ? Math.round((S.acc.reduce((a, b) => a + b, 0) / S.acc.length) * 100) : 100;
+        G.ui.minigameHUD(`<div class="mg-row"><span>Shape <b>${Math.min(S.idx + 1, list.length)}</b>/${list.length}</span><span>Accuracy <b>${liveAcc}%</b></span></div><small>${S.shape.name} — ${S.shape.hint}<br>Accuracy matters, not speed — take your time · ${iconHint} · ${glyph('back')} to stop</small>`);
       },
     });
   });
@@ -223,7 +236,7 @@ function draw(ctx, cv, S, dpr, list) {
     }
   }
   // the player's trace
-  ctx.strokeStyle = 'rgba(160,220,255,0.9)'; ctx.lineWidth = 4 * dpr; ctx.shadowColor = '#8fd0ff'; ctx.shadowBlur = 14 * dpr;
+  ctx.strokeStyle = S.onPath === false ? 'rgba(255,120,110,0.95)' : 'rgba(160,220,255,0.9)'; ctx.lineWidth = 4 * dpr; ctx.shadowColor = S.onPath === false ? '#ff6050' : '#8fd0ff'; ctx.shadowBlur = 14 * dpr;
   ctx.beginPath();
   S.trace.forEach((q, i) => { const [x, y] = P(q); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
   ctx.stroke();

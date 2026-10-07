@@ -533,10 +533,7 @@ export function buildCorridor(Q) {
   const winMat = new THREE.MeshStandardMaterial({ color: 0x223, emissive: 0x8899ff, emissiveIntensity: 0.9, roughness: 0.2 });
   for (let z = -6; z > -len + 3; z -= 12) {
     B.add(new THREE.PlaneGeometry(1.6, 3.2), winMat, mat4(-w + 0.52, 4, z, Math.PI / 2));
-    // a soft shaft of moonlight slanting from the window to the floor
-    const beam = new THREE.CylinderGeometry(0.7, 1.3, 5.2, 12, 1, true);
-    beam.rotateZ(0.75);
-    B.add(beam, beamMat, mat4(-2.4, 2.3, z));
+
     torch(zone, B, M, w - 0.6, 3.6, z - 6, 0);
   }
   // suits of armour and tapestries
