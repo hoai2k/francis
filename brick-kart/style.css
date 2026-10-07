@@ -413,6 +413,8 @@ canvas.pod3d { display: block; width: min(640px, 100%); height: min(300px, 38vh)
 .ol-list { display: flex; flex-direction: column; max-height: 52vh; overflow-y: auto; padding: 6px 4px; }
 .ol-rooms-h { margin: 12px 2px 0; font-weight: 900; font-size: 13px; opacity: .7; text-transform: uppercase; letter-spacing: .06em; }
 .ol-room .val { font-size: 16px; }
+.ol-rejoin { background: #1f9e3a; }
+.ol-rejoin .val { font-size: 16px; }
 .ol-status { min-height: 20px; margin-top: 10px; text-align: center; font-weight: 800; font-size: 14px; opacity: .9; }
 .ol-status .err { color: #ff8a7a; } .ol-status .note { color: var(--yellow); }
 .ol-wait { text-align: center; padding: 10px 0 4px; font-weight: 800; } .ol-wait .spinner { margin: 8px 0 12px; }

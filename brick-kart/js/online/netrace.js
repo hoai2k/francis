@@ -57,7 +57,7 @@ class Puppet {
       this.dev += (Math.min(0.06, Math.abs(late - this.late)) - this.dev) * 0.1;
       this.late += (Math.min(late, this.late + 0.08) - this.late) * 0.1;
     }
-    if (last) this.space += (Math.min(0.5, s.t - last.t) - this.space) * 0.1;
+    if (last && last.t !== this.synthT) this.space += (Math.min(0.5, s.t - last.t) - this.space) * 0.1;
     this.head = (this.head + 1) % BUF;
     const dst = this.buf[this.head];
     Object.assign(dst, s);
@@ -71,7 +71,9 @@ class Puppet {
 
 export class NetRace {
   // setup: the host's race setup; me: my uid; spectate: watching, no kart of my own
-  constructor(online, race, setup, { me, spectate = false }) {
+  // claim: the race is already under way (we're coming back to it): our karts are the host's until it
+  // hands them back
+  constructor(online, race, setup, { me, spectate = false, claim = false }) {
     this.online = online; this.session = online.session;
     this.race = race; this.setup = setup; this.raceId = setup.ri;
     this.me = me;
@@ -81,6 +83,9 @@ export class NetRace {
     // this screen's players' karts (several with split screen)
     this.myIdxs = new Set(spectate ? [] : this.grid.map((g, i) => (g.u === me ? i : -1)).filter((i) => i >= 0));
     this.taken = new Set();               // grid indices the host drives for someone else
+    // our karts the host is (about to be) driving while we join a race under way: puppets until the
+    // host's room state lists them as taken (and then releases them), or 6 s at most
+    this.claimWait = new Set(claim ? this.myIdxs : []); this.claimT = performance.now();
     this.puppets = new Map();             // kart idx -> Puppet
     this.pending = [];                    // remote events waiting for their moment
     this.out = []; this.evT = 0; this.seq = 0;
@@ -96,6 +101,7 @@ export class NetRace {
     for (const k of race.karts) if (k.netName) this.addPlate(k);
     this.buildStandings();
     if (spectate || !this.myIdxs.size) this.spectate();
+    if (this.claimWait.size) this.applyRoles();
   }
 
   // ---- clock ------------------------------------------------------------------------------------
@@ -109,7 +115,7 @@ export class NetRace {
   // does this screen simulate kart i?
   owns(i) {
     // (our own karts too, unless the host is driving them for us: we were away / not updating)
-    if (this.myIdxs.has(i)) return !this.taken.has(i);
+    if (this.myIdxs.has(i)) return !this.taken.has(i) && !this.claimWait.has(i);
     return this.session.isHost && this.ownerOf(i) === this.me;
   }
   // Re-check who simulates each kart (after a takeover, a release or a host change) and switch
@@ -146,6 +152,18 @@ export class NetRace {
         race.drivers.delete(k);
         const p = new Puppet(k);
         this.puppets.set(k.idx, p);
+        // mid-race, it starts from where we have it: our state now, stamped one render delay ago,
+        // so it is drawn exactly here this frame and eases into its owner's updates (which carry on
+        // from about here) instead of jumping back to where they were a moment ago
+        if (race.started) {
+          const a = encodeKart(k, 0, []);
+          if (decodeKart(a, p.tmp, this.items, GESTURES)) {
+            const L = race.track.locate(k.pos.x, k.pos.y, k.pos.z, k.loc?.i ?? -1, {});
+            p.tmp.t = this.clockNow() - p.delay; p.tmp.li = L.i + L.t; p.tmp.lat = L.lat;
+            p.head = 0; p.n = 1; Object.assign(p.buf[0], p.tmp); p.synthT = p.tmp.t;
+            p.disp.copy(k.pos); p.dispYaw = k.yaw; p.init = true;
+          }
+        }
       }
     }
   }
@@ -153,8 +171,14 @@ export class NetRace {
   release(i) { if (this.taken.delete(i)) this.applyRoles(); }
   setTaken(list) {
     const next = new Set(list), same = next.size === this.taken.size && [...next].every((i) => this.taken.has(i));
-    if (same) return;
+    let claimed = false;
+    for (const i of [...this.claimWait]) if (next.has(i)) { this.claimWait.delete(i); claimed = true; }
+    if (same && !claimed) return;
     this.taken = next; this.applyRoles();
+  }
+  // (called every frame) the host never listed a kart we were waiting for: it isn't driving it, so we do
+  checkClaim() {
+    if (this.claimWait.size && performance.now() - this.claimT > 6000) { this.claimWait.clear(); this.applyRoles(); }
   }
 
   // ---- spectating -----------------------------------------------------------------------------------
@@ -211,7 +235,7 @@ export class NetRace {
 
   // ---- per frame (called from Race.update) --------------------------------------------------------
   update(dt) {
-    try { this.updatePuppets(dt); this.runEvents(); } catch (e) { console.error('netrace update', e); }
+    try { this.checkClaim(); this.updatePuppets(dt); this.runEvents(); } catch (e) { console.error('netrace update', e); }
   }
   updatePuppets(dt) {
     const now = this.clockNow();
@@ -239,26 +263,40 @@ export class NetRace {
       const gap = Math.max(0, rt - newest.t);
       out.extra = gap;
       if (gap <= 0 || newest.flags & F.FIN && newest.spd < 1) return;
-      if (gap <= EXTRAP) {
-        // straight on with its velocity and turn rate
+      // straight on with its velocity and turn rate for a moment...
+      const straight = (o, gap) => {
         const prev = p.n > 1 ? buf[(p.head - 1 + BUF) % BUF] : null;
         let yr = prev && newest.t > prev.t ? angleDiff(prev.yaw, newest.yaw) / (newest.t - prev.t) : 0;
         yr = Math.max(-3, Math.min(3, yr));
-        out.x += newest.vx * gap; out.z += newest.vz * gap;
-        if (!(newest.flags & F.GROUND)) out.y += newest.flags & F.GLIDE ? newest.vy * gap : newest.vy * gap - 21 * gap * gap;
-        out.yaw = wrapAngle(newest.yaw + yr * gap);
-      } else {
-        // a long gap (a lost connection, a host change): keep it going along the track
+        o.x = newest.x + newest.vx * gap; o.z = newest.z + newest.vz * gap; o.y = newest.y;
+        if (!(newest.flags & F.GROUND)) o.y += newest.flags & F.GLIDE ? newest.vy * gap : newest.vy * gap - 21 * gap * gap;
+        o.yaw = wrapAngle(newest.yaw + yr * gap);
+      };
+      // ...then (a long gap: a lost connection, a host change) along the track
+      const alongTrack = (o, gap) => {
         const g = Math.min(gap, EXTRAP_MAX), tr = this.race.track;
         const along = Math.max(0, newest.spd) * g * (newest.flags & F.FIN ? 0.5 : 1);
         const li = newest.li + along, i0 = Math.floor(li), f = li - i0;
         const A = tr.at(i0, newest.lat, 0, V1), ax = A.x, ay = A.y, az = A.z;
         const B = tr.at(i0 + 1, newest.lat, 0, V1);
-        out.x = ax + (B.x - ax) * f; out.y = ay + (B.y - ay) * f; out.z = az + (B.z - az) * f;
-        if (newest.flags & F.GLIDE || !(newest.flags & F.GROUND)) out.y = Math.max(out.y, newest.y - 4 * g);
-        out.yaw = tr.yawAt(Math.round(li));
-        out.rd = newest.rd + along;
-        out.vx = Math.sin(out.yaw) * newest.spd; out.vz = Math.cos(out.yaw) * newest.spd;
+        o.x = ax + (B.x - ax) * f; o.y = ay + (B.y - ay) * f; o.z = az + (B.z - az) * f;
+        if (newest.flags & F.GLIDE || !(newest.flags & F.GROUND)) o.y = Math.max(o.y, newest.y - 4 * g);
+        o.yaw = tr.yawAt(Math.round(li));
+        o.rd = newest.rd + along;
+        o.vx = Math.sin(o.yaw) * newest.spd; o.vz = Math.cos(o.yaw) * newest.spd;
+      };
+      if (gap <= EXTRAP) straight(out, gap);
+      else {
+        // (no jump where one hands over to the other: the difference between them at the hand-over
+        // fades out over the next 0.7 s)
+        alongTrack(out, gap);
+        const w = Math.max(0, 1 - (gap - EXTRAP) / 0.7);
+        if (w > 0) {
+          const s0 = this._s0 ||= {}, a0 = this._a0 ||= {};
+          straight(s0, EXTRAP); alongTrack(a0, EXTRAP);
+          out.x += (s0.x - a0.x) * w; out.y += (s0.y - a0.y) * w; out.z += (s0.z - a0.z) * w;
+          out.yaw = wrapAngle(out.yaw + angleDiff(a0.yaw, s0.yaw) * w);
+        }
       }
       return;
     }

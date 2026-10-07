@@ -391,7 +391,8 @@ setups.
 > - local players plus other screens, a full room (6 screens × 2 players = 12 people, plus a 7th
 >   screen watching), and the room-full and two-hosts-at-once cases
 > - the line-up, a fair start, smooth remote karts, items and hits
-> - leaving at every stage, joining mid-race, host migration, reconnects, hidden or frozen tabs
+> - leaving at every stage, leaving and coming back (Leave room, a reload, a 2-player screen, the
+>   host, in a Grand Prix), joining mid-race, host migration, reconnects, hidden or frozen tabs
 > - the online Grand Prix
 > - phones by touch (portrait and landscape)
 > - an unreachable, silent or vanishing relay, and malformed messages
@@ -443,11 +444,31 @@ fill the rest. Rooms are open to anyone who sees them (it's a game for friends).
   order) and standings, then final medals. The table lives in the host's room
   state, so it survives the host leaving. Someone who joins mid-cup watches the
   current race and then races the rest from 0 points; someone who leaves keeps
-  their points and their kart carries on as a CPU.
+  their points and their kart carries on as a CPU. Someone who leaves and comes
+  back (see below) keeps adding to the same points.
 - **Joining late**: joining while a race is running lets you **watch** it (◀︎ ▶︎,
   or the on-screen buttons, switch whom you follow); you're in the next one. A
   screen that is simply slow to load the track still races: the host drives its
   karts until it's ready, then hands them over.
+- **Coming back**: a browser is the same player every time (one identity per
+  open tab, kept in the browser), so leaving and returning is seamless, whether
+  you pressed **Leave room**, closed the tab, reloaded, or your phone dropped the
+  page. While the room you were in (or the room that took over from it after a
+  host change) is open, the Online screen shows **↩ Rejoin <room>** at the top,
+  and for 10 minutes the main menu offers **↩ Rejoin** too, which goes straight
+  back in. You come back with everything:
+  - **Mid-race**: your screen loads the track and you get your own kart(s) back
+    from where the host drove them meanwhile. Laps, item and position carry on,
+    nothing jumps, and a split-screen screen gets all of its karts back.
+  - **On the select screen or results**: you reappear with the drivers, karts,
+    gliders and names you had, ready for the next race.
+  - **In a Grand Prix**: you keep adding to the same points.
+  - **Your old place** in the join order comes back with you.
+  - **Host**: a host who leaves comes back as a guest of the new host and gets
+    their kart back the same way.
+
+  If the race finished while you were away, you simply join the room again. Two
+  tabs of one browser are two different players.
 - **Leaving and trouble**: if someone leaves, a bubble says so and their kart
   carries on as a CPU, so the field stays at 12. A player whose connection drops
   briefly is shown as "reconnecting…" and their kart keeps going; they re-join
@@ -506,6 +527,19 @@ Who owns what:
   pick the same target. **Only a kart's own screen decides that it was hit**,
   and says so (event `h`) so the shot or trap disappears everywhere; the spin
   or wreck shows through that kart's updates.
+- **Identity and rejoining** (`js/online/identity.js`): each open tab holds a
+  numbered slot (with the Web Locks API, or localStorage heartbeats where that's
+  missing). The slot has its own lasting uid and remembers its last room: the
+  base id, the current id, the title, the time, and its players' locked-in picks
+  (slot, device, driver, kart, glider, name). The lobby matches that record
+  against the open rooms, including successor rooms `<base>-g<n>`.
+  - **Mid-race return**: a returning screen in the grid builds the race with its
+    karts as puppets. The host drives them from where they are (it takes them
+    over as soon as the screen reappears) and releases them once the screen is
+    racing. The returning screen then carries on from the projected present, the
+    same hand-back as for a tab that was hidden.
+  - **Smooth hand-back**: a kart handed back starts as a puppet seeded with the
+    host's own current state, so it eases into its owner's updates.
 - **Host migration**: the relay closes a room when its host leaves. The host's
   presence always carries the join order, so every screen agrees on the next
   host, who opens the successor room `<room id>-g<n>`; the others join it
@@ -515,7 +549,7 @@ Who owns what:
 
 | Presence (one message per screen) | Meaning |
 | --- | --- |
-| `v`, `u`, `n`, `h` | protocol version (1), the screen's id (stable across reconnects), player 1's name, host flag |
+| `v`, `u`, `n`, `h` | protocol version (1), the screen's id (kept in the browser: the same across reconnects, reloads and rejoining), player 1's name, host flag |
 | `s` | stage: `sel` / `rdy` / `load` / `race` / `spec` / `res` |
 | `pl` | the screen's players: `[slot, name, custom name?, driver id, kart id, glider id, step]` |
 | `ld`, `ri` | the race id it has loaded / is publishing karts for |
@@ -550,6 +584,9 @@ screen (0-120 ms in tests); each screen times its own race from its own GO.
 There's no protection against cheating (it's for friends). Particles, and
 ability powers that affect "karts nearby", use positions as each screen sees
 them. Two rooms can have the same default name ("Brick Kart's race").
+Coming back as yourself works from the same browser (the identity lives in its
+storage; a private window that was closed, or another device, is a new player),
+and the lobby offers the room for 30 minutes after you were last in it.
 
 For development and tests, `?debug` exposes the online state as `window.__net`,
 and `?norender` skips drawing the 3D views (headless software rendering is too
@@ -578,7 +615,7 @@ slow to drive several players).
     couldn't see out without it.
 - `js/drivers/*.js`: the driver casts per movie (`kit.js` has the seated figure builder); `js/showcase.js`: the 3D select stage, portraits and podium; `js/gallery.js`: a developer line-up view
 - `js/effects.js`, `js/audio.js`, `js/hud.js`, `js/input.js`: particles, sound, HUD and input devices
-- `js/online/`: online play, loaded only from the Online menu: `online.js` (lobby, room flow, select hooks, results, host duties), `session.js` (the relay connection: identities, presence, clock sync, reconnecting, host migration), `netrace.js` (race sync: puppets, interpolation, item events, CPU takeover), `names.js` (names, saved names, the on-screen keyboard), `lineup.js` (the line-up while loading), `proto.js` (protocol constants, validation, kart-state encoding, seeded random)
+- `js/online/`: online play, loaded only from the Online menu: `online.js` (lobby, room flow, select hooks, results, host duties), `session.js` (the relay connection: identities, presence, clock sync, reconnecting, host migration), `netrace.js` (race sync: puppets, interpolation, item events, CPU takeover), `names.js` (names, saved names, the on-screen keyboard), `identity.js` (the lasting per-tab identity and the last room, for rejoining), `lineup.js` (the line-up while loading), `proto.js` (protocol constants, validation, kart-state encoding, seeded random)
 - `js/vendor/mini-rooms.js`: the mini-rooms relay client, copied verbatim from the `mini` repository's `multiplayer/client/mini-rooms.js`
 - `js/chrome.js`: getting the browser's bars out of the way on phones (fullscreen, iPhone Safari's swipe-up, home-screen app)
 

@@ -48,6 +48,7 @@ export class Session {
     this.peers = new Map();        // peer id -> { pid, uid, name, p }
     this.byUid = new Map();        // uid -> peer (players we know, me excluded)
     this.order = [];               // host only: uids in join order (published in the room state)
+    this.formerPos = new Map();    // host only: where players who left were in that order (they get it back)
     this.mine = {};                // my presence fields (set by the app)
     this.hostUid = null; this.hostP = null; this.lastRoom = null;
     this.handlers = {};
@@ -289,8 +290,15 @@ export class Session {
     for (const u of seen) this.missing.delete(u);
     for (const u of seen) if (!before.has(u)) this.emit('arrived', this.byUid.get(u));
     if (this.isHost) {
-      for (const u of seen) if (!this.order.includes(u)) this.order.push(u);
-      this.order = this.order.filter((u) => u === this.me.uid || this.byUid.has(u));
+      this.order = this.order.filter((u, i) => { const keep = u === this.me.uid || this.byUid.has(u); if (!keep) this.formerPos.set(u, i); return keep; });
+      for (const u of seen) {
+        if (this.order.includes(u)) continue;
+        // someone coming back takes their old place in the order (roughly), never ahead of the host
+        const at = this.formerPos.get(u);
+        this.formerPos.delete(u);
+        if (at === undefined) this.order.push(u); else this.order.splice(Math.max(1, Math.min(at, this.order.length)), 0, u);
+      }
+      if (this.formerPos.size > 40) this.formerPos.delete(this.formerPos.keys().next().value);
     } else if (host) {
       if (host.p !== this.hostP) this.hostSeenAt = now();
       this.hostUid = host.uid; this.hostP = host.p;

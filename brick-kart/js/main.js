@@ -38,6 +38,18 @@ const isPhone = () => isTouchDevice() && Math.min(screen.width, screen.height) <
 const TILT_ENABLED = false;
 const ONLINE_ENABLED = true;
 const ONLINE = (() => { const v = new URLSearchParams(location.search).get('online'); return v === null ? ONLINE_ENABLED : v !== '0'; })();
+// the online room this browser was in during the last 10 minutes, if any ({ title, t }): the main
+// menu offers to rejoin it (js/online/identity.js writes these; read here so nothing online loads)
+function recentOnlineRoom() {
+  let best = null;
+  try {
+    for (let n = 0; n < 8; n++) {
+      const r = JSON.parse(localStorage.getItem(`brickkart.online.room.${n}`) || 'null');
+      if (r && Number.isFinite(r.t) && Date.now() - r.t < 600000 && (!best || r.t > best.t)) best = { title: String(r.title || '').slice(0, 40), t: r.t };
+    }
+  } catch { /* storage blocked */ }
+  return best;
+}
 // developer / automated-test flag: ?norender runs everything but skips drawing the 3D views (headless
 // software rendering is far too slow to drive several online players at once)
 const NO_RENDER = new URLSearchParams(location.search).has('norender');
@@ -344,6 +356,8 @@ class Game {
         { label: 'Quick Race', action: () => this.showSelect('race') },
         { label: 'Time Trial', action: () => this.showSelect('tt') },
         ...(ONLINE ? [{ label: 'Online', action: () => this.openOnline() }] : []),
+        // just back from an online race (a reload, a closed tab, a phone that dropped the page)
+        ...(ONLINE && recentOnlineRoom() ? [{ label: `↩ Rejoin ${recentOnlineRoom().title || 'your online race'}`, action: () => this.openOnline({ rejoin: true }) }] : []),
         { label: 'Options', action: () => this.showOptions(() => this.showMain()) },
         { label: 'How to Play', action: () => this.showHelp(() => this.showMain()) },
       ],
@@ -354,11 +368,11 @@ class Game {
 
   // Online play lives in js/online/ and is only loaded when the player picks Online, so the rest
   // of the game never depends on it (or on the relay being reachable).
-  openOnline() {
+  openOnline(opts = {}) {
     if (!ONLINE || this.onlineLoading) return;
     this.onlineLoading = true;
     import('./online/online.js')
-      .then((m) => { (this.online ||= new m.Online(this)).open(); })
+      .then((m) => { (this.online ||= new m.Online(this)).open('', '', opts); })
       .catch((e) => { console.error(e); this.toast("Online play isn't available right now"); this.showMain(); })
       .finally(() => { this.onlineLoading = false; });
   }
