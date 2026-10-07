@@ -732,8 +732,8 @@ export class Online {
     const set = this.game.settings;
     // the field: everyone locked in (up to 12), then CPU racers to fill it
     // (everyone locked in: on the select screen, or still on the results of the race before when the
-    // host goes straight on with the same racers)
-    const humans = this.humans().filter((h) => h.ph === 'r' && (h.me || ['rdy', 'sel', 'res', 'race', 'load'].includes(h.stage))).slice(0, RACERS)
+    // host goes straight on with the same racers - or watching it, having come back with their picks)
+    const humans = this.humans().filter((h) => h.ph === 'r' && (h.me || ['rdy', 'sel', 'res', 'race', 'load', 'spec'].includes(h.stage))).slice(0, RACERS)
       .map((h) => ({ u: h.uid, slot: h.slot, n: h.name, d: h.d, k: h.k, g: h.g }));
     const shuffle = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
     const used = new Set(humans.map((h) => h.d));
