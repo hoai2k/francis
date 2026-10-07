@@ -248,7 +248,7 @@ class Game {
       const steps = dt > 1 / 45 ? 2 : 1;
       for (let i = 0; i < steps; i++) race.update(dt / steps);
     }
-    if (race && !NO_RENDER) race.render(this.renderer);
+    if (race && !window.__bkNoRender) race.render(this.renderer);
   }
 
   startAttract() {
