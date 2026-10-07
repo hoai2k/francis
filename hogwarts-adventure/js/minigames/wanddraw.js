@@ -125,9 +125,13 @@ export async function play(opts) {
         const I = G.input;
         // controller: right stick positions the wand tip absolutely
         if (I.device === 'pad') {
-          const m = Math.hypot(I.rstick.x, I.rstick.y);
-          if (m > 0.2) S.cursor = [I.rstick.x * 1.05, I.rstick.y * 1.05];
-          S.drawing = m > 0.35 || I.rt > 0.4 || I.isHeld('jump');
+          // either stick positions the wand tip; hold RT (or LT / A) to draw
+          const st = Math.hypot(I.rstick.x, I.rstick.y) >= Math.hypot(I.lstick.x, I.lstick.y) ? I.rstick : I.lstick;
+          if (Math.hypot(st.x, st.y) > 0.15) {
+            const k = 1 - Math.exp(-dt * 16);
+            S.cursor = [S.cursor[0] + (st.x * 1.05 - S.cursor[0]) * k, S.cursor[1] + (st.y * 1.05 - S.cursor[1]) * k];
+          }
+          S.drawing = I.rt > 0.35 || I.lt > 0.35 || I.isHeld('jump');
         } else if (I.device === 'kbm' && (I.move.x || I.move.y)) {
           S.cursor = [clamp(S.cursor[0] + I.move.x * dt * 1.6, -1.2, 1.2), clamp(S.cursor[1] + I.move.y * dt * 1.6, -1.2, 1.2)];
           S.drawing = I.isHeld('jump') || S.drawing;
@@ -185,7 +189,7 @@ export async function play(opts) {
         }
         if (opts.patronus && G.spells.stags.length) G.spells.updateStags(dt);
         draw(ctx, cv, S, dpr, list);
-        const iconHint = I.device === 'pad' ? `Move the ${'<span class="glyph g-t">RS</span>'} along the shape` : I.device === 'touch' ? 'Trace the shape with your finger' : 'Hold the mouse button and trace';
+        const iconHint = I.device === 'pad' ? `Aim with a stick, hold ${glyph('cast')} to draw` : I.device === 'touch' ? 'Trace the shape with your finger' : 'Hold the mouse button and trace';
         const liveAcc = S.acc.length ? Math.round((S.acc.reduce((a, b) => a + b, 0) / S.acc.length) * 100) : 100;
         G.ui.minigameHUD(`<div class="mg-row"><span>Shape <b>${Math.min(S.idx + 1, list.length)}</b>/${list.length}</span><span>Accuracy <b>${liveAcc}%</b></span></div><small>${S.shape.name} — ${S.shape.hint}<br>Accuracy matters, not speed — take your time · ${iconHint} · ${glyph('back')} to stop</small>`);
       },

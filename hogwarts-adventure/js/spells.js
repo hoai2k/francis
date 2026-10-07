@@ -127,6 +127,14 @@ export class Spells {
       for (let i = 1; i <= 8; i++) if (I.isPressed('spell' + i)) this.select(i - 1);
       if (I.isPressed('next')) this.cycle(1);
       if (I.isPressed('prev')) this.cycle(-1);
+      // controller: d-pad left/right also cycles spells; flick the right stick to switch lock-on target
+      if (I.device === 'pad') {
+        if (I.isPressed('right')) this.cycle(1);
+        if (I.isPressed('left')) this.cycle(-1);
+        const lt = G.cam.lockTarget;
+        if (lt && Math.abs(I.rstick.x) > 0.75) { if (!this.flickLatch) { this.flickLatch = true; this.switchLock(Math.sign(I.rstick.x)); } }
+        else this.flickLatch = false;
+      }
       if (I.isPressed('wheel')) G.ui.openWheel();
       if (I.isPressed('lock')) this.toggleLock();
       else if (I.device === 'pad' && I.isReleased('lock')) G.cam.lockTarget = null; // LT is hold-to-lock
@@ -171,6 +179,24 @@ export class Spells {
     }
     cam.lockTarget = best;
     if (best) G.audio.sfx('uimove');
+  }
+
+  // pick the next locked target to the left (-1) or right (+1) of the current one
+  switchLock(dir) {
+    const cur = G.cam.lockTarget;
+    const p = G.player;
+    const fwd = _w.subVectors(cur.pos, p.pos).setY(0).normalize();
+    const right = new THREE.Vector3(-fwd.z, 0, fwd.x);
+    let best = null, bs = Infinity;
+    for (const e of G.enemies.list) {
+      if (!e.alive || e.hidden || e === cur || e.pos.distanceTo(p.pos) > 40) continue;
+      const to = _v.subVectors(e.pos, p.pos).setY(0);
+      const side = to.dot(right) * dir;
+      if (side <= 0) continue;
+      const s = Math.atan2(side, to.dot(fwd));
+      if (s < bs) { bs = s; best = e; }
+    }
+    if (best) { G.cam.lockTarget = best; G.audio.sfx('uimove'); G.input.rumble(0.1, 0.2, 40); }
   }
 
   setShield(on, dt) {

@@ -401,6 +401,7 @@ export class UI {
       if (n.up || n.left) st.move(-1);
       if (n.down || n.right) st.move(1);
       if (n.confirm || I.isPressed('interact') || I.isPressed('cast')) st.advance();
+      I.pressed.clear(); // a button used by the dialogue must not also jump / dodge
       return true;
     }
     const top = this.stack[this.stack.length - 1];
@@ -409,16 +410,28 @@ export class UI {
     const cur = items[top.focus];
     if (n.up) { this._focus(top, top.focus - 1); G.audio?.sfx('uimove'); }
     if (n.down) { this._focus(top, top.focus + 1); G.audio?.sfx('uimove'); }
+    // scrollable panels (controls, journal): up/down scroll until the end, then move focus
+    if ((n.up || n.down) && cur && cur.dataset.kind === 'scroll') {
+      const dir = n.up ? -1 : 1;
+      const atEnd = dir < 0 ? cur.scrollTop <= 0 : cur.scrollTop + cur.clientHeight >= cur.scrollHeight - 2;
+      if (!atEnd) { cur.scrollTop += dir * 90; this._focus(top, top.focus - (n.up ? -1 : 1), false); }
+    }
+    // the right stick scrolls whatever panel is open
+    if (I.device === 'pad' && Math.abs(I.rstick.y) > 0.25) {
+      const sc = top.el.querySelector('.ctl-scroll, .jr, .opts, .spellgrid, .mg-grid');
+      if (sc) sc.scrollTop -= I.rstick.y * 900 * (G.realDt || 0.016);
+    }
     if ((n.left || n.right) && cur) {
       const dir = n.left ? -1 : 1;
       if (cur.dataset.kind === 'grid') { this._focus(top, top.focus + dir); G.audio?.sfx('uimove'); }
       else cur.dispatchEvent(new CustomEvent('adjust', { detail: dir }));
     }
     if (n.confirm && cur) { cur.click(); }
-    if (n.back || (I.isPressed('pause') && top.opts.pauseCloses)) {
+    if (n.back || (I.isPressed('pause') && top.opts.pauseCloses) || (I.isPressed('book') && top.opts.bookCloses)) {
       if (top.opts.onBack) top.opts.onBack();
       else if (!top.opts.modal) { this.close(top); G.audio?.sfx('uiback'); }
     }
+    I.pressed.clear(); // buttons used in a menu must not leak into gameplay (A = jump, B = dodge)
     return true;
   }
 

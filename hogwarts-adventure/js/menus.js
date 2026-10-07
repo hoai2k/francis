@@ -60,7 +60,12 @@ export function openMainMenu() {
     G.ui.button(c, 'Credits', () => openCredits(false, true));
     if (canFullscreen()) G.ui.button(c, fullscreenElement() ? 'Exit fullscreen' : 'Fullscreen', () => toggleFullscreen(), 'fs-btn');
     const ind = w.querySelector('.dev-ind');
-    const upd = () => { ind.textContent = G.input.device === 'pad' ? `🎮 ${{ xbox: 'Xbox', ps: 'PlayStation', switch: 'Switch Pro' }[padGlyphSet()]} controller detected` : G.input.device === 'touch' ? '👆 Touch controls' : '⌨️ Keyboard & mouse'; };
+    // browsers only start sound after a click or key press, never a controller button
+    const soundOff = () => !G.audio.ctx || G.audio.ctx.state !== 'running';
+    const upd = () => {
+      ind.textContent = G.input.device === 'pad' ? `🎮 ${{ xbox: 'Xbox', ps: 'PlayStation', switch: 'Switch Pro' }[padGlyphSet()]} controller detected${soundOff() ? ' · click or press any key once to turn on sound' : ''}` : G.input.device === 'touch' ? '👆 Touch controls' : '⌨️ Keyboard & mouse';
+    };
+    const iv = setInterval(() => { if (!document.body.contains(ind)) clearInterval(iv); else upd(); }, 1000);
     upd();
     G.input.on(upd);
   }, { cls: 'main', modal: true });
@@ -190,9 +195,9 @@ export function openControls() {
     const padLabel = (s) => s.replace(/\b(A|B|X|Y|LB|RB|LT|RT|View|Menu)\b/g, (m) => map[m] || m);
     const rows = BINDINGS.map(([a, k, p]) => `<tr><td>${a}</td><td><span class="kc">${k}</span></td><td><span class="kc pad">${padLabel(p)}</span></td></tr>`).join('');
     w.innerHTML = `<div class="panel wide">${title('Controls', `Controller layout: ${{ xbox: 'Xbox', ps: 'PlayStation', switch: 'Switch Pro' }[set]} (change under Settings → Button prompts)`)}
-      <div class="ctl-scroll nav" data-kind="grid"><table class="ctl"><thead><tr><th>Action</th><th>Keyboard & mouse</th><th>Controller</th></tr></thead><tbody>${rows}</tbody></table>
+      <div class="ctl-scroll nav" data-kind="scroll"><table class="ctl"><thead><tr><th>Action</th><th>Keyboard & mouse</th><th>Controller</th></tr></thead><tbody>${rows}</tbody></table>
       <h3>Touch</h3><p class="small">Drag on the left half to move (push to the edge to sprint) · drag on the right half to look · <b>swipe fast</b> on the right half to cast toward the swipe · buttons on the right: ✦ cast, 🛡 Protego, ⤳ dodge, ⤒ jump, ✋ interact, ◎ lock-on · spell icons pick a spell.</p>
-      <h3>Minigames</h3><p class="small"><b>Quidditch & Hippogriff:</b> steer with WASD / mouse / left stick, boost with Shift / RT / ✦, roll-dodge with Space / A. <b>Potions:</b> choose ingredients with 1–6 or the d-pad and press on the beat; stir by circling the mouse or the right stick; heat with W/S or the triggers. <b>Wand drawing:</b> trace with the mouse, a finger or the right stick (hold RT / A to draw). <b>Frog chase:</b> run and press interact near a frog.</p>
+      <h3>Minigames</h3><p class="small"><b>Quidditch & Hippogriff:</b> steer with WASD / mouse / left stick, boost with Shift / RT / ✦, roll-dodge with Space / A. <b>Potions:</b> choose ingredients with 1–6 or the d-pad and press on the beat; stir by circling the mouse or the right stick; heat with W/S or the triggers. <b>Wand drawing:</b> trace with the mouse or a finger; on a controller aim with either stick and hold RT to draw. Accuracy counts, not speed. <b>Frog chase:</b> run and press interact near a frog.</p>
       </div><div class="row"></div></div>`;
     G.ui.button(w.querySelector('.row'), 'Back', () => G.ui.close(), 'primary');
     const sc = w.querySelector('.ctl-scroll');
@@ -216,7 +221,7 @@ export function openSpellbook(fromPlay) {
       g.appendChild(card);
     });
     G.ui.button(w.querySelector('.row'), 'Close', () => close(), 'primary');
-  }, { cls: 'book', onBack: () => close(), pauseCloses: true });
+  }, { cls: 'book', onBack: () => close(), pauseCloses: true, bookCloses: true });
   function close() { G.ui.close(); if (fromPlay) resume(); }
 }
 function unlockHint(id) {
@@ -239,7 +244,7 @@ export async function openJournal(fromPlay) {
     const cards = CARDS.map((n, i) => `<div class="fcard ${G.save.cards.includes(i) ? 'got' : ''}">${G.save.cards.includes(i) ? `<b>${n}</b>` : '?'}</div>`).join('');
     const best = MINIGAMES.map((m) => `<li>${m.icon} ${m.name}: <b>${G.save.best[m.id] ?? '—'}</b></li>`).join('');
     w.innerHTML = `<div class="panel wide">${title('Journal')}
-      <div class="nav jr" data-kind="grid">
+      <div class="nav jr" data-kind="scroll">
       <div class="j-cols"><div><h3>Current quest</h3><p><b>${q.title}</b><br>${q.objective}</p><h3>Completed</h3><ul class="done">${done || '<li>Nothing yet</li>'}</ul></div>
       <div><h3>Chocolate Frog Cards (${G.save.cards.length}/12)</h3><div class="fcards">${cards}</div>
       <h3>Bertie Bott's Every Flavour Beans</h3><p>${G.save.beans.length} / 30 found</p>

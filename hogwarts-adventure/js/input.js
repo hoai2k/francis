@@ -22,14 +22,14 @@ export const BINDINGS = [
   ['Look / aim', 'Mouse', 'RS'],
   ['Cast selected spell', 'Left click', 'RT'],
   ['Protego (block)', 'Right click / Q', 'Y'],
-  ['Lock on to target', 'Tab / middle click', 'LT'],
-  ['Previous / next spell', 'Wheel / Z / R', 'LB / RB'],
+  ['Lock on to target', 'Tab / middle click', 'Hold LT · flick RS to switch'],
+  ['Previous / next spell', 'Wheel / Z / R', 'LB / RB or D-pad ← →'],
   ['Spell wheel', 'Hold C', 'Hold LB or RB'],
   ['Pick spell 1–8', '1 – 8', '—'],
   ['Jump', 'Space', 'A'],
   ['Dodge roll (hold: sprint)', 'Shift', 'B (L3 sprint)'],
   ['Interact / talk', 'E', 'X'],
-  ['Spellbook', 'B', 'View'],
+  ['Spellbook (open / close)', 'B', 'View'],
   ['Quest journal', 'J', '—'],
   ['Pause / menu', 'Esc / P', 'Menu'],
   ['Mute', 'M', '—'],
@@ -250,9 +250,13 @@ export class Input {
       if (any) this.setDevice('pad');
       if (this.device === 'pad') {
         if (Math.abs(ls.x) > 0 || Math.abs(ls.y) > 0) { this.move.x = ls.x; this.move.y = -ls.y; }
-        const ps = (S.padSensitivity ?? 1) * 3.0;
-        this.look.x += rs.x * Math.abs(rs.x) * ps * dt * 1.2 + rs.x * ps * dt * 0.3;
-        this.look.y += -this.rstick.y * Math.abs(rs.y) * ps * dt * 0.9 * inv;
+        // response curve: fine control near the centre, ~3.4 rad/s yaw at full tilt
+        const ps = (S.padSensitivity ?? 1) * 2.6;
+        const aimK = G.player && (G.player.aiming || G.player.blocking) ? 0.7 : 1;
+        if (!(G.cam && G.cam.lockTarget)) {
+          this.look.x += (rs.x * Math.abs(rs.x) * 1.1 + rs.x * 0.2) * ps * dt * aimK;
+          this.look.y += (rs.y * Math.abs(rs.y) * 0.75) * ps * dt * inv * aimK;
+        }
         // stick-driven menu navigation with repeat
         this._stickNav('up', -ls.y > 0.6, dt);
         this._stickNav('down', ls.y > 0.6, dt);
@@ -413,7 +417,10 @@ function radial(x, y, dz) {
 }
 
 export function detectPad(id = '') {
-  if (/054c|playstation|dualsense|dualshock|wireless controller/i.test(id)) return 'ps';
+  // Xbox first: an Xbox Series pad reports "Xbox Wireless Controller", which would
+  // otherwise match the PlayStation "Wireless Controller" name below
+  if (/xbox|xinput|045e/i.test(id)) return 'xbox';
+  if (/054c|playstation|dualsense|dualshock|^wireless controller/i.test(id)) return 'ps';
   if (/057e|nintendo|pro controller|switch|joy-con/i.test(id)) return 'switch';
   return 'xbox';
 }

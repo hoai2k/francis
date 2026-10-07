@@ -275,7 +275,7 @@ body[data-device='touch'] .spellbar { display: none; }
 body[data-device='touch'] .prompt { bottom: calc(70px + var(--safe-b)); }
 body[data-device='touch'] .hud-quest { display: none; }
 
-#draw-layer { position: fixed; inset: 0; z-index: 15; touch-action: none; }
+#draw-layer { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; z-index: 15; touch-action: none; }
 
 @media (max-width: 720px) {
   .slot { width: 42px; height: 42px; }
