@@ -31,6 +31,7 @@ import { Session, loadMiniRooms } from './session.js';
 import { NetRace } from './netrace.js';
 import { Lineup } from './lineup.js';
 import { Names, NameKeyboard, resolveNames } from './names.js';
+import { claimIdentity, loadRoom, saveRoom, findRoom } from './identity.js';
 import { CAPACITY, RACERS, ID_RE, esc, str, num, int, withSeed, newUid, cleanName } from './proto.js';
 
 const CC = { 50: 0.8, 100: 0.92, 150: 1.06, 200: 1.22 };
@@ -60,7 +61,10 @@ export class Online {
   constructor(game) {
     this.game = game;
     this.names = new Names();
-    this.uid = newUid();
+    // who we are: the same uid as last time in this browser (one per open tab), so leaving and
+    // coming back - Leave room, a reload, a closed tab - gets our karts, picks and points back
+    this.uid = newUid(); this.slot = -1;
+    this.idReady = claimIdentity().then(({ uid, slot }) => { if (!this.session) { this.uid = uid; this.slot = slot; } });
     this.session = null;
     this.view = 'none';          // lobby | joining | select | track | lineup | race | results | wait
     this.R = null;               // host: the room state we publish; guests: the latest one we saw
@@ -87,10 +91,12 @@ export class Online {
   }
 
   // ---- the Online menu (lobby) -----------------------------------------------------------------------
-  open(msg = '', error = '') {
+  // rejoin: straight back into the last room as soon as the lobby lists it (the main menu's Rejoin)
+  open(msg = '', error = '', { rejoin = false } = {}) {
     this.game.onTitle = false;
+    this.autoRejoin = rejoin ? performance.now() + 15000 : 0;
     this.showLobby(msg || (this.lib ? '' : 'Connecting…'), error);
-    loadMiniRooms().then((lib) => { this.lib = lib; if (this.view === 'lobby') { this.lobbyState({}); this.watchLobby(); } })
+    Promise.all([loadMiniRooms(), this.idReady]).then(([lib]) => { this.lib = lib; if (this.view === 'lobby') { this.lobbyState({}); this.watchLobby(); } })
       .catch((e) => { console.warn(e.message); if (this.view === 'lobby') this.lobbyState({ error: ERR.lib }); });
   }
   showLobby(msg = '', error = '') {
@@ -120,6 +126,7 @@ export class Online {
       else if (a === 'back') { this.closeLobby(); g.showMain(); }
       else if (a === 'retry') this.open('Connecting…');
       else if (a?.startsWith('join:')) this.joinRoom(a.slice(5));
+      else if (a?.startsWith('rejoin:')) this.joinRoom(a.slice(7), { rejoin: true });
     };
     g.screen = {
       update: () => {
@@ -157,11 +164,22 @@ export class Online {
     if (error !== undefined) this.lobbyErr = error;
     if (this.lobbyMsg === 'Connecting…' && rooms) this.lobbyMsg = '';
     const ok = !!this.lib && !this.lobbyErr;
-    let i = 0;
-    let html = `<button class="mbtn${ok ? '' : ' dis'}" data-i="${i++}" data-a="host"><span>Host a race</span><span class="val">up to ${RACERS}</span></button>`;
+    let i = 0, html = '';
+    // the room we were in (or the one that took over from it after a host change), while it's open
+    const rec = this.lastRoomRec(30 * 60000), back = ok ? findRoom(rec, this.rooms) : null;
+    if (back) {
+      const full = int(back.count, 0, 99) >= int(back.capacity, 1, 99, CAPACITY);
+      html += `<button class="mbtn ol-rejoin${full ? ' dis' : ''}" data-i="${i++}" data-a="${full ? '' : 'rejoin:' + esc(back.id)}"><span>↩ Rejoin ${esc(str(back.title, 40) || rec.title || 'your race')}</span><span class="val">${full ? 'Full' : 'Back in'}</span></button>`;
+      if (this.autoRejoin && !full) { this.autoRejoin = 0; setTimeout(() => { if (this.view === 'lobby') this.joinRoom(back.id, { rejoin: true }); }, 0); }
+    } else if (this.autoRejoin && rooms !== undefined && performance.now() > this.autoRejoin) {
+      this.autoRejoin = 0;
+      this.lobbyMsg = "That race has ended — it isn't open any more.";
+    }
+    html += `<button class="mbtn${ok ? '' : ' dis'}" data-i="${i++}" data-a="host"><span>Host a race</span><span class="val">up to ${RACERS}</span></button>`;
     if (ok && rooms !== undefined || ok && this.rooms.length) {
       html += `<div class="ol-rooms-h">${this.rooms.length ? 'Open races' : 'No open races right now — host one!'}</div>`;
       for (const r of this.rooms) {
+        if (r === back) continue;
         const count = int(r.count, 0, 99), cap = int(r.capacity, 1, 99, CAPACITY), full = count >= cap;
         html += `<button class="mbtn ol-room${full ? ' dis' : ''}" data-i="${i++}" data-a="${full ? '' : 'join:' + esc(r.id)}"><span>${esc(str(r.title, 40) || 'Race')}</span><span class="val">${full ? 'Full' : `${count}/${cap} · Join`}</span></button>`;
       }
@@ -199,24 +217,68 @@ export class Online {
       this.joinedAt = performance.now();
       this.R = { g: 0, ph: 'sel', o: s.order, n: 1, keep: 0, ri: 0, tk: [] };
       this.suT = 0;
+      this.roomTitle = `${name}'s race`;
+      this.recordRoom();
       this.game.toast(`Room open: ${name}'s race`);
       this.showSelect(false);
     });
     s.host(`${name}'s race`);
   }
-  joinRoom(id) {
+  // rejoin: the room we were in (or its successor): our players come back with their picks
+  joinRoom(id, { rejoin = false } = {}) {
     if (!this.lib || !/^[A-Za-z0-9_-]{1,64}$/.test(id)) return;
+    const listed = this.rooms?.find((r) => r.id === id);
     this.closeLobby();
+    const rec = this.lastRoomRec(24 * 3600000), m = /^(.*)-g(\d+)$/.exec(id), base = m ? m[1] : id;
+    this.restoring = !!(rec && rec.base === base && rec.picks.length);
+    if (this.restoring) this.restoreLocal(rec.picks); else this.local = [];   // (no players from another room)
     const s = this.newSession(this.p1Name());
-    this.showJoining('Joining…');
+    this.roomTitle = str(listed?.title, 40) || (rec?.base === base ? rec.title : '') || '';
+    this.showJoining(rejoin || this.restoring ? 'Rejoining…' : 'Joining…');
     this.joinedAt = performance.now();
     s.on('joined', () => {
       if (s !== this.session) return;
       this.joinedAt = performance.now();
+      this.dropTakenPicks();
+      this.recordRoom();
       this.publishMine(true);
       this.followHost();
     });
     s.join(id);
+  }
+  // ---- coming back: the last room, and our players' picks in it ------------------------------------------
+  lastRoomRec(maxAge) {
+    const r = loadRoom(this.slot);
+    return r && Date.now() - r.t < maxAge ? r : null;
+  }
+  // remember where we are (and our players' picks), every couple of seconds while in a room
+  recordRoom() {
+    const s = this.session;
+    if (!s || this.slot < 0 || !s.base || !s.roomId) return;
+    this.recT = performance.now();
+    const old = loadRoom(this.slot);
+    const picks = this.local.filter((p) => p.ph === 'r').map((p) => ({ slot: p.slot, device: p.device, d: DRIVERS[p.d]?.id || '', k: KARTS[p.k]?.id || '', g: GLIDERS[p.g]?.id || '', pick: p.pick || 'default' }));
+    // (between races, or while picking again, keep the last picks that were locked in)
+    const keep = !picks.length && old?.base === s.base ? old.picks : picks;
+    saveRoom(this.slot, { base: s.base, id: s.roomId, title: this.roomTitle || old?.title || '', t: Date.now(), picks: keep });
+  }
+  restoreLocal(picks) {
+    const D = (id) => DRIVERS.findIndex((x) => x.id === id), K = (id) => KARTS.findIndex((x) => x.id === id), G = (id) => GLIDERS.findIndex((x) => x.id === id);
+    const phone = isPhoneScreen();
+    this.local = picks.filter((p) => D(p.d) >= 0 && K(p.k) >= 0 && G(p.g) >= 0).slice(0, phone ? 1 : 8).map((p) => ({
+      slot: p.slot, device: phone ? 'touch' : p.device, color: PCOL[p.slot % PCOL.length], d: D(p.d), k: K(p.k), g: G(p.g), ph: 'r', pick: p.pick, name: '',
+    }));
+    if (this.local.some((p) => p.device === 'kb2')) this.game.input.split = true;
+    if (!this.local.length) this.restoring = false;
+  }
+  // a returning player whose driver someone else has locked in meanwhile picks again
+  dropTakenPicks() {
+    if (!this.restoring) return;
+    const ph = this.session?.hostP?.R?.ph;
+    if (ph && ph !== 'sel' && ph !== 'trk') return;   // (mid-race the grid is what counts)
+    const taken = new Set(this.humans().filter((h) => !h.me && h.ph !== 'n' && h.ph !== 'd' && (h.stage === 'sel' || h.stage === 'rdy')).map((h) => h.d));
+    this.local = this.local.filter((p) => !taken.has(p.d));
+    if (!this.local.length) this.restoring = false;
   }
   showJoining(text) {
     this.view = 'joining';
@@ -268,7 +330,7 @@ export class Online {
       case 'select': case 'track': case 'confirm': return this.local.length && this.local.every((p) => p.ph === 'r') ? 'rdy' : 'sel';
       case 'lineup': return this.loadedRi && this.loadedRi === this.raceRi ? (this.netRace?.spectating ? 'spec' : 'race') : 'load';
       case 'race': return this.netRace?.spectating ? 'spec' : 'race';
-      case 'results': return 'res';
+      case 'results': case 'wait': return 'res';
       default: return 'join';
     }
   }
@@ -331,7 +393,9 @@ export class Online {
     if (ph === 'sel' || ph === 'trk') {
       const newRound = prev && prev.n !== R2.n;
       if (!['select', 'track', 'confirm'].includes(this.view) || newRound) {
-        if (this.view !== 'confirm' || newRound) this.showSelect(!!R2.keep && newRound && this.local.length > 0);
+        // (a returning player comes back with the picks they had)
+        if (this.view !== 'confirm' || newRound) this.showSelect((!!R2.keep && newRound || this.restoring) && this.local.length > 0);
+        this.restoring = false;
       } else this.selRefreshSoon();
       return;
     }
@@ -404,9 +468,20 @@ export class Online {
   }
   onArrived(p) {
     if (!p) return;
+    this.seen ||= new Set();
+    const back = this.seen.has(p.uid);
+    this.seen.add(p.uid);
     if (performance.now() - (this.joinedAt || 0) > 1500 && p.uid) {
       const names = this.humans().filter((h) => h.uid === p.uid).map((h) => h.name);
-      this.bubble(names.length ? `👋 ${names.join(' & ')} joined` : '👋 Someone joined');
+      const was = this.leftNames?.get(p.uid) || [];
+      this.bubble(back ? `👋 ${(names.length ? names : was).join(' & ') || 'Someone'} is back` : names.length ? `👋 ${names.join(' & ')} joined` : '👋 Someone joined');
+    }
+    // someone coming back into a race in progress: the host keeps driving their karts (from where
+    // they are) until their screen has loaded the track and is racing, then hands them back
+    const nr = this.netRace;
+    if (this.isHost && nr && this.R?.go && this.session.sharedNow() > this.R.go - COUNT * 1000) {
+      nr.grid.forEach((g, i) => { if (g.u === p.uid) nr.takeOver(i); });
+      this.R.tk = [...nr.taken].sort((a, b) => a - b);
     }
     if (this.isHost) {
       this.publishMine(true);
@@ -735,9 +810,13 @@ export class Online {
     g.touchRoot.classList.add('hidden');
     this.publishMine(true);
     g.audio.stopMusic();
-    // build the world on the next frame (it blocks for a moment), the same on every screen
-    setTimeout(() => {
+    // build the world on the next frame (it blocks for a moment), the same on every screen (a guest
+    // that has only just joined waits for its clock to agree with the host's: whether the race is
+    // already under way decides who drives its karts at first)
+    const t0 = performance.now();
+    const build = () => {
       if (this.raceRi !== su.ri || !this.session) return;
+      if (!this.session.isHost && !this.session.synced && performance.now() - t0 < 4000) { setTimeout(build, 100); return; }
       try { this.buildRace(su); } catch (e) { console.error('online race build failed', e); this.toLobby('Something went wrong loading that race.'); return; }
       this.lastTick = performance.now();   // (building blocks the page for a moment: that's not being frozen)
       if (this.session && !this.session.isHost) this.session.hostSeenAt = Math.max(this.session.hostSeenAt || 0, this.lastTick);
@@ -745,7 +824,8 @@ export class Online {
       this.publishMine(true);
       this.updateLineup();
       if (this.isHost) this.hostCheck();
-    }, 80);
+    };
+    setTimeout(build, 80);
   }
   buildRace(su) {
     const g = this.game, s = this.session;
@@ -770,7 +850,10 @@ export class Online {
     const race = withSeed(su.sd, () => g.buildRace(opts, false));
     g.hudRoot.classList.add('hidden');
     this.race = race;
-    this.netRace = new NetRace(this, race, su, { me: this.uid, spectate });
+    // a race already under way (we're coming back to it, or loaded very late): the host has been
+    // driving our karts; they stay its until it hands them back, from where they are by then
+    const under = !s.isHost && !!(this.R?.go && s.sharedNow() > this.R.go - COUNT * 1000);
+    this.netRace = new NetRace(this, race, su, { me: this.uid, spectate, claim: under });
     if (this.R?.go) this.netRace.goAt = this.R.go;
     if (this.R?.tk) this.netRace.setTaken(this.R.tk);
     race.onDone = null;
@@ -833,6 +916,7 @@ export class Online {
       if (tNow - s.hostSeenAt > limit) { this.bubble('The host stopped responding — finding a new host…'); s.abandonHost(); return; }
     }
     s.tick(dt);
+    if (s.status === 'open' && tNow - (this.recT || 0) > 2000) this.recordRoom();
     // our own kart driven by the host (we were away): say so until we have it back
     const nr = this.netRace;
     const away = nr && !nr.spectating && [...nr.myIdxs].some((i) => nr.taken.has(i)) && this.view === 'race';
@@ -974,9 +1058,17 @@ export class Online {
     this.banner(null);
     this.joinedAt = performance.now();
     this.bubble(asHost ? '👑 You are the host now' : 'Back in the race room');
+    this.recordRoom();
     if (asHost) {
       this.R = { ph: 'sel', n: 1, ri: 0, tk: [], ...(this.R || {}), g: s.gen, o: s.order };
       this.suT = 0;
+      this.roomTitle = s.title;
+      // a Grand Prix carries on: the table came with the old host's room state
+      if (!this.R.gp && this.gp) {
+        const su = this.setups.get(this.R.ri);
+        this.R.gp = { cup: this.gp.cup, name: this.gp.name, round: this.gp.round, tracks: [...this.gp.tracks], pts: this.gp.pts.map((e) => [...e]),
+          cpus: su ? su.gr.filter((e) => !e.u).map((e) => ({ d: e.d, k: e.k, g: e.g })) : null };
+      }
       if (this.netRace) {
         // drive the CPU karts, and the karts of anyone not here yet (they get theirs back as they arrive)
         const nr = this.netRace, live = new Set([...s.peers.values()].map((p) => p.uid).filter(Boolean));
@@ -1052,12 +1144,14 @@ export class Online {
   }
   leaveRoom() {
     const s = this.session;
+    if (s?.status === 'open') { try { this.recordRoom(); } catch (e) { console.error(e); } }
     this.session = null;
     if (s) { try { s.leave(); } catch { /* gone */ } }
     this.banner(null);
     this.modal = null;
     this.R = null; this.prev.clear(); this.setups.clear();
     this.raceRi = 0; this.loadedRi = 0;
+    this.seen = null; this.gp = null;
   }
   toLobby(msg = '', error = '') {
     this.leaveRoom();
