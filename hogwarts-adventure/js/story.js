@@ -643,6 +643,7 @@ export class Story {
     }
   }
   startBoss() {
+    if (G.save.flags.malacharDefeated) return;
     this.encounter = 'boss';
     G.skyObj.lock = 0.97;
     const C = SPOTS.clearing;
@@ -683,6 +684,8 @@ export class Story {
       }
       if (data.type === 'malachar') {
         this.encounter = 'bossDone';
+        G.save.flags.malacharDefeated = true;
+        writeSave();
         setTimeout(() => this.run(() => this.bossDefeated()), 2600);
       }
     }
@@ -795,7 +798,8 @@ export class Story {
     if (G.zone?.name === 'grounds' && G.mode === 'play') {
       if (s === 8 && this.encounter !== 'lake' && p.pos.distanceTo(G.world.zones.grounds.pierEnd) < 45) this.startLake();
       const C = SPOTS.clearing;
-      if (s === 9 && this.encounter !== 'boss' && Math.hypot(p.pos.x - C.x, p.pos.z - C.z) < 34 && !this.busy) {
+      if (s === 9 && G.save.flags.malacharDefeated && !this.encounter && !this.busy) { this.encounter = 'bossDone'; this.advance(10); }
+      if (s === 9 && !this.encounter && !G.save.flags.malacharDefeated && Math.hypot(p.pos.x - C.x, p.pos.z - C.z) < 34 && !this.busy) {
         this.encounter = 'boss';
         this.run(async () => {
           G.skyObj.lock = 0.97;
@@ -805,7 +809,7 @@ export class Story {
         });
       }
       if (s >= 8 && s <= 9 && (p.pos.x > 110 || p.pos.distanceTo(G.world.zones.grounds.pierEnd) < 60)) G.skyObj.lock = 0.93;
-      else if (this.encounter !== 'lake' && this.encounter !== 'boss') G.skyObj.lock = null;
+      else if (this.encounter !== 'lake' && this.encounter !== 'boss' && this.encounter !== 'bossDone') G.skyObj.lock = null;
     }
     // rival houses earn points over time
     this.rivalT -= dt;
