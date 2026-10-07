@@ -22,6 +22,7 @@ export const ITEMS = {
   feather: { name: 'Hippogriff feather', short: 'Feather', icon: '🪶', price: 0, tags: ['creature', 'book'], gift: true },
   egg: { name: 'Golden egg', short: 'Golden egg', icon: '🥚', price: 0, tags: [], gift: false },
   orb: { name: 'Prophecy orb', short: 'Prophecy', icon: '🔮', price: 0, tags: [], gift: false },
+  locket: { name: 'Heavy gold locket', short: 'Locket', icon: '📿', price: 0, tags: [], gift: false },
   shell: { name: 'Lake shell', short: 'Shell', icon: '🐚', price: 0, tags: ['creature', 'plant'], gift: true },
 };
 export const SHOPS = {

@@ -9,6 +9,7 @@ import { buildUndercroft, addUndercroftDoor } from './years.js';
 import { buildHogsmeade } from './hogsmeade.js';
 import { buildLakebed, buildMaze, buildGraveyard } from './years4.js';
 import { buildRequirement, addRequirementDoor, buildArcana } from './years5.js';
+import { buildCave } from './years6.js';
 
 export class World {
   constructor() {
@@ -35,6 +36,7 @@ export class World {
       ['graveyard', () => buildGraveyard(Q), 'Digging a forgotten graveyard'],
       ['requirement', () => buildRequirement(Q), 'Asking the Room for what you need'],
       ['arcana', () => buildArcana(Q), 'Sealing the Department of Arcana'],
+      ['cave', () => buildCave(Q), 'Filling a sea cave with something nasty'],
     ];
     for (let i = 0; i < steps.length; i++) {
       const [name, fn, label] = steps[i];

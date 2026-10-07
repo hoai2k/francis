@@ -225,6 +225,36 @@ false vision lures you to the Ministry.
 Side quests: break Grimshaw's wards, recover Kofi's niffler stashes, open the
 chest the Room hid for Bram, and hear Cassius's doubts.
 
+## Year 6 — Poisoned Waters
+
+Cassius is pacing the train with a task he cannot refuse. Professor Pell
+returns to teach Potions and lends you a battered textbook. Its margins,
+signed "the Lamplighter", teach you Levicorpus. In the **Mirrorbasin** the
+Headmistress shows you the young Varric Mordaunt and the secret of his
+survival: seven **vessels**, each holding a piece of his soul. You learn
+Ventus by spinning Brannoc's windmills and Reducto after a cursed opal
+necklace hurts Tamsin in Hogsmeade.
+
+- **Poisoned Mead** (the mid-year twist): at Pell's Christmas party, Oren
+  drinks mead that was meant for the Headmistress. Solve the **poison
+  puzzle**: six relabelled phials and a riddle of clues, with two guesses
+  before things go badly.
+- **Pell's Memory:** find the right way to persuade him, and he gives up the
+  memory that matters.
+- **Cassius cornered:** duel him in the Room of Requirement and learn why he
+  is doing this.
+- **Boss: the Sea Cave.** The Headmistress opens a blood-sealed door, and you
+  cross a black lake to an island basin. She drinks the poison while Inferi
+  rise from the water in waves, then the **Drowned Host** emerges. It slams
+  the ground and calls up more of the drowned. Fire drives them all back.
+- **Boss: the Tower.** The Hollowed come through Cassius's cabinet. Cassius
+  refuses to kill the Headmistress. You defend her tower against the Hollowed
+  and Malachar, and the locket turns out to be a fake left by "M.V.", who is
+  Cassius's lost uncle.
+
+Side quests: Isolde's bricked-up storerooms, Bram's runaway seed pods and
+Pell's Lantern Club brewing contest.
+
 ## Minigames
 
 All six can also be played from **Minigames** on the title screen.

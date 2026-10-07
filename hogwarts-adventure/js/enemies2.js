@@ -592,3 +592,67 @@ TYPES.vesper = {
     if (Math.random() < 0.25) G.fx.emit({ pos: this.pos.clone().setY(this.pos.y + rand(0.3, 1.8)), color: 0xff4080, count: 1, speed: 0.3, size: 0.18, life: 0.6, intensity: 2.5, noScale: true });
   },
 };
+
+// ------------------------------------------------------------------ Inferi (Year 6 cave): slow, relentless, they fear fire
+TYPES.inferius = {
+  name: 'Inferius', hp: 70, radius: 0.45, height: 1.8, speed: 2.4, weak: { incendio: 2.6, confringo: 2.4, lumos: 1.5, bombarda: 1.3 }, resist: { stupefy: 0.3, petrificus: 0.5, obscuro: 0, silencio: 0, rictusempra: 0 }, points: 1, xp: 8,
+  model: (o) => {
+    const m = makeWizard({ robeColor: '#2a2e30', liningColor: '#1a1c1e', hairStyle: o.big ? 'long' : 'messy', hairColor: '#8a8e90', skin: '#b8c0c4', eyeGlow: '#d8f0ff', noWand: true, scale: o.big ? 2.3 : rand(0.9, 1.05) });
+    return m;
+  },
+  ai(dt, p) {
+    const B = this;
+    if (B.o.big && !B.init) { B.init = true; B.radius = 1; B.height = 4.2; }
+    // rising out of the black water
+    if (B.riseT === undefined && B.o.rise) { B.riseT = 1.6; B.invuln = true; }
+    if (B.riseT > 0) {
+      B.riseT -= dt;
+      B.model.root.position.y = -Math.max(0, B.riseT) * 1.4;
+      if (Math.random() < 0.4) G.fx.emit({ pos: B.pos.clone(), color: 0x60a090, count: 2, speed: 2, size: 0.2, life: 0.6, intensity: 1.5, up: 2 });
+      if (B.riseT <= 0) B.invuln = false;
+      B.anim.update?.(dt, 0);
+      return;
+    }
+    const d = flat(B.pos, p.pos);
+    B.face(p.pos, dt, 4);
+    B.atkT = (B.atkT ?? rand(1, 2)) - dt;
+    if (B.o.big) {
+      // the Drowned Host: slams, calls more of the drowned, and sweeps the island
+      B.callT = (B.callT ?? 8) - dt;
+      if (B.callT <= 0) {
+        B.callT = 12;
+        const C = B.o.center || B.pos;
+        for (let i = 0; i < 3; i++) { const a = rand(0, Math.PI * 2); const e = G.enemies.spawn('inferius', C.clone().add(new THREE.Vector3(Math.cos(a) * 8, 0, Math.sin(a) * 8)), { aggro: true, rise: true }); e.summon = true; }
+        G.ui.toast('More of the drowned rise!', 'warn', 1800);
+      }
+      if (B.atkT <= 0 && d < 9) {
+        B.atkT = rand(2.2, 3);
+        const at = d < 4 ? B.pos.clone() : p.pos.clone();
+        at.y = groundAt(at.x, at.z, at.y);
+        G.enemies.telegraph(at, d < 4 ? 5 : 3, 1.1, () => {
+          if (!B.alive) return;
+          G.audio.sfx('slam'); G.cam.shake(0.5);
+          G.fx.emit({ pos: at.clone().setY(at.y + 0.3), color: 0x60a090, count: 40, speed: 6, size: 0.4, life: 0.7, intensity: 1.5, up: 4 });
+          if (flat(p.pos, at) < (d < 4 ? 5.2 : 3.2)) p.damage(22 * D(), { knock: _v.subVectors(p.pos, at).setY(0).normalize().multiplyScalar(9).clone() });
+        }, { color: 0x80c0b0 });
+      }
+    } else if (B.atkT <= 0 && d < 2.2) {
+      // a cold, clutching grab
+      B.atkT = rand(1.8, 2.6);
+      G.enemies.telegraph(B.pos.clone(), 1.4, 0.55, () => {
+        if (!B.alive || !B.canAct) return;
+        if (flat(p.pos, B.pos) < 1.8 && p.alive) {
+          p.damage(10 * D(), { dodgeable: true });
+          if (!p.blocking) { p.petrified = Math.max(p.petrified || 0, 0.8); G.ui.floatText(p.pos.clone().setY(p.pos.y + 2.2), 'Grabbed!', 'hurt'); }
+        }
+      }, { color: 0x80c0b0 });
+    }
+    if (d > 1.4) B.moveToward(p.pos, B.def.speed * (B.o.big ? 0.8 : 1) * (G.spells.fireRing ? 0.5 : 1), dt, 3);
+    else { B.vel.x = damp(B.vel.x, 0, 6, dt); B.vel.z = damp(B.vel.z, 0, 6, dt); }
+    B.anim.set?.('idle');
+    B.anim.update?.(dt, Math.hypot(B.vel.x, B.vel.z) * 0.6);
+  },
+};
+TYPES.drownedhost = { ...TYPES.inferius, name: 'The Drowned Host', hp: 1300, radius: 1, height: 4.2, speed: 2.2, points: 120, boss: true, xp: 1000,
+  model: (o) => TYPES.inferius.model({ ...o, big: true }),
+  ai(dt, p) { this.o.big = true; TYPES.inferius.ai.call(this, dt, p); } };
