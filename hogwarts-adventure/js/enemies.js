@@ -207,6 +207,7 @@ export class Enemy {
       if (sp === 'leviosa') this.lift(h.remote);
       if (sp === 'patronum' && this.type === 'dementor') this.flee = 3;
       if (this.type === 'troll') this.trollHit(sp);
+      this.def.onSpell?.call(this, sp, h);
       if (!this.status.stun && !this.status.frozen && this.anim.trigger) this.anim.trigger('hit');
     }
     if (this.hp <= 0) this.die(h);
@@ -444,14 +445,14 @@ export class Enemy {
       const dx = this.pos.x - e.pos.x, dz = this.pos.z - e.pos.z, d = Math.hypot(dx, dz), m = this.radius + e.radius;
       if (d < m && d > 0.001) { this.pos.x += (dx / d) * (m - d) * 0.5; this.pos.z += (dz / d) * (m - d) * 0.5; }
     }
-    if (!this.def.flying || this.type === 'dementor') {
+    if (!this.def.flying || this.type === 'dementor' || this.type === 'dragon') {
       const dx = this.pos.x - p.pos.x, dz = this.pos.z - p.pos.z, d = Math.hypot(dx, dz), m = this.radius + p.radius;
       if (d < m && d > 0.001) { this.pos.x += (dx / d) * (m - d); this.pos.z += (dz / d) * (m - d); }
     }
     this.root.position.copy(this.pos);
     this.root.rotation.y = dampAngle(this.root.rotation.y, this.yaw, 10, dt);
     const sp = Math.hypot(this.vel.x, this.vel.z);
-    if (S.stun <= 0 && this.anim.set && (this.type === 'wizard' || this.type === 'duelist' || this.type === 'malachar')) {
+    if (S.stun <= 0 && this.anim.set && (this.type === 'wizard' || this.type === 'duelist' || this.type === 'malachar' || this.type === 'hollowking')) {
       this.anim.set(this.blocking ? 'block' : this.castWind > 0 ? 'aim' : 'idle');
     }
     this.anim.update?.(dt, sp);

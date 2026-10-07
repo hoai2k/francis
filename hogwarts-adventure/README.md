@@ -168,6 +168,35 @@ Forest: waves of Dementors, a Dementor lord, then Malachar, who escapes at half
 health. Ashdown teaches you Glacius before he leaves. Side quests: Oren's star
 charts, treats for the Hippogriff and moonpetals for Isolde.
 
+## Year 4 — The Ember Cup
+
+Kofi's escaped pixies and the Hollow Mark in the sky make for a busy train
+ride. Hogwarts hosts the **Ember Cup**: the Ember Goblet names champions from
+Durmvald (Anneliese Roth), Beaumanoir (Thibault Laurent) and Hogwarts (Aurelia
+Hartwell), and then, impossibly, you as a fourth. Learn Confringo from
+Professor Calloway, a retired Auror, Descendo from Thornwick, Diffindo from
+Isolde and Aguamenti from Bram.
+
+- **First Task:** subdue a Ridgeback dragon at the pitch. Its attacks are a
+  sweeping fire breath, a tail whip, a stomp and fireballs. In the second
+  phase it flies and strafes the arena with fire until Descendo drags it down,
+  and in the third it is enraged. Ice and water hurt it most. Then grab the
+  golden egg.
+- **Spiders' Hollow:** cut through acromantula webs in the Forbidden Forest
+  and fight their matriarch, Old Mokkra.
+- **Yule Ball:** pick a partner from your friends and open the ball in a
+  rhythm minigame (arrows, D-pad or on-screen pads). Afterwards you overhear
+  that Grimshaw entered your name and serves the Hollow King.
+- **Second Task:** swim the bed of the Black Lake with Gillyweed to free your
+  partner from the merfolk.
+- **Third Task:** find the Cup at the centre of a hedge maze full of spiders.
+- **The graveyard:** the Cup is a portkey. Malachar raises the Hollow King.
+  Fight the Hollowed and Malachar, then run from the Hollow King, carrying
+  Aurelia to the portkey.
+
+Side quests: Tamsin's Confringo challenge, Mei's camera, the Durmvald lantern,
+Kofi's Dungbomb and a rematch duel with Cassius.
+
 ## Minigames
 
 All six can also be played from **Minigames** on the title screen.

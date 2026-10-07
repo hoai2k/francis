@@ -49,7 +49,7 @@ function route(from, to) {
   return cur;
 }
 
-export const BUILT_YEARS = 3;
+export const BUILT_YEARS = 4;
 const Y1_FROM = ['Headmistress Aldmoor', 'Headmistress Aldmoor', 'Professor Thornwick', 'Professor Duskwood', 'Professor Vexley', 'Professor Vexley', 'Madam Hale', 'Brannoc the Groundskeeper', 'Headmistress Aldmoor', 'Headmistress Aldmoor', 'Brannoc the Groundskeeper'];
 
 export const QUESTS = [

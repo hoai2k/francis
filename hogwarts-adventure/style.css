@@ -469,3 +469,21 @@ body.has-companion .t-cmd { display: grid; }
   .net-pill { font-size: 13px; max-width: 46vw; }
   .subtitle { bottom: calc(190px + var(--safe-b)); font-size: 15px; }
 }
+
+/* Yule Ball dance lane */
+.dance-lane { position: absolute; left: 50%; bottom: 18%; transform: translateX(-50%); height: 46vh; display: flex; gap: 8px; pointer-events: none; }
+.dl-col { position: relative; width: min(13vw, 64px); height: 100%; border-radius: 10px; background: linear-gradient(to top, rgba(255, 215, 120, 0.18), rgba(20, 16, 30, 0.25)); }
+.dl-target, .dl-note { position: absolute; left: 50%; transform: translateX(-50%); width: min(12vw, 58px); height: min(12vw, 58px); display: grid; place-items: center; border-radius: 50%; font-size: min(6vw, 28px); }
+.dl-target { bottom: 0; border: 3px solid rgba(255, 220, 140, 0.8); color: rgba(255, 220, 140, 0.8); }
+.dl-target.perfect { animation: dlPop 0.3s; border-color: #8cff9a; color: #8cff9a; }
+.dl-target.good { animation: dlPop 0.3s; border-color: #ffe08a; color: #ffe08a; }
+.dl-target.bad { animation: dlPop 0.3s; border-color: #ff7a7a; color: #ff7a7a; }
+.dl-note { background: radial-gradient(circle, #fff3c8, #e0a040); color: #3a2410; box-shadow: 0 0 12px rgba(255, 200, 100, 0.8); margin-bottom: 0; }
+.dl-col[data-d='left'] .dl-note { background: radial-gradient(circle, #ffd0e0, #e05a8a); }
+.dl-col[data-d='up'] .dl-note { background: radial-gradient(circle, #d0f0ff, #3a9ae0); }
+.dl-col[data-d='down'] .dl-note { background: radial-gradient(circle, #e0ffd0, #4ab040); }
+@keyframes dlPop { 50% { transform: translateX(-50%) scale(1.25); } }
+.dance-pads { display: none; position: fixed; left: 0; right: 0; bottom: calc(10px + var(--safe-b, 0px)); justify-content: center; gap: 12px; z-index: 30; }
+.dance-pads button { width: 64px; height: 64px; border-radius: 50%; font-size: 26px; border: 2px solid rgba(255, 220, 140, 0.8); background: rgba(30, 20, 40, 0.7); color: #ffe0a0; }
+body[data-device='touch'] .dance-pads { display: flex; }
+body[data-device='touch'] .dance-lane { bottom: calc(90px + var(--safe-b, 0px)); }

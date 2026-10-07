@@ -7,6 +7,7 @@ import { PLATEAU } from './terrain.js';
 import { buildStation, buildTrain, buildCountryside } from './journey.js';
 import { buildUndercroft, addUndercroftDoor } from './years.js';
 import { buildHogsmeade } from './hogsmeade.js';
+import { buildLakebed, buildMaze, buildGraveyard } from './years4.js';
 
 export class World {
   constructor() {
@@ -28,6 +29,9 @@ export class World {
       ['countryside', () => buildCountryside(Q), 'Laying track across the Highlands'],
       ['undercroft', () => buildUndercroft(Q), 'Hiding the Undercroft'],
       ['hogsmeade', () => buildHogsmeade(Q), 'Lighting the lamps of Hogsmeade'],
+      ['lakebed', () => buildLakebed(Q), 'Filling the Black Lake'],
+      ['maze', () => buildMaze(Q), 'Growing the hedge maze'],
+      ['graveyard', () => buildGraveyard(Q), 'Digging a forgotten graveyard'],
     ];
     for (let i = 0; i < steps.length; i++) {
       const [name, fn, label] = steps[i];

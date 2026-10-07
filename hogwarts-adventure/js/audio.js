@@ -518,6 +518,7 @@ export class AudioSys {
       case 'oppugno': for (let i = 0; i < 6; i++) this._tone(t + i * 0.05, r(2000, 3000), r(2400, 3600), 0.05, 0.03, 'sine', null, 0.2); break;
       case 'whistle': [0, 0.55].forEach((d) => { this._tone(t + d, 880, 870, 0.45, 0.07, 'sine', null, 0.2); this._tone(t + d, 1108, 1100, 0.45, 0.05, 'sine', null, 0.2); this._noise(t + d, 0.45, 0.05, 'bandpass', 2400, null, 4); }); break;
       case 'steam': this._noise(t, 0.8, 0.15, 'highpass', 1500, null, 1, 3000); break;
+      case 'portkey': this._tone(t, 200, 1600, 0.9, 0.18, 'triangle', null, 0.6); this._noise(t, 0.9, 0.12, 'bandpass', 600, null, 1, 4000); break;
       case 'gong': this._tone(t, 110, 105, 2.5, 0.25, 'sine', null, 0.9); this._tone(t, 167, 160, 2.2, 0.12, 'sine', null, 0.9); break;
       default: break;
     }

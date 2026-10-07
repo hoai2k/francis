@@ -20,6 +20,7 @@ export const ITEMS = {
   creature: { name: 'Bag of Owl Treats', short: 'Owl treats', icon: '🦉', price: 5, tags: ['creature'], gift: true },
   polish: { name: 'Broomstick polish', short: 'Broom polish', icon: '🧹', price: 10, tags: ['broom'], gift: true },
   feather: { name: 'Hippogriff feather', short: 'Feather', icon: '🪶', price: 0, tags: ['creature', 'book'], gift: true },
+  egg: { name: 'Golden egg', short: 'Golden egg', icon: '🥚', price: 0, tags: [], gift: false },
   shell: { name: 'Lake shell', short: 'Shell', icon: '🐚', price: 0, tags: ['creature', 'plant'], gift: true },
 };
 export const SHOPS = {
