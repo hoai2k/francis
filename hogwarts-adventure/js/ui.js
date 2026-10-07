@@ -58,11 +58,22 @@ export class UI {
     setTimeout(() => t.classList.add('out'), ms);
     setTimeout(() => t.remove(), ms + 600);
   }
+  // banners queue so two never overlap
   banner(title, sub = '', cls = '') {
+    (this.bannerQ ||= []).push([title, sub, cls]);
+    if (this.bannerQ.length > 4) this.bannerQ.splice(1, 1);
+    if (!this.bannerBusy) this._nextBanner();
+  }
+  _nextBanner() {
+    const n = this.bannerQ.shift();
+    if (!n) { this.bannerBusy = false; return; }
+    this.bannerBusy = true;
+    const [title, sub, cls] = n;
     const b = el('div', 'banner ' + cls, `<div class="b-title">${title}</div>${sub ? `<div class="b-sub">${sub}</div>` : ''}`);
     document.body.appendChild(b);
-    setTimeout(() => b.classList.add('out'), 1900);
-    setTimeout(() => b.remove(), 2600);
+    const quick = this.bannerQ.length > 0;
+    setTimeout(() => b.classList.add('out'), quick ? 1500 : 1900);
+    setTimeout(() => { b.remove(); this._nextBanner(); }, quick ? 2000 : 2600);
   }
   points(house, n, reason = '') {
     if (!n) return;

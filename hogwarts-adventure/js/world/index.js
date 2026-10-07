@@ -4,6 +4,7 @@ import { G } from '../state.js';
 import { buildGrounds } from './grounds.js';
 import { buildGreatHall, buildStaircase, buildCorridor, buildDungeon, buildTower } from './interiors.js';
 import { PLATEAU } from './terrain.js';
+import { buildStation, buildTrain, buildCountryside } from './journey.js';
 
 export class World {
   constructor() {
@@ -20,6 +21,9 @@ export class World {
       ['corridor', () => buildCorridor(Q), 'Polishing suits of armour'],
       ['dungeon', () => buildDungeon(Q), 'Brewing in the dungeons'],
       ['tower', () => buildTower(Q), "Winding the Headmistress's instruments"],
+      ['station', () => buildStation(Q), 'Finding Platform Nine and Three-Quarters'],
+      ['train', () => buildTrain(Q), 'Stoking the Hogwarts Express'],
+      ['countryside', () => buildCountryside(Q), 'Laying track across the Highlands'],
     ];
     for (let i = 0; i < steps.length; i++) {
       const [name, fn, label] = steps[i];

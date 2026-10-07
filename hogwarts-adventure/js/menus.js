@@ -8,6 +8,7 @@ import { crestSVG } from './ui.js';
 import { saveSettings, hasSave, loadSave, newSave, writeSave, deleteSave, SLOTS, peekSlot, currentSlot, setSlot, latestSlot, anySave, loadYearSnapshot } from './save.js';
 import { TALENTS, TALENT_MAX, spendTalent, resetTalents, slotCount, slotsFor, equippable, setSlot as setSpellSlot, masteryLevel, MASTERY_STEPS, YEARS, today, xpForLevel, levelProgress } from './progress.js';
 import { SPELL_BY_ID } from './spelldata.js';
+import { ITEMS, SHOPS, coins, itemCount, buy, useItem, frogCard } from './items.js';
 import { setQuality } from './engine.js';
 import { SKIN_TONES, HAIR_COLORS, HAIR_STYLES, WAND_WOODS } from './models.js';
 import { el } from './util.js';
@@ -144,6 +145,15 @@ export function startFromSave() {
     const p = G.save.pos;
     G.world.setZone(zone, p ? { pos: new THREE.Vector3(p[0], p[1], p[2]), yaw: p[3] } : null);
     G.story.resume();
+    if (G.save.journey) {
+      const { runJourney } = await import('./journey.js');
+      const j = G.save.journey;
+      G.ui.fade(0, 0.5);
+      if (!(await runJourney(j.year, j.step))) return;
+      if (j.year === 1) { G.story.sortingAfterJourney(); return; }
+      await G.story.startYear(j.year);
+      return;
+    }
     if (G.save.year === 1 && G.save.stage === 0) { G.story.beginNewGame(); return; }
     G.cam.setCinematic(null);
     G.cam.snap();
@@ -170,6 +180,7 @@ export function openPause() {
     G.ui.button(c, 'Resume', () => resume(), 'primary');
     G.ui.button(c, 'Spellbook', () => openSpellbook());
     G.ui.button(c, `Owl Post & Journal${unreadBadge()}`, () => openJournal());
+    G.ui.button(c, `Satchel <small>${coins()} Sickles</small>`, () => openSatchel());
     G.ui.button(c, 'School Years', () => openYears());
     G.ui.button(c, 'House Points', () => openHouseBoard());
     G.ui.button(c, 'Settings', () => openSettings());
@@ -364,6 +375,57 @@ export async function openJournal(fromPlay) {
     jr.addEventListener('adjust', (e) => { jr.scrollTop += e.detail * 80; });
   }, { cls: 'journal', onBack: () => close(), pauseCloses: true });
   function close() { G.ui.close(); if (fromPlay) resume(); }
+}
+
+// ---------------------------------------------------------------- shops + satchel
+export function openShop(id) {
+  const shop = SHOPS[id];
+  const wasPaused = G.paused;
+  G.paused = true;
+  document.exitPointerLock?.();
+  return new Promise((res) => {
+    let entry;
+    const build = (focus = 0) => {
+      entry = G.ui.open((w) => {
+        w.innerHTML = `<div class="panel">${title(shop.title, `${shop.sub} · you have <b class="gold">${coins()} Sickles</b>`)}<div class="menu-col shop"></div><div class="row"></div></div>`;
+        const c = w.querySelector('.shop');
+        for (const iid of shop.items) {
+          const it = ITEMS[iid];
+          G.ui.button(c, `<span class="t-ico">${it.icon}</span><span class="t-txt"><b>${it.name}</b><small>${it.eat ? 'Eat: ' + it.eat : 'A good gift for the right friend'} · you have ${itemCount(iid)}</small></span><span class="price">${it.price}s</span>`, () => {
+            if (!buy(iid)) { G.ui.toast('Not enough Sickles.', 'info'); return; }
+            let extra = '';
+            if (iid === 'frog') extra = ' ' + frogCard().replace('Just chocolate this time.', '');
+            G.ui.toast(`Bought ${it.short}.${extra}`, 'info');
+            const f = entry.focus; G.ui.close(entry); build(f);
+          }, 'talent-btn');
+        }
+        G.ui.button(w.querySelector('.row'), 'Done', () => done(), 'primary');
+      }, { cls: 'shopscr', onBack: () => done(), focus });
+    };
+    const done = () => { G.ui.close(entry); G.paused = wasPaused; if (G.mode === 'play' && !wasPaused) G.ui.showHUD(true); res(); };
+    build();
+  });
+}
+export function openSatchel() {
+  let entry;
+  const build = (focus = 0) => {
+    entry = G.ui.open((w) => {
+      const ids = Object.keys(G.save.items || {}).filter((k) => ITEMS[k] && itemCount(k) > 0);
+      w.innerHTML = `<div class="panel">${title('Satchel', `<b class="gold">${coins()} Sickles</b> · eat sweets for a boost, or give them to friends`)}<div class="menu-col shop"></div><div class="row"></div></div>`;
+      const c = w.querySelector('.shop');
+      if (!ids.length) c.innerHTML = '<p class="small">Your satchel is empty. The sweets trolley on the Hogwarts Express (and, from your third year, Hogsmeade) sells treats.</p>';
+      for (const iid of ids) {
+        const it = ITEMS[iid];
+        G.ui.button(c, `<span class="t-ico">${it.icon}</span><span class="t-txt"><b>${it.name} ×${itemCount(iid)}</b><small>${it.eat ? 'Use: ' + it.eat : 'Gift item'}</small></span>`, () => {
+          if (!it.eat) { G.ui.toast('Give this to a friend: talk to them and choose Give a gift.', 'tip'); return; }
+          useItem(iid);
+          const f = entry.focus; G.ui.close(entry); build(f);
+        }, 'talent-btn');
+      }
+      G.ui.button(w.querySelector('.row'), 'Close', () => G.ui.close(entry), 'primary');
+    }, { cls: 'shopscr', focus });
+  };
+  build();
 }
 
 // ---------------------------------------------------------------- school years

@@ -37,6 +37,9 @@ export function ensureProgress(s) {
   s.mastery ||= {};
   s.letters ||= [];
   s.yearsDone ||= [];
+  s.coins ??= 40;
+  s.items ||= {};
+  s.friends ||= {};
   s.loadout ??= 0;
   if (!Array.isArray(s.loadouts) || s.loadouts.length !== 3) s.loadouts = [[], [], []];
   s.loadouts = s.loadouts.map((l) => Array.from({ length: 8 }, (_, i) => (l && l[i] && SPELL_BY_ID[l[i]] ? l[i] : null)));

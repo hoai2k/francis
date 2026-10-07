@@ -11,6 +11,18 @@ It runs on [three.js](https://threejs.org) (r186, loaded from a CDN) with no
 build step. Everything is generated in code: the castle, characters,
 textures, particles, the music and the sound effects.
 
+## The trip to school
+
+Every year begins at **King's Cross**. Find the barrier between platforms 9
+and 10 and *run* at it (hold sprint) to reach **Platform 9¾**, with its crowds,
+caged owls, trolleys and the steaming scarlet engine. Walk into a carriage door
+to board the **Hogwarts Express**: walk the carriages, find your friends'
+compartment, buy sweets from the trolley (Chocolate Frogs can contain a card
+you are missing) and live through each year's event on board. Take your seat to
+watch the train cross the Highlands as the sun goes down, then cross the Black
+Lake by boat as a first-year, or ride the carriages up to the castle in later
+years. Sweets and gifts go in your **Satchel** (pause menu).
+
 ## Story
 
 1. **The Sorting**: customise your student, then answer the Sorting Hat's
