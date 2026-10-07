@@ -201,3 +201,78 @@ export function makeThestral() {
   });
   return { root, anim, height: 2 };
 }
+
+// ------------------------------------------------------------------ dragon (Year 4 first task)
+export function makeDragon(color = '#5a2a1a') {
+  const root = new THREE.Group();
+  const skin = new THREE.MeshStandardMaterial({ color, roughness: 0.55, metalness: 0.15 });
+  const belly = std('#b08a50', { roughness: 0.7 });
+  const horn = std('#e8dcc0', { roughness: 0.4 });
+  const wingM = new THREE.MeshStandardMaterial({ color: '#3a1a12', roughness: 0.8, side: THREE.DoubleSide });
+  const body = new THREE.Group(); body.position.y = 2.6; root.add(body);
+  const torso = mesh(new THREE.SphereGeometry(1.6, 16, 12), skin, 0, 0, 0, body); torso.scale.set(1, 0.9, 1.9);
+  mesh(new THREE.SphereGeometry(1.3, 14, 10), belly, 0, -0.5, 0.3, body).scale.set(0.9, 0.6, 1.6);
+  // neck + head
+  const neck = []; let par = body;
+  for (let i = 0; i < 5; i++) { const g = new THREE.Group(); g.position.set(0, i ? 0.15 : 0.6, i ? 0.7 : 2.4); par.add(g); mesh(new THREE.SphereGeometry(0.6 - i * 0.05, 10, 8), skin, 0, 0, 0, g); neck.push(g); par = g; }
+  const head = new THREE.Group(); head.position.set(0, 0.2, 0.8); par.add(head);
+  mesh(new THREE.BoxGeometry(0.9, 0.7, 1.6), skin, 0, 0, 0.3, head);
+  const jaw = new THREE.Group(); jaw.position.set(0, -0.3, -0.2); head.add(jaw);
+  mesh(new THREE.BoxGeometry(0.8, 0.25, 1.5), belly, 0, 0, 0.7, jaw);
+  for (const s of [-1, 1]) { mesh(new THREE.ConeGeometry(0.12, 0.9, 6), horn, s * 0.35, 0.5, -0.4, head).rotation.x = -0.9; mesh(new THREE.SphereGeometry(0.09, 6, 4), glowMat(3, 1.6, 0.3), s * 0.38, 0.15, 0.6, head); }
+  // tail
+  const tail = []; par = body;
+  for (let i = 0; i < 8; i++) { const g = new THREE.Group(); g.position.set(0, i ? 0 : -0.1, i ? -0.8 : -2.6); par.add(g); mesh(new THREE.SphereGeometry(0.7 - i * 0.08, 8, 6), skin, 0, 0, 0, g); tail.push(g); par = g; }
+  mesh(new THREE.ConeGeometry(0.3, 0.8, 4), horn, 0, 0, -0.6, tail[7]).rotation.x = -Math.PI / 2;
+  // legs
+  const legs = [];
+  for (const [x, z] of [[-1.1, 1.4], [1.1, 1.4], [-1.1, -1.4], [1.1, -1.4]]) { const g = new THREE.Group(); g.position.set(x, -0.6, z); body.add(g); mesh(new THREE.CapsuleGeometry(0.32, 1.4, 4, 8), skin, 0, -0.9, 0, g); legs.push(g); }
+  // wings
+  const wings = [-1, 1].map((s) => {
+    const g = new THREE.Group(); g.position.set(s * 1.1, 0.9, 0.6); body.add(g);
+    const shape = new THREE.Shape([new THREE.Vector2(0, 0), new THREE.Vector2(4.5, 1.2), new THREE.Vector2(6, -0.5), new THREE.Vector2(4.2, -2.2), new THREE.Vector2(2.6, -2.8), new THREE.Vector2(1, -2.4), new THREE.Vector2(0, -1)]);
+    const w = new THREE.Mesh(new THREE.ShapeGeometry(shape), wingM); w.rotation.x = -Math.PI / 2; w.scale.x = s; w.castShadow = true;
+    g.add(w);
+    return g;
+  });
+  const fireGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowSprite(), color: new THREE.Color(3, 1.4, 0.3), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
+  fireGlow.position.set(0, 0, 1.4); fireGlow.scale.setScalar(0.01); head.add(fireGlow);
+  const anim = simpleAnim((a, dt, sp) => {
+    a.t = (a.t || 0) + dt;
+    const fly = a.state === 'fly';
+    a.flap = (a.flap || 0) + dt * (fly ? 7 : 1.2);
+    wings.forEach((g, i) => { g.rotation.z = (i ? -1 : 1) * (fly ? Math.sin(a.flap) * 0.7 + 0.1 : 0.9 + Math.sin(a.flap) * 0.05); });
+    neck.forEach((g, i) => (g.rotation.x = (a.state === 'breath' ? 0.12 : -0.08) + Math.sin(a.t * 1.2 + i * 0.5) * 0.04));
+    tail.forEach((g, i) => (g.rotation.y = Math.sin(a.t * 1.5 - i * 0.6) * (a.shots.sweep ? 0.6 : 0.12)));
+    jaw.rotation.x = a.state === 'breath' || a.state === 'roar' ? 0.6 : 0.05;
+    fireGlow.scale.setScalar(a.state === 'breath' ? 2.5 + Math.sin(a.t * 30) * 0.5 : 0.01);
+    const walk = Math.min(1, sp / 4);
+    legs.forEach((g, i) => (g.rotation.x = fly ? 0.8 : Math.sin(a.t * 5 + i * Math.PI / 2) * 0.4 * walk));
+  });
+  return { root, anim, parts: { head, jaw, body }, height: 5 };
+}
+
+// ------------------------------------------------------------------ acromantula (Year 4 forest and maze)
+export function makeSpider(scale = 1) {
+  const root = new THREE.Group();
+  const shell = std('#1a1614', { roughness: 0.5, metalness: 0.1 });
+  const hair = std('#2a221c', { roughness: 1 });
+  const body = new THREE.Group(); body.position.y = 0.9 * scale; root.add(body);
+  mesh(new THREE.SphereGeometry(0.8 * scale, 12, 10), hair, 0, 0.1, -0.9 * scale, body).scale.set(1, 0.85, 1.25);
+  mesh(new THREE.SphereGeometry(0.5 * scale, 10, 8), shell, 0, 0, 0.2 * scale, body);
+  for (let i = 0; i < 8; i++) mesh(new THREE.SphereGeometry(0.06 * scale, 6, 4), glowMat(2.4, 0.3, 0.2), (i % 4 - 1.5) * 0.12 * scale, 0.15 * scale + Math.floor(i / 4) * 0.1 * scale, 0.65 * scale, body);
+  const legs = [];
+  for (let i = 0; i < 8; i++) {
+    const s = i < 4 ? -1 : 1, k = i % 4;
+    const g = new THREE.Group(); g.position.set(s * 0.35 * scale, 0, (0.4 - k * 0.3) * scale); body.add(g);
+    const up = mesh(new THREE.CylinderGeometry(0.05 * scale, 0.06 * scale, 1.1 * scale, 5), hair, s * 0.45 * scale, 0.3 * scale, 0, g); up.rotation.z = s * -1.0;
+    const lo = mesh(new THREE.CylinderGeometry(0.03 * scale, 0.05 * scale, 1.3 * scale, 5), hair, s * 1.05 * scale, -0.25 * scale, 0, g); lo.rotation.z = s * 0.35;
+    legs.push({ g, k, s });
+  }
+  const anim = simpleAnim((a, dt, sp) => {
+    a.ph = (a.ph || 0) + dt * (3 + sp * 2);
+    legs.forEach((l) => { l.g.rotation.y = Math.sin(a.ph + l.k * 1.6 + (l.s > 0 ? Math.PI : 0)) * 0.35 * Math.min(1, sp / 2 + 0.2); l.g.rotation.x = Math.max(0, Math.sin(a.ph + l.k * 1.6)) * 0.2; });
+    body.position.y = 0.9 * scale + (a.shots.bite ? 0.2 : 0);
+  });
+  return { root, anim, height: 1.4 * scale };
+}

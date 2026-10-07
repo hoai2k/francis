@@ -153,6 +153,21 @@ petrifies anyone who looks into its eyes (look away, block, or dazzle it with
 Lumos). Side quests: Kofi's secret stash (teaches Rictusempra), Pip's treasure
 hunt, Madam Hale's broken brooms and Cassius's stolen wand.
 
+## Year 3 — The Grey Tide
+
+The Hogwarts Express grinds to a halt in the cold and a Dementor drifts down
+the corridor until the new Defence teacher, Professor Ashdown, drives it off.
+Learn Depulso, Arresto Momentum (swinging pendulums in the corridor) and Finite
+Incantatem (barriers sealing the staircases). Visit **Hogsmeade** for the
+first time: its sweet shop, joke shop, tea room and the Three Brooms, where you
+overhear Ministry Undersecretary Grimshaw. Dementors swarm the Quidditch pitch,
+attack Hogsmeade at Christmas, and the twist is that Ashdown is a werewolf.
+Fetch his Moonbane Draught, then run from him across the grounds under the
+full moon. The finale is at **the Grey Horn**, a stone circle in the Forbidden
+Forest: waves of Dementors, a Dementor lord, then Malachar, who escapes at half
+health. Ashdown teaches you Glacius before he leaves. Side quests: Oren's star
+charts, treats for the Hippogriff and moonpetals for Isolde.
+
 ## Minigames
 
 All six can also be played from **Minigames** on the title screen.
