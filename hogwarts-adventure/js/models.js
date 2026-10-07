@@ -92,12 +92,18 @@ export function makeWizard(o = {}) {
     prof.push(new THREE.Vector2(0.19 + Math.pow(t, 1.3) * 0.2 + Math.sin(t * 3) * 0.01, -t * 0.86));
   }
   prof.reverse();
-  const skirtG = new THREE.LatheGeometry(prof, 20);
+  const skirtG = new THREE.LatheGeometry(prof, 28);
   const skirt = grp(hips);
   mesh(skirtG, robe, 0, 0, 0, skirt);
   const skirtIn = mesh(skirtG, lining, 0, 0, 0, skirt);
   skirtIn.castShadow = false;
   const hem = mesh(new THREE.TorusGeometry(0.39, 0.015, 4, 24), trim, 0, -0.85, 0, skirt);
+  // front opening trim running down the robe
+  for (const sx of [-1, 1]) {
+    const tr = mesh(new THREE.BoxGeometry(0.018, 0.86, 0.012), trim, sx * 0.03, -0.43, 0.29, skirt);
+    tr.rotation.x = -0.2;
+    tr.rotation.z = sx * 0.04;
+  }
   hem.rotation.x = Math.PI / 2;
 
   // legs
@@ -106,26 +112,32 @@ export function makeWizard(o = {}) {
     mesh(capsule(0.065, 0.36), trousers, 0, -0.22, 0, leg);
     const knee = grp(leg, 0, -0.45, 0);
     mesh(capsule(0.055, 0.34), trousers, 0, -0.2, 0, knee);
-    const shoe = mesh(new THREE.BoxGeometry(0.11, 0.08, 0.24), shoes, 0, -0.44, 0.04, knee);
-    shoe.geometry.translate(0, 0, 0);
+    const shoe = mesh(new THREE.SphereGeometry(0.065, 14, 10), shoes, 0, -0.44, 0.045, knee);
+    shoe.scale.set(0.85, 0.62, 1.75);
+    mesh(new THREE.CylinderGeometry(0.06, 0.062, 0.02, 14), std('#2a2018', { roughness: 0.9 }), 0, -0.473, 0.045, knee).scale.set(0.9, 1, 1.6);
     return { leg, knee };
   });
 
   // torso
   const torso = grp(hips, 0, 0, 0);
-  const chest = mesh(new THREE.CylinderGeometry(0.21, 0.19, 0.52, 16), robe, 0, 0.26, 0, torso);
+  const chest = mesh(new THREE.CylinderGeometry(0.21, 0.19, 0.52, 22, 1, false, 0.42, Math.PI * 2 - 0.84), robe, 0, 0.26, 0, torso);
   chest.scale.z = 0.78;
   // shirt V + tie
-  const vneck = mesh(new THREE.ConeGeometry(0.07, 0.2, 3), shirt, 0, 0.42, 0.14, torso);
-  vneck.rotation.x = Math.PI; vneck.rotation.y = Math.PI;
-  vneck.scale.z = 0.3;
   if (house) {
-    const tie = mesh(new THREE.BoxGeometry(0.035, 0.16, 0.01), std(HOUSES[house].c2), 0, 0.4, 0.165, torso);
+    const tie = mesh(new THREE.BoxGeometry(0.035, 0.16, 0.01), std(HOUSES[house].c2), 0, 0.4, 0.182, torso);
     tie.castShadow = false;
+  }
+  // knitted jumper under the robe
+  const jumper = std('#5a5a62', { roughness: 0.95 });
+  const jp = mesh(new THREE.CylinderGeometry(0.17, 0.165, 0.34, 16, 1, false, -0.55, 1.1), jumper, 0, 0.2, 0, torso);
+  jp.scale.z = 0.98;
+  if (house) {
+    const band = mesh(new THREE.CylinderGeometry(0.172, 0.172, 0.018, 16, 1, true, -0.55, 1.1), std(HOUSES[house].c1), 0, 0.05, 0, torso);
+    band.scale.z = 0.98;
   }
   // robe lapels
   for (const s of [-1, 1]) {
-    const lap = mesh(new THREE.BoxGeometry(0.06, 0.42, 0.02), trim, s * 0.075, 0.27, 0.155, torso);
+    const lap = mesh(new THREE.BoxGeometry(0.05, 0.44, 0.02), trim, s * 0.085, 0.27, 0.168, torso);
     lap.rotation.z = s * 0.18;
   }
   // house crest patch
@@ -156,59 +168,97 @@ export function makeWizard(o = {}) {
 
   // neck & head
   const neck = grp(torso, 0, 0.52, 0);
-  mesh(new THREE.CylinderGeometry(0.05, 0.055, 0.1, 10), skin, 0, 0.04, 0, neck);
-  const head = grp(neck, 0, 0.17, 0);
-  const skull = mesh(new THREE.SphereGeometry(0.125, 24, 18), skin, 0, 0, 0, head);
-  skull.scale.set(0.94, 1.06, 1);
-  // jaw/chin
-  const jaw = mesh(new THREE.SphereGeometry(0.09, 14, 10), skin, 0, -0.06, 0.03, head);
-  jaw.scale.set(1, 0.8, 1);
+  mesh(new THREE.CylinderGeometry(0.048, 0.056, 0.12, 14), skin, 0, 0.04, 0, neck);
+  // shirt collar points
+  for (const s of [-1, 1]) {
+    const c = mesh(new THREE.BoxGeometry(0.055, 0.012, 0.05), shirt, s * 0.035, 0.0, 0.055, neck);
+    c.rotation.set(0.5, s * 0.5, s * 0.35);
+  }
+  const head = grp(neck, 0, 0.175, 0);
+  head.scale.setScalar(1.08); // slightly larger heads read better at game distance
+  // one smooth, slightly egg-shaped head (narrower towards the chin)
+  const skullG = new THREE.SphereGeometry(0.125, 32, 24);
+  { const pa = skullG.attributes.position; for (let i = 0; i < pa.count; i++) { const y = pa.getY(i); const k = y < 0 ? 1 + y * 1.1 : 1; pa.setX(i, pa.getX(i) * k); pa.setZ(i, pa.getZ(i) * (y < 0 ? 1 + y * 0.5 : 1)); } skullG.computeVertexNormals(); }
+  const skull = mesh(skullG, skin, 0, 0.0, 0.0, head);
+  skull.scale.set(0.95, 1.06, 0.98);
   // ears
   for (const s of [-1, 1]) {
-    const ear = mesh(new THREE.SphereGeometry(0.03, 8, 6), skin, s * 0.118, 0, 0, head);
-    ear.scale.set(0.5, 1, 0.8);
+    const ear = mesh(new THREE.SphereGeometry(0.028, 12, 10), skin, s * 0.112, -0.005, -0.008, head);
+    ear.scale.set(0.45, 0.95, 0.7);
   }
-  // nose
-  const nose = mesh(new THREE.ConeGeometry(0.018, 0.05, 6), skin, 0, -0.01, 0.125, head);
-  nose.rotation.x = Math.PI / 2 - 0.25;
-  // eyes
-  const eyeWhite = std('#f4f1ea', { roughness: 0.3 });
-  const iris = o.eyeGlow ? new THREE.MeshBasicMaterial({ color: new THREE.Color(o.eyeGlow).multiplyScalar(4) }) : std(o.eyeColor || '#3a2a1a', { roughness: 0.2 });
+  // small rounded nose
+  mesh(new THREE.SphereGeometry(0.014, 12, 10), skin, 0, -0.018, 0.119, head).scale.set(1, 0.85, 0.8);
+  // friendly stylised eyes: glossy dark ovals with a highlight
+  const eyeM = o.eyeGlow ? new THREE.MeshBasicMaterial({ color: new THREE.Color(o.eyeGlow).multiplyScalar(4) }) : std(new THREE.Color(o.eyeColor || '#3a2a1a').multiplyScalar(0.55).getStyle(), { roughness: 0.15 });
+  const shine = new THREE.MeshBasicMaterial({ color: 0xffffff });
   const eyes = [];
   for (const s of [-1, 1]) {
-    const e = mesh(new THREE.SphereGeometry(0.02, 10, 8), eyeWhite, s * 0.045, 0.02, 0.105, head);
-    e.scale.z = 0.6;
-    const p = mesh(new THREE.SphereGeometry(0.011, 8, 6), iris, s * 0.045, 0.02, 0.118, head);
-    eyes.push(e, p);
-    const brow = mesh(new THREE.BoxGeometry(0.045, 0.01, 0.012), hairM, s * 0.046, 0.055, 0.115, head);
-    brow.rotation.z = -s * 0.12;
+    const e = mesh(new THREE.SphereGeometry(0.0195, 16, 12), eyeM, s * 0.041, 0.012, 0.105, head);
+    e.scale.set(0.82, 1.15, 0.5);
+    const sh = mesh(new THREE.SphereGeometry(0.0048, 8, 6), shine, s * 0.042 + 0.005, 0.02, 0.114, head);
+    sh.castShadow = false;
+    eyes.push(e, sh);
+    // thin, gently arched brows
+    const brow = mesh(new THREE.CapsuleGeometry(0.0045, 0.026, 3, 6), hairM, s * 0.043, 0.047, 0.108, head);
+    brow.rotation.z = Math.PI / 2 + s * 0.12;
   }
-  const mouth = mesh(new THREE.BoxGeometry(0.04, 0.008, 0.01), std('#6a2a24'), 0, -0.065, 0.11, head);
+  // a small smile (scaled while talking)
+  const mouth = mesh(new THREE.TorusGeometry(0.014, 0.0035, 5, 12, Math.PI), std('#5a2a24', { roughness: 0.6 }), 0, -0.048, 0.104, head);
+  mouth.rotation.z = Math.PI;
   mouth.castShadow = false;
   mouth.userData.keep = true;
 
-  // hair
+  // hair, built from a scalp cap plus strands so it has some volume
   const style = o.hairStyle || 'short';
+  const strand = (x, y, z, len, rx, rz, r = 0.026) => {
+    const m = mesh(new THREE.CapsuleGeometry(r, len, 4, 8), hairM, x, y, z, head);
+    m.rotation.set(rx, 0, rz);
+    return m;
+  };
   if (!o.hood && !o.bald) {
-    const cap = mesh(new THREE.SphereGeometry(0.135, 20, 14, 0, Math.PI * 2, 0, Math.PI * 0.55), hairM, 0, 0.015, -0.008, head);
-    cap.scale.set(1, 1.05, 1.08);
-    const fringe = mesh(new THREE.BoxGeometry(0.2, 0.05, 0.05), hairM, 0, 0.085, 0.09, head);
-    fringe.rotation.x = 0.3;
+    const cap = mesh(new THREE.SphereGeometry(0.134, 28, 18, 0, Math.PI * 2, 0, Math.PI * 0.55), hairM, 0, 0.018, -0.02, head);
+    cap.scale.set(0.97, 1.06, 1.06);
+    cap.rotation.x = -0.5; // hairline sits above the brows at the front, low at the back
+    // back of the head / nape
+    const nape = mesh(new THREE.SphereGeometry(0.128, 24, 16, 0, Math.PI * 2, Math.PI * 0.45, Math.PI * 0.35), hairM, 0, 0.0, -0.025, head);
+    nape.scale.set(0.98, 1.05, 1.05);
+    nape.rotation.x = -0.5;
+    // fringe: a row of angled strands over the forehead
+    // a swept fringe across the forehead (separate spiky strands for messy hair)
+    const fringe = mesh(new THREE.SphereGeometry(0.12, 20, 10, -0.9, 1.8, Math.PI * 0.32, Math.PI * 0.16), hairM, 0, 0.012, 0.012, head);
+    fringe.rotation.set(-0.2, 0.25, 0);
+    fringe.scale.set(1.1, 1, 1.12);
+    const fr = style === 'messy' ? 7 : 0;
+    for (let i = 0; i < fr; i++) {
+      const t = i / (fr - 1) - 0.5;
+      strand(t * 0.16, 0.105 - Math.abs(t) * 0.03, 0.088 - Math.abs(t) * 0.05, 0.035 + (i % 2) * 0.01, 1.45 + (style === 'messy' ? (i % 3) * 0.15 : 0), -t * 1.2, 0.02);
+    }
+    // side locks over the ears
+    for (const s of [-1, 1]) strand(s * 0.112, 0.01, 0.01, style === 'long' ? 0.16 : 0.05, 0.1, s * 0.12, 0.024);
     if (style === 'long' || style === 'ponytail' || style === 'bun') {
-      const back = mesh(new THREE.CylinderGeometry(0.12, 0.14, style === 'long' ? 0.32 : 0.14, 14, 1, true, Math.PI * 0.5, Math.PI), hairM, 0, style === 'long' ? -0.12 : -0.02, -0.01, head);
-      back.material = hairM;
-      for (const s of [-1, 1]) if (style === 'long') mesh(new THREE.BoxGeometry(0.04, 0.3, 0.08), hairM, s * 0.12, -0.1, 0.02, head);
+      const n = style === 'long' ? 9 : 5;
+      for (let i = 0; i < n; i++) {
+        const a = (i / (n - 1) - 0.5) * 2.4;
+        const len = style === 'long' ? 0.24 + (i % 2) * 0.03 : 0.08;
+        strand(Math.sin(a) * 0.11, style === 'long' ? -0.1 : -0.02, -Math.cos(a) * 0.095, len, 0.12, Math.sin(a) * 0.12, 0.03);
+      }
     }
     if (style === 'ponytail') {
-      const pt = mesh(capsule(0.04, 0.22), hairM, 0, -0.08, -0.16, head);
-      pt.rotation.x = 0.4;
+      mesh(new THREE.TorusGeometry(0.022, 0.008, 6, 12), std('#c03040'), 0, 0.02, -0.135, head).rotation.x = 0.4;
+      const pt = strand(0, -0.09, -0.17, 0.2, 0.35, 0, 0.038);
+      pt.scale.set(1, 1, 0.85);
     }
-    if (style === 'bun') mesh(new THREE.SphereGeometry(0.06, 10, 8), hairM, 0, 0.1, -0.12, head);
+    if (style === 'bun') {
+      mesh(new THREE.SphereGeometry(0.058, 14, 12), hairM, 0, 0.1, -0.12, head);
+      mesh(new THREE.TorusGeometry(0.05, 0.012, 6, 14), hairM, 0, 0.1, -0.12, head).rotation.x = 0.8;
+    }
     if (style === 'curly' || style === 'messy') {
-      const n = style === 'curly' ? 22 : 12;
+      const n = style === 'curly' ? 34 : 14;
       for (let i = 0; i < n; i++) {
-        const a = (i / n) * Math.PI * 2, b = 0.3 + (i % 4) * 0.25;
-        mesh(new THREE.SphereGeometry(style === 'curly' ? 0.045 : 0.035, 8, 6), hairM, Math.cos(a) * Math.sin(b) * 0.13, Math.cos(b) * 0.13 + 0.02, Math.sin(a) * Math.sin(b) * 0.13 - 0.01, head);
+        const a = i * 2.39996, b = 0.15 + ((i * 0.618) % 1) * (style === 'curly' ? 1.45 : 1.0);
+        if (Math.sin(a) > 0.3 && b > 0.75) continue; // leave the face clear
+        const r = 0.132;
+        mesh(new THREE.SphereGeometry(style === 'curly' ? 0.042 : 0.034, 10, 8), hairM, Math.cos(a) * Math.sin(b) * r, Math.cos(b) * r + 0.02, Math.sin(a) * Math.sin(b) * r - 0.015 - (b > 1.1 ? 0.02 : 0), head);
       }
     }
   }
@@ -264,7 +314,15 @@ export function makeWizard(o = {}) {
     const cuff = mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.02, 12, 1, true), trim, 0, -0.29, 0, elbow);
     cuff.castShadow = false;
     const hand = grp(elbow, 0, -0.32, 0);
-    mesh(new THREE.SphereGeometry(0.045, 10, 8), skin, 0, -0.02, 0, hand).scale.set(0.8, 1.1, 0.9);
+    // palm, four curled fingers and a thumb
+    mesh(new THREE.BoxGeometry(0.06, 0.07, 0.03), skin, 0, -0.03, 0, hand);
+    mesh(new THREE.SphereGeometry(0.032, 10, 8), skin, 0, -0.025, 0, hand).scale.set(0.95, 1.05, 0.55);
+    for (let f = 0; f < 4; f++) {
+      const fg = mesh(new THREE.CapsuleGeometry(0.0085, 0.032, 3, 6), skin, (f - 1.5) * 0.0145, -0.075, 0.01, hand);
+      fg.rotation.x = 0.9;
+    }
+    const th = mesh(new THREE.CapsuleGeometry(0.009, 0.03, 3, 6), skin, -s * 0.033, -0.035, 0.018, hand);
+    th.rotation.set(0.6, 0, -s * 0.7);
     return { sh, elbow, hand };
   });
   // wand
@@ -307,6 +365,7 @@ export class HumanoidAnim {
     const d = dur ?? { cast: 0.38, hit: 0.4, wave: 1.2, nod: 0.6, flick: 0.5, point: 1, cheer: 1.2 }[name] ?? 0.4;
     this.shots = this.shots.filter((s) => s.name !== name);
     this.shots.push({ name, t: 0, dur: d });
+    this.onTrigger?.(name);
   }
   shot(name) { return this.shots.find((s) => s.name === name); }
   update(dt, speed = 0, extra = {}) {
@@ -429,7 +488,7 @@ export class HumanoidAnim {
       P.scarf.tails[0].rotation.x = -0.15 - amp * 0.6 + Math.sin(this.t * 7) * 0.05 * amp;
       P.scarf.tails[1].rotation.x = -0.1 - amp * 0.5 + Math.sin(this.t * 6 + 1) * 0.05 * amp;
     }
-    if (P.mouth) P.mouth.scale.y = st === 'talk' ? 1 + Math.abs(Math.sin(this.t * 14)) * 3 : 1;
+    if (P.mouth) P.mouth.scale.y = st === 'talk' ? 1 + Math.abs(Math.sin(this.t * 14)) * 1.6 : 1;
   }
 }
 

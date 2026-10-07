@@ -5,6 +5,7 @@ import { G, HOUSES, HOUSE_KEYS } from './state.js';
 import { SPELLS, SPELL_BY_ID, spellIcon } from './spelldata.js';
 import { glyph } from './input.js';
 import { el, clamp, sleep } from './util.js';
+import { currentLoadout, slotCount, levelProgress, masteryLevel, today, unreadLetters } from './progress.js';
 
 const _v = new THREE.Vector3();
 
@@ -57,11 +58,22 @@ export class UI {
     setTimeout(() => t.classList.add('out'), ms);
     setTimeout(() => t.remove(), ms + 600);
   }
+  // banners queue so two never overlap
   banner(title, sub = '', cls = '') {
+    (this.bannerQ ||= []).push([title, sub, cls]);
+    if (this.bannerQ.length > 4) this.bannerQ.splice(1, 1);
+    if (!this.bannerBusy) this._nextBanner();
+  }
+  _nextBanner() {
+    const n = this.bannerQ.shift();
+    if (!n) { this.bannerBusy = false; return; }
+    this.bannerBusy = true;
+    const [title, sub, cls] = n;
     const b = el('div', 'banner ' + cls, `<div class="b-title">${title}</div>${sub ? `<div class="b-sub">${sub}</div>` : ''}`);
     document.body.appendChild(b);
-    setTimeout(() => b.classList.add('out'), 1900);
-    setTimeout(() => b.remove(), 2600);
+    const quick = this.bannerQ.length > 0;
+    setTimeout(() => b.classList.add('out'), quick ? 1500 : 1900);
+    setTimeout(() => { b.remove(); this._nextBanner(); }, quick ? 2000 : 2600);
   }
   points(house, n, reason = '') {
     if (!n) return;
@@ -69,6 +81,7 @@ export class UI {
     this.toast(`<b style="color:${h.c2 === '#2b2622' ? '#f0d060' : h.c2}">${n > 0 ? '+' : ''}${n}</b> points to ${h.name}${reason ? ` <i>· ${reason}</i>` : ''}`, 'points');
   }
   floatText(pos, text, cls = '') {
+    G.net?.float(pos, text, cls);
     const e = el('div', 'float ' + cls, text);
     this.hudLayer.appendChild(e);
     this.floats.push({ e, pos: pos.clone(), t: 0, vx: (Math.random() - 0.5) * 30 });
@@ -83,6 +96,7 @@ export class UI {
         <div class="bars">
           <div class="bar hp"><div class="fill" id="hp-fill"></div><div class="ghost" id="hp-ghost"></div></div>
           <div class="bar mana"><div class="fill" id="mana-fill"></div></div>
+          <div class="xpline"><span class="lvl" id="hud-lvl">1</span><div class="bar xp"><div class="fill" id="xp-fill"></div></div><span class="ldo" id="hud-ldo"></span></div>
           <div class="buffs" id="buffs"></div>
         </div>
       </div>
@@ -122,27 +136,46 @@ export class UI {
   buildSpellBar() {
     const bar = this.$('spellbar');
     const sp = G.spells;
+    if (!sp || !G.save) return;
     bar.innerHTML = '';
-    SPELLS.forEach((s, i) => {
-      const unlocked = sp.unlocked.has(s.id);
-      const d = el('div', 'slot' + (unlocked ? '' : ' locked'), `${unlocked ? spellIcon(s, 34) : '<span class="lock-ico">?</span>'}<div class="cd"></div><span class="key">${i + 1}</span>`);
-      d.dataset.id = s.id;
-      d.title = unlocked ? s.name : 'Locked';
+    const n = slotCount();
+    for (let i = 0; i < n; i++) {
+      const s = sp.slotSpell(i);
+      const stars = s ? masteryLevel(s.id) : 0;
+      const d = el('div', 'slot' + (s ? '' : ' locked'), `${s ? spellIcon(s, 34) : '<span class="lock-ico">·</span>'}<div class="cd"></div><span class="key">${i + 1}</span>${stars ? `<span class="mst">${'★'.repeat(stars)}</span>` : ''}`);
+      d.dataset.slot = i;
+      d.title = s ? s.name : 'Empty slot';
       d.addEventListener('click', () => sp.select(i));
       bar.appendChild(d);
-    });
+    }
+    this.$('hud-ldo') && (this.$('hud-ldo').textContent = `Loadout ${G.save.loadout + 1}`);
     // touch spell picker
     const tb = G.input.tSpellBar;
     if (tb) {
       tb.innerHTML = '';
-      SPELLS.forEach((s, i) => {
-        if (!sp.unlocked.has(s.id)) return;
+      for (let i = 0; i < n; i++) {
+        const s = sp.slotSpell(i);
+        if (!s) continue;
         const b = el('button', 't-sp', spellIcon(s, 26));
-        b.dataset.id = s.id;
+        b.dataset.slot = i;
         b.addEventListener('touchstart', (e) => { e.preventDefault(); sp.select(i); }, { passive: false });
         tb.appendChild(b);
-      });
+      }
+      const lb = el('button', 't-sp t-ldo', `<b>${G.save.loadout + 1}</b>`);
+      lb.addEventListener('touchstart', (e) => { e.preventDefault(); sp.swapLoadout(1); }, { passive: false });
+      tb.appendChild(lb);
     }
+    this.updateXP();
+  }
+  updateXP() {
+    if (!G.save) return;
+    this.$('hud-lvl').textContent = G.save.level;
+    this.$('xp-fill').style.width = levelProgress() * 100 + '%';
+    this.$('hud-lvl').classList.toggle('pts', G.save.talentPts > 0);
+  }
+  floatXP(n) {
+    const p = G.player;
+    if (p && G.mode === 'play') this.floatText(p.pos.clone().setY(p.pos.y + 2.4), `+${n} XP`, 'xp');
   }
 
   updatePoints() {
@@ -209,9 +242,10 @@ export class UI {
     // spell slots
     const slots = this.$('spellbar').children;
     for (let i = 0; i < slots.length; i++) {
-      const s = SPELLS[i];
-      const cd = sp.cooldowns[s.id] || 0;
+      const s = sp.slotSpell(i);
       const sl = slots[i];
+      if (!s) { sl.classList.remove('sel', 'active'); continue; }
+      const cd = sp.cooldowns[s.id] || 0;
       sl.classList.toggle('sel', sp.selected === i);
       sl.classList.toggle('active', (s.id === 'lumos' && sp.lumosOn) || (s.id === 'protego' && sp.shieldUp));
       sl.classList.toggle('nomana', p.mana < s.mana);
@@ -219,7 +253,7 @@ export class UI {
       sl.querySelector('.cd').style.background = f > 0 ? `conic-gradient(rgba(0,0,0,.72) ${f * 360}deg, transparent 0)` : 'none';
     }
     const tb = G.input.tSpellBar;
-    if (tb) for (const b of tb.children) b.classList.toggle('sel', SPELLS[sp.selected]?.id === b.dataset.id);
+    if (tb) for (const b of tb.children) b.classList.toggle('sel', +b.dataset.slot === sp.selected);
     // boss
     if (this.bossTarget) {
       const b = this.bossTarget;
@@ -295,6 +329,19 @@ export class UI {
     if (G.mode === 'play') this.showHUD(true);
     return result;
   }
+  // a line of the host's conversation, for friends standing nearby (never blocks play)
+  subtitle(who, text, color) {
+    if (!this.subEl) { this.subEl = el('div', 'subtitle hidden'); document.body.appendChild(this.subEl); }
+    const s = this.subEl;
+    s.innerHTML = '<b></b><span></span>';
+    s.querySelector('b').textContent = who ? who + ': ' : '';
+    s.querySelector('b').style.color = color;
+    s.querySelector('span').textContent = text;
+    s.classList.remove('hidden');
+    clearTimeout(this._subT);
+    this._subT = setTimeout(() => s.classList.add('hidden'), 2500 + text.length * 45);
+  }
+
   // drop any open conversation (used when a minigame or the game is quit)
   cancelDialogue() {
     this.sayToken = (this.sayToken || 0) + 1;
@@ -311,6 +358,7 @@ export class UI {
       d.innerHTML = `<div class="d-name" style="color:${color}">${line.who || ''}</div><div class="d-text"></div><div class="d-choices"></div><div class="d-next">${glyph('confirm')}</div>`;
       const textEl = d.querySelector('.d-text'), choicesEl = d.querySelector('.d-choices'), next = d.querySelector('.d-next');
       const full = line.text;
+      G.net?.line(line); // friends in the room read along
       let shown = 0;
       next.style.visibility = 'hidden';
       if (line.speaker) line.speaker(true);
@@ -401,6 +449,7 @@ export class UI {
       if (n.up || n.left) st.move(-1);
       if (n.down || n.right) st.move(1);
       if (n.confirm || I.isPressed('interact') || I.isPressed('cast')) st.advance();
+      I.pressed.clear(); // a button used by the dialogue must not also jump / dodge
       return true;
     }
     const top = this.stack[this.stack.length - 1];
@@ -409,16 +458,28 @@ export class UI {
     const cur = items[top.focus];
     if (n.up) { this._focus(top, top.focus - 1); G.audio?.sfx('uimove'); }
     if (n.down) { this._focus(top, top.focus + 1); G.audio?.sfx('uimove'); }
+    // scrollable panels (controls, journal): up/down scroll until the end, then move focus
+    if ((n.up || n.down) && cur && cur.dataset.kind === 'scroll') {
+      const dir = n.up ? -1 : 1;
+      const atEnd = dir < 0 ? cur.scrollTop <= 0 : cur.scrollTop + cur.clientHeight >= cur.scrollHeight - 2;
+      if (!atEnd) { cur.scrollTop += dir * 90; this._focus(top, top.focus - (n.up ? -1 : 1), false); }
+    }
+    // the right stick scrolls whatever panel is open
+    if (I.device === 'pad' && Math.abs(I.rstick.y) > 0.25) {
+      const sc = top.el.querySelector('.ctl-scroll, .jr, .opts, .spellgrid, .mg-grid');
+      if (sc) sc.scrollTop -= I.rstick.y * 900 * (G.realDt || 0.016);
+    }
     if ((n.left || n.right) && cur) {
       const dir = n.left ? -1 : 1;
       if (cur.dataset.kind === 'grid') { this._focus(top, top.focus + dir); G.audio?.sfx('uimove'); }
       else cur.dispatchEvent(new CustomEvent('adjust', { detail: dir }));
     }
     if (n.confirm && cur) { cur.click(); }
-    if (n.back || (I.isPressed('pause') && top.opts.pauseCloses)) {
+    if (n.back || (I.isPressed('pause') && top.opts.pauseCloses) || (I.isPressed('book') && top.opts.bookCloses)) {
       if (top.opts.onBack) top.opts.onBack();
       else if (!top.opts.modal) { this.close(top); G.audio?.sfx('uiback'); }
     }
+    I.pressed.clear(); // buttons used in a menu must not leak into gameplay (A = jump, B = dodge)
     return true;
   }
 
@@ -471,22 +532,26 @@ export class UI {
     const w = this.wheelEl;
     w.classList.remove('hidden');
     w.innerHTML = '<div class="w-center"></div>';
-    const unlocked = SPELLS.filter((s) => G.spells.unlocked.has(s.id));
-    SPELLS.forEach((s, i) => {
-      const a = (i / 8) * Math.PI * 2 - Math.PI / 2;
-      const d = el('div', 'w-item' + (G.spells.unlocked.has(s.id) ? '' : ' locked'), G.spells.unlocked.has(s.id) ? spellIcon(s, 40) : '?');
+    const n = slotCount();
+    let any = false;
+    for (let i = 0; i < n; i++) {
+      const s = G.spells.slotSpell(i);
+      any ||= !!s;
+      const a = (i / n) * Math.PI * 2 - Math.PI / 2;
+      const d = el('div', 'w-item' + (s ? '' : ' locked'), s ? spellIcon(s, 40) : '·');
       d.style.left = 50 + Math.cos(a) * 36 + '%';
       d.style.top = 50 + Math.sin(a) * 36 + '%';
       d.addEventListener('click', () => { this.wheel.pick = i; this.closeWheel(); });
       w.appendChild(d);
-    });
-    this.wheel = { pick: G.spells.selected, mx: 0, my: 0 };
-    if (!unlocked.length) this.closeWheel();
+    }
+    this.wheel = { pick: G.spells.selected, mx: 0, my: 0, n };
+    if (!any) this.closeWheel();
     G.audio?.sfx('wheel');
   }
   updateWheel() {
     if (!this.wheel) return;
     const I = G.input;
+    const n = this.wheel.n;
     let x = I.rstick.x, y = -I.rstick.y;
     if (I.device !== 'pad') {
       this.wheel.mx += G.input.look.x * 90; this.wheel.my += G.input.look.y * 90;
@@ -497,15 +562,15 @@ export class UI {
     if (Math.hypot(x, y) > 0.5) {
       let a = Math.atan2(y, x) + Math.PI / 2;
       if (a < 0) a += Math.PI * 2;
-      const i = Math.round(a / (Math.PI * 2 / 8)) % 8;
-      if (G.spells.unlocked.has(SPELLS[i].id)) {
+      const i = Math.round(a / (Math.PI * 2 / n)) % n;
+      if (G.spells.slotSpell(i)) {
         if (i !== this.wheel.pick) G.audio?.sfx('uimove');
         this.wheel.pick = i;
       }
     }
     const items = this.wheelEl.querySelectorAll('.w-item');
     items.forEach((it, i) => it.classList.toggle('sel', i === this.wheel.pick));
-    const s = SPELLS[this.wheel.pick];
+    const s = G.spells.slotSpell(this.wheel.pick);
     this.wheelEl.querySelector('.w-center').innerHTML = s ? `<b style="color:${s.css}">${s.name}</b><small>${s.short}</small>` : '';
     if (!I.isHeld('wheel')) this.closeWheel();
   }
@@ -515,6 +580,52 @@ export class UI {
     this.wheel = null;
     this.wheelEl.classList.add('hidden');
   }
+
+  // ------------------------------------------------------------ companion command wheel
+  openCommand(holdAction) {
+    const c = G.companion;
+    if (!c || this.cmd || this.wheel) return;
+    const w = this.cmdEl ||= (() => { const e = el('div', 'wheel cmdwheel hidden'); document.body.appendChild(e); return e; })();
+    w.classList.remove('hidden');
+    w.innerHTML = '<div class="w-center"></div>';
+    const opts = [['follow', '⬆', 'Follow me'], ['attack', '⚔', 'Attack my target'], ['hold', '✋', 'Hold position'], ['special', '✦', c.specialCd > 0 ? `Special (${Math.ceil(c.specialCd)}s)` : 'Use special']];
+    opts.forEach(([k, ico], i) => {
+      const a = (i / 4) * Math.PI * 2 - Math.PI / 2;
+      const d = el('div', 'w-item', `<span style="font-size:28px">${ico}</span>`);
+      d.style.left = 50 + Math.cos(a) * 34 + '%';
+      d.style.top = 50 + Math.sin(a) * 34 + '%';
+      d.addEventListener('click', () => { this.cmd.pick = i; this.closeCommand(true); });
+      w.appendChild(d);
+    });
+    this.cmd = { pick: -1, opts, hold: holdAction, mx: 0, my: 0, t: 0 };
+    G.audio?.sfx('wheel');
+  }
+  updateCommand() {
+    const C = this.cmd, I = G.input;
+    C.t += G.realDt || 0.016;
+    let x = I.device === 'pad' ? I.rstick.x || I.lstick.x : 0, y = I.device === 'pad' ? -(I.rstick.y || I.lstick.y) : 0;
+    if (I.device === 'kbm') { C.mx += I.look.x * 90; C.my += I.look.y * 90; const l = Math.hypot(C.mx, C.my); if (l > 1) { C.mx /= l; C.my /= l; } x = C.mx; y = C.my; }
+    if (Math.hypot(x, y) > 0.5) {
+      let a = Math.atan2(y, x) + Math.PI / 2;
+      if (a < 0) a += Math.PI * 2;
+      const i = Math.round(a / (Math.PI / 2)) % 4;
+      if (i !== C.pick) G.audio?.sfx('uimove');
+      C.pick = i;
+    }
+    this.cmdEl.querySelectorAll('.w-item').forEach((it, i) => it.classList.toggle('sel', i === C.pick));
+    const o = C.opts[C.pick];
+    this.cmdEl.querySelector('.w-center').innerHTML = `<b style="color:${G.companion?.F.color}">${G.companion?.name}</b><small>${o ? o[2] : 'Pick an order'}</small>`;
+    // released: give the order (touch keeps it open until an item is tapped)
+    if (I.device !== 'touch' && !I.isHeld(C.hold) && C.t > 0.05) this.closeCommand(true);
+  }
+  closeCommand(apply) {
+    const C = this.cmd;
+    if (!C) return;
+    this.cmd = null;
+    this.cmdEl.classList.add('hidden');
+    if (apply && C.pick >= 0 && G.companion) G.companion.command(C.opts[C.pick][0]);
+  }
+  updateCompanion() { document.body.classList.toggle('has-companion', !!G.companion); }
 
   setLoading(text, f) {
     const t = document.getElementById('load-text'), fill = document.getElementById('load-fill');

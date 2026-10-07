@@ -11,8 +11,8 @@ const INGREDIENTS = [
   { id: 'horklump', name: 'Horklump juice', icon: '🍄', color: 0xc070ff },
   { id: 'dittany', name: 'Essence of Dittany', icon: '🌿', color: 0x60ff90 },
   { id: 'fang', name: 'Snake fang', icon: '🦷', color: 0xfff0d0 },
-  { id: 'feather', name: 'Phoenix-down feather', icon: '🪶', color: 0xffa040 },
-  { id: 'bezoar', name: 'Crushed bezoar', icon: '🪨', color: 0x8a7a6a },
+  { id: 'feather', name: 'Phoenix-down feather', icon: '🔥', color: 0xffa040 },
+  { id: 'bezoar', name: 'Crushed bezoar', icon: '💎', color: 0x8a7a6a },
 ];
 const RECIPES = [
   {
@@ -89,6 +89,7 @@ export async function play(opts) {
   G.fx.emit({ pos: cpos.clone().setY(cpos.y - 1.5), color: 0xffc040, color2: 0xff3000, count: 60, speed: 3, size: 0.4, life: 0.8, intensity: 3, up: 2 });
   if (fireAnchor) fireAnchor.intensity = 25;
 
+  let finishRef = () => {};
   const cur = () => recipe.steps[S.step];
   const drop = (i) => {
     const st = cur();
@@ -127,12 +128,13 @@ export async function play(opts) {
     S.t = 0;
     ui.querySelectorAll('.pt-steps li').forEach((li, k) => { li.classList.toggle('done', k < S.step); li.classList.toggle('cur', k === S.step); });
     p.status.override = cur()?.t === 'stir' ? 'stir' : 'aim';
-    if (S.step >= recipe.steps.length) finish();
+    if (S.step >= recipe.steps.length) finishRef(false);
   };
   ui.querySelectorAll('.pt-steps li')[0].classList.add('cur');
 
   return new Promise((resolve) => {
     let finishing = false;
+    finishRef = (a) => finish(a);
     function finish(aborted) {
       if (finishing) return;
       finishing = true;
@@ -194,10 +196,16 @@ export async function play(opts) {
           $('.pt-marker').style.left = S.beat * 100 + '%';
           // choose with number keys / d-pad
           for (let i = 0; i < 6; i++) if (I.isPressed('spell' + (i + 1))) { S.sel = i; drop(i); return; }
-          if (I.isPressed('left') || I.isPressed('leftMenu')) S.sel = (S.sel + 5) % 6;
-          if (I.isPressed('right') || I.isPressed('rightMenu')) S.sel = (S.sel + 1) % 6;
+          // controller: d-pad, LB/RB or either stick moves the selection
+          const sx = Math.abs(I.lstick.x) > Math.abs(I.rstick.x) ? I.lstick.x : I.rstick.x;
+          let stepSel = 0;
+          if (Math.abs(sx) > 0.6) { if (!S.stickLatch) { stepSel = Math.sign(sx); S.stickLatch = true; } } else S.stickLatch = false;
+          if (I.isPressed('left') || I.isPressed('prev') || (I.device !== 'pad' && I.isPressed('leftMenu'))) stepSel = -1;
+          if (I.isPressed('right') || I.isPressed('next') || (I.device !== 'pad' && I.isPressed('rightMenu'))) stepSel = 1;
+          if (stepSel) { S.sel = (S.sel + stepSel + 6) % 6; G.audio.sfx('uimove'); }
           if (I.isPressed('confirm') || I.isPressed('cast') || I.isPressed('interact')) { drop(S.sel); return; }
           ingButtons.forEach((b, i) => b.classList.toggle('sel', i === S.sel && I.device !== 'touch'));
+          $('.pt-beat span').innerHTML = I.device === 'pad' ? `Choose with the d-pad / ${glyph('prev')} ${glyph('next')}, drop with ${glyph('confirm')} on the beat!` : 'Drop on the beat!';
         } else if (st.t === 'stir') {
           // angle around the cauldron: right stick, or the pointer around screen centre
           let a = null;

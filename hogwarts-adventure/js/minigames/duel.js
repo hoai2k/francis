@@ -7,14 +7,16 @@ import { sleep } from '../util.js';
 import { postFlash } from '../engine.js';
 
 const OPPONENTS = [
-  { name: 'Cedric Ashworth', house: 'hufflepuff', level: 1, hp: 70, spells: ['stupefyE'], rate: 2.8, block: 0.05, dodge: 0.05, line: 'Go easy on me — it’s my first time too!' },
-  { name: 'Pansy Vale', house: 'slytherin', level: 2, hp: 90, spells: ['stupefyE', 'expelliarmusE'], rate: 2.2, block: 0.15, dodge: 0.1, line: 'This will be over quickly.' },
+  { name: 'Edric Ashworth', house: 'hufflepuff', level: 1, hp: 70, spells: ['stupefyE'], rate: 2.8, block: 0.05, dodge: 0.05, line: 'Go easy on me — it’s my first time too!' },
+  { name: 'Posy Vale', house: 'slytherin', level: 2, hp: 90, spells: ['stupefyE', 'expelliarmusE'], rate: 2.2, block: 0.15, dodge: 0.1, line: 'This will be over quickly.' },
   { name: 'Ollie Brandt', house: 'ravenclaw', level: 3, hp: 110, spells: ['stupefyE', 'incendioE', 'expelliarmusE'], rate: 1.8, block: 0.3, dodge: 0.15, line: 'I’ve calculated a 73% chance of winning.' },
   { name: 'Rhea Castellan', house: 'gryffindor', level: 4, hp: 130, spells: ['stupefyE', 'incendioE', 'expelliarmusE'], rate: 1.5, block: 0.3, dodge: 0.3, volley: 2, line: 'Wands up. No holding back!' },
   { name: 'Lucan Mortlake', house: 'slytherin', level: 5, hp: 170, spells: ['stupefyE', 'incendioE', 'curse', 'expelliarmusE'], rate: 1.2, block: 0.4, dodge: 0.3, volley: 2, line: 'The champion does not lose. Least of all to a first-year.', hat: true, robe: '#101418' },
 ];
 
-export async function play(opts) {
+export async function play(opts = {}) {
+  const OPP = opts.opponents || OPPONENTS;
+  const N = OPP.length;
   const gh = G.world.zones.greatHall;
   await G.ui.fade(1, 0.35);
   G.world.setZone('greatHall', { pos: gh.spots.duelA, yaw: Math.PI });
@@ -51,25 +53,26 @@ export async function play(opts) {
       if (S.done) return;
       S.done = true;
       cleanup();
-      const pts = [0, 10, 25, 45, 70, 100][S.wins];
+      const pts = opts.opponents ? (S.wins === N ? 40 : 0) : [0, 10, 25, 45, 70, 100][S.wins];
       resolve(aborted ? { aborted: true } : {
-        title: S.wins === 5 ? 'Duelling Champion!' : S.wins ? `${S.wins} duel${S.wins > 1 ? 's' : ''} won` : 'Defeated',
-        sub: S.wins === 5 ? 'Nobody has beaten Lucan Mortlake in three years.' : '',
-        success: S.wins > 0, wins: S.wins, score: S.wins * 100 + Math.round(p.hp), points: pts,
-        lines: [['Rounds won', `${S.wins} / 5`], ['Last opponent', OPPONENTS[Math.min(S.round, 4)].name]],
+        title: opts.opponents ? (S.wins === N ? opts.winTitle || 'Victory!' : 'Defeated') : S.wins === 5 ? 'Duelling Champion!' : S.wins ? `${S.wins} duel${S.wins > 1 ? 's' : ''} won` : 'Defeated',
+        sub: opts.opponents ? '' : S.wins === 5 ? 'Nobody has beaten Lucan Mortlake in three years.' : '',
+        success: opts.opponents ? S.wins === N : S.wins > 0, wins: S.wins, score: S.wins * 100 + Math.round(p.hp), points: pts,
+        lines: [['Rounds won', `${S.wins} / ${N}`], ['Last opponent', OPP[Math.min(S.round, N - 1)].name]],
       });
     };
     const startRound = async () => {
-      const o = OPPONENTS[S.round];
+      const o = OPP[S.round];
       S.state = 'intro';
       p.hp = p.maxHp; p.mana = p.maxMana;
       p.teleport(gh.spots.duelA, Math.PI);
       p.control = false;
       G.enemies.clearZone();
+      G.spells.clear();
       G.enemies.hpScale = 1;
       const e = G.enemies.spawn('duelist', gh.spots.duelB, {
         name: o.name, house: o.house, level: o.level, hp: o.hp, spells: o.spells, rate: o.rate, block: o.block, dodge: o.dodge, volley: o.volley,
-        range: 11, bounds, aggro: false, yaw: 0, hat: o.hat, robe: o.robe,
+        range: 11, bounds, aggro: false, hold: true, yaw: 0, hat: o.hat, robe: o.robe, look: o.look,
       });
       e.yaw = 0;
       S.opp = e;
@@ -92,6 +95,7 @@ export async function play(opts) {
       G.cam.snap();
       G.cam.lockTarget = e;
       e.aggro = true;
+      e.o.hold = false;
       p.control = true;
       S.state = 'fight';
       G.ui.showHUD(true);
@@ -108,7 +112,7 @@ export async function play(opts) {
         p.status.override = 'down';
         G.slowmo = 1;
         G.audio.sfx('faint');
-        G.ui.banner('Defeated!', `${OPPONENTS[S.round].name} wins the round.`, '');
+        G.ui.banner('Defeated!', `${OPP[S.round].name} wins the round.`, '');
         await sleep(2200);
         p.status.override = null;
         p.hp = p.maxHp;
@@ -129,17 +133,17 @@ export async function play(opts) {
             G.audio.sfx('slowmo');
             G.cam.lockTarget = null;
             for (const s of students) s.anim.trigger('cheer', 2);
-            G.ui.banner('Victory!', `${OPPONENTS[S.round].name} is out!`, 'unlock');
+            G.ui.banner('Victory!', `${OPP[S.round].name} is out!`, 'unlock');
             setTimeout(() => {
               if (S.done) return;
               S.round++;
-              if (S.round >= OPPONENTS.length) finish(false);
+              if (S.round >= N) finish(false);
               else startRound();
             }, 2600);
           }
         }
         for (const s of students) s.anim.update(dt, 0);
-        G.ui.minigameHUD(`<div class="mg-row"><span>Round <b>${Math.min(S.round + 1, 5)}</b>/5</span><span>Wins <b>${S.wins}</b></span></div><small>Disarm with Expelliarmus, then Stupefy for a Knockout · ${glyph('block')} Protego · ${glyph('dodge')} dodge · ${glyph('pause')} menu</small>`);
+        G.ui.minigameHUD(`<div class="mg-row"><span>Round <b>${Math.min(S.round + 1, N)}</b>/${N}</span><span>Wins <b>${S.wins}</b></span></div><small>Disarm with Expelliarmus, then Stupefy for a Knockout · ${glyph('block')} Protego · ${glyph('dodge')} dodge · ${glyph('pause')} menu</small>`);
       },
     });
     startRound();

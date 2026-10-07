@@ -72,7 +72,8 @@ export class CameraRig {
       this.yaw = dampAngle(this.yaw, p.yaw, 12, dt);
     }
     const aiming = p.aiming;
-    const wantDist = (aiming ? 3.3 : this.dist) * (p.flying ? 1.6 : 1);
+    const tight = G.zone?.tight;
+    const wantDist = tight ? (aiming ? 1.9 : 2.3) : (aiming ? 3.3 : this.dist) * (p.flying ? 1.6 : 1);
     this.curDist = damp(this.curDist, wantDist, 6, dt);
     // pivot: above the player's shoulder
     const h = p.flying ? 1.5 : 1.55;
@@ -81,14 +82,14 @@ export class CameraRig {
     else this._smooth = this.target.clone();
     const f = this.forward(_t);
     const right = _d.set(-Math.cos(this.yaw), 0, Math.sin(this.yaw));
-    const pivot = _v.copy(this._smooth).addScaledVector(right, this.shoulder * (p.flying ? 0 : 1));
+    const pivot = _v.copy(this._smooth).addScaledVector(right, this.shoulder * (p.flying || tight ? 0 : 1));
     const back = f.clone().multiplyScalar(-1);
     // collision
     let dist = this.curDist;
     const col = G.zone?.colliders;
     if (col) {
       const hit = col.raycast(pivot, back, dist + 0.3, { skipThin: true });
-      if (hit < dist + 0.3) dist = Math.max(0.6, hit - 0.35);
+      if (hit < dist + 0.3) dist = Math.max(tight ? 0.25 : 0.6, hit - (tight ? 0.2 : 0.35));
     }
     this.pos.copy(pivot).addScaledVector(back, dist);
     // keep above terrain

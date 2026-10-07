@@ -17,7 +17,7 @@ export const OFFSETS = {
 };
 
 // Wraps a Colliders so interior code can use local coordinates.
-function localCol(col, o) {
+export function localCol(col, o) {
   return {
     box: (x, y, z, hx, hy, hz, r, opts) => col.box(x + o.x, y + o.y, z + o.z, hx, hy, hz, r, opts),
     aabb: (x0, y0, z0, x1, y1, z1, opts) => col.aabb(x0 + o.x, y0 + o.y, z0 + o.z, x1 + o.x, y1 + o.y, z1 + o.z, opts),
@@ -26,7 +26,7 @@ function localCol(col, o) {
   };
 }
 
-function makeZone(name, label, opts) {
+export function makeZone(name, label, opts) {
   const o = OFFSETS[name];
   const group = new THREE.Group();
   group.name = name;
@@ -45,7 +45,7 @@ function makeZone(name, label, opts) {
 }
 
 // Room shell: floor, ceiling, four walls with door gaps. doors: [{side:'n'|'s'|'e'|'w', at, w, h}]
-function room(B, C, M, x0, z0, x1, z1, h, opts = {}) {
+export function room(B, C, M, x0, z0, x1, z1, h, opts = {}) {
   const wallMat = opts.wall || M.stone;
   const t = 1;
   const y0 = opts.y0 || 0;
@@ -85,7 +85,7 @@ function room(B, C, M, x0, z0, x1, z1, h, opts = {}) {
   wall('e', z0, z1, x1);
 }
 
-function doorFrame(B, M, x, z, ry, w = 3, h = 4, y = 0, dark = true) {
+export function doorFrame(B, M, x, z, ry, w = 3, h = 4, y = 0, dark = true) {
   B.add(new THREE.TorusGeometry(w / 2 + 0.2, 0.3, 6, 16, Math.PI), M.stoneWarm, mat4(x, y + h - w / 2, z, ry));
   B.box(M.stoneWarm, x + Math.cos(ry) * (w / 2 + 0.2), y + (h - w / 2) / 2, z - Math.sin(ry) * (w / 2 + 0.2), 0.6, h - w / 2, 0.8, ry);
   B.box(M.stoneWarm, x - Math.cos(ry) * (w / 2 + 0.2), y + (h - w / 2) / 2, z + Math.sin(ry) * (w / 2 + 0.2), 0.6, h - w / 2, 0.8, ry);
@@ -99,7 +99,7 @@ function doorFrame(B, M, x, z, ry, w = 3, h = 4, y = 0, dark = true) {
 const DOORGLOW = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.3, 0.22, 0.13), side: THREE.DoubleSide });
 DOORGLOW.userData.noShadow = true;
 
-function torch(zone, B, M, x, y, z, ry, color = 0xff9a40, flameColor) {
+export function torch(zone, B, M, x, y, z, ry, color = 0xff9a40, flameColor) {
   B.box(M.iron, x, y - 0.35, z, 0.12, 0.7, 0.12, ry);
   B.add(new THREE.CylinderGeometry(0.16, 0.08, 0.3, 8), M.iron, mat4(x, y, z));
   const fm = new THREE.SpriteMaterial({ map: flameSprite(), color: flameColor || new THREE.Color(3.2, 1.8, 0.7), blending: THREE.AdditiveBlending, depthWrite: false, fog: false });
@@ -111,14 +111,14 @@ function torch(zone, B, M, x, y, z, ry, color = 0xff9a40, flameColor) {
   zone.anchors.push({ pos: zone.W(x, y + 0.5, z), color, intensity: 22, distance: 11, flicker: true });
 }
 
-function animateFlames(zone, t) {
+export function animateFlames(zone, t) {
   zone.flames.forEach((f, i) => {
     const s = 0.85 + Math.sin(t * 17 + i * 3.1) * 0.08 + Math.sin(t * 9 + i) * 0.07;
     f.scale.set(0.42 * s, 0.8 * (2 - s), 1);
   });
 }
 
-function prop(zone, kind, x, y, z, M) {
+export function prop(zone, kind, x, y, z, M) {
   let mesh;
   if (kind === 'barrel') {
     mesh = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 1.1, 14), M.wood);
@@ -533,10 +533,7 @@ export function buildCorridor(Q) {
   const winMat = new THREE.MeshStandardMaterial({ color: 0x223, emissive: 0x8899ff, emissiveIntensity: 0.9, roughness: 0.2 });
   for (let z = -6; z > -len + 3; z -= 12) {
     B.add(new THREE.PlaneGeometry(1.6, 3.2), winMat, mat4(-w + 0.52, 4, z, Math.PI / 2));
-    // a soft shaft of moonlight slanting from the window to the floor
-    const beam = new THREE.CylinderGeometry(0.7, 1.3, 5.2, 12, 1, true);
-    beam.rotateZ(0.75);
-    B.add(beam, beamMat, mat4(-2.4, 2.3, z));
+
     torch(zone, B, M, w - 0.6, 3.6, z - 6, 0);
   }
   // suits of armour and tapestries

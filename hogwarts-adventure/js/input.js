@@ -7,7 +7,7 @@ const KEYMAP = {
   Space: ['jump', 'confirm'], KeyE: ['interact'], KeyF: ['interact'], KeyQ: ['block'], ShiftLeft: ['dodge', 'sprint'], ShiftRight: ['dodge', 'sprint'],
   Tab: ['lock'], KeyC: ['wheel'], Escape: ['pause', 'back'], KeyP: ['pause'], KeyB: ['book'], KeyJ: ['journal'], KeyM: ['mute'],
   Enter: ['confirm'], Backspace: ['back'], ArrowUp: ['up'], ArrowDown: ['down'], ArrowLeft: ['left'], ArrowRight: ['right'],
-  KeyW: ['upMenu'], KeyS: ['downMenu'], KeyA: ['leftMenu'], KeyD: ['rightMenu'], KeyR: ['next'], KeyZ: ['prev'],
+  KeyW: ['upMenu'], KeyS: ['downMenu'], KeyA: ['leftMenu'], KeyD: ['rightMenu'], KeyR: ['next'], KeyZ: ['prev'], KeyT: ['loadout'], KeyG: ['command'], KeyN: ['map'],
   Digit1: ['spell1'], Digit2: ['spell2'], Digit3: ['spell3'], Digit4: ['spell4'], Digit5: ['spell5'], Digit6: ['spell6'], Digit7: ['spell7'], Digit8: ['spell8'],
 };
 // gamepad button index -> actions
@@ -22,15 +22,17 @@ export const BINDINGS = [
   ['Look / aim', 'Mouse', 'RS'],
   ['Cast selected spell', 'Left click', 'RT'],
   ['Protego (block)', 'Right click / Q', 'Y'],
-  ['Lock on to target', 'Tab / middle click', 'LT'],
-  ['Previous / next spell', 'Wheel / Z / R', 'LB / RB'],
+  ['Lock on to target', 'Tab / middle click', 'Hold LT · flick RS to switch'],
+  ['Previous / next spell', 'Wheel / Z / R', 'LB / RB or D-pad ← →'],
   ['Spell wheel', 'Hold C', 'Hold LB or RB'],
-  ['Pick spell 1–8', '1 – 8', '—'],
+  ['Pick spell slot 1–8', '1 – 8', '—'],
+  ['Swap spell loadout', 'T', 'D-pad ↑ ↓'],
   ['Jump', 'Space', 'A'],
   ['Dodge roll (hold: sprint)', 'Shift', 'B (L3 sprint)'],
   ['Interact / talk', 'E', 'X'],
-  ['Spellbook', 'B', 'View'],
-  ['Quest journal', 'J', '—'],
+  ['Spellbook (open / close)', 'B', 'View'],
+  ['Owl post / quest log', 'J', 'From the pause menu'],
+  ['Companion orders (hold)', 'G', 'Hold D-pad ←'],
   ['Pause / menu', 'Esc / P', 'Menu'],
   ['Mute', 'M', '—'],
   ['Menus', 'Arrows · Enter · Esc', 'D-pad · A · B'],
@@ -211,8 +213,17 @@ export class Input {
       const bv = (i) => { const b = gp.buttons[i]; return b ? (typeof b === 'object' ? b.value || (b.pressed ? 1 : 0) : b) : 0; };
       this.lt = bv(6); this.rt = bv(7);
       let any = Math.abs(ls.x) + Math.abs(ls.y) + Math.abs(rs.x) + Math.abs(rs.y) > 0.3;
-      for (let i = 0; i < gp.buttons.length; i++) {
-        const down = bv(i) > 0.45;
+      // some controllers report the d-pad as axes (6/7) or a hat switch (axis 9)
+      const dpadAxis = { 12: false, 13: false, 14: false, 15: false };
+      if (gp.mapping !== 'standard') {
+        if (gp.axes.length > 7) { dpadAxis[14] = gp.axes[6] < -0.5; dpadAxis[15] = gp.axes[6] > 0.5; dpadAxis[12] = gp.axes[7] < -0.5; dpadAxis[13] = gp.axes[7] > 0.5; }
+        if (gp.axes.length > 9 && Math.abs(gp.axes[9]) <= 1.01) {
+          const h = Math.round((gp.axes[9] + 1) * 3.5); // 0=up .. 7=up-left, 8+=idle
+          if (h <= 7) { dpadAxis[12] ||= h === 0 || h === 1 || h === 7; dpadAxis[15] ||= h >= 1 && h <= 3; dpadAxis[13] ||= h >= 3 && h <= 5; dpadAxis[14] ||= h >= 5 && h <= 7; }
+        }
+      }
+      for (let i = 0; i < Math.max(gp.buttons.length, 16); i++) {
+        const down = bv(i) > 0.45 || !!dpadAxis[i];
         const was = this.padPrev[i];
         if (down) any = true;
         if (down !== was) {
@@ -241,9 +252,13 @@ export class Input {
       if (any) this.setDevice('pad');
       if (this.device === 'pad') {
         if (Math.abs(ls.x) > 0 || Math.abs(ls.y) > 0) { this.move.x = ls.x; this.move.y = -ls.y; }
-        const ps = (S.padSensitivity ?? 1) * 3.0;
-        this.look.x += rs.x * Math.abs(rs.x) * ps * dt * 1.2 + rs.x * ps * dt * 0.3;
-        this.look.y += -this.rstick.y * Math.abs(rs.y) * ps * dt * 0.9 * inv;
+        // response curve: fine control near the centre, ~3.4 rad/s yaw at full tilt
+        const ps = (S.padSensitivity ?? 1) * 2.6;
+        const aimK = G.player && (G.player.aiming || G.player.blocking) ? 0.7 : 1;
+        if (!(G.cam && G.cam.lockTarget)) {
+          this.look.x += (rs.x * Math.abs(rs.x) * 1.1 + rs.x * 0.2) * ps * dt * aimK;
+          this.look.y += (rs.y * Math.abs(rs.y) * 0.75) * ps * dt * inv * aimK;
+        }
         // stick-driven menu navigation with repeat
         this._stickNav('up', -ls.y > 0.6, dt);
         this._stickNav('down', ls.y > 0.6, dt);
@@ -389,6 +404,8 @@ export class Input {
     btn('t-lock', '<span>◎</span>', 'lock', false);
     btn('t-pause', '<span>❚❚</span>', 'pause', false);
     btn('t-book', '<span>📖</span>', 'book', false);
+    const cmd = btn('t-cmd', '<span>👥</span>', 'commandTouch', false);
+    cmd.addEventListener('touchstart', () => { if (G.ui.cmd) G.ui.closeCommand(false); else G.ui.openCommand('commandTouch'); });
     const bar = document.createElement('div');
     bar.className = 't-spells';
     root.appendChild(bar);
@@ -404,7 +421,10 @@ function radial(x, y, dz) {
 }
 
 export function detectPad(id = '') {
-  if (/054c|playstation|dualsense|dualshock|wireless controller/i.test(id)) return 'ps';
+  // Xbox first: an Xbox Series pad reports "Xbox Wireless Controller", which would
+  // otherwise match the PlayStation "Wireless Controller" name below
+  if (/xbox|xinput|045e/i.test(id)) return 'xbox';
+  if (/054c|playstation|dualsense|dualshock|^wireless controller/i.test(id)) return 'ps';
   if (/057e|nintendo|pro controller|switch|joy-con/i.test(id)) return 'switch';
   return 'xbox';
 }

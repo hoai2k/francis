@@ -50,6 +50,14 @@ export const SPELLS = [
   },
 ];
 export const SPELL_BY_ID = Object.fromEntries(SPELLS.map((s) => [s.id, s]));
+// combos listed in the spellbook (spells2.js adds more)
+export const COMBOS = [
+  { name: 'Fire Comet', how: 'Leviosa → Incendio', need: ['leviosa', 'incendio'] },
+  { name: 'Meteor Slam', how: 'Leviosa → Stupefy', need: ['leviosa', 'stupefy'] },
+  { name: 'Shatter', how: 'Petrificus → Stupefy/Expelliarmus', need: ['petrificus', 'stupefy'] },
+  { name: 'Steam Blast', how: 'Incendio → Petrificus', need: ['incendio', 'petrificus'] },
+  { name: 'Knockout', how: 'Expelliarmus → Stupefy', need: ['expelliarmus', 'stupefy'] },
+];
 export function spellIcon(s, size = 40) {
   return `<svg viewBox="0 0 64 64" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="color:${s.css}">${s.icon}</svg>`;
 }

@@ -5,7 +5,10 @@ import { G, HOUSES, HOUSE_KEYS } from './state.js';
 import { makeWizard, makeSortingHat, makeCard, makeBean, makeHippogriff, HAIR_COLORS, SKIN_TONES } from './models.js';
 import { SPELL_BY_ID } from './spelldata.js';
 import { glyph } from './input.js';
-import { writeSave } from './save.js';
+import { writeSave, autoSave } from './save.js';
+import { addXP, sendOwl, YEARS } from './progress.js';
+import { FRIENDS, FRIEND_IDS, friendTalk, placeFriends, addFriendship } from './friends.js';
+import { addCoins } from './items.js';
 import { runMinigame } from './minigames/index.js';
 import { PLATEAU, SPOTS, groundHeight, WATER_Y } from './world/terrain.js';
 import { rand, pick, dampAngle, sleep, clamp } from './util.js';
@@ -32,7 +35,7 @@ const CARD_LORE = {
 const BEAN_FLAVOURS = ['earwax', 'toffee', 'grass', 'cherry', 'soap', 'black pepper', 'marmalade', 'sprouts', 'sardine', 'bogey', 'strawberry', 'dirt', 'buttered toast', 'vomit', 'lemon sherbet', 'spinach'];
 
 // zone adjacency for the objective marker (route through portals)
-const ADJ = { grounds: ['greatHall'], greatHall: ['grounds', 'staircase'], staircase: ['greatHall', 'corridor', 'dungeon', 'tower'], corridor: ['staircase'], dungeon: ['staircase'], tower: ['staircase'] };
+export const ADJ = { hogsmeade: ['grounds'], grounds: ['greatHall', 'hogsmeade'], greatHall: ['grounds', 'staircase'], staircase: ['greatHall', 'corridor', 'dungeon', 'tower'], corridor: ['staircase'], dungeon: ['staircase', 'undercroft'], tower: ['staircase'], undercroft: ['dungeon'] };
 function route(from, to) {
   if (from === to) return null;
   const prev = { [from]: null };
@@ -45,6 +48,9 @@ function route(from, to) {
   while (prev[cur] !== from && prev[cur] != null) cur = prev[cur];
   return cur;
 }
+
+export const BUILT_YEARS = 3;
+const Y1_FROM = ['Headmistress Aldmoor', 'Headmistress Aldmoor', 'Professor Thornwick', 'Professor Duskwood', 'Professor Vexley', 'Professor Vexley', 'Madam Hale', 'Brannoc the Groundskeeper', 'Headmistress Aldmoor', 'Headmistress Aldmoor', 'Brannoc the Groundskeeper'];
 
 export const QUESTS = [
   { title: 'The Sorting', objective: 'Take your seat for the Sorting ceremony.' },
@@ -70,6 +76,11 @@ export class Story {
     this.musicT = 0;
     this.busy = false;
     this.encounter = null;
+    this.tickers = new Map();
+    this.journeyQuest = null;
+    this.friendTalkOverride = null;
+    this.friendTalk = (id) => this.friendActivity(id);
+    this.placeFriends = placeFriends;
     this.buildNPCs();
     this.buildCollectibles();
     this.buildStations();
@@ -82,23 +93,128 @@ export class Story {
   set stage(v) {
     G.save.stage = v;
     this.placeNPCs();
-    G.ui.setQuest(QUESTS[Math.min(v, QUESTS.length - 1)]);
+    G.ui.setQuest(this.questView());
     writeSave();
+  }
+  // online guests follow the host's story without saving it
+  syncStage(v) {
+    G.save.stage = v;
+    this.placeNPCs();
+    G.ui.setQuest(this.questView());
+  }
+  // the quest panel; a guest sees the host's quest as theirs to help with
+  questView() {
+    const q = this.currentQuest();
+    if (!G.net?.isGuest || !q) return q;
+    const host = G.net.hostName.replace(/[<>&]/g, '');
+    if (this.hostQuest && G.save.year > 1 && !G.save.yearDone) return { title: this.hostQuest.title, objective: `Help ${host}: ${this.hostQuest.objective}` };
+    if (G.save.yearDone || this.stage >= 11) return { title: q.title, objective: `Explore ${host}’s world together, find collectibles and play minigames for your house.` };
+    return { title: q.title, objective: `Help ${host}: ${q.objective}` };
+  }
+  announceStage(old, now, host) {
+    const q = QUESTS[old];
+    if (q && old > 0) { G.ui.banner('Quest complete', q.title, 'quest'); G.audio.sfx('quest'); }
+    const nq = QUESTS[now];
+    if (nq) setTimeout(() => G.ui.toast(`<b>New quest:</b> ${nq.title}`, 'quest', 4000), 600);
   }
   advance(to) {
     const q = QUESTS[this.stage];
-    if (q && this.stage > 0) { G.ui.banner('Quest complete', q.title, 'quest'); G.audio.sfx('quest'); }
+    if (q && this.stage > 0) { G.ui.banner('Quest complete', q.title, 'quest'); G.audio.sfx('quest'); addXP(120 + G.save.year * 30, q.title); addCoins(12); }
     setTimeout(() => {
       this.stage = to;
       const nq = QUESTS[to];
       if (nq) G.ui.toast(`<b>New quest:</b> ${nq.title}`, 'quest', 4000);
     }, 600);
     this.stage = to;
+    this.questLetter();
+  }
+  // every new quest arrives as an owl post letter, which doubles as the quest log
+  questLetter() {
+    if (G.save.year !== 1) return;
+    const q = QUESTS[this.stage];
+    if (!q || this.stage >= 11) return;
+    const from = Y1_FROM[this.stage] || 'Headmistress Aldmoor';
+    sendOwl(`y1-q${this.stage}`, from, q.title, q.objective, { quest: true, silent: this.stage === 0 });
+  }
+  // ------------------------------------------------------------ year / quest log API
+  async resume() {
+    this.yearEngine = null;
+    if (G.save.year >= 2 && !G.save.yearDone && !G.save.journey) await this.loadYear(G.save.year, false);
+    this.placeNPCs();
+    this.yearEngine?.def.placeNPCs?.(this.yearEngine);
+    G.ui.setQuest(this.currentQuest());
+  }
+  async loadYear(n, fresh) {
+    const mod = await import(`./years/y${n}.js`);
+    const { YearEngine } = await import('./years/engine.js');
+    if (fresh === undefined) return mod;
+    this.yearEngine = new YearEngine(mod.default);
+    this.yearEngine.start(fresh);
+    return mod;
+  }
+  undercroftOpen() { return !!G.save.flags.y2?.undercroft; }
+  currentQuest() {
+    if (this.journeyQuest?.quest) return this.journeyQuest.quest;
+    if (this.yearEngine && !G.save.yearDone) return this.yearEngine.objective();
+    if (G.save.yearDone) return { title: `Year ${G.save.year} complete`, objective: this.yearAvailable(G.save.year + 1) ? `Begin Year ${G.save.year + 1}: open the pause menu → School Years, or talk to the Headmistress.` : 'Explore, find collectibles and play minigames. More years arrive in a later update.' };
+    return QUESTS[Math.min(this.stage, QUESTS.length - 1)];
+  }
+  completedQuests() { if (this.yearEngine) return this.yearEngine.def.quests.slice(0, this.yearEngine.qi).map((q) => q.title); return G.save.year > 1 ? [] : QUESTS.slice(0, Math.min(this.stage, 11)).map((q) => q.title); }
+  yearFraction() { return G.save.yearDone ? 1 : this.yearEngine ? this.yearEngine.fraction() : G.save.year > 1 ? 0 : Math.min(1, this.stage / 11); }
+  yearAvailable(n) { return n >= 1 && n <= BUILT_YEARS; }
+  async beginYear(n) { const { beginYear } = await import('./journey.js'); return beginYear(n); }
+  // the welcome feast, then the year's first quest
+  async startYear(n) {
+    const mod = await import(`./years/y${n}.js`);
+    const def = mod.default;
+    const gh = G.world.zones.greatHall;
+    G.world.setZone('greatHall', { pos: gh.W(0, 0, -16), yaw: Math.PI });
+    this.placeNPCs();
+    this.placeNPC('headmistress', 'greatHall', gh.W(0, 0.8, -32.5), 0);
+    G.skyObj.tod = 0.85;
+    G.mode = 'cutscene';
+    G.ui.showHUD(false);
+    G.audio.music('hall');
+    G.cam.setCinematic(gh.W(0, 5, 6), gh.W(0, 4, -30), 100);
+    await G.ui.fade(0, 1);
+    G.ui.banner('The Welcome Feast', `Year ${n} · ${YEARS[n - 1].title}`, 'quest');
+    const hm = this.speaker('headmistress');
+    await this.run(async () => {
+      await G.ui.say((def.feast || ['Welcome back!']).map((t) => (typeof t === 'string' ? { ...hm, text: t } : t)));
+      for (const s of this.students) s.anim.trigger('cheer', 1.4);
+    });
+    G.cam.setCinematic(null);
+    G.player.teleport(gh.W(0, 0, -16), Math.PI);
+    G.cam.snap();
+    this.yearEngine = null;
+    await this.loadYear(n, true);
+    G.mode = 'play';
+    G.ui.showHUD(true);
+    G.ui.refreshHUD();
+    G.ui.setQuest(this.currentQuest());
+  }
+  journalExtra() {
+    const Y = this.yearEngine;
+    if (!Y || !Y.def.side) return '';
+    const rows = Y.sideList().map((q) => `<li class="${q.done ? 'sq-done' : q.on ? 'sq-on' : 'sq-off'}"><b>${q.title}</b> — ${q.obj}</li>`).join('');
+    return `<h3>Side quests</h3><ul class="sq">${rows}</ul>`;
+  }
+  offerNextYear() {
+    const n = G.save.year + 1;
+    if (!G.save.yearDone) return;
+    if (!this.yearAvailable(n)) { if (n <= 7) G.ui.toast(`Year ${n} — ${YEARS[n - 1].title} — arrives in a later update. Keep exploring!`, 'info', 5000); return; }
+    G.ui.toast(`Year ${n} awaits! Talk to the Headmistress, or open School Years from the pause menu.`, 'quest', 5000);
   }
 
   // ------------------------------------------------------------ house points
   addPoints(house, n, reason, quiet) {
     if (!house || !n) return;
+    if (G.net?.isGuest) {
+      // the host keeps the score; it comes back with their next update
+      G.net.points(house, n, reason);
+      if (!quiet) { G.ui.points(house, n, reason); G.audio.sfx('points'); }
+      return;
+    }
     const p = G.save.points;
     p[house] = Math.max(0, p[house] + n);
     if (!quiet) { G.ui.points(house, n, reason); G.audio.sfx('points'); }
@@ -106,9 +222,44 @@ export class Story {
   }
 
   // ------------------------------------------------------------ NPCs
+  // friends: their activity (frog chase, practice duel…) comes first when there is one
+  async friendActivity(id) {
+    const acts = {
+      pip: this.stage >= 2 || G.save.year > 1 ? ['Chase Chocolate Frogs with Pip', () => runMinigame('frogs', {})] : null,
+      mei: ['Practice duel with Mei', () => runMinigame('duel', { opponents: [{ name: 'Mei Lin Chau', house: 'ravenclaw', level: 2 + G.save.year, hp: 100 + G.save.year * 25, spells: ['stupefyE', 'expelliarmusE'], rate: 1.6, block: 0.35, dodge: 0.3, line: 'No holding back!', look: FRIENDS.mei.look }], winTitle: 'You beat Mei!' })],
+      ruairi: this.stage >= 7 || G.save.year > 1 ? ['Visit Silvermane with Ruairí', () => runMinigame('creatures', {})] : null,
+      tamsin: this.stage >= 6 || G.save.year > 1 ? ['Flying practice with Tamsin', () => runMinigame('quidditch', {})] : null,
+    }[id];
+    if (acts) {
+      const c = await this.talk(id, [{ ...this.speaker(id), text: 'What shall we do?', choices: [acts[0], 'Just talk', 'Not now'] }]);
+      if (c === 0) { const r = await acts[1](); if (r && !r.aborted) addFriendship(id, r.success ? 8 : 4); return; }
+      if (c !== 1) return;
+    }
+    return friendTalk(id);
+  }
+  async hogsDoor(d) {
+    const { openShop, openJournal } = await import('./menus.js');
+    if (d.kind === 'owls') return openJournal(true);
+    if (d.kind === 'brooms') { const { openBroomShop } = await import('./quidditch.js'); return openBroomShop(); }
+    G.audio.sfx('door');
+    if (this.yearEngine?.def.hogsDoor && (await this.yearEngine.def.hogsDoor(this.yearEngine, d))) return;
+    await openShop(d.kind);
+  }
+  registerNPC(id, d) { NPC_LOOKS[id] = d; }
+  // an NPC added by a later year: talking to them goes through the year engine
+  addTalker(id, label, fallback) {
+    if (this.interactables.some((i) => i.npc === id)) return;
+    this.npcAct(id, () => label, fallback || (() => this.talk(id, ['Hello.'])));
+  }
+  speaker(id) {
+    const d = NPC_LOOKS[id] || (FRIENDS[id] && { name: FRIENDS[id].name, voice: FRIENDS[id].voice, color: FRIENDS[id].color });
+    return { who: d?.name, color: d?.color, voice: d?.voice, speaker: (on) => this.npcs[id]?.model.anim.set(on ? 'talk' : (this.npcs[id].state === 'sit' ? 'sit' : 'idle')) };
+  }
+  hideNPC(id) { const n = this.npcs[id]; if (n) { n.root.parent?.remove(n.root); n.zone = null; } }
+  cardName(i) { return CARDS[i]; }
   npc(id) {
     if (this.npcs[id]) return this.npcs[id];
-    const d = NPC_LOOKS[id];
+    const d = NPC_LOOKS[id] || (FRIENDS[id] && { name: FRIENDS[id].name, voice: FRIENDS[id].voice, color: FRIENDS[id].color, look: FRIENDS[id].look });
     const m = makeWizard({ ...d.look, house: d.look.house || null, scarf: !!d.look.house });
     const n = { id, d, model: m, root: m.root, zone: null, pos: new THREE.Vector3(), yaw: 0, talk: false };
     this.npcs[id] = n;
@@ -140,6 +291,8 @@ export class Story {
     const pad = SPOTS.paddock;
     this.placeNPC('brannoc', 'grounds', new THREE.Vector3(pad.x - 18, groundHeight(pad.x - 18, pad.z - 6), pad.z - 6), Math.PI / 2);
     this.placeNPC('pip', 'grounds', new THREE.Vector3(6, PLATEAU, 6), -2.4);
+    for (const id of FRIEND_IDS) if (id !== 'pip' && this.npcs[id] && !this.journeyQuest) this.hideNPC(id);
+    this.placeFriends?.();
   }
   buildNPCs() {
     this.placeNPCs();
@@ -205,6 +358,32 @@ export class Story {
     beanSpots.push({ zone: 'tower', pos: gz.tower.W(-4, 0.6, 5) }, { zone: 'grounds', pos: new THREE.Vector3(14, PLATEAU + 0.6, -12) });
     beanSpots.forEach((s, i) => { s.color = beanCols[i % beanCols.length]; this.addCollectible('bean', i, s); });
   }
+  // the collectibles of the current save (after loading another one, or joining a friend's world)
+  rebuildCollectibles() {
+    for (const c of this.collectibles) c.mesh.parent?.remove(c.mesh);
+    this.collectibles = [];
+    this.buildCollectibles();
+  }
+  // online guests: hide whatever the host's world has already collected
+  applyCollected() {
+    const s = G.save;
+    for (const c of this.collectibles) {
+      if (c.got) continue;
+      if (c.kind === 'card' ? s.cards.includes(c.i) : s.beans.includes(c.i)) { c.got = true; c.mesh.parent?.remove(c.mesh); }
+    }
+  }
+  // host: a friend picked one up in my world
+  collectRemote(kind, i, house, who) {
+    const list = kind === 'card' ? G.save.cards : G.save.beans;
+    if (list.includes(i)) return;
+    list.push(i);
+    const c = this.collectibles.find((x) => x.kind === kind && x.i === i && !x.got);
+    if (c) { c.got = true; c.mesh.parent?.remove(c.mesh); }
+    this.addPoints(house || G.save.house, kind === 'card' ? 5 : 1, null, true);
+    const name = who.replace(/[<>&]/g, '');
+    if (kind === 'card') G.ui.toast(`<b>${name}</b> found a Chocolate Frog card: <b>${CARDS[i]}</b> (${G.save.cards.length}/12)`, 'info', 3500);
+    writeSave();
+  }
   addCollectible(kind, i, s) {
     const have = kind === 'card' ? G.save.cards.includes(i) : G.save.beans.includes(i);
     if (have) return;
@@ -239,17 +418,19 @@ export class Story {
     c.got = true;
     c.mesh.parent?.remove(c.mesh);
     const house = G.save.house;
+    const guest = G.net?.isGuest; // the host's world keeps it (and gives my house the points)
+    if (guest) G.net.collect(c.kind, c.i);
     if (c.kind === 'card') {
       G.save.cards.push(c.i);
       const name = CARDS[c.i];
       G.audio.sfx('card');
       G.ui.banner(`Chocolate Frog Card: ${name}`, `${CARD_LORE[name]} (${G.save.cards.length}/12)`, 'card');
-      this.addPoints(house, 5, 'Rare card', true);
+      if (!guest) this.addPoints(house, 5, 'Rare card', true);
     } else {
       G.save.beans.push(c.i);
       G.audio.sfx('pickup');
       G.ui.toast(`Bertie Bott's bean: <i>${pick(BEAN_FLAVOURS)}</i> flavour! (${G.save.beans.length}/${this.totalBeans})`, 'info');
-      this.addPoints(house, 1, null, true);
+      if (!guest) this.addPoints(house, 1, null, true);
     }
     G.fx.burst(c.pos, c.kind === 'card' ? 0xffd070 : 0xffffff, 40, 5);
     writeSave();
@@ -260,17 +441,27 @@ export class Story {
   buildStations() {
     const I = this.interactables;
     const W = G.world.zones;
-    const npcAct = (id, label, fn) => I.push({ npc: id, label: () => label(), act: fn, r: 2.6 });
+    const npcAct = (id, label, fn) => I.push({ npc: id, label: () => label(), act: async () => { if (G.net?.isGuest) return this.guestTalk(id); if (this.yearEngine && (await this.yearEngine.talk(id))) return; return fn(); }, r: 2.6 });
+    this.npcAct = npcAct;
     npcAct('headmistress', () => 'Talk to Headmistress Aldmoor', () => this.talkHeadmistress());
     npcAct('thornwick', () => 'Talk to Professor Thornwick', () => this.talkThornwick());
     npcAct('vexley', () => 'Talk to Professor Vexley', () => this.talkVexley());
     npcAct('duskwood', () => 'Talk to Professor Duskwood', () => this.talkDuskwood());
     npcAct('hale', () => 'Talk to Madam Hale', () => this.talkHale());
     npcAct('brannoc', () => 'Talk to Brannoc', () => this.talkBrannoc());
-    npcAct('pip', () => 'Talk to Pip', () => this.talkPip());
+    for (const id of FRIEND_IDS) npcAct(id, () => `Talk to ${FRIENDS[id].short}`, async () => {
+      if (this.friendTalkOverride && (await this.friendTalkOverride(id))) return;
+      if (this.friendTalk) return this.friendTalk(id);
+      if (id === 'pip') return this.talkPip();
+      return this.talk(id, ['Hello!']);
+    });
     I.push({ zone: 'dungeon', pos: W.dungeon.cauldron.pos, r: 2.4, label: () => 'Brew a potion', cond: () => this.stage > 3, act: () => this.playPotions() });
     I.push({ zone: 'corridor', pos: W.corridor.spots.lectern, r: 2.4, label: () => 'Wand practice', cond: () => this.stage > 1, act: () => this.playWand() });
     I.push({ zone: 'greatHall', pos: W.greatHall.W(0, 0, -21), r: 3, label: () => 'House points board', act: () => this.showBoard() });
+    // Hogsmeade shop doors
+    for (const d of W.hogsmeade.doors) I.push({ zone: 'hogsmeade', pos: d.pos, r: 2.6, label: () => (d.kind === 'brooms' ? 'Spintwitch’s Broom Shop' : d.kind === 'owls' ? 'Owl Post Office (read your letters)' : `Go into ${d.label}`), act: () => this.hogsDoor(d) });
+    // talking to the friend who walks with you
+    I.push({ get zone() { return G.companion ? G.zone?.name : null; }, get pos() { return G.companion ? G.companion.pos : new THREE.Vector3(1e9, 0, 0); }, r: 1.8, cond: () => !!G.companion && G.companion.alive, label: () => `Talk to ${G.companion.name}`, act: () => friendTalk(G.companion.id) });
   }
 
   nearestInteract() {
@@ -278,7 +469,7 @@ export class Story {
     let best = null, bd = Infinity;
     for (const it of this.interactables) {
       let pos, zone;
-      if (it.npc) { const n = this.npcs[it.npc]; pos = n.pos; zone = n.zone; }
+      if (it.npc) { const n = this.npcs[it.npc]; if (!n || !n.zone) continue; pos = n.pos; zone = n.zone; }
       else { pos = it.pos; zone = it.zone; }
       if (zone !== G.zone.name) continue;
       if (it.cond && !it.cond()) continue;
@@ -301,8 +492,9 @@ export class Story {
     }
   }
 
+  // story scripts run one at a time; a script started while another runs waits its turn
   async run(fn) {
-    if (this.busy) return;
+    while (this.busy) { if (G.quitting) return; await sleep(60); }
     this.busy = true;
     try { await fn(); } catch (e) { console.error(e); }
     this.busy = false;
@@ -339,6 +531,17 @@ export class Story {
   async beginNewGame() {
     G.save.started = true;
     this.stage = 0;
+    this.questLetter();
+    autoSave(true);
+    if (!G.save.flags.y1journey) {
+      const { runJourney } = await import('./journey.js');
+      G.ui.fade(0, 0.6);
+      if (!(await runJourney(1))) return;
+    }
+    return this.sortingAfterJourney();
+  }
+  async sortingAfterJourney() {
+    G.save.flags.y1journey = true;
     G.world.setZone('greatHall', { pos: G.world.zones.greatHall.W(0, 0, -24), yaw: Math.PI });
     G.mode = 'cutscene';
     G.ui.showHUD(false);
@@ -450,6 +653,11 @@ export class Story {
       return;
     }
     if (s === 10) return this.houseCup();
+    if (G.save.yearDone && this.yearAvailable(G.save.year + 1)) {
+      const c = await this.talk('headmistress', [{ who: NPC_LOOKS.headmistress.name, color: NPC_LOOKS.headmistress.color, text: `Summer is nearly over, ${G.save.name}. Are you ready for your ${['', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh'][G.save.year]} year?`, choices: [`Begin Year ${G.save.year + 1}`, 'Not yet'], speaker: (on) => this.npcs.headmistress.model.anim.set(on ? 'talk' : 'idle') }]);
+      if (c === 0) { this.busy = false; this.beginYear(G.save.year + 1); }
+      return;
+    }
     const lines = {
       0: ['Take your seat, the Hat is waiting.'],
       1: ['Charms is up the Grand Staircase. Professor Thornwick will be delighted to meet you.'],
@@ -537,6 +745,7 @@ export class Story {
   }
 
   async talkHale() {
+    if ((this.stage >= 6 || G.save.year > 1) && G.save.house) { const { haleTalk } = await import('./quidditch.js'); if (await haleTalk()) return; }
     if (this.stage < 5) { await this.talk('hale', ['Flying lessons come after your castle classes. Off you go — and no brooms in the corridors!']); return; }
     const first = this.stage === 5;
     const c = await this.talk('hale', [
@@ -574,7 +783,7 @@ export class Story {
 
   async talkPip() {
     if (this.stage < 2) {
-      await this.talk('pip', ['Hi! I’m Pip, Hufflepuff, second year. If you’re lost: the big doors lead to the Great Hall, and the Grand Staircase is through the side door by the dais.', 'Oh — and there are Chocolate Frog cards hidden all over the castle. Some only show up in Lumos light!']);
+      await this.talk('pip', ['Hi again! Pip — from the train, remember? If you’re lost: the big doors lead to the Great Hall, and the Grand Staircase is through the side door by the dais.', 'Oh — and there are Chocolate Frog cards hidden all over the castle. Some only show up in Lumos light!']);
       return;
     }
     const c = await this.talk('pip', [
@@ -582,6 +791,35 @@ export class Story {
       { who: NPC_LOOKS.pip.name, color: NPC_LOOKS.pip.color, text: 'Each frog comes with a card. You can keep a few!', choices: ['Catch the frogs!', 'Sorry, busy'], speaker: (on) => this.npcs.pip.model.anim.set(on ? 'talk' : 'idle') },
     ]);
     if (c === 0) await runMinigame('frogs', {});
+  }
+
+  // online guests are supporting characters: the professors know the host leads the story, and
+  // offer the practice version of their activity (points still go to the guest's house)
+  async guestTalk(id) {
+    const host = G.net.hostName.replace(/[<>&]/g, '');
+    const s = this.stage;
+    const lines = {
+      headmistress: [`Ah, ${G.save.name}. ${host} has a remarkable year ahead. Do stay close and lend your wand when it matters.`],
+      thornwick: [s > 1 ? 'Wand practice keeps the wrist supple! A neat trace earns you a Wand Mastery boost.' : `Oh, hello! Is ${host} with you? Do come along to Charms together.`],
+      vexley: [s > 3 ? 'You may brew, if you can follow instructions.' : `Not on my timetable. Come back with ${host} when the time is right.`],
+      duskwood: [s >= 2 ? 'Fancy a go at the tournament? Every win counts for your house.' : `The Duelling Club opens once ${host} has had a Charms lesson or two.`],
+      hale: [s >= 5 ? 'Another flier! Mount up whenever you like.' : 'Flying lessons come after castle classes. No brooms in the corridors!'],
+      brannoc: [s >= 6 ? 'Silvermane likes a bit o’ company. Fancy a flight?' : `Mornin’! Yer with ${host}, aren’t yeh? Keep an eye out near that forest.`],
+      pip: [s >= 2 ? 'My Chocolate Frogs escaped AGAIN! Help me catch them?' : `Hi! I’m Pip. Any friend of ${host}’s is a friend of mine!`],
+    }[id] || ['Hello there.'];
+    const offers = {
+      thornwick: s > 1 && ['Practise wand shapes', () => this.playWand()],
+      vexley: s > 3 && ['Brew a potion', () => this.playPotions()],
+      duskwood: s >= 2 && ['Start the tournament', () => runMinigame('duel', {})],
+      hale: s >= 5 && ['Fly!', () => runMinigame('quidditch', {})],
+      brannoc: s >= 6 && ['Fly Silvermane', () => runMinigame('creatures', {})],
+      pip: s >= 2 && ['Catch the frogs!', () => runMinigame('frogs', {})],
+    };
+    const offer = offers[id];
+    const d = this.npcs[id]?.d || NPC_LOOKS[id];
+    if (!offer) { await this.talk(id, lines); return; }
+    const c = await this.talk(id, [{ who: d.name, color: d.color, voice: d.voice, text: lines[0], choices: [offer[0], 'Not now'], speaker: (on) => this.npcs[id].model.anim.set(on ? 'talk' : 'idle') }]);
+    if (c === 0) await offer[1]();
   }
 
   async playPotions(quest) {
@@ -597,12 +835,23 @@ export class Story {
 
   // ------------------------------------------------------------ encounters
   onArrive(zone) {
+    if (G.net?.isGuest) return; // the host's screen runs the story's fights
+    this.yearEngine?.onArrive(zone);
     const s = this.stage;
     if (zone === 'corridor' && s === 1 && !G.save.flags.pixiesDone) this.startPixies();
     if (zone === 'dungeon' && s === 4) this.startTroll();
     if (zone === 'greatHall' && s === 10) setTimeout(() => this.run(() => this.houseCup()), 800);
   }
   onRespawn() {
+    if (G.net?.isGuest) {
+      // back on my feet next to the host if we're in the same place, else at the door
+      const h = G.net.hostAvatar?.latest;
+      if (h && h.z === G.zone.name) G.player.teleport(h.p.clone().add(new THREE.Vector3(1.2, 0.2, 1.2)), G.player.yaw);
+      else G.player.teleport(G.zone.spawn.pos, G.zone.spawn.yaw);
+      G.cam.snap();
+      return;
+    }
+    if (this.yearEngine?.onRespawn()) return;
     const s = this.stage;
     G.enemies.clearZone();
     if (this.encounter === 'troll') { G.world.setZone('dungeon', { pos: G.world.zones.dungeon.W(0, 0, -36), yaw: Math.PI }); this.startTroll(); }
@@ -643,6 +892,7 @@ export class Story {
     }
   }
   startBoss() {
+    if (G.save.flags.malacharDefeated) return;
     this.encounter = 'boss';
     G.skyObj.lock = 0.97;
     const C = SPOTS.clearing;
@@ -654,6 +904,8 @@ export class Story {
   }
 
   onEvent(type, data) {
+    if (G.net?.isGuest) return;
+    this.yearEngine?.onEvent(type, data);
     const s = this.stage;
     if (type === 'kill') {
       const alive = G.enemies.list.filter((e) => e.alive).length;
@@ -681,8 +933,10 @@ export class Story {
         G.ui.banner('The Dementors are gone', 'But green light flickers deep in the Forbidden Forest…', 'quest');
         this.advance(9);
       }
-      if (data.type === 'malachar') {
+      if (data.type === 'malachar' && G.save.year === 1) {
         this.encounter = 'bossDone';
+        G.save.flags.malacharDefeated = true;
+        writeSave();
         setTimeout(() => this.run(() => this.bossDefeated()), 2600);
       }
     }
@@ -728,9 +982,18 @@ export class Story {
     await sleep(2800);
     G.save.completed = true;
     this.advance(11);
-    writeSave();
+    this.finishYear(winner);
     G.cam.setCinematic(null);
     openCredits(winner === G.save.house);
+  }
+
+  finishYear(winner) {
+    const s = G.save;
+    s.yearDone = true;
+    if (!s.yearsDone.some((y) => y.year === s.year)) s.yearsDone.push({ year: s.year, cup: winner });
+    addXP(500 + s.year * 100, `Year ${s.year} complete`);
+    sendOwl(`y${s.year}-end`, 'Headmistress Aldmoor', `End of Year ${s.year}`, `Congratulations on completing your ${['first', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh'][s.year - 1]} year. ${HOUSES[winner].name} won the House Cup. Enjoy the summer — and keep your wand out of sight of Muggles!`, { silent: true });
+    autoSave(false);
   }
 
   // ------------------------------------------------------------ per-frame
@@ -739,6 +1002,8 @@ export class Story {
     const s = this.stage;
     const W = G.world.zones;
     let t = null;
+    if (this.journeyQuest) { t = this.journeyQuest.target; return t && t.zone === G.zone.name ? t : null; }
+    if (this.yearEngine && !G.save.yearDone) { t = this.yearEngine.marker() || this.yearEngine.sideMarkers()[0]; return t ? this.routeTo(t) : null; }
     const npcT = (id) => { const n = this.npcs[id]; return n ? { zone: n.zone, pos: n.pos.clone().setY(n.pos.y + 2.4) } : null; };
     if (s === 1) t = G.save.flags.pixiesDone || G.zone.name !== 'corridor' ? npcT('thornwick') : null;
     else if (s === 2) t = npcT('duskwood');
@@ -750,6 +1015,9 @@ export class Story {
     else if (s === 8) t = { zone: 'grounds', pos: W.grounds.pierEnd.clone().setY(W.grounds.pierEnd.y + 2) };
     else if (s === 9) { const C = SPOTS.clearing; t = { zone: 'grounds', pos: new THREE.Vector3(C.x, groundHeight(C.x, C.z) + 3, C.z) }; }
     else if (s === 10) t = { zone: 'greatHall', pos: W.greatHall.W(0, 3, -30) };
+    return this.routeTo(t);
+  }
+  routeTo(t) {
     if (!t) return null;
     if (t.zone === G.zone.name) return t;
     const next = route(G.zone.name, t.zone);
@@ -763,7 +1031,7 @@ export class Story {
     for (const n of Object.values(this.npcs)) {
       if (n.zone !== G.zone?.name) continue;
       const d = n.pos.distanceTo(p.pos);
-      if (d < 7 && G.mode === 'play') n.root.rotation.y = dampAngle(n.root.rotation.y, Math.atan2(p.pos.x - n.pos.x, p.pos.z - n.pos.z), 4, dt);
+      if (d < 7 && G.mode === 'play' && n.state !== 'sit') n.root.rotation.y = dampAngle(n.root.rotation.y, Math.atan2(p.pos.x - n.pos.x, p.pos.z - n.pos.z), 4, dt);
       n.model.anim.update(dt, 0);
       if (!n.waveT || n.waveT < 0) { if (d < 6 && d > 3 && Math.random() < 0.002) { n.model.anim.trigger('wave'); n.waveT = 20; } }
       else n.waveT -= dt;
@@ -790,12 +1058,16 @@ export class Story {
       h.anim.update(dt, sp);
     }
     this.updateCollectibles(dt);
-    // triggered encounters by position
+    for (const f of this.tickers.values()) f(dt);
+    if (!G.net?.isGuest) this.yearEngine?.update(dt);
+    // triggered encounters by position (online, only the host's screen starts them)
     const s = this.stage;
-    if (G.zone?.name === 'grounds' && G.mode === 'play') {
-      if (s === 8 && this.encounter !== 'lake' && p.pos.distanceTo(G.world.zones.grounds.pierEnd) < 45) this.startLake();
+    const leads = !G.net?.isGuest;
+    if (G.zone?.name === 'grounds' && G.mode === 'play' && G.save.year === 1) {
+      if (leads && s === 8 && this.encounter !== 'lake' && p.pos.distanceTo(G.world.zones.grounds.pierEnd) < 45) this.startLake();
       const C = SPOTS.clearing;
-      if (s === 9 && this.encounter !== 'boss' && Math.hypot(p.pos.x - C.x, p.pos.z - C.z) < 34 && !this.busy) {
+      if (leads && s === 9 && G.save.flags.malacharDefeated && !this.encounter && !this.busy) { this.encounter = 'bossDone'; this.advance(10); }
+      if (leads && s === 9 && !this.encounter && !G.save.flags.malacharDefeated && Math.hypot(p.pos.x - C.x, p.pos.z - C.z) < 34 && !this.busy) {
         this.encounter = 'boss';
         this.run(async () => {
           G.skyObj.lock = 0.97;
@@ -805,11 +1077,11 @@ export class Story {
         });
       }
       if (s >= 8 && s <= 9 && (p.pos.x > 110 || p.pos.distanceTo(G.world.zones.grounds.pierEnd) < 60)) G.skyObj.lock = 0.93;
-      else if (this.encounter !== 'lake' && this.encounter !== 'boss') G.skyObj.lock = null;
+      else if (this.encounter !== 'lake' && this.encounter !== 'boss' && this.encounter !== 'bossDone') G.skyObj.lock = null;
     }
     // rival houses earn points over time
     this.rivalT -= dt;
-    if (this.rivalT <= 0 && G.mode === 'play') {
+    if (this.rivalT <= 0 && G.mode === 'play' && leads) {
       this.rivalT = rand(60, 120);
       const others = HOUSE_KEYS.filter((k) => k !== G.save.house);
       const h = pick(others);

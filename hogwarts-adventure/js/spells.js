@@ -7,6 +7,8 @@ import { makeStag } from './models.js';
 import { postFlash } from './engine.js';
 import { glowSprite } from './textures.js';
 import { clamp, rand } from './util.js';
+import { tryCombo2, trail2, spellsMixin } from './spells2.js';
+import { currentLoadout, slotCount, autoEquip, seedLoadouts, addMastery, masteryDmg, masteryCd, masteryArea, dmgMult, cdMult, comboMult, controlMult, addXP } from './progress.js';
 
 const _v = new THREE.Vector3(), _w = new THREE.Vector3(), _u = new THREE.Vector3();
 const UP = new THREE.Vector3(0, 1, 0);
@@ -21,10 +23,12 @@ export const ENEMY_SPELLS = {
   killing: { id: 'killing', name: 'Dark lance', color: 0x30ff60, color2: 0xe0ffe0, dmg: 20, speed: 34, radius: 0.45, kind: 'bolt', enemy: true },
 };
 
+const NONE = { id: null, name: '—', short: '', mana: 0, cd: 0, color: 0xffffff, css: '#888' };
+
 export class Spells {
   constructor() {
-    this.unlocked = new Set(G.save.spells || []);
     this.selected = 0;
+    this.setUnlocked(G.save.spells || []);
     this.cooldowns = {};
     this.projectiles = [];
     this.stags = [];
@@ -43,11 +47,11 @@ export class Spells {
       uniforms: { time: { value: 0 }, color: { value: new THREE.Color(0.4, 0.8, 1.6) }, strength: { value: 1 }, hit: { value: 0 } },
       vertexShader: `varying vec3 vN; varying vec3 vV; varying vec3 vP; void main(){ vN = normalize(normalMatrix*normal); vec4 mv = modelViewMatrix*vec4(position,1.0); vV = normalize(-mv.xyz); vP = position; gl_Position = projectionMatrix*mv; }`,
       fragmentShader: `uniform float time, strength, hit; uniform vec3 color; varying vec3 vN; varying vec3 vV; varying vec3 vP;
-        void main(){ float f = pow(1.0 - abs(dot(vN, vV)), 2.5);
+        void main(){ float f = pow(clamp(1.0 - abs(dot(vN, vV)), 0.0, 1.0), 2.5);
           vec2 h = vec2(atan(vP.z, vP.x)*6.0, vP.y*8.0); vec2 g = abs(fract(h + vec2(0.0, time*0.3)) - 0.5);
           float hex = smoothstep(0.42, 0.5, max(g.x, g.y));
           float a = (f*0.9 + hex*0.18 + 0.05) * strength + hit*0.6*f;
-          gl_FragColor = vec4(color * a * (1.0 + hit*2.0), a); }`,
+          a = clamp(a, 0.0, 1.0); gl_FragColor = vec4(color * a * (1.0 + hit*2.0), a); }`,
     });
     this.shield = new THREE.Mesh(new THREE.SphereGeometry(1.25, 32, 20), this.shieldMat);
     this.shield.visible = false;
@@ -55,30 +59,50 @@ export class Spells {
     this.shieldHit = 0;
   }
 
-  get current() { return SPELLS[this.selected]; }
+  // the selected slot of the active loadout (Protego lives on the block button)
+  slotSpell(i) { const id = currentLoadout()?.[i]; return id && i < slotCount() && this.unlocked.has(id) ? SPELL_BY_ID[id] : null; }
+  get current() { return this.slotSpell(this.selected) || NONE; }
+  setUnlocked(list) {
+    this.unlocked = new Set(list);
+    seedLoadouts(this.unlocked);
+    this.selected = 0;
+    if (!this.slotSpell(0)) this.cycle(1);
+  }
   unlock(id, silent) {
     if (this.unlocked.has(id)) return;
     this.unlocked.add(id);
     G.save.spells = [...this.unlocked];
+    const placed = autoEquip(id);
     G.ui.buildSpellBar();
     if (!silent) {
       const s = SPELL_BY_ID[id];
       G.ui.banner(`New spell: ${s.name}`, s.desc, 'unlock');
       G.audio.sfx('unlock');
-      this.select(SPELLS.indexOf(s));
+      addXP(80);
+      if (placed) this.select(currentLoadout().indexOf(id));
+      else if (id !== 'protego') setTimeout(() => G.ui.toast(`Your spell slots are full. Equip <b>${s.name}</b> in the Spellbook (${G.input.device === 'pad' ? 'View' : 'B'}).`, 'tip', 5000), 2200);
     }
   }
   select(i) {
-    const s = SPELLS[i];
-    if (!s || !this.unlocked.has(s.id)) return;
+    if (!this.slotSpell(i)) return;
     if (this.selected !== i) G.audio.sfx('uimove');
     this.selected = i;
   }
   cycle(dir) {
-    for (let k = 1; k <= 8; k++) {
-      const i = (this.selected + dir * k + 80) % 8;
-      if (this.unlocked.has(SPELLS[i].id)) { this.select(i); return; }
+    const n = slotCount();
+    for (let k = 1; k <= n; k++) {
+      const i = (this.selected + dir * k + n * 10) % n;
+      if (this.slotSpell(i)) { this.select(i); return; }
     }
+  }
+  swapLoadout(dir = 1) {
+    const s = G.save;
+    s.loadout = (s.loadout + dir + 3) % 3;
+    if (this.lumosOn && !currentLoadout().includes('lumos')) this.toggleLumos(false);
+    if (!this.slotSpell(this.selected)) { this.selected = 0; if (!this.slotSpell(0)) this.cycle(1); }
+    G.ui.buildSpellBar();
+    G.ui.toast(`Loadout ${s.loadout + 1}: ${currentLoadout().slice(0, slotCount()).filter(Boolean).map((id) => SPELL_BY_ID[id].short).join(' · ') || 'empty'}`, 'info', 1800);
+    G.audio.sfx('wheel');
   }
 
   // ------------------------------------------------------------ aiming
@@ -121,13 +145,25 @@ export class Spells {
   update(dt) {
     const I = G.input, p = G.player;
     for (const k in this.cooldowns) this.cooldowns[k] = Math.max(0, this.cooldowns[k] - dt);
-    if (!this.unlocked.has(this.current.id) && this.unlocked.size) this.cycle(1);
-    const canAct = G.mode === 'play' && p.alive && p.control && !G.ui.wheel;
+    if (!this.slotSpell(this.selected) && this.unlocked.size) this.cycle(1);
+    const canAct = G.mode === 'play' && p.alive && p.control && !G.ui.wheel && !G.paused;
     if (canAct) {
       for (let i = 1; i <= 8; i++) if (I.isPressed('spell' + i)) this.select(i - 1);
       if (I.isPressed('next')) this.cycle(1);
       if (I.isPressed('prev')) this.cycle(-1);
+      if (I.isPressed('loadout')) this.swapLoadout(1);
+      if (I.device === 'pad' && I.isPressed('up')) this.swapLoadout(-1);
+      if (I.device === 'pad' && I.isPressed('down')) this.swapLoadout(1);
+      // controller: d-pad left/right also cycles spells; flick the right stick to switch lock-on target
+      if (I.device === 'pad') {
+        if (I.isPressed('right')) this.cycle(1);
+        if (I.isPressed('left')) { if (G.companion) G.ui.openCommand('left'); else this.cycle(-1); }
+        const lt = G.cam.lockTarget;
+        if (lt && Math.abs(I.rstick.x) > 0.75) { if (!this.flickLatch) { this.flickLatch = true; this.switchLock(Math.sign(I.rstick.x)); } }
+        else this.flickLatch = false;
+      }
       if (I.isPressed('wheel')) G.ui.openWheel();
+      if (I.isPressed('command') && G.companion) G.ui.openCommand('command');
       if (I.isPressed('lock')) this.toggleLock();
       else if (I.device === 'pad' && I.isReleased('lock')) G.cam.lockTarget = null; // LT is hold-to-lock
       const cur = this.current;
@@ -148,6 +184,9 @@ export class Spells {
     this.updateProjectiles(dt);
     this.updateStags(dt);
     this.updateThrown(dt);
+    this.updateFields(dt);
+    this.updateBombs(dt);
+    this.updateBirds(dt);
     // shield visual
     this.shieldMat.uniforms.time.value += dt;
     this.shieldHit = Math.max(0, this.shieldHit - dt * 3);
@@ -171,6 +210,24 @@ export class Spells {
     }
     cam.lockTarget = best;
     if (best) G.audio.sfx('uimove');
+  }
+
+  // pick the next locked target to the left (-1) or right (+1) of the current one
+  switchLock(dir) {
+    const cur = G.cam.lockTarget;
+    const p = G.player;
+    const fwd = _w.subVectors(cur.pos, p.pos).setY(0).normalize();
+    const right = new THREE.Vector3(-fwd.z, 0, fwd.x);
+    let best = null, bs = Infinity;
+    for (const e of G.enemies.list) {
+      if (!e.alive || e.hidden || e === cur || e.pos.distanceTo(p.pos) > 40) continue;
+      const to = _v.subVectors(e.pos, p.pos).setY(0);
+      const side = to.dot(right) * dir;
+      if (side <= 0) continue;
+      const s = Math.atan2(side, to.dot(fwd));
+      if (s < bs) { bs = s; best = e; }
+    }
+    if (best) { G.cam.lockTarget = best; G.audio.sfx('uimove'); G.input.rumble(0.1, 0.2, 40); }
   }
 
   setShield(on, dt) {
@@ -225,13 +282,23 @@ export class Spells {
     else dir = G.camera.getWorldDirection(new THREE.Vector3());
     const def = { ...proj.def, dmg: proj.def.dmg * 2.2, enemy: false };
     this.spawnProjectile(def, from, dir, 'player', p, owner);
+    G.net?.cast(def.id, from, dir, owner);
   }
 
   castPlayer(s) {
     const p = G.player;
     if (!this.unlocked.has(s.id)) return;
     if ((this.cooldowns[s.id] || 0) > 0) return;
-    if (s.id === 'lumos') { this.toggleLumos(!this.lumosOn); this.cooldowns.lumos = s.cd; return; }
+    if (!s.id) return;
+    if (s.id === 'lumos') { this.toggleLumos(!this.lumosOn); this.cooldowns.lumos = s.cd; addMastery('lumos'); return; }
+    if (s.pre && p.mana >= s.mana && s.pre(s, p)) { this.payFor(s); addMastery(s.id); return; }
+    if (s.cast) { // spells with their own behaviour (spells2.js)
+      if (!this.payFor(s)) return;
+      s.cast(s, p);
+      addMastery(s.id);
+      G.story?.onEvent('cast', s.id);
+      return;
+    }
     if (s.id === 'leviosa' && this.held) { this.throwHeld(); this.cooldowns.leviosa = 0.3; return; }
     const cost = s.mana * (p.buffs.focus ? 0.75 : 1);
     if (p.mana < cost) {
@@ -243,7 +310,8 @@ export class Spells {
     p.mana -= cost;
     p.lastCast = 0;
     p.aimT = 0.9;
-    this.cooldowns[s.id] = s.cd;
+    this.cooldowns[s.id] = s.cd * masteryCd(s.id) * cdMult();
+    addMastery(s.id);
     p.anim.trigger(s.id === 'leviosa' ? 'flick' : 'cast');
     const origin = p.wandPos();
     // spells leave from slightly in front of the wand so they never start inside walls
@@ -253,10 +321,35 @@ export class Spells {
     G.input.rumble(0.15, 0.25, 60);
     G.fx.emit({ pos: origin, color: s.color, count: 20, speed: 3, size: 0.2, life: 0.35, intensity: 3 });
     G.lights.flash(origin, s.color, 25, 6, 0.2);
-    if (s.kind === 'patronus') { this.castPatronus(origin, dir); return; }
-    const def = { ...s, dmg: s.dmg * (p.buffs.strength ? 1.35 : 1) * (p.buffs.mastery ? 1.25 : 1) };
+    if (s.kind === 'patronus') { this.castPatronus(origin, dir); G.net?.patronus(origin, dir); return; }
+    const def = { ...s, dmg: s.dmg * (p.buffs.strength ? 1.35 : 1) * (p.buffs.mastery ? 1.25 : 1) * masteryDmg(s.id) * dmgMult(), splash: s.splash ? s.splash * masteryArea(s.id) : 0 };
     this.spawnProjectile(def, origin, dir, 'player', p, aim.target);
+    G.net?.cast(s.id, origin, dir, aim.target);
     G.story?.onEvent('cast', s.id);
+  }
+
+  // shared cost / cooldown / animation for custom spells; returns false if it cannot be cast
+  payFor(s, anim = 'cast') {
+    const p = G.player;
+    const cost = s.mana * (p.buffs.focus ? 0.75 : 1);
+    if (p.mana < cost) {
+      G.ui.floatText(p.pos.clone().setY(p.pos.y + 2.1), 'Not enough magic', 'warn');
+      G.audio.sfx('fail');
+      this.cooldowns[s.id] = 0.3;
+      return false;
+    }
+    p.mana -= cost;
+    p.lastCast = 0;
+    p.aimT = 0.9;
+    this.cooldowns[s.id] = s.cd * masteryCd(s.id) * cdMult();
+    p.anim.trigger(anim);
+    G.input.rumble(0.15, 0.25, 60);
+    return true;
+  }
+  // damage a custom spell deals, with every multiplier applied
+  power(s) {
+    const p = G.player;
+    return s.dmg * (p.buffs.strength ? 1.35 : 1) * (p.buffs.mastery ? 1.25 : 1) * masteryDmg(s.id) * dmgMult();
   }
 
   // ------------------------------------------------------------ projectiles
@@ -281,6 +374,7 @@ export class Spells {
     };
     if (def.kind === 'boulder') pr.vel.y += 5;
     this.projectiles.push(pr);
+    if (team === 'enemy') G.net?.enemyProj(pr); // the host shows enemy spells to friends nearby
     return pr;
   }
 
@@ -293,9 +387,11 @@ export class Spells {
       if (pr.homing && pr.homing.alive && pr.age < 1.2) {
         const tgt = _v.copy(pr.homing.pos).setY(pr.homing.pos.y + pr.homing.height * 0.55);
         const want = tgt.sub(pr.pos).normalize().multiplyScalar(pr.vel.length());
-        pr.vel.lerp(want, Math.min(1, dt * (pr.team === 'player' ? 6 : 1.5)));
+        pr.vel.lerp(want, Math.min(1, dt * (pr.team !== 'enemy' ? 6 : 1.5)));
       }
       if (pr.def.gravity) pr.vel.y -= pr.def.gravity * dt;
+      // Arresto Momentum slows enemy spells inside its dome
+      if (pr.team === 'enemy' && this.fields?.length) { const sl = this.inSlowField(pr.pos); if (sl && !pr.slowed) { pr.slowed = true; pr.vel.multiplyScalar(0.25); pr.life += 4; } }
       const step = pr.vel.length() * dt;
       const dir = _w.copy(pr.vel).normalize();
       // world collision via raycast along the step
@@ -305,16 +401,20 @@ export class Spells {
       // trail
       this.trail(pr, dt);
       let done = false;
-      // entities
-      const targets = pr.team === 'player' ? G.enemies.list : [G.player, ...G.enemies.allies];
+      // entities (a friend's spell, team 'remote', only bursts: their own screen decided the hit)
+      const targets = pr.team === 'enemy' ? [G.player, ...G.enemies.allies] : G.enemies.list;
       for (const e of targets) {
-        if (!e.alive || e.hidden || e === pr.owner) continue;
+        if (!e.alive || e.hidden || e === pr.owner || pr.hitSet?.has(e)) continue;
         const c = _u.copy(e.pos);
         const dy = pr.pos.y - (c.y + e.height * 0.5);
         const dxz = Math.hypot(pr.pos.x - c.x, pr.pos.z - c.z);
         if (dxz < e.radius + pr.radius && Math.abs(dy) < e.height * 0.5 + pr.radius) {
-          this.hitEntity(pr, e);
-          done = true;
+          if (pr.team === 'remote') { this.impactFX(pr.pos, pr.def, 0.8); done = true; }
+          else {
+            this.hitEntity(pr, e);
+            if (pr.team === 'player' && pr.def.pierce && (pr.pierceLeft = (pr.pierceLeft ?? pr.def.pierce) - 1) > 0) (pr.hitSet ||= new Set()).add(e);
+            else done = true;
+          }
           break;
         }
       }
@@ -329,9 +429,12 @@ export class Spells {
           }
         }
       }
+      // puzzle objects react to the right spells
+      if (!done && pr.team === 'player' && G.puzzles?.hitProjectile(pr)) { this.impactFX(pr.pos, pr.def, 0.6); done = true; }
       if (!done && hitW !== Infinity) {
         this.impactFX(pr.pos, pr.def, 0.8);
-        if (pr.def.splash) this.splash(pr.pos, pr.def, pr.team, null);
+        if (pr.team === 'player') pr.def.onWorld?.(pr.pos.clone(), pr);
+        if (pr.def.splash) { if (pr.team === 'remote') this.splashFX(pr.pos, pr.def); else this.splash(pr.pos, pr.def, pr.team, null); }
         if (pr.def.kind === 'boulder') {
           G.audio.sfx('slam'); G.cam.shake(0.25);
           G.fx.smokePuff(pr.pos, 0x6a5a4a, 10, { speed: 3 });
@@ -357,6 +460,7 @@ export class Spells {
     const p = pr.pos;
     const id = d.id;
     const back = _u.copy(pr.vel).multiplyScalar(-0.05);
+    if (d.trail && trail2(pr, d)) return;
     if (id === 'incendio') {
       G.fx.emit({ pos: p, color: 0xffc040, color2: 0xff3000, count: 4, speed: 1, size: 0.55, size1: 0.1, life: 0.35, intensity: 3, intensity2: 1.5, vel: back, up: 1.5, spread: 0.3 });
       if (Math.random() < 0.4) G.fx.smokePuff(p, 0x2a2420, 1, { size: 0.5, size1: 1.4, life: 0.8 });
@@ -388,11 +492,14 @@ export class Spells {
     G.audio.sfx('impact');
   }
 
-  splash(pos, def, team, except) {
-    const r = def.splash;
-    G.fx.shock(pos, def.color, r * 1.3, 0.45, { intensity: 2 });
+  splashFX(pos, def) {
+    G.fx.shock(pos, def.color, def.splash * 1.3, 0.45, { intensity: 2 });
     G.fx.emit({ pos, color: 0xffd060, color2: 0xff2000, count: 40, speed: 6, size: 0.5, size1: 0.1, life: 0.6, intensity: 3, up: 3 });
     G.audio.sfx('explode');
+  }
+  splash(pos, def, team, except) {
+    const r = def.splash;
+    this.splashFX(pos, def);
     const list = team === 'player' ? G.enemies.list : [G.player];
     for (const e of list) {
       if (!e.alive || e === except) continue;
@@ -407,6 +514,7 @@ export class Spells {
     const def = pr.def;
     if (pr.team === 'enemy') {
       // enemy spell hitting the player (or allies)
+      if (e !== G.player) { if (e.damage) { e.damage(def.dmg * (G.enemies.dmgScale || 1), { proj: pr }); this.impactFX(pr.pos, def, 0.5); } return; }
       if (e === G.player) {
         const knock = def.knock ? _v.copy(pr.vel).setY(0).normalize().multiplyScalar(def.knock) : null;
         const hit = G.player.damage(def.dmg * (G.enemies.dmgScale || 1), { proj: pr, knock: knock?.clone() });
@@ -418,16 +526,27 @@ export class Spells {
       return;
     }
     this.impactFX(pr.pos, def);
-    G.cam.shake(0.08);
-    G.input.rumble(0.2, 0.4, 70);
+    if (pr.owner === G.player) { G.cam.shake(0.08); G.input.rumble(0.2, 0.4, 70); }
     const dir = _v.copy(pr.vel).setY(0).normalize().clone();
+    // one of the host's enemies (online): the host applies the hit, combos included
+    if (e.remote) { G.net?.hit(e, def, dir); return; }
     // combos are resolved before normal effects
     if (this.tryCombo(def, e, dir)) return;
-    e.takeHit({ dmg: def.dmg, spell: def.id, dir, proj: pr });
+    if (def.onHit) def.onHit(e, pr, dir);
+    if (pr.def.dmg > 0) e.takeHit({ dmg: pr.def.dmg, spell: def.id, dir, proj: pr });
+    else if (!def.onHit) G.ui.floatText(e.pos.clone().setY(e.pos.y + e.height + 0.3), 'No effect', 'warn');
     if (def.splash) this.splash(pr.pos, def, 'player', e);
   }
 
-  tryCombo(def, e, dir) {
+  // host: a friend's spell hit one of my enemies. Returns the combo name, if any.
+  remoteHit(def, e, dir, house) {
+    const combo = this.tryCombo(def, e, dir, house);
+    if (!combo) e.takeHit({ dmg: def.dmg, spell: def.id, dir, remote: true });
+    if (def.splash) this.splash(e.pos.clone().setY(e.pos.y + e.height * 0.5), def, 'player', e);
+    return combo;
+  }
+
+  tryCombo(def, e, dir, remoteHouse) {
     const s = e.status;
     const id = def.id;
     let name = null;
@@ -460,7 +579,12 @@ export class Spells {
       e.takeHit({ dmg: def.dmg * 1.6, spell: 'stupefy', dir, combo: true });
       s.stun = 4;
     }
+    if (!name) name = tryCombo2(def, e, dir);
     if (!name) return false;
+    if (remoteHouse !== undefined) { // a friend's combo: it's their moment, and their house's points
+      if (remoteHouse) G.story?.addPoints(remoteHouse, 2, null, true);
+      return name;
+    }
     G.ui.combo(name);
     G.audio.sfx('combo');
     G.cam.shake(0.35);
@@ -470,7 +594,7 @@ export class Spells {
     if (G.save.house) {
       G.story?.addPoints(G.save.house, 2, null, true);
     }
-    return true;
+    return name;
   }
 
   explodeAt(pos, r, dmg, color, kind, opts = {}) {
@@ -484,7 +608,7 @@ export class Spells {
     for (const e of G.enemies.list) {
       if (!e.alive) continue;
       if (e.pos.distanceTo(pos) < r + e.radius) {
-        e.takeHit({ dmg, spell: kind, dir: _v.subVectors(e.pos, pos).setY(0).normalize().clone(), splash: true });
+        e.takeHit({ dmg, spell: kind, dir: _v.subVectors(e.pos, pos).setY(0).normalize().clone(), splash: true, stun: opts.stun });
         if (opts.stun) e.status.stun = Math.max(e.status.stun || 0, opts.stun);
       }
     }
@@ -589,7 +713,7 @@ export class Spells {
       for (const e of G.enemies.list) {
         if (!e.alive) continue;
         if (Math.hypot(e.pos.x - m.position.x, e.pos.z - m.position.z) < e.radius + 0.6 && m.position.y > e.pos.y - 0.3 && m.position.y < e.pos.y + e.height) {
-          e.takeHit({ dmg: 32, spell: 'thrown', dir: t.vel.clone().setY(0).normalize() });
+          e.takeHit({ dmg: 32, spell: 'thrown', dir: t.vel.clone().setY(0).normalize(), stun: 1.5 });
           e.status.stun = Math.max(e.status.stun || 0, 1.5);
           t.done = true;
           G.fx.burst(m.position, 0xc28bff, 30, 6);
@@ -614,8 +738,8 @@ export class Spells {
   }
 
   // ------------------------------------------------------------ Patronus
-  castPatronus(origin, dir) {
-    const p = G.player;
+  // visual: a friend's Patronus (their own screen does the damage)
+  castPatronus(origin, dir, p = G.player, visual = false) {
     const stag = makeStag();
     const flat = dir.clone().setY(0).normalize();
     stag.root.position.copy(p.pos).addScaledVector(flat, 1.5);
@@ -623,12 +747,13 @@ export class Spells {
     stag.root.scale.setScalar(0.1);
     G.scene.add(stag.root);
     const light = G.lights.attach(stag.root, 0xbfe6ff, 90, 20);
-    this.stags.push({ stag, dir: flat, t: 0, light, hit: new Set() });
+    this.stags.push({ stag, dir: flat, t: 0, light, hit: new Set(), visual });
+    G.fx.burst(origin, 0xcfeaff, 70, 9, { size: 0.22, life: 0.9 });
+    G.fx.shock(p.pos.clone().setY(p.pos.y + 0.2), 0xbfe6ff, 9, 0.8, { intensity: 1.2 });
+    if (visual) return;
     postFlash(0.12);
     G.cam.shake(0.3);
     G.input.rumble(0.5, 0.8, 400);
-    G.fx.burst(origin, 0xcfeaff, 70, 9, { size: 0.22, life: 0.9 });
-    G.fx.shock(p.pos.clone().setY(p.pos.y + 0.2), 0xbfe6ff, 9, 0.8, { intensity: 1.2 });
     for (const e of G.enemies.list) if (e.alive && e.pos.distanceTo(p.pos) < 25) e.onPatronus?.(p.pos);
     G.story?.onEvent('cast', 'patronum');
   }
@@ -661,7 +786,7 @@ export class Spells {
       s.stag.material.opacity = 0.55 * fade;
       G.fx.emit({ pos: r.position.clone().setY(r.position.y + 1.2), color: 0xcfeaff, count: 4, speed: 1.2, size: 0.22, size1: 0.04, life: 0.8, intensity: 2, spread: 1.6 });
       for (const e of G.enemies.list) {
-        if (!e.alive || s.hit.has(e)) continue;
+        if (s.visual || !e.alive || s.hit.has(e)) continue;
         if (Math.hypot(e.pos.x - r.position.x, e.pos.z - r.position.z) < 2.8 + e.radius) {
           s.hit.add(e);
           e.takeHit({ dmg: e.type === 'dementor' ? 400 : 45, spell: 'patronum', dir: s.dir.clone() });
@@ -683,6 +808,8 @@ export class Spells {
     this.stags = [];
     this.held = null;
     this.thrown = [];
+    this.clear2();
     for (const p of G.zone?.props || []) { p.mesh.position.copy(p.home); p.mesh.rotation.set(0, 0, 0); p.lifted = false; }
   }
 }
+Object.assign(Spells.prototype, spellsMixin);

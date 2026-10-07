@@ -4,6 +4,9 @@ import { G } from '../state.js';
 import { buildGrounds } from './grounds.js';
 import { buildGreatHall, buildStaircase, buildCorridor, buildDungeon, buildTower } from './interiors.js';
 import { PLATEAU } from './terrain.js';
+import { buildStation, buildTrain, buildCountryside } from './journey.js';
+import { buildUndercroft, addUndercroftDoor } from './years.js';
+import { buildHogsmeade } from './hogsmeade.js';
 
 export class World {
   constructor() {
@@ -20,6 +23,11 @@ export class World {
       ['corridor', () => buildCorridor(Q), 'Polishing suits of armour'],
       ['dungeon', () => buildDungeon(Q), 'Brewing in the dungeons'],
       ['tower', () => buildTower(Q), "Winding the Headmistress's instruments"],
+      ['station', () => buildStation(Q), 'Finding Platform Nine and Three-Quarters'],
+      ['train', () => buildTrain(Q), 'Stoking the Hogwarts Express'],
+      ['countryside', () => buildCountryside(Q), 'Laying track across the Highlands'],
+      ['undercroft', () => buildUndercroft(Q), 'Hiding the Undercroft'],
+      ['hogsmeade', () => buildHogsmeade(Q), 'Lighting the lamps of Hogsmeade'],
     ];
     for (let i = 0; i < steps.length; i++) {
       const [name, fn, label] = steps[i];
@@ -32,9 +40,14 @@ export class World {
     }
     const g = this.zones.grounds;
     g.portals.push({ pos: new THREE.Vector3(0, PLATEAU, -22.5), r: 3.2, to: 'greatHall', at: 'fromGrounds', label: 'Enter the Great Hall' });
+    addUndercroftDoor();
+    // the path to Hogsmeade at the bottom of the castle road (third years and up)
+    const hy = g.groundY(0, 98);
+    g.portals.push({ pos: new THREE.Vector3(0, hy, 99), r: 3, to: 'hogsmeade', at: 'fromCastle', label: 'Path to Hogsmeade', locked: () => (G.save?.year || 1) < 3, lockedMsg: 'Hogsmeade visits begin in third year' });
     g.entries = {
       hallDoor: { pos: new THREE.Vector3(0, PLATEAU, -18), yaw: 0 },
       spawn: g.spawn,
+      fromHogsmeade: { pos: new THREE.Vector3(0, g.groundY(0, 93), 93), yaw: Math.PI },
     };
   }
 
@@ -49,6 +62,7 @@ export class World {
   setZone(name, entry) {
     const z = this.zones[name];
     if (!z) return;
+    this.portalArmed = false;
     if (G.zone && G.zone !== z) G.zone.group.visible = G.zone.world.visible = false;
     G.zone = z;
     z.group.visible = z.world.visible = true;
@@ -106,10 +120,27 @@ export class World {
     // portals
     this.nearPortal = null;
     if (G.mode !== 'play' || !G.player) return;
+    const pl = G.player;
+    let inside = false;
     for (const p of z.portals) {
       if (p.locked && p.locked()) continue;
-      const d = p.pos.distanceTo(G.player.pos);
-      if (d < p.r + 0.6 && Math.abs(p.pos.y - G.player.pos.y) < 3) this.nearPortal = p;
+      const dy = Math.abs(p.pos.y - pl.pos.y);
+      if (dy > 3) continue;
+      const d = Math.hypot(p.pos.x - pl.pos.x, p.pos.z - pl.pos.z);
+      if (d < p.r + 0.6) this.nearPortal = p;
+      // walking into a doorway takes you through it
+      if (d < p.r * 0.85 + 0.4) {
+        inside = true;
+        const vx = pl.vel.x, vz = pl.vel.z;
+        const toward = vx * (p.pos.x - pl.pos.x) + vz * (p.pos.z - pl.pos.z);
+        if (this.portalArmed && Math.hypot(vx, vz) > 1 && toward > 0 && !G.minigame && !G.story?.busy && pl.alive) {
+          this.portalArmed = false;
+          this.travel(p.to, p.at);
+          return;
+        }
+      }
     }
+    // after arriving, re-arm only once the player has stepped away from every doorway
+    if (!inside) this.portalArmed = true;
   }
 }

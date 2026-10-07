@@ -5,6 +5,7 @@ import { makeWizard, SKIN_TONES, HAIR_COLORS, WAND_WOODS } from './models.js';
 import { clamp, damp, dampAngle, wrapAngle } from './util.js';
 import { postHit } from './engine.js';
 import { WATER_Y } from './world/terrain.js';
+import { defMult, regenMult, applyStats } from './progress.js';
 
 const _v = new THREE.Vector3();
 const UP = new THREE.Vector3(0, 1, 0);
@@ -63,7 +64,9 @@ export class Player {
     });
     this.root.add(this.model.root);
     this.anim = this.model.anim;
+    this.anim.onTrigger = (name) => G.net?.trig(name); // friends see casts, waves and cheers
     this.wandTip = this.model.wandTip;
+    applyStats();
   }
 
   get alive_() { return this.alive; }
@@ -92,6 +95,8 @@ export class Player {
       return G.spells.shieldAbsorb(amount, info);
     }
     if (this.buffs.wiggenweld) amount *= 0.7;
+    amount *= defMult() * (G.diffDmg ?? 1);
+    if (this.buffs.shielded) { amount *= 0.25; G.fx.burst(this.pos.clone().setY(this.pos.y + 1), 0x9fe08a, 12, 3); }
     this.hp -= amount;
     this.lastHurt = 0;
     this.anim.trigger('hit');
@@ -136,11 +141,17 @@ export class Player {
     for (const k in this.buffs) { this.buffs[k] -= dt; if (this.buffs[k] <= 0) { delete this.buffs[k]; G.ui.updateBuffs(); } }
     // regen
     const regenDelay = this.lastCast > 0.9;
-    if (regenDelay && !this.blocking) this.mana = Math.min(this.maxMana, this.mana + dt * (14 + (this.buffs.focus ? 14 : 0)));
+    if (regenDelay && !this.blocking) this.mana = Math.min(this.maxMana, this.mana + dt * (14 + (this.buffs.focus ? 14 : 0)) * regenMult());
     if (this.lastHurt > 5) this.hp = Math.min(this.maxHp, this.hp + dt * 4);
+    if (this.regen) { this.heal(this.regen.rate * dt); this.regen.t -= dt; if (this.regen.t <= 0) this.regen = null; }
+    if (this.status.burn > 0) { this.status.burn -= dt; this.hp -= dt * 4; this.lastHurt = 0; if (Math.random() < 0.4) G.fx.emit({ pos: this.pos.clone().setY(this.pos.y + Math.random() * 1.6), color: 0xffb030, color2: 0xff2000, count: 1, speed: 1, size: 0.3, life: 0.4, intensity: 3, up: 2, noScale: true }); if (this.hp <= 0 && this.alive) this.faint(); }
 
     if (this.flying) return; // a minigame drives the player
-    const canAct = this.alive && this.control && G.mode === 'play';
+    if (this.petrified > 0) {
+      this.petrified -= dt;
+      if (Math.random() < 0.3) G.fx.emit({ pos: this.pos.clone().setY(this.pos.y + Math.random() * 1.8), color: 0xc8c0b0, count: 1, speed: 0.3, size: 0.15, life: 0.6, intensity: 1.5, noScale: true });
+    }
+    const canAct = this.alive && this.control && G.mode === 'play' && !(this.petrified > 0) && !G.paused;
     const camYaw = G.cam.yaw;
     let mx = canAct ? I.move.x : 0, my = canAct ? I.move.y : 0;
     const mag = Math.min(1, Math.hypot(mx, my));
@@ -219,6 +230,13 @@ export class Player {
       this.support = g.support;
     }
     if (this.pos.y < -40) this.teleport(G.zone.spawn.pos, G.zone.spawn.yaw);
+    // pits and deep water inside dungeons send you back to the last checkpoint
+    if (G.zone.killY != null && this.pos.y < G.zone.killY) {
+      const cp = G.zone.checkpoint || G.zone.spawn;
+      this.teleport(cp.pos, cp.yaw);
+      this.damage(8, { blockable: false, dodgeable: false });
+      G.cam.snap();
+    }
 
     // facing
     const flatSpeed = Math.hypot(this.vel.x, this.vel.z);
