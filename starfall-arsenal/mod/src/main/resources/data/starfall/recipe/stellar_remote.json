@@ -1,0 +1,12 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "pattern": [" A ", "IRI", "IGI"],
+  "key": {
+    "A": {"item": "minecraft:amethyst_shard"},
+    "I": {"item": "minecraft:iron_ingot"},
+    "R": {"item": "minecraft:redstone_block"},
+    "G": {"item": "minecraft:gold_ingot"}
+  },
+  "result": {"id": "starfall:stellar_remote", "count": 1}
+}

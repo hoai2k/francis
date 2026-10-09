@@ -1,0 +1,36 @@
+{
+  "itemGroup.starfall.arsenal": "Starfall Arsenal",
+  "item.starfall.stellar_remote": "Stellar Remote",
+  "item.starfall.starfall_blade": "Starfall Blade",
+  "item.starfall.seven_stars_scepter": "Seven Stars Scepter",
+  "item.starfall.supernova_core": "Supernova Core",
+  "item.starfall.star_fragment": "Star Fragment",
+  "entity.starfall.falling_star": "Falling Star",
+
+  "tooltip.starfall.shooting_star": "Skill: Shooting Star",
+  "tooltip.starfall.shooting_star.desc": "Calls one star down on the spot you point at.",
+  "tooltip.starfall.comet_slash": "Skill: Comet Slash",
+  "tooltip.starfall.comet_slash.desc": "A low comet tears in from the horizon.",
+  "tooltip.starfall.seven_stars": "Skill: Seven Stars",
+  "tooltip.starfall.seven_stars.desc": "The Big Dipper falls, one star at a time.",
+  "tooltip.starfall.supernova": "Skill: Supernova",
+  "tooltip.starfall.supernova.desc": "A star the size of a house. Stand well back.",
+  "tooltip.starfall.use": "Right-click to strike (plays a cutscene)",
+
+  "cutscene.starfall.studio": "◆ STARFALL ARSENAL",
+  "cutscene.starfall.skip": "[%s] Skip",
+  "cutscene.starfall.shooting_star": "SHOOTING STAR",
+  "cutscene.starfall.shooting_star.jp": "流 星",
+  "cutscene.starfall.comet_slash": "COMET SLASH",
+  "cutscene.starfall.comet_slash.jp": "彗 星 斬",
+  "cutscene.starfall.seven_stars": "SEVEN STARS",
+  "cutscene.starfall.seven_stars.jp": "北 斗 七 星",
+  "cutscene.starfall.supernova": "SUPERNOVA",
+  "cutscene.starfall.supernova.jp": "超 新 星",
+
+  "message.starfall.films_on": "Starfall cutscenes: ON",
+  "message.starfall.films_off": "Starfall cutscenes: OFF",
+  "key.starfall.skip": "Skip / toggle star cutscenes",
+  "category.starfall": "Starfall Arsenal",
+  "gamerule.starfallTerrainDamage": "Starfall: stars carve craters"
+}

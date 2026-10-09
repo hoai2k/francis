@@ -1,0 +1,10 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "pattern": ["FFF", "FBF", "FBF"],
+  "key": {
+    "F": {"item": "starfall:star_fragment"},
+    "B": {"item": "minecraft:blaze_rod"}
+  },
+  "result": {"id": "starfall:seven_stars_scepter", "count": 1}
+}

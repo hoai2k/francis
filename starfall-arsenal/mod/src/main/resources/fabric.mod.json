@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "starfall",
+  "version": "${version}",
+  "name": "Starfall Arsenal",
+  "description": "Cosmic weapons that call down shooting stars - with a full cinematic cutscene before every impact.",
+  "authors": ["francis"],
+  "icon": "assets/starfall/icon.png",
+  "environment": "*",
+  "entrypoints": {
+    "main": ["com.francis.starfall.Starfall"],
+    "client": ["com.francis.starfall.client.StarfallClient"]
+  },
+  "mixins": [
+    {"config": "starfall.client.mixins.json", "environment": "client"}
+  ],
+  "depends": {
+    "fabricloader": ">=0.16.0",
+    "minecraft": "~1.21.1",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}

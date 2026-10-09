@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Starfall Arsenal</title>
+  <meta name="description" content="A Minecraft (Fabric 1.21.1) mod of cosmic weapons that call down shooting stars, each strike with a full cinematic cutscene.">
+  <link rel="stylesheet" href="./style.css">
+  <script type="importmap">
+    {"imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }}
+  </script>
+</head>
+<body>
+  <canvas id="stars-bg" aria-hidden="true"></canvas>
+
+  <header class="hero">
+    <p class="eyebrow">Minecraft mod &middot; Fabric 1.21.1</p>
+    <h1>STARFALL <span>ARSENAL</span></h1>
+    <p class="lede">Four cosmic weapons. Every strike rolls a full cinematic first: the wind-up, the star igniting in the sky, the chase cam, and then the impact.</p>
+    <div class="cta">
+      <a class="btn primary" href="./download/starfall-arsenal-1.0.0.jar" download>Download mod (.jar)</a>
+      <a class="btn" href="#film">Watch a strike</a>
+    </div>
+  </header>
+
+  <main>
+    <section id="armory" class="panel">
+      <div class="section-head">
+        <h2>The Armory</h2>
+        <p>These are the real 3D models from the mod, loaded from its item model files. Drag to rotate.</p>
+      </div>
+      <div class="armory">
+        <div class="viewer-wrap">
+          <canvas id="viewer"></canvas>
+          <div class="viewer-hint">drag to spin &middot; pinch / scroll to zoom</div>
+        </div>
+        <div class="weapon-info">
+          <div class="tabs" role="tablist" id="tabs"></div>
+          <h3 id="w-name"></h3>
+          <p class="skill" id="w-skill"></p>
+          <p id="w-desc"></p>
+          <dl class="stats" id="w-stats"></dl>
+          <button class="btn primary" id="w-play">&#9654; Play this strike</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="film" class="panel">
+      <div class="section-head">
+        <h2>Cutscene preview</h2>
+        <p>A browser re-creation of the in-game film, using the same camera script and star paths as the mod. In Minecraft, press <kbd>J</kbd> to skip a film, or to switch films off.</p>
+      </div>
+      <div class="film" id="film-box">
+        <canvas id="film-canvas"></canvas>
+        <div class="bar top"><span class="studio">&#9670; STARFALL ARSENAL</span></div>
+        <div class="bar bottom"><span class="skip" id="film-skip">[J] Skip</span></div>
+        <div class="flash" id="film-flash"></div>
+        <div class="title-card" id="film-title">
+          <div class="jp" id="film-jp"></div>
+          <div class="name" id="film-name"></div>
+          <div class="rule" id="film-rule"></div>
+        </div>
+        <div class="countdown" id="film-count"></div>
+        <div class="film-start" id="film-start">
+          <div class="film-picks" id="film-picks"></div>
+          <p>Sound on for the full effect.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="section-head">
+        <h2>In-game captures</h2>
+        <p>Real Minecraft 1.21.1 screenshots of the Supernova Core: the star falling, the impact, and the crater it leaves.</p>
+      </div>
+      <div class="shots">
+        <img src="./poster-1.jpg" alt="A huge orange star falling through the night sky in Minecraft" loading="lazy">
+        <img src="./poster-2.jpg" alt="The impact: a pillar of light and a fireball over the terrain" loading="lazy">
+        <img src="./poster-3.jpg" alt="A wide crater lined with glowing magma left behind" loading="lazy">
+      </div>
+    </section>
+
+    <section class="panel two-col">
+      <div>
+        <h2>Install</h2>
+        <ol class="steps">
+          <li>Install <a href="https://fabricmc.net/use/installer/" rel="noopener">Fabric Loader</a> for <b>Minecraft 1.21.1</b>.</li>
+          <li>Put <a href="https://modrinth.com/mod/fabric-api" rel="noopener">Fabric API</a> in your <code>mods</code> folder.</li>
+          <li>Put <a href="./download/starfall-arsenal-1.0.0.jar" download><code>starfall-arsenal-1.0.0.jar</code></a> in the same folder.</li>
+          <li>Launch the <b>fabric-loader-1.21.1</b> profile. The weapons are in the <b>Starfall Arsenal</b> creative tab.</li>
+        </ol>
+        <p class="warn"><b>Warning:</b> stars carve real craters. Try it in a test world first, or run <code>/gamerule starfallTerrainDamage false</code> to keep the blast and leave the terrain alone.</p>
+      </div>
+      <div>
+        <h2>Controls &amp; crafting</h2>
+        <ul class="steps">
+          <li><b>Right-click</b> with a weapon to strike where you're looking.</li>
+          <li><kbd>J</kbd> skips a cutscene, and when no film is playing it turns films on or off. You can rebind it.</li>
+          <li><b>Stellar Remote</b>: amethyst shard, 4 iron ingots, a redstone block and a gold ingot.</li>
+          <li>Every impact drops <b>Star Fragments</b>. Craft them into the other weapons:
+            Blade (2 fragments, 2 amethyst, diamond sword), Scepter (7 fragments, 2 blaze rods),
+            Core (8 fragments, nether star).</li>
+        </ul>
+      </div>
+    </section>
+  </main>
+
+  <footer>Starfall Arsenal is a fan-made mod. It is not affiliated with Mojang or Microsoft. Source code is in <code>starfall-arsenal/mod</code>.</footer>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
