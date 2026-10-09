@@ -1,8 +1,8 @@
 package com.francis.starfall.client;
 
-import com.francis.starfall.strike.StarSpec;
+import com.francis.starfall.entity.StrikeEntity;
+import com.francis.starfall.strike.StrikePlan;
 import com.francis.starfall.strike.StrikeType;
-import java.util.List;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.gui.DrawContext;
@@ -12,11 +12,13 @@ import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 import org.jetbrains.annotations.Nullable;
 
+import static com.francis.starfall.strike.StrikePlan.progress;
+import static com.francis.starfall.strike.StrikePlan.smooth;
+
 /**
- * The film. A cutscene is a list of camera "shots" choreographed around the
- * strike's timeline: hero close-up, sky reveal, telephoto ignition, chase cam,
- * wide impact and a crane over the crater - then a smooth hand-back to the
- * player's own camera.
+ * The film. Each weapon has its own shot list, choreographed around its
+ * strike's timeline, then the camera blends smoothly back to the player.
+ * For the Comet Dash the film also drives the caster's own movement.
  */
 public final class Cutscene {
     public record Shot(Vec3d pos, float yaw, float pitch) {
@@ -24,36 +26,27 @@ public final class Cutscene {
 
     private static final float RAD = MathHelper.DEGREES_PER_RADIAN;
     private static final int BLEND_OUT = 20;
+    private static final Vec3d UP = new Vec3d(0, 1, 0);
 
     @Nullable private static Cutscene current;
 
     private final StrikeType type;
-    private final Vec3d origin;
-    private final Vec3d target;
-    private final List<StarSpec> stars;
-    private final Vec3d eye, back, fwd, side;
-    private final float radius;
-    private final int lastImpact;
+    private final StrikePlan plan;
+    private final Vec3d eye;
     private final Perspective savedPerspective;
     private final float lockYaw, lockPitch;
     private int ticks;
+    /** Comet Dash: when the caster hit the ground, and where. */
+    private int slamTick = -1;
+    private Vec3d slamPos = Vec3d.ZERO;
 
     private Cutscene(MinecraftClient client, StrikeType type, Vec3d origin, Vec3d target) {
         this.type = type;
-        this.origin = origin;
-        this.target = target;
-        this.stars = type.plan(origin, target);
+        this.plan = new StrikePlan(type, origin, target);
         this.eye = origin.add(0, 1.62, 0);
-        Vec3d b = new Vec3d(origin.x - target.x, 0, origin.z - target.z);
-        this.back = b.lengthSquared() < 1e-4 ? new Vec3d(0, 0, 1) : b.normalize();
-        this.fwd = back.multiply(-1);
-        this.side = new Vec3d(-back.z, 0, back.x);
-        float r = 0;
-        for (StarSpec s : stars) r = Math.max(r, s.radius());
-        this.radius = type == StrikeType.SEVEN_STARS ? 16 : r;
-        this.lastImpact = type.lastImpactTick(stars);
         this.savedPerspective = client.options.getPerspective();
-        this.lockYaw = client.player.getYaw();
+        // Face the action (the dash goes where the player looks).
+        this.lockYaw = (float) (MathHelper.atan2(plan.fwd.z, plan.fwd.x) * RAD) - 90f;
         this.lockPitch = client.player.getPitch();
     }
 
@@ -80,15 +73,39 @@ public final class Cutscene {
 
     /** Called every client tick while a film is rolling. */
     public void tick(MinecraftClient client) {
-        if (client.player == null || !client.player.isAlive()) {
+        var player = client.player;
+        if (player == null || !player.isAlive()) {
             stop(client);
             return;
         }
-        // Lock the director's chair: no walking off set mid-take.
-        client.player.setYaw(lockYaw);
-        client.player.setPitch(lockPitch);
+        player.setYaw(lockYaw);
+        player.setBodyYaw(lockYaw);
+        player.setHeadYaw(lockYaw);
+        player.setPitch(type == StrikeType.COMET_DASH ? 10 : lockPitch);
+        if (type == StrikeType.COMET_DASH) dash(player);
         if (++ticks >= type.duration) {
             stop(client);
+        }
+    }
+
+    /** The caster *is* the comet: charge, leap, slam. Movement is client-driven like normal walking. */
+    private void dash(net.minecraft.client.network.ClientPlayerEntity player) {
+        int t = ticks;
+        Vec3d f = plan.fwd;
+        Vec3d v = player.getVelocity();
+        if (t >= StrikePlan.DASH_START && t < StrikePlan.DASH_LEAP) {
+            double y = player.horizontalCollision ? 0.55 : Math.min(v.y, 0.1);
+            player.setVelocity(f.x * StrikePlan.DASH_SPEED, y, f.z * StrikePlan.DASH_SPEED);
+        } else if (t == StrikePlan.DASH_LEAP) {
+            player.setVelocity(f.x * 0.9, 1.15, f.z * 0.9);
+        } else if (t > StrikePlan.DASH_LEAP && t < StrikePlan.DASH_SLAM) {
+            player.setVelocity(f.x * 0.9, v.y, f.z * 0.9);
+        } else if (t == StrikePlan.DASH_SLAM) {
+            player.setVelocity(f.x * 0.25, -2.8, f.z * 0.25);
+        }
+        if (slamTick < 0 && t > StrikePlan.DASH_LEAP + 4 && player.isOnGround()) {
+            slamTick = t;
+            slamPos = player.getEntityPos();
         }
     }
 
@@ -98,98 +115,137 @@ public final class Cutscene {
 
     // ------------------------------------------------------------ camera ---
 
-    private static double smooth(double x) {
-        x = MathHelper.clamp(x, 0, 1);
-        return x * x * (3 - 2 * x);
+    private static double groundY(double x, double z) {
+        MinecraftClient client = MinecraftClient.getInstance();
+        return client.world == null ? 64 : StrikeEntity.groundY(client.world, x, z);
     }
 
-    private static double progress(double t, double from, double to) {
-        return MathHelper.clamp((t - from) / (to - from), 0, 1);
+    private Vec3d around(Vec3d center, double angle, double dist) {
+        Vec3d dir = plan.back.multiply(Math.cos(angle)).add(plan.side.multiply(Math.sin(angle)));
+        return center.add(dir.multiply(dist));
     }
 
-    private Vec3d starPos(double t) {
-        return stars.get(0).positionAt(t);
+    /** Opening shot shared by the ranged weapons: a slow arc across the caster's face. */
+    private Vec3d[] heroCloseUp(double t, double end) {
+        double u = smooth(progress(t, 0, end));
+        Vec3d cam = eye.add(plan.fwd.multiply(2.6 - u * 0.6)).add(plan.side.multiply(1.4 - 2.6 * u)).add(0, -0.5 + 0.3 * u, 0);
+        return new Vec3d[]{cam, eye.add(0, -0.1 + 0.5 * u, 0)};
     }
 
-    /** Scripted shot: camera position and the point it looks at. */
-    private Vec3d[] script(double t) {
-        StarSpec lead = stars.get(0);
-        int ignite = type.igniteTick;
-        double closeUpEnd = ignite * 0.45;
-        Vec3d up = new Vec3d(0, 1, 0);
-        if (t < closeUpEnd) {
-            // 1. Hero close-up, slow arc across the caster's face.
-            double u = smooth(progress(t, 0, closeUpEnd));
-            Vec3d cam = eye.add(fwd.multiply(2.6 - u * 0.6)).add(side.multiply(1.4 - 2.6 * u)).add(0, -0.5 + 0.3 * u, 0);
-            return new Vec3d[]{cam, eye.add(0, -0.1, 0)};
-        }
-        if (t < ignite) {
-            // 2. Low angle: the camera tilts from the caster up into the sky.
-            double u = smooth(progress(t, closeUpEnd, ignite));
-            Vec3d cam = origin.add(fwd.multiply(3.4)).add(side.multiply(-1.2)).add(0, 0.35, 0);
-            Vec3d look = eye.add(0, 0.6, 0).lerp(lead.start(), u * 0.9);
-            return new Vec3d[]{cam, look};
-        }
-        if (t < ignite + 18) {
-            // 3. Telephoto on the igniting star, caster silhouetted in front.
-            Vec3d cam = eye.add(fwd.multiply(2.8)).add(side.multiply(0.6)).add(0, -0.4, 0);
-            return new Vec3d[]{cam, starPos(t)};
-        }
-        int wideStart = lastImpact - 8;
-        if (t < wideStart) {
-            if (type == StrikeType.SEVEN_STARS) {
-                // 4b. High orbit over the target as the Big Dipper rains down.
-                double a = (t - ignite) * 0.008;
-                Vec3d dir = back.multiply(Math.cos(a)).add(side.multiply(Math.sin(a)));
-                Vec3d cam = target.add(dir.multiply(54)).add(0, 22, 0);
-                return new Vec3d[]{cam, target.add(0, 14, 0)};
+    private Vec3d[] script(double t, Vec3d playerPos) {
+        Vec3d target = plan.target, side = plan.side, back = plan.back, fwd = plan.fwd;
+        switch (type) {
+            case ORBITAL_LANCE -> {
+                if (t < 25) return heroCloseUp(t, 25);
+                if (t < StrikePlan.LANCE_FIRE) {
+                    // Lock-on: straight down onto the targeting reticle.
+                    double u = smooth(progress(t, 25, StrikePlan.LANCE_FIRE));
+                    return new Vec3d[]{target.add(back.multiply(6)).add(0, 30 - u * 8, 0), target};
+                }
+                if (t < StrikePlan.LANCE_FIRE + 12) {
+                    // Looking up the beam as it fires.
+                    Vec3d g = target.add(fwd.multiply(-StrikePlan.LANCE_HALF_LENGTH));
+                    Vec3d cam = g.add(side.multiply(9)).add(back.multiply(6)).add(0, 1.5, 0);
+                    cam = new Vec3d(cam.x, groundY(cam.x, cam.z) + 1.5, cam.z);
+                    return new Vec3d[]{cam, plan.lanceSatellite().lerp(g, 0.85)};
+                }
+                if (t < StrikePlan.LANCE_END) {
+                    // Tracking shot alongside the trench as it is burned in.
+                    Vec3d p = plan.lancePoint(t);
+                    Vec3d g = new Vec3d(p.x, groundY(p.x, p.z), p.z);
+                    Vec3d cam = g.add(side.multiply(12)).add(fwd.multiply(-5));
+                    cam = new Vec3d(cam.x, Math.max(g.y + 5, groundY(cam.x, cam.z) + 4), cam.z);
+                    return new Vec3d[]{cam, g.add(0, 1, 0)};
+                }
+                double u = smooth(progress(t, StrikePlan.LANCE_END, type.duration));
+                return new Vec3d[]{target.add(side.multiply(26)).add(back.multiply(12)).add(0, 14 + u * 12, 0), target};
             }
-            if (type == StrikeType.SUPERNOVA && t > ignite + 50) {
-                // 4c. Dread shot from the ground: the sky is falling.
-                double u = progress(t, ignite + 50, wideStart);
-                Vec3d cam = target.add(back.multiply(radius * 2.8 - u * 6)).add(side.multiply(radius)).add(0, 3, 0);
-                return new Vec3d[]{cam, starPos(t).lerp(target, 0.1)};
+            case COMET_DASH -> {
+                if (t < StrikePlan.DASH_START) {
+                    return new Vec3d[]{eye.add(fwd.multiply(2.2)).add(side.multiply(0.9)).add(0, -0.7, 0), eye.add(0, -0.2, 0)};
+                }
+                if (slamTick >= 0 && t >= slamTick) {
+                    double u = smooth(progress(t, slamTick, type.duration));
+                    return new Vec3d[]{slamPos.add(side.multiply(11)).add(back.multiply(7)).add(0, 4 + u * 6, 0), slamPos};
+                }
+                if (t < StrikePlan.DASH_LEAP) {
+                    // Side-on tracking shot at full speed.
+                    return new Vec3d[]{playerPos.add(side.multiply(5)).add(fwd.multiply(-1.5)).add(0, 1.2, 0),
+                            playerPos.add(fwd.multiply(3)).add(0, 1, 0)};
+                }
+                // Low angle under the leap, riding along with the caster.
+                return new Vec3d[]{playerPos.add(side.multiply(7)).add(fwd.multiply(4)).add(0, -2, 0), playerPos.add(0, 1, 0)};
             }
-            // 4. Chase cam riding behind the star.
-            Vec3d p = starPos(t);
-            Vec3d dir = lead.direction();
-            double off = 14 + lead.size() * 3;
-            Vec3d cam = p.subtract(dir.multiply(off)).add(side.multiply(8 + lead.size())).add(up.multiply(4));
-            cam = new Vec3d(cam.x, Math.max(cam.y, target.y + 6), cam.z);
-            return new Vec3d[]{cam, p.lerp(target, 0.15)};
-        }
-        Vec3d wide = target.add(side.multiply(radius * 2.6 + 14)).add(back.multiply(radius * 1.8 + 10)).add(up.multiply(radius * 0.9 + 8));
-        if (t < lastImpact + 30) {
-            // 5. Wide shot for the impact, with a slight dolly-in.
-            double u = smooth(progress(t, wideStart, lastImpact + 30));
-            Vec3d cam = wide.lerp(target, 0.12 * u);
-            Vec3d look = target.add(0, radius * 0.25, 0);
-            if (t < lastImpact && type != StrikeType.SEVEN_STARS) {
-                // Keep the incoming star in frame for the last moments.
-                look = look.lerp(starPos(t), 0.3 * (1 - progress(t, wideStart, lastImpact)));
+            case CONSTELLATION -> {
+                if (t < 30) return heroCloseUp(t, 30);
+                Vec3d sky = target.add(0, 14, 0);
+                if (t < StrikePlan.CONST_LINES) {
+                    // Low angle: the stars come down into their places.
+                    double u = progress(t, 30, StrikePlan.CONST_LINES);
+                    return new Vec3d[]{target.add(back.multiply(28 - u * 4)).add(side.multiply(-8)).add(0, 2, 0), sky};
+                }
+                if (t < StrikePlan.CONST_LINES + 45) {
+                    // Orbit while the constellation lines light up.
+                    double a = (t - StrikePlan.CONST_LINES) * 0.02;
+                    return new Vec3d[]{around(target, a, 30).add(0, 10, 0), sky.add(0, -2, 0)};
+                }
+                if (t < StrikePlan.CONST_IMPLODE) {
+                    // Straight down into the vortex.
+                    return new Vec3d[]{target.add(back.multiply(4)).add(0, 40, 0), target};
+                }
+                double u = smooth(progress(t, StrikePlan.CONST_IMPLODE, type.duration));
+                return new Vec3d[]{target.add(side.multiply(22)).add(back.multiply(16)).add(0, 10 + u * 10, 0), target};
             }
-            return new Vec3d[]{cam, look};
+            case SUPERNOVA -> {
+                Vec3d c = plan.novaCenter();
+                if (t < 40) return heroCloseUp(t, 40);
+                if (t < StrikePlan.NOVA_APPEAR) {
+                    // Over the shoulder as the star ignites above the target.
+                    return new Vec3d[]{eye.add(back.multiply(3)).add(side.multiply(1)).add(0, 0.4, 0), c};
+                }
+                if (t < 110) {
+                    // Dread shot from the ground while the earth is torn upward.
+                    Vec3d cam = target.add(back.multiply(30)).add(side.multiply(10));
+                    return new Vec3d[]{new Vec3d(cam.x, groundY(cam.x, cam.z) + 1.5, cam.z), c};
+                }
+                if (t < StrikePlan.NOVA_COLLAPSE) {
+                    // Close orbit around the black hole.
+                    double a = (t - 110) * 0.03;
+                    return new Vec3d[]{around(c, a, 18).add(0, 4, 0), c};
+                }
+                if (t < StrikePlan.NOVA) {
+                    double u = progress(t, StrikePlan.NOVA_COLLAPSE, StrikePlan.NOVA);
+                    return new Vec3d[]{c.add(back.multiply(14 - u * 8)).add(0, 1, 0), c};
+                }
+                double u = smooth(progress(t, StrikePlan.NOVA, type.duration));
+                return new Vec3d[]{target.add(side.multiply(55)).add(back.multiply(40)).add(0, 26 + u * 14, 0), target};
+            }
         }
-        // 6. Crane up and away over the smoking crater.
-        double u = smooth(progress(t, lastImpact + 30, type.duration));
-        Vec3d cam = wide.lerp(target, 0.12).add(back.multiply(u * radius)).add(0, u * (radius + 10), 0);
-        return new Vec3d[]{cam, target.add(0, -radius * 0.2, 0)};
+        return new Vec3d[]{eye, target};
     }
 
-    /** Camera shake from every impact still ringing. */
+    private int impactTick() {
+        return type == StrikeType.COMET_DASH ? (slamTick >= 0 ? slamTick : 10_000) : type.impactTick;
+    }
+
     private double shake(double t) {
-        double s = 0;
-        for (StarSpec star : stars) {
-            double since = t - star.impactTick();
-            if (since >= 0 && since < 30) s += (1 - since / 30) * (0.4 + star.radius() / 8);
+        double since = t - impactTick();
+        double s = since >= 0 && since < 30 ? (1 - since / 30) * (type == StrikeType.SUPERNOVA ? 3 : 1.4) : 0;
+        switch (type) {
+            case ORBITAL_LANCE -> s += t >= StrikePlan.LANCE_FIRE && t < StrikePlan.LANCE_END ? 0.25 : 0;
+            case CONSTELLATION -> s += t > StrikePlan.CONST_LINES + 40 && t < StrikePlan.CONST_IMPLODE ? 0.15 : 0;
+            case SUPERNOVA -> s += plan.novaPulling(t) ? 0.05 + 0.4 * progress(t, StrikePlan.NOVA_APPEAR, StrikePlan.NOVA) : 0;
+            default -> {
+            }
         }
-        double rumble = type == StrikeType.SUPERNOVA ? progress(t, type.igniteTick, lastImpact) * 0.25 : 0;
-        return s + rumble;
+        return s;
     }
 
     public Shot camera(float tickDelta, Vec3d vanillaPos, float vanillaYaw, float vanillaPitch) {
         double t = time(tickDelta);
-        Vec3d[] s = script(t);
+        MinecraftClient client = MinecraftClient.getInstance();
+        Vec3d playerPos = client.player != null ? client.player.getLerpedPos(tickDelta) : plan.origin;
+        Vec3d[] s = script(t, playerPos);
         Vec3d cam = s[0];
         Vec3d look = s[1];
         double k = shake(t);
@@ -202,7 +258,6 @@ public final class Cutscene {
         double horiz = Math.sqrt(d.x * d.x + d.z * d.z);
         float yaw = (float) (MathHelper.atan2(d.z, d.x) * RAD) - 90f;
         float pitch = (float) (-(MathHelper.atan2(d.y, horiz) * RAD));
-        // Hand the camera back smoothly at the end.
         double w = smooth(progress(t, type.duration - BLEND_OUT, type.duration));
         if (w > 0) {
             cam = cam.lerp(vanillaPos, w);
@@ -214,18 +269,15 @@ public final class Cutscene {
 
     public double fov(float tickDelta, double vanilla) {
         double t = time(tickDelta);
-        int ignite = type.igniteTick;
-        double lens;
-        if (t < ignite * 0.45) lens = 50;
-        else if (t < ignite) lens = 72;
-        else if (t < ignite + 18) lens = MathHelper.lerp(progress(t, ignite, ignite + 18), 22, 34);
-        else if (t < lastImpact - 8) lens = type == StrikeType.SEVEN_STARS ? 62 : 80;
-        else lens = 64;
-        // Punch-in on impact.
-        for (StarSpec star : stars) {
-            double since = t - star.impactTick();
-            if (since >= 0 && since < 8) lens -= (1 - since / 8) * 8;
-        }
+        double lens = switch (type) {
+            case ORBITAL_LANCE -> t < 25 ? 50 : t < StrikePlan.LANCE_FIRE ? 55 : t < StrikePlan.LANCE_FIRE + 12 ? 45 : 72;
+            case COMET_DASH -> t < StrikePlan.DASH_START ? 50 : slamTick >= 0 && t >= slamTick ? 66 : t < StrikePlan.DASH_LEAP ? 95 : 75;
+            case CONSTELLATION -> t < 30 ? 50 : 70;
+            case SUPERNOVA -> t < 40 ? 50 : t < StrikePlan.NOVA_APPEAR ? 40 : t < StrikePlan.NOVA_COLLAPSE ? 78
+                    : t < StrikePlan.NOVA ? MathHelper.lerp(progress(t, StrikePlan.NOVA_COLLAPSE, StrikePlan.NOVA), 45, 28) : 70;
+        };
+        double since = t - impactTick();
+        if (since >= 0 && since < 8) lens -= (1 - since / 8) * 10;
         double w = smooth(progress(t, type.duration - BLEND_OUT, type.duration));
         return MathHelper.lerp(w, lens, vanilla);
     }
@@ -244,26 +296,23 @@ public final class Cutscene {
         int w = ctx.getScaledWindowWidth();
         int h = ctx.getScaledWindowHeight();
 
-        // Impact flash, tinted towards the strike colour as it fades.
-        double flash = 0;
-        for (StarSpec star : stars) {
-            double since = t - star.impactTick();
-            // Smaller stars flash less, so a rapid volley doesn't white out the screen.
-            if (since >= 0 && since < 14) flash = Math.max(flash, (1 - since / 14) * Math.min(1, star.radius() / 12));
+        // The black hole drinks the light out of the sky.
+        if (type == StrikeType.SUPERNOVA && plan.novaPulling(t)) {
+            ctx.fill(0, 0, w, h, argb(0.4 * progress(t, StrikePlan.NOVA_APPEAR, StrikePlan.NOVA_COLLAPSE), 0x05000F));
+        }
+        double since = t - impactTick();
+        double flash = since >= 0 && since < 14 ? 1 - since / 14 : 0;
+        if (type == StrikeType.ORBITAL_LANCE) {
+            flash = Math.max(flash, 0.35 * (1 - Math.abs(t - StrikePlan.LANCE_FIRE) / 4));
         }
         if (flash > 0) {
-            int tint = flash > 0.6 ? 0xFFFFFF : type.color;
-            ctx.fill(0, 0, w, h, argb(flash * 0.95, tint));
+            ctx.fill(0, 0, w, h, argb(flash * 0.95, flash > 0.6 ? 0xFFFFFF : type.color));
         }
-        double igniteGlow = 1 - Math.abs(t - type.igniteTick) / 6;
-        if (igniteGlow > 0) ctx.fill(0, 0, w, h, argb(igniteGlow * 0.35, 0xFFF6D0));
 
-        // Vignette.
         int vg = h / 3;
         ctx.fillGradient(0, 0, w, vg, 0x88000000, 0x00000000);
         ctx.fillGradient(0, h - vg, w, h, 0x00000000, 0x88000000);
 
-        // Letterbox bars slide in and out.
         double in = smooth(progress(t, 0, 10));
         double out = smooth(progress(t, type.duration - 15, type.duration));
         int bar = (int) (h * 0.11 * in * (1 - out));
@@ -275,33 +324,30 @@ public final class Cutscene {
             ctx.drawTextWithShadow(font, skip, w - font.getWidth(skip) - 8, h - bar / 2 - 4, 0xFF8A93A8);
         }
 
-        // Title card: the attack's name types itself out during the wind-up.
-        double titleIn = 6, titleOut = type.igniteTick + 22;
+        // Title card: the skill's name types itself out during the wind-up.
+        double titleIn = 4, titleOut = Math.max(type.igniteTick + 22, 34);
         if (t > titleIn && t < titleOut) {
             double alpha = Math.min(1, (titleOut - t) / 8);
             String name = Text.translatable("cutscene.starfall." + type.key).getString();
-            int shown = Math.min(name.length(), (int) ((t - titleIn) / 1.3));
-            String typed = name.substring(0, shown);
+            int shown = Math.min(name.length(), (int) ((t - titleIn) / 1.1));
             int y = h - bar - 46;
-            ctx.getMatrices().push();
-            ctx.getMatrices().translate(w / 2f, y, 0);
-            ctx.getMatrices().scale(3f, 3f, 1f);
-            ctx.drawCenteredTextWithShadow(font, typed, 0, 0, argb(alpha, 0xFFF6D0));
-            ctx.getMatrices().pop();
+            ctx.getMatrices().pushMatrix();
+            ctx.getMatrices().translate(w / 2f, y);
+            ctx.getMatrices().scale(3f, 3f);
+            ctx.drawCenteredTextWithShadow(font, name.substring(0, shown), 0, 0, argb(alpha, 0xFFF6D0));
+            ctx.getMatrices().popMatrix();
             String kanji = Text.translatable("cutscene.starfall." + type.key + ".jp").getString();
-            ctx.getMatrices().push();
-            ctx.getMatrices().translate(w / 2f, y - 16, 0);
-            ctx.getMatrices().scale(1.5f, 1.5f, 1f);
-            ctx.drawCenteredTextWithShadow(font, kanji, 0, 0, argb(alpha * smooth(progress(t, titleIn + 8, titleIn + 16)), type.color));
-            ctx.getMatrices().pop();
+            ctx.getMatrices().pushMatrix();
+            ctx.getMatrices().translate(w / 2f, y - 16);
+            ctx.getMatrices().scale(1.5f, 1.5f);
+            ctx.drawCenteredTextWithShadow(font, kanji, 0, 0, argb(alpha * smooth(progress(t, titleIn + 6, titleIn + 14)), type.color));
+            ctx.getMatrices().popMatrix();
             int lineW = (int) (Math.min(1, (t - titleIn) / 12) * 120);
             ctx.fill(w / 2 - lineW, y + 30, w / 2 + lineW, y + 31, argb(alpha, type.color));
         }
 
-        // Countdown to impact while the star falls.
-        if (t > type.igniteTick && t < lastImpact) {
-            double secs = (lastImpact - t) / 20.0;
-            String c = String.format("T-%05.2f", secs);
+        if (type != StrikeType.COMET_DASH && t > type.igniteTick && t < type.impactTick) {
+            String c = String.format("T-%05.2f", (type.impactTick - t) / 20.0);
             ctx.drawCenteredTextWithShadow(font, c, w / 2, bar + 8, argb(0.85, 0xFF5A5A));
         }
     }

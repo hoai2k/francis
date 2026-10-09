@@ -14,10 +14,10 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(GameRenderer.class)
 public abstract class GameRendererMixin {
     @Inject(method = "getFov", at = @At("RETURN"), cancellable = true)
-    private void starfall$lens(Camera camera, float tickDelta, boolean changingFov, CallbackInfoReturnable<Double> cir) {
+    private void starfall$lens(Camera camera, float tickDelta, boolean changingFov, CallbackInfoReturnable<Float> cir) {
         Cutscene cut = Cutscene.current();
         if (cut != null && changingFov) {
-            cir.setReturnValue(cut.fov(tickDelta, cir.getReturnValueD()));
+            cir.setReturnValue((float) cut.fov(tickDelta, cir.getReturnValueF()));
         }
     }
 

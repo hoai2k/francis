@@ -26,9 +26,9 @@ public class StarfallClient implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
-        EntityRendererRegistry.register(Starfall.FALLING_STAR, FallingStarRenderer::new);
+        EntityRendererRegistry.register(Starfall.STRIKE, StrikeRenderer::new);
         skipKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
-                "key.starfall.skip", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_J, "category.starfall"));
+                "key.starfall.skip", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_J, KeyBinding.Category.create(Starfall.id("main"))));
 
         ClientPlayNetworking.registerGlobalReceiver(CutscenePayload.ID, (payload, context) -> {
             if (filmsEnabled) {

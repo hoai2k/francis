@@ -1,11 +1,18 @@
 {
   "type": "minecraft:crafting_shaped",
   "category": "equipment",
-  "pattern": [" F ", "AFA", " S "],
+  "pattern": [
+    " F ",
+    "AFA",
+    " S "
+  ],
   "key": {
-    "F": {"item": "starfall:star_fragment"},
-    "A": {"item": "minecraft:amethyst_shard"},
-    "S": {"item": "minecraft:diamond_sword"}
+    "F": "starfall:star_fragment",
+    "A": "minecraft:amethyst_shard",
+    "S": "minecraft:diamond_sword"
   },
-  "result": {"id": "starfall:starfall_blade", "count": 1}
+  "result": {
+    "id": "starfall:starfall_blade",
+    "count": 1
+  }
 }

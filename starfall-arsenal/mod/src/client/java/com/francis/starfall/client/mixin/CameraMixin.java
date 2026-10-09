@@ -4,7 +4,7 @@ import com.francis.starfall.client.Cutscene;
 import net.minecraft.client.render.Camera;
 import net.minecraft.entity.Entity;
 import net.minecraft.util.math.Vec3d;
-import net.minecraft.world.BlockView;
+import net.minecraft.world.World;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
@@ -21,7 +21,7 @@ public abstract class CameraMixin {
     protected abstract void setRotation(float yaw, float pitch);
 
     @Shadow
-    public abstract Vec3d getPos();
+    public abstract Vec3d getCameraPos();
 
     @Shadow
     public abstract float getYaw();
@@ -30,10 +30,10 @@ public abstract class CameraMixin {
     public abstract float getPitch();
 
     @Inject(method = "update", at = @At("TAIL"))
-    private void starfall$direct(BlockView area, Entity focusedEntity, boolean thirdPerson, boolean inverseView, float tickDelta, CallbackInfo ci) {
+    private void starfall$direct(World area, Entity focusedEntity, boolean thirdPerson, boolean inverseView, float tickDelta, CallbackInfo ci) {
         Cutscene cut = Cutscene.current();
         if (cut == null) return;
-        Cutscene.Shot shot = cut.camera(tickDelta, getPos(), getYaw(), getPitch());
+        Cutscene.Shot shot = cut.camera(tickDelta, getCameraPos(), getYaw(), getPitch());
         setPos(shot.pos().x, shot.pos().y, shot.pos().z);
         setRotation(shot.yaw(), shot.pitch());
     }

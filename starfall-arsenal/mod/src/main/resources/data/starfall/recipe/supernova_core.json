@@ -1,10 +1,17 @@
 {
   "type": "minecraft:crafting_shaped",
   "category": "equipment",
-  "pattern": ["FFF", "FNF", "FFF"],
+  "pattern": [
+    "FFF",
+    "FNF",
+    "FFF"
+  ],
   "key": {
-    "F": {"item": "starfall:star_fragment"},
-    "N": {"item": "minecraft:nether_star"}
+    "F": "starfall:star_fragment",
+    "N": "minecraft:nether_star"
   },
-  "result": {"id": "starfall:supernova_core", "count": 1}
+  "result": {
+    "id": "starfall:supernova_core",
+    "count": 1
+  }
 }

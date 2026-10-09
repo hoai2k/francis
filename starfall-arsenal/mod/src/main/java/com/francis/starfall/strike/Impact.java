@@ -8,6 +8,7 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.particle.DustParticleEffect;
 import net.minecraft.particle.ParticleEffect;
 import net.minecraft.particle.ParticleTypes;
+import net.minecraft.particle.TintedParticleEffect;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.sound.SoundCategory;
@@ -19,16 +20,24 @@ import net.minecraft.util.math.Vec3d;
 import net.minecraft.util.math.random.Random;
 import net.minecraft.world.World;
 import org.jetbrains.annotations.Nullable;
-import org.joml.Vector3f;
 
 /** What happens when a star hits the ground: crater, blast, shockwave, loot. */
 public final class Impact {
     private Impact() {
     }
 
+    public static boolean terrainDamage(ServerWorld world) {
+        return world.getGameRules().getValue(Starfall.TERRAIN_DAMAGE);
+    }
+
+    /** Blast with a bowl crater at {@code center}. */
     public static void detonate(ServerWorld world, Entity star, @Nullable Entity owner, Vec3d center, float radius, StrikeType type) {
+        detonate(world, star, owner, center, radius, type, true);
+    }
+
+    public static void detonate(ServerWorld world, Entity star, @Nullable Entity owner, Vec3d center, float radius, StrikeType type, boolean crater) {
         Random random = world.getRandom();
-        if (world.getGameRules().getBoolean(Starfall.TERRAIN_DAMAGE)) {
+        if (crater && terrainDamage(world)) {
             Crater.start(world, BlockPos.ofFloored(center), radius, random);
         }
         // Vanilla blast for the boom, knockback and particles - but terrain is the crater's job.
@@ -38,37 +47,37 @@ public final class Impact {
         dropFragments(world, center, radius, random);
     }
 
-    private static void hurtEntities(ServerWorld world, Entity star, @Nullable Entity owner, Vec3d center, float radius) {
+    public static void hurtEntities(ServerWorld world, Entity star, @Nullable Entity owner, Vec3d center, float radius) {
         double reach = radius * 1.9 + 3;
         Box box = new Box(center, center).expand(reach);
         for (Entity e : world.getOtherEntities(star, box)) {
             if (e == owner || e instanceof ItemEntity || e.isSpectator()) continue;
-            double d = e.getPos().distanceTo(center);
+            double d = e.getEntityPos().distanceTo(center);
             if (d > reach) continue;
             double falloff = 1 - d / reach;
-            e.damage(world.getDamageSources().explosion(star, owner), (float) (4 + radius * 2.6 * falloff));
+            e.damage(world, world.getDamageSources().explosion(star, owner), (float) (4 + radius * 2.6 * falloff));
             if (e instanceof LivingEntity living) {
-                living.setOnFireFor(6);
+                living.setOnFireForTicks(120);
             }
-            Vec3d push = e.getPos().subtract(center).normalize().multiply(2.2 * falloff).add(0, 0.6 + falloff, 0);
+            Vec3d push = e.getEntityPos().subtract(center).normalize().multiply(2.2 * falloff).add(0, 0.6 + falloff, 0);
             e.addVelocity(push.x, push.y, push.z);
-            e.velocityModified = true;
+            e.velocityDirty = true;
         }
     }
 
-    private static <T extends ParticleEffect> void burst(ServerWorld world, T effect, Vec3d p, int count, double spread, double speed) {
+    public static <T extends ParticleEffect> void burst(ServerWorld world, T effect, Vec3d p, int count, double spread, double speed) {
         for (ServerPlayerEntity player : world.getPlayers()) {
             if (player.squaredDistanceTo(p) < 512 * 512) {
-                world.spawnParticles(player, effect, true, p.x, p.y, p.z, count, spread, spread, spread, speed);
+                world.spawnParticles(player, effect, true, true, p.x, p.y, p.z, count, spread, spread, spread, speed);
             }
         }
     }
 
     /** A particle with an exact velocity (count 0 makes delta the motion vector). */
-    private static <T extends ParticleEffect> void shoot(ServerWorld world, T effect, Vec3d p, Vec3d v, double speed) {
+    public static <T extends ParticleEffect> void shoot(ServerWorld world, T effect, Vec3d p, Vec3d v, double speed) {
         for (ServerPlayerEntity player : world.getPlayers()) {
             if (player.squaredDistanceTo(p) < 512 * 512) {
-                world.spawnParticles(player, effect, true, p.x, p.y, p.z, 0, v.x, v.y, v.z, speed);
+                world.spawnParticles(player, effect, true, true, p.x, p.y, p.z, 0, v.x, v.y, v.z, speed);
             }
         }
     }
@@ -76,11 +85,10 @@ public final class Impact {
     private static void effects(ServerWorld world, Vec3d c, float radius, StrikeType type, Random random) {
         Vec3d up = c.add(0, 1.5, 0);
         int color = type.color;
-        Vector3f rgb = new Vector3f(((color >> 16) & 255) / 255f, ((color >> 8) & 255) / 255f, (color & 255) / 255f);
-        burst(world, ParticleTypes.FLASH, up, 6, radius * 0.3, 0);
+                burst(world, TintedParticleEffect.create(ParticleTypes.FLASH, 0xFFFFFFFF), up, 6, radius * 0.3, 0);
         burst(world, ParticleTypes.EXPLOSION_EMITTER, up, Math.max(2, (int) (radius / 2.5f)), radius * 0.45, 0);
         burst(world, ParticleTypes.LAVA, up, (int) (radius * 6), radius * 0.4, 0);
-        burst(world, new DustParticleEffect(rgb, 4f), up, (int) (radius * 20), radius * 0.6, 0);
+        burst(world, new DustParticleEffect(color, 4f), up, (int) (radius * 20), radius * 0.6, 0);
         burst(world, ParticleTypes.END_ROD, up, (int) (radius * 12), radius * 0.3, 0.9);
         // Shockwave rings racing outward along the ground.
         int spokes = 72;
@@ -102,7 +110,7 @@ public final class Impact {
         world.playSound(null, c.x, c.y, c.z, SoundEvents.ENTITY_WARDEN_SONIC_BOOM, SoundCategory.PLAYERS, 8f, 0.7f);
     }
 
-    private static void dropFragments(ServerWorld world, Vec3d c, float radius, Random random) {
+    public static void dropFragments(ServerWorld world, Vec3d c, float radius, Random random) {
         int count = 1 + random.nextInt(2) + (int) (radius / 8);
         for (int i = 0; i < count; i++) {
             // Spawned above the surface; they drop into the bowl as it is carved.

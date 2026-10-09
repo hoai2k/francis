@@ -16,7 +16,7 @@ public abstract class InGameHudMixin {
     private void starfall$letterbox(DrawContext context, RenderTickCounter tickCounter, CallbackInfo ci) {
         Cutscene cut = Cutscene.current();
         if (cut == null) return;
-        cut.renderOverlay(context, tickCounter.getTickDelta(false));
+        cut.renderOverlay(context, tickCounter.getTickProgress(false));
         ci.cancel();
     }
 }

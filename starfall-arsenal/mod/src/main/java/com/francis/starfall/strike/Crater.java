@@ -18,10 +18,17 @@ import net.minecraft.world.Heightmap;
 
 /**
  * Carves an impact crater a few hundred columns per tick, from the centre
- * outward. Spreading the work keeps even the Supernova's crater from stalling
- * the server, and the bowl visibly blasts open behind the flash.
+ * outward. Spreading the work keeps even the Supernova's blast from stalling
+ * the server, and the hole visibly blasts open behind the flash.
  */
 public final class Crater {
+    public enum Shape {
+        /** A shallow bowl sunk into the ground below the centre, lined with magma and blackstone. */
+        BOWL,
+        /** Everything inside a sphere around the centre is erased; the lining is fused to glass. */
+        SPHERE
+    }
+
     private static final int COLUMNS_PER_TICK = 160;
     private static final List<Crater> ACTIVE = new ArrayList<>();
     private static final BlockState[] SCORCH = {
@@ -30,17 +37,25 @@ public final class Crater {
             Blocks.BASALT.getDefaultState(), Blocks.OBSIDIAN.getDefaultState(),
             Blocks.CRYING_OBSIDIAN.getDefaultState(), Blocks.COBBLED_DEEPSLATE.getDefaultState(),
     };
+    private static final BlockState[] GLASS = {
+            Blocks.TINTED_GLASS.getDefaultState(), Blocks.BLACK_STAINED_GLASS.getDefaultState(),
+            Blocks.ORANGE_STAINED_GLASS.getDefaultState(), Blocks.OBSIDIAN.getDefaultState(),
+            Blocks.MAGMA_BLOCK.getDefaultState(), Blocks.CRYING_OBSIDIAN.getDefaultState(),
+    };
 
     private final ServerWorld world;
+    private final Shape shape;
     private final BlockPos center;
     private final float radius;
     private final Random random;
     private final double p1, p2, p3;
     private final List<int[]> columns = new ArrayList<>();
+    private boolean core = true;
     private int next;
 
-    private Crater(ServerWorld world, BlockPos center, float radius, Random random) {
+    private Crater(ServerWorld world, Shape shape, BlockPos center, float radius, Random random) {
         this.world = world;
+        this.shape = shape;
         this.center = center;
         this.radius = radius;
         this.random = random;
@@ -62,7 +77,17 @@ public final class Crater {
     }
 
     public static void start(ServerWorld world, BlockPos center, float radius, Random random) {
-        Crater crater = new Crater(world, center, radius, random);
+        start(world, Shape.BOWL, center, radius, random);
+    }
+
+    public static void start(ServerWorld world, Shape shape, BlockPos center, float radius, Random random) {
+        start(world, shape, center, radius, random, true);
+    }
+
+    /** @param core whether to leave the glowing fallen-star core in the middle */
+    public static void start(ServerWorld world, Shape shape, BlockPos center, float radius, Random random, boolean core) {
+        Crater crater = new Crater(world, shape, center, radius, random);
+        crater.core = core;
         crater.step();
         ACTIVE.add(crater);
     }
@@ -79,7 +104,7 @@ public final class Crater {
             carveColumn(columns.get(next)[0], columns.get(next)[1]);
         }
         if (next >= columns.size()) {
-            placeCore();
+            if (core) placeCore();
             return true;
         }
         return false;
@@ -87,16 +112,19 @@ public final class Crater {
 
     private void carveColumn(int dx, int dz) {
         int bottom = world.getBottomY() + 1;
-        int top = world.getTopY() - 1;
+        int top = world.getTopYInclusive();
         double d = Math.sqrt(dx * dx + dz * dz);
         double rr = radius * rim(Math.atan2(dz, dx));
         if (d > rr + 2.5) return;
         int x = center.getX() + dx, z = center.getZ() + dz;
         BlockPos.Mutable pos = new BlockPos.Mutable();
         if (d <= rr) {
-            double depth = rr * 0.6 * Math.sqrt(1 - (d / rr) * (d / rr));
+            double half = Math.sqrt(1 - (d / rr) * (d / rr));
+            double depth = shape == Shape.SPHERE ? rr * half : rr * 0.6 * half;
             int floor = Math.max(bottom, (int) Math.round(center.getY() - depth));
-            int ceiling = Math.min(top, center.getY() + (int) (rr * 0.5 + (rr - d) * 0.4) + 2);
+            int ceiling = Math.min(top, shape == Shape.SPHERE
+                    ? (int) Math.round(center.getY() + rr * half)
+                    : center.getY() + (int) (rr * 0.5 + (rr - d) * 0.4) + 2);
             for (int y = floor + 1; y <= ceiling; y++) {
                 pos.set(x, y, z);
                 BlockState state = world.getBlockState(pos);
@@ -109,14 +137,14 @@ public final class Crater {
             }
             if (d < rr * 0.75 && random.nextFloat() < 0.04) {
                 pos.set(x, floor + 1, z);
-                if (world.getBlockState(pos.down()).isOpaqueFullCube(world, pos.down())) {
+                if (world.getBlockState(pos.down()).isOpaqueFullCube()) {
                     world.setBlockState(pos, Blocks.FIRE.getDefaultState(), Block.NOTIFY_ALL);
                 }
             }
         } else {
             // Blasted rim: scorch the surface just outside the bowl.
             int surface = world.getTopY(Heightmap.Type.MOTION_BLOCKING_NO_LEAVES, x, z) - 1;
-            if (surface >= bottom && Math.abs(surface - center.getY()) < radius) {
+            if (surface >= bottom && Math.abs(surface - center.getY()) < radius * 1.5) {
                 scorch(pos.set(x, surface, z), 0.55f);
             }
         }
@@ -124,7 +152,8 @@ public final class Crater {
 
     /** The fallen star itself: a glowing core studded with amethyst. */
     private void placeCore() {
-        int floorY = Math.max(world.getBottomY() + 1, (int) Math.round(center.getY() - radius * 0.6 * rim(0)));
+        double depth = shape == Shape.SPHERE ? radius * rim(0) : radius * 0.6 * rim(0);
+        int floorY = Math.max(world.getBottomY() + 1, (int) Math.round(center.getY() - depth));
         BlockPos core = new BlockPos(center.getX(), floorY, center.getZ());
         if (unbreakable(core, world.getBlockState(core))) return;
         world.setBlockState(core, Blocks.GLOWSTONE.getDefaultState(), Block.NOTIFY_ALL);
@@ -149,6 +178,7 @@ public final class Crater {
         BlockState state = world.getBlockState(pos);
         if (state.isAir() || !state.getFluidState().isEmpty() || unbreakable(pos, state)) return;
         if (random.nextFloat() > chance) return;
-        world.setBlockState(pos, SCORCH[random.nextInt(SCORCH.length)], Block.NOTIFY_LISTENERS | Block.FORCE_STATE);
+        BlockState[] palette = shape == Shape.SPHERE ? GLASS : SCORCH;
+        world.setBlockState(pos, palette[random.nextInt(palette.length)], Block.NOTIFY_LISTENERS | Block.FORCE_STATE);
     }
 }

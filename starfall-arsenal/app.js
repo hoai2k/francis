@@ -9,32 +9,32 @@ const ASSETS = './mod/src/main/resources/assets/starfall/';
 
 // Mirrors StrikeType.java in the mod.
 const TYPES = {
-  SHOOTING_STAR: { key: 'shooting_star', color: 0xffd25a, ignite: 40, duration: 150, name: 'SHOOTING STAR', jp: '流 星' },
-  COMET_SLASH: { key: 'comet_slash', color: 0x5ef0ff, ignite: 24, duration: 100, name: 'COMET SLASH', jp: '彗 星 斬' },
-  SEVEN_STARS: { key: 'seven_stars', color: 0xc08cff, ignite: 40, duration: 230, name: 'SEVEN STARS', jp: '北 斗 七 星' },
-  SUPERNOVA: { key: 'supernova', color: 0xff7a3a, ignite: 70, duration: 270, name: 'SUPERNOVA', jp: '超 新 星' },
+  ORBITAL_LANCE: { key: 'orbital_lance', color: 0xffd25a, ignite: 40, impact: 100, duration: 150, name: 'ORBITAL LANCE', jp: '衛 星 光 槍' },
+  COMET_DASH: { key: 'comet_dash', color: 0x5ef0ff, ignite: 12, impact: 44, duration: 80, name: 'COMET DASH', jp: '彗 星 突' },
+  CONSTELLATION: { key: 'constellation', color: 0xc08cff, ignite: 30, impact: 166, duration: 225, name: 'SEVEN STARS', jp: '北 斗 七 星' },
+  SUPERNOVA: { key: 'supernova', color: 0xff7a3a, ignite: 60, impact: 176, duration: 270, name: 'SUPERNOVA', jp: '超 新 星' },
 };
 
 const WEAPONS = [
   {
-    id: 'stellar_remote', name: 'Stellar Remote', type: 'SHOOTING_STAR', accent: '#ffd25a',
-    desc: 'A satellite detonator with a radar screen, a big red button and a star on the antenna. Point it, press it, and one shooting star lands on that spot.',
-    stats: { 'Crater radius': '11 blocks', 'Film length': '7.5 s', 'Cooldown': '10 s', 'Crafted from': 'Iron, gold, redstone, amethyst' },
+    id: 'stellar_remote', name: 'Stellar Remote', type: 'ORBITAL_LANCE', accent: '#ffd25a',
+    desc: 'A satellite detonator with a radar screen and a big red button. A targeting reticle locks on, then a satellite in orbit fires a beam that sweeps across the ground and burns a 30-block trench.',
+    stats: { 'Skill': 'Orbital Lance', 'Damage area': '30-block trench', 'Film length': '7.5 s', 'Cooldown': '10 s' },
   },
   {
-    id: 'starfall_blade', name: 'Starfall Blade', type: 'COMET_SLASH', accent: '#5ef0ff',
-    desc: 'A netherite-tier sword with a galaxy inside the blade and small stars orbiting the edge. Right-click and a comet comes in low from the horizon.',
-    stats: { 'Attack damage': '9 (netherite tier)', 'Crater radius': '6.5 blocks', 'Film length': '5 s', 'Cooldown': '5 s' },
+    id: 'starfall_blade', name: 'Starfall Blade', type: 'COMET_DASH', accent: '#5ef0ff',
+    desc: 'A netherite-tier sword with a galaxy inside the blade. No star falls: you become the comet. You charge forward through every mob in your way, leap into the air and slam down with a shockwave.',
+    stats: { 'Skill': 'Comet Dash', 'Attack damage': '9 (netherite tier)', 'Film length': '4 s', 'Cooldown': '5 s' },
   },
   {
-    id: 'seven_stars_scepter', name: 'Seven Stars Scepter', type: 'SEVEN_STARS', accent: '#c08cff',
-    desc: 'A violet staff with the Big Dipper floating above a gyroscope head. All seven stars fall one by one, in the shape of the constellation.',
-    stats: { 'Stars': '7', 'Crater radius': '5.5 blocks each', 'Film length': '11.5 s', 'Cooldown': '20 s' },
+    id: 'seven_stars_scepter', name: 'Seven Stars Scepter', type: 'CONSTELLATION', accent: '#c08cff',
+    desc: 'Seven stars float down into the shape of the Big Dipper. Glowing lines join them, a gravity well drags every mob inward, then all seven dive into one implosion.',
+    stats: { 'Skill': 'Seven Stars', 'Pull radius': '22 blocks', 'Film length': '11 s', 'Cooldown': '20 s' },
   },
   {
     id: 'supernova_core', name: 'Supernova Core', type: 'SUPERNOVA', accent: '#ff7a3a',
-    desc: 'A captured star spinning inside three gyroscope rings. It calls down a star the size of a house. Stand well back.',
-    stats: { 'Crater radius': '19 blocks', 'Film length': '13.5 s', 'Cooldown': '60 s', 'Crafted from': '8 Star Fragments + Nether Star' },
+    desc: 'A star appears over the target and swells into a black hole that rips blocks out of the ground and swallows them. Then it collapses and explodes in a supernova that erases a 22-block sphere.',
+    stats: { 'Skill': 'Supernova', 'Blast': '22-block sphere', 'Film length': '13.5 s', 'Cooldown': '60 s' },
   },
 ];
 
@@ -312,29 +312,48 @@ function armory(onPlay) {
 }
 
 // ------------------------------------------------------- strike planner ---
-const DIPPER = [[-19, 0], [-11, 3], [-5, 2], [1, 0], [3, -8], [13, -7], [12, 4]];
+// Port of StrikePlan.java: same geometry and timings as the mod.
+const LANCE_FIRE = 50, LANCE_END = 100, LANCE_HALF = 15;
+const DASH_START = 12, DASH_LEAP = 28, DASH_SLAM = 44;
+const CONST_LINES = 95, CONST_STEP = 7, CONST_CONVERGE = 152, CONST_IMPLODE = 166, CONST_PULL = 22;
+const NOVA_APPEAR = 60, NOVA_COLLAPSE = 160, NOVA = 176, NOVA_HEIGHT = 10, NOVA_RADIUS = 22;
+const DIPPER = [[-15, 0], [-9, 2.4], [-4, 1.6], [1, 0], [2.5, -6.5], [10.5, -5.5], [9.6, 3.2]];
+const MIN_DIST = { ORBITAL_LANCE: 25, COMET_DASH: 18, CONSTELLATION: 30, SUPERNOVA: 34 };
 
-/** Same layout as StrikeType.plan() in the mod. */
-function plan(typeName, origin, target) {
-  const T = TYPES[typeName];
-  let back = V(origin.x - target.x, 0, origin.z - target.z);
-  back = back.lengthSq() < 1e-4 ? V(0, 0, 1) : back.normalize();
-  const side = V(-back.z, 0, back.x);
-  const at = (base, b, s, u) => base.clone().addScaledVector(back, b).addScaledVector(side, s).add(V(0, u, 0));
-  const star = (start, end, ignite, travel, radius, size) => ({ start, end, ignite, travel, radius, size, impact: ignite + travel });
-  switch (typeName) {
-    case 'SHOOTING_STAR': return [star(at(target, 90, 25, 150), target.clone(), T.ignite, 50, 11, 3.2)];
-    case 'COMET_SLASH': return [star(at(target, 110, -30, 55), target.clone(), T.ignite, 30, 6.5, 2.2)];
-    case 'SEVEN_STARS': return DIPPER.map(([dx, dy], i) => {
-      const land = at(target, dy * 0.8, dx * 0.8, 0);
-      return star(at(land, 70 + i * 3, 10 - i * 3, 140), land, T.ignite + i * 14, 44, 5.5, 2.4);
-    });
-    default: return [star(at(target, 60, -20, 230), target.clone(), T.ignite, 90, 19, 10)];
+class Plan {
+  constructor(type, origin, target) {
+    this.type = type;
+    this.origin = origin;
+    this.target = target;
+    const b = V(origin.x - target.x, 0, origin.z - target.z);
+    this.back = b.lengthSq() < 1e-4 ? V(0, 0, 1) : b.normalize();
+    this.fwd = this.back.clone().negate();
+    this.side = V(-this.back.z, 0, this.back.x);
+  }
+  at(base, back, side, up) { return base.clone().addScaledVector(this.back, back).addScaledVector(this.side, side).add(V(0, up, 0)); }
+  lanceSat() { return this.at(this.target, 30, 14, 170); }
+  lancePoint(t) { return this.target.clone().addScaledVector(this.fwd, -LANCE_HALF + 2 * LANCE_HALF * smooth(progress(t, LANCE_FIRE, LANCE_END))); }
+  constHome(i) { return this.at(this.target, DIPPER[i][1], DIPPER[i][0], 15); }
+  constArrive(i) { return 60 + i * 8; }
+  constPos(i, t) {
+    const home = this.constHome(i), arrive = this.constArrive(i);
+    if (t < arrive) {
+      const sky = this.at(home, 40, 0, 120);
+      return sky.lerp(home, 1 - Math.pow(1 - progress(t, arrive - 30, arrive), 2.2));
+    }
+    if (t < CONST_CONVERGE) return home.add(V(0, Math.sin(t * 0.15 + i) * 0.4, 0));
+    return home.lerp(this.target.clone().add(V(0, 1, 0)), Math.pow(progress(t, CONST_CONVERGE, CONST_IMPLODE), 2));
+  }
+  constLine(i, t) { return progress(t, CONST_LINES + i * CONST_STEP, CONST_LINES + i * CONST_STEP + 5); }
+  novaCenter() { return this.target.clone().add(V(0, NOVA_HEIGHT, 0)); }
+  novaSize(t) {
+    if (t < NOVA_APPEAR - 20) return 0;
+    if (t < NOVA_APPEAR) return 1.5 * progress(t, NOVA_APPEAR - 20, NOVA_APPEAR);
+    if (t < NOVA_COLLAPSE) return 1.5 + 7.5 * smooth(progress(t, NOVA_APPEAR, NOVA_COLLAPSE));
+    if (t < NOVA) return 9 - 8.5 * Math.pow(progress(t, NOVA_COLLAPSE, NOVA), 0.6);
+    return 0;
   }
 }
-
-const ease = (p) => Math.pow(clamp(p, 0, 1), 1.7);
-const starPosAt = (s, t) => s.start.clone().lerp(s.end, ease((t - s.ignite) / s.travel));
 
 // ---------------------------------------------------------------- film ---
 function film() {
@@ -484,9 +503,7 @@ function film() {
   const additive = (color, opacity = 1, tex = GLOW_TEX) => new THREE.SpriteMaterial({ map: tex, color, transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false });
   const fx = new THREE.Group();
   scene.add(fx);
-  let starVis = [];
   let particles = [];
-  const particleGeo = new THREE.PlaneGeometry(1, 1);
 
   function spawnParticle(pos, vel, color, size, life, opts = {}) {
     const s = new THREE.Sprite(opts.smoke
@@ -498,110 +515,338 @@ function film() {
     particles.push({ s, vel, life, max: life, size, grow: opts.grow || 0, gravity: opts.gravity || 0 });
   }
 
-  function makeStarVisual(spec, color) {
-    const g = new THREE.Group();
+  const addMat = (color, opacity = 1) => new THREE.MeshBasicMaterial({
+    color, transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
+  });
+  let pieces = [];
+  const own = (o) => { fx.add(o); pieces.push(o); return o; };
+
+  /** A star: halo, white core and two counter-spinning sparkles. */
+  function makeStar(color) {
+    const g = own(new THREE.Group());
     const halo = new THREE.Sprite(additive(color, 0.9));
     const core = new THREE.Sprite(additive(0xffffff, 1));
     const sp1 = new THREE.Sprite(additive(0xfff6e0, 1, SPARKLE_TEX));
     const sp2 = new THREE.Sprite(additive(color, 1, SPARKLE_TEX));
     g.add(halo, core, sp1, sp2);
-    const tail = [];
-    for (let i = 0; i < 26; i++) {
-      const t = new THREE.Sprite(additive(i % 3 ? color : 0xffffff, 1));
-      tail.push(t);
-      g.add(t);
-    }
     g.visible = false;
-    fx.add(g);
-    const ring = new THREE.Mesh(new THREE.RingGeometry(0.8, 1, 64), new THREE.MeshBasicMaterial({ color, transparent: true, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, depthWrite: false }));
-    ring.rotation.x = -Math.PI / 2;
-    ring.position.copy(spec.end).add(V(0, 0.6, 0));
-    ring.visible = false;
-    const pillar = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 160, 24, 1, true), new THREE.MeshBasicMaterial({ color, transparent: true, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, depthWrite: false }));
-    pillar.position.copy(spec.end).add(V(0, 80, 0));
-    pillar.visible = false;
-    const fire = new THREE.Sprite(additive(color, 1));
-    const fireCore = new THREE.Sprite(additive(0xfff4d0, 1));
-    fire.position.copy(spec.end).add(V(0, spec.radius * 0.3, 0));
-    fireCore.position.copy(fire.position);
-    fire.visible = fireCore.visible = false;
-    fx.add(ring, pillar, fire, fireCore);
-    return { spec, g, halo, core, sp1, sp2, tail, ring, pillar, fire, fireCore, done: false };
+    return {
+      set(p, size, t) {
+        g.visible = size > 0.01;
+        if (!g.visible) return;
+        [halo, core, sp1, sp2].forEach((s) => s.position.copy(p));
+        halo.scale.setScalar(size * 6);
+        core.scale.setScalar(size * 1.8);
+        sp1.scale.setScalar(size * 5);
+        sp2.scale.setScalar(size * 3);
+        sp1.material.rotation = t * 0.09;
+        sp2.material.rotation = 0.78 - t * 0.19;
+      },
+    };
   }
 
-  function updateStar(v, t, color) {
-    const { spec } = v;
-    if (t < spec.ignite - 20) return;
-    if (t < spec.impact) {
-      const p = starPosAt(spec, t);
-      const grow = clamp((t - (spec.ignite - 20)) / 20, 0, 1);
-      const tw = t < spec.ignite ? 1 + 0.35 * Math.sin(t * 1.7) : 1;
-      const size = spec.size * (0.25 + 0.75 * grow) * tw;
-      v.g.visible = true;
-      v.halo.position.copy(p); v.halo.scale.setScalar(size * 6);
-      v.core.position.copy(p); v.core.scale.setScalar(size * 1.8);
-      v.sp1.position.copy(p); v.sp1.scale.setScalar(size * 5); v.sp1.material.rotation = t * 0.09;
-      v.sp2.position.copy(p); v.sp2.scale.setScalar(size * 3); v.sp2.material.rotation = 0.78 - t * 0.19;
-      const dir = spec.end.clone().sub(spec.start).normalize();
-      const flown = p.distanceTo(spec.start);
-      const len = Math.min(flown, spec.size * 22);
-      v.tail.forEach((s, i) => {
-        const f = i / v.tail.length;
-        s.visible = t > spec.ignite;
-        s.position.copy(p).addScaledVector(dir, -len * f);
-        s.scale.setScalar(spec.size * 2.2 * Math.pow(1 - f, 0.8) + 0.2);
-        s.material.opacity = Math.pow(1 - f, 1.4) * clamp((s.position.distanceTo(camera.position) - 10) / 20, 0, 1);
-      });
-      if (t > spec.ignite && Math.random() < 0.9) {
-        spawnParticle(p.clone().add(V((Math.random() - 0.5) * spec.size, (Math.random() - 0.5) * spec.size, (Math.random() - 0.5) * spec.size)),
-          V((Math.random() - 0.5) * 2, Math.random(), (Math.random() - 0.5) * 2), Math.random() < 0.5 ? 0xffffff : color, spec.size * 0.5, 25);
-        if (Math.random() < 0.4) spawnParticle(p.clone(), V(0, 0.5, 0), 0x2a2a36, spec.size * 0.9, 40, { smoke: true, grow: spec.size * 0.05 });
-      }
-      return;
-    }
-    v.g.visible = false;
-    if (!v.done) {
-      v.done = true;
-      impact(spec, color);
-    }
-    const a = t - spec.impact;
-    const fire = Math.pow(clamp(1 - a / 30, 0, 1), 2);
-    v.fire.visible = v.fireCore.visible = fire > 0;
-    const fs = spec.radius * (1.6 + a / 8);
-    v.fire.scale.setScalar(fs * 2.2); v.fire.material.opacity = fire;
-    v.fireCore.scale.setScalar(fs); v.fireCore.material.opacity = fire;
-    const ring = clamp(1 - a / 25, 0, 1);
-    v.ring.visible = ring > 0;
-    v.ring.scale.setScalar(spec.radius * (0.75 + a * 0.28));
-    v.ring.material.opacity = ring;
-    const pillar = clamp(1 - a / 18, 0, 1);
-    v.pillar.visible = pillar > 0;
-    v.pillar.scale.set(spec.radius * 0.35 * pillar + 0.01, 1, spec.radius * 0.35 * pillar + 0.01);
-    v.pillar.material.opacity = pillar * 0.8;
+  /** A glowing cylinder between two points. */
+  function makeBeam(color) {
+    const m = own(new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 1, 14, 1, true), addMat(color)));
+    m.visible = false;
+    return {
+      set(a, b, width, opacity = 1) {
+        m.visible = width > 0.01 && opacity > 0.01;
+        if (!m.visible) return;
+        const d = b.clone().sub(a);
+        m.position.copy(a).addScaledVector(d, 0.5);
+        m.scale.set(width, d.length(), width);
+        m.quaternion.setFromUnitVectors(V(0, 1, 0), d.normalize());
+        m.material.opacity = opacity;
+      },
+    };
   }
 
-  function impact(spec, color) {
-    carve(spec.end, spec.radius);
-    flashLight.position.copy(spec.end).add(V(0, 6, 0));
+  /** A flat ring on the ground (or tilted, for the accretion disc). */
+  function makeRing(color, inner = 0.82) {
+    const m = own(new THREE.Mesh(new THREE.RingGeometry(inner, 1, 72), addMat(color)));
+    m.visible = false;
+    return {
+      m,
+      set(p, radius, opacity = 1, spin = 0, tilt = -Math.PI / 2) {
+        m.visible = radius > 0.01 && opacity > 0.01;
+        if (!m.visible) return;
+        m.position.copy(p);
+        m.rotation.set(tilt, 0, spin);
+        m.scale.setScalar(radius);
+        m.material.opacity = opacity;
+      },
+    };
+  }
+
+  /** A tapering comet tail of sprites behind a moving head. */
+  function makeTail(color, n = 22) {
+    const sprites = Array.from({ length: n }, (_, i) => own(new THREE.Sprite(additive(i % 3 ? color : 0xffffff, 1))));
+    sprites.forEach((s) => { s.visible = false; });
+    return {
+      set(head, dir, length, size, opacity = 1) {
+        sprites.forEach((s, i) => {
+          const f = i / n;
+          s.visible = opacity > 0.01;
+          s.position.copy(head).addScaledVector(dir, -length * f);
+          s.scale.setScalar(size * 2.2 * Math.pow(1 - f, 0.8) + 0.15);
+          s.material.opacity = opacity * Math.pow(1 - f, 1.4) * clamp((s.position.distanceTo(camera.position) - 6) / 14, 0, 1);
+        });
+      },
+    };
+  }
+
+  /** Fireball, ground shockwave and a pillar of light after an impact. */
+  function makeAftermath(color) {
+    const fire = own(new THREE.Sprite(additive(color, 1)));
+    const core = own(new THREE.Sprite(additive(0xfff4d0, 1)));
+    const ring = makeRing(color);
+    const pillar = makeBeam(color);
+    fire.visible = core.visible = false;
+    return {
+      set(at, radius, a) {
+        const f = a >= 0 ? Math.pow(clamp(1 - a / 30, 0, 1), 2) : 0;
+        fire.visible = core.visible = f > 0;
+        const size = radius * (1.6 + Math.max(a, 0) / 8);
+        fire.position.copy(at).add(V(0, radius * 0.3, 0));
+        core.position.copy(fire.position);
+        fire.scale.setScalar(size * 2.2);
+        core.scale.setScalar(size);
+        fire.material.opacity = core.material.opacity = f;
+        ring.set(at.clone().add(V(0, 0.6, 0)), radius * (0.75 + Math.max(a, 0) * 0.28), a >= 0 ? clamp(1 - a / 25, 0, 1) : 0);
+        const p = a >= 0 ? clamp(1 - a / 18, 0, 1) : 0;
+        pillar.set(at, at.clone().add(V(0, 160, 0)), radius * 0.35 * p, p * 0.8);
+      },
+    };
+  }
+
+  function blast(at, radius, color) {
+    flashLight.position.copy(at).add(V(0, 6, 0));
     flashLight.color.set(color);
-    flashLight.intensity = 400 + spec.radius * 60;
-    const c = spec.end;
-    const n = Math.min(160, 40 + spec.radius * 8);
+    flashLight.intensity = 400 + radius * 60;
+    const n = Math.min(160, 40 + radius * 8);
     for (let i = 0; i < n; i++) {
       const dir = V(Math.random() - 0.5, Math.random() * 0.9 + 0.2, Math.random() - 0.5).normalize();
-      spawnParticle(c.clone().add(V(0, 1, 0)), dir.multiplyScalar(spec.radius * (0.8 + Math.random() * 1.6)),
+      spawnParticle(at.clone().add(V(0, 1, 0)), dir.multiplyScalar(radius * (0.8 + Math.random() * 1.6)),
         [0xffffff, color, 0xff8a2e, 0xffd25a][i % 4], 0.6 + Math.random() * 1.2, 30 + Math.random() * 30, { gravity: 18 });
     }
     for (let i = 0; i < 64; i++) {
       const a = (i / 64) * Math.PI * 2;
-      spawnParticle(c.clone().add(V(0, 0.8, 0)), V(Math.cos(a), 0.05, Math.sin(a)).multiplyScalar(spec.radius * 3),
-        0xbbbbcc, 2.5, 26, { smoke: true, grow: 0.25 });
+      spawnParticle(at.clone().add(V(0, 0.8, 0)), V(Math.cos(a), 0.05, Math.sin(a)).multiplyScalar(radius * 3), 0xbbbbcc, 2.5, 26, { smoke: true, grow: 0.25 });
     }
-    for (let i = 0; i < spec.radius * 3; i++) {
-      spawnParticle(c.clone().add(V((Math.random() - 0.5) * spec.radius * 0.6, Math.random() * spec.radius, (Math.random() - 0.5) * spec.radius * 0.6)),
-        V(0, 2 + Math.random() * 3, 0), 0x55555f, spec.radius * 0.6, 80, { smoke: true, grow: 0.12 });
+    for (let i = 0; i < radius * 3; i++) {
+      spawnParticle(at.clone().add(V((Math.random() - 0.5) * radius * 0.6, Math.random() * radius, (Math.random() - 0.5) * radius * 0.6)),
+        V(0, 2 + Math.random() * 3, 0), 0x55555f, radius * 0.6, 80, { smoke: true, grow: 0.12 });
     }
-    sound.boom(spec.radius);
+    sound.boom(radius);
+  }
+
+  /** Highest block still standing in a column. */
+  function topY(x, z) {
+    const h = height(x, z);
+    for (let y = h + 6; y > h - 8; y--) {
+      const i = index.get(key(x, y, z));
+      if (i !== undefined && !blocks[i].gone) return y;
+    }
+    return h - 8;
+  }
+  const groundAt = (x, z) => topY(Math.floor(x), Math.floor(z)) + 1;
+
+  const GLASS = [0x1a1028, 0x2a2440, 0xff7a3a, 0x3a1f5a, 0xffb060, 0x101018];
+  function carveSphere(center, R) {
+    blocks.forEach((b, i) => {
+      if (b.gone) return;
+      const d = Math.hypot(b.x + 0.5 - center.x, b.y + 0.5 - center.y, b.z + 0.5 - center.z);
+      if (d < R) { b.gone = true; terrain.setMatrixAt(i, HIDDEN); }
+      else if (d < R + 1.6) terrain.setColorAt(i, col.set(GLASS[Math.floor(rand() * GLASS.length)]));
+    });
+    terrain.instanceMatrix.needsUpdate = true;
+    terrain.instanceColor.needsUpdate = true;
+  }
+
+  /** Blocks ripped out of the ground by the black hole. */
+  let debris = [];
+  const debrisGeo = new THREE.BoxGeometry(1, 1, 1);
+  function ripBlock(target, center) {
+    const a = Math.random() * Math.PI * 2, r = Math.sqrt(Math.random()) * 14;
+    const x = Math.floor(target.x + Math.cos(a) * r), z = Math.floor(target.z + Math.sin(a) * r);
+    const y = topY(x, z);
+    const i = index.get(key(x, y, z));
+    if (i === undefined) return;
+    blocks[i].gone = true;
+    terrain.setMatrixAt(i, HIDDEN);
+    terrain.instanceMatrix.needsUpdate = true;
+    const m = own(new THREE.Mesh(debrisGeo, new THREE.MeshLambertMaterial({ color: COLORS[blocks[i].kind] })));
+    m.position.set(x + 0.5, y + 0.5, z + 0.5);
+    debris.push({ m, center });
+  }
+  function updateDebris(dt) {
+    debris = debris.filter(({ m, center }) => {
+      const to = center.clone().sub(m.position);
+      const dist = to.length();
+      if (dist < 2) { fx.remove(m); return false; }
+      to.normalize();
+      const swirl = V(-to.z, 0, to.x).multiplyScalar(7);
+      m.position.addScaledVector(to.multiplyScalar(Math.min(22, 4 + 120 / dist)).add(swirl).add(V(0, 1, 0)), dt);
+      m.rotation.x += dt * 3;
+      m.rotation.y += dt * 2;
+      return true;
+    });
+  }
+
+  /** Builds the visuals for one strike and returns a per-frame update. */
+  function buildStrike(r) {
+    const { plan, T } = r;
+    const color = T.color;
+    if (r.type === 'ORBITAL_LANCE') {
+      const reticle = makeRing(color), reticle2 = makeRing(0xffffff, 0.9);
+      const sat = makeStar(color);
+      const outer = makeBeam(color), inner = makeBeam(0xffffff);
+      const hit = makeStar(color), ripple = makeRing(color);
+      const after = makeAftermath(color);
+      let carved = 0;
+      return (t) => {
+        const ground = plan.target.clone();
+        ground.y = groundAt(ground.x, ground.z) + 0.15;
+        const lock = progress(t, 0, LANCE_FIRE), pulse = 0.6 + 0.4 * Math.sin(t * 0.8);
+        reticle.set(ground, 9 - 6 * lock, t < LANCE_FIRE + 6 ? pulse : 0, t * 0.07);
+        reticle2.set(ground, 3.5 - lock, t < LANCE_FIRE + 6 ? 1 : 0, -t * 0.1);
+        sat.set(plan.lanceSat(), 6 * progress(t, 15, 35), t);
+        const firing = t >= LANCE_FIRE && t < LANCE_END;
+        const p = plan.lancePoint(t);
+        p.y = groundAt(p.x, p.z);
+        const warm = progress(t, LANCE_FIRE, LANCE_FIRE + 4);
+        outer.set(plan.lanceSat(), p, firing ? 4.5 * warm : 0, 0.8);
+        inner.set(plan.lanceSat(), p, firing ? 1.6 * warm : 0, 1);
+        hit.set(p.clone().add(V(0, 0.8, 0)), firing ? 2 : 0, t);
+        const rip = (t * 0.25) % 1;
+        ripple.set(p.clone().add(V(0, 0.3, 0)), 2 + rip * 7, firing ? 1 - rip : 0);
+        // Burn the trench as the beam passes.
+        while (firing && carved <= t) {
+          const q = plan.lancePoint(carved);
+          carve(V(q.x, groundAt(q.x, q.z) - 1, q.z), 3.2);
+          if (Math.random() < 0.7) spawnParticle(V(q.x, groundAt(q.x, q.z), q.z), V((Math.random() - 0.5) * 6, 6 + Math.random() * 6, (Math.random() - 0.5) * 6), [0xffd25a, 0xff8a2e][carved % 2], 0.8, 30, { gravity: 18 });
+          carved += 2;
+        }
+        if (firing && Math.random() < 0.5) spawnParticle(p.clone().add(V(0, 1, 0)), V(0, 3, 0), 0x2a2a36, 2, 40, { smoke: true, grow: 0.08 });
+        const end = plan.lancePoint(LANCE_END);
+        end.y = groundAt(end.x, end.z);
+        cue(r, 'end', t >= LANCE_END, () => { carve(V(end.x, end.y - 1, end.z), 6.5); blast(end, 6.5, color); });
+        after.set(end, 6.5, t - LANCE_END);
+      };
+    }
+    if (r.type === 'COMET_DASH') {
+      const aura = makeStar(color), tail = makeTail(color);
+      const after = makeAftermath(color);
+      const start = r.origin.clone();
+      // The caster's path: charge, leap, slam (kinematic version of the mod's client movement).
+      r.playerAt = (t) => {
+        const s = t < DASH_START ? 0 : t < DASH_LEAP ? 1.7 * (t - DASH_START) : 1.7 * (DASH_LEAP - DASH_START) + 0.9 * (Math.min(t, DASH_SLAM) - DASH_LEAP);
+        const p = start.clone().addScaledVector(plan.fwd, s);
+        const g = groundAt(p.x, p.z);
+        const jump = t > DASH_LEAP && t < DASH_SLAM ? 7 * (1 - ((t - 36) / 8) ** 2) : 0;
+        p.y = g + Math.max(0, jump);
+        return p;
+      };
+      return (t) => {
+        const p = r.playerAt(t);
+        const dashing = t >= DASH_START - 6 && t < DASH_SLAM;
+        const core = p.clone().add(V(0, 1, 0));
+        const next = r.playerAt(t + 1).sub(p);
+        aura.set(core, dashing ? 0.5 * progress(t, DASH_START - 6, DASH_START) : 0, t * 2);
+        tail.set(core, next.lengthSq() > 0.01 ? next.normalize() : plan.fwd, 14, 0.9, dashing && t >= DASH_START ? 1 : 0);
+        if (dashing && t >= DASH_START) {
+          spawnParticle(core.clone().add(V((Math.random() - 0.5), (Math.random() - 0.5) * 1.5, (Math.random() - 0.5))), V(0, 0.5, 0), Math.random() < 0.5 ? 0xffffff : color, 0.5, 20);
+        }
+        r.slamPos = r.slamPos || null;
+        cue(r, 'slam', t >= DASH_SLAM, () => {
+          r.slamPos = r.playerAt(DASH_SLAM);
+          carve(V(r.slamPos.x, r.slamPos.y - 1, r.slamPos.z), 5.5);
+          blast(r.slamPos, 5.5, color);
+        });
+        if (r.slamPos) after.set(r.slamPos, 5.5, t - DASH_SLAM);
+      };
+    }
+    if (r.type === 'CONSTELLATION') {
+      const stars = DIPPER.map((_, i) => makeStar(i % 2 ? color : 0xff8ce6));
+      const tails = DIPPER.map((_, i) => makeTail(i % 2 ? color : 0xff8ce6, 12));
+      const lines = DIPPER.slice(1).map(() => [makeBeam(color), makeBeam(0xffffff)]);
+      const vortex = [makeRing(color, 0.9), makeRing(color, 0.75), makeRing(0xffffff, 0.95)];
+      const after = makeAftermath(color);
+      return (t) => {
+        DIPPER.forEach((_, i) => {
+          const visible = t >= plan.constArrive(i) - 34 && t < CONST_IMPLODE;
+          const p = plan.constPos(i, t);
+          stars[i].set(p, visible ? 0.8 * progress(t, plan.constArrive(i) - 34, plan.constArrive(i) - 24) : 0, t + i * 7);
+          const falling = visible && (t < plan.constArrive(i) || t >= CONST_CONVERGE);
+          tails[i].set(p, plan.constPos(i, t + 1).sub(p).normalize(), 16, 0.6, falling ? 1 : 0);
+          cue(r, 'chime' + i, t >= plan.constArrive(i), () => sound.chime());
+        });
+        lines.forEach(([o, n], i) => {
+          let k = plan.constLine(i, t);
+          if (t >= CONST_CONVERGE) k *= 1 - progress(t, CONST_CONVERGE, CONST_CONVERGE + 6);
+          o.set(plan.constPos(i, t), plan.constPos(i + 1, t), 0.7, k * 0.8);
+          n.set(plan.constPos(i, t), plan.constPos(i + 1, t), 0.25, k);
+        });
+        const pulling = t >= CONST_LINES + 40 && t < CONST_IMPLODE;
+        const on = pulling ? progress(t, CONST_LINES + 40, CONST_LINES + 55) : 0;
+        const g = plan.target.clone();
+        g.y = groundAt(g.x, g.z) + 0.2;
+        vortex[0].set(g, CONST_PULL, on * 0.6, t * 0.05);
+        vortex[1].set(g, 11, on, -t * 0.08);
+        vortex[2].set(g, 6 + Math.sin(t * 0.3), on * 0.8, t * 0.1);
+        if (pulling) {
+          const a = Math.random() * Math.PI * 2, rr = 6 + Math.random() * CONST_PULL;
+          const p = g.clone().add(V(Math.cos(a) * rr, 0.5 + Math.random() * 4, Math.sin(a) * rr));
+          spawnParticle(p, g.clone().add(V(0, 4, 0)).sub(p).multiplyScalar(1.2), color, 0.4, 25);
+        }
+        cue(r, 'implode', t >= CONST_IMPLODE, () => { carve(V(g.x, g.y - 1, g.z), 9); blast(g, 9, color); });
+        after.set(g, 9, t - CONST_IMPLODE);
+      };
+    }
+    // SUPERNOVA
+    const star = makeStar(color);
+    const disc1 = makeRing(color, 0.55), disc2 = makeRing(0x8a3aff, 0.7);
+    const shell = own(new THREE.Mesh(new THREE.SphereGeometry(1, 32, 16), addMat(color, 1)));
+    const shellRings = [makeRing(0xffffff, 0.92), makeRing(color, 0.9), makeRing(0xffffff, 0.92)];
+    shell.visible = false;
+    const after = makeAftermath(color);
+    let ripped = NOVA_APPEAR + 10;
+    return (t) => {
+      const c = plan.novaCenter();
+      const size = plan.novaSize(t);
+      star.set(c, size * 0.45, t);
+      const swallowing = t >= NOVA_APPEAR && t < NOVA_COLLAPSE;
+      disc1.set(c, size * 2.4, swallowing ? 0.9 : 0, t * 0.12, -1.2);
+      disc2.set(c, size * 3.4, swallowing ? 0.5 : 0, -t * 0.07, -1.2);
+      while (swallowing && ripped <= t) {
+        for (let i = 0; i < 2; i++) ripBlock(plan.target, c);
+        ripped += 1;
+      }
+      if (t >= NOVA_APPEAR && t < NOVA) {
+        const a = Math.random() * Math.PI * 2, rr = 8 + Math.random() * 18;
+        const p = c.clone().add(V(Math.cos(a) * rr, (Math.random() - 0.5) * 6, Math.sin(a) * rr));
+        spawnParticle(p, c.clone().sub(p).multiplyScalar(1.6), Math.random() < 0.5 ? 0x8a3aff : color, 0.5, 14);
+      }
+      cue(r, 'nova', t >= NOVA, () => {
+        debris.forEach(({ m }) => fx.remove(m));
+        debris = [];
+        carveSphere(c, NOVA_RADIUS);
+        blast(plan.target, 17, color);
+      });
+      const a = t - NOVA;
+      const k = a >= 0 ? clamp(1 - a / 40, 0, 1) : 0;
+      const R = NOVA_RADIUS * (0.3 + Math.max(a, 0) / 7);
+      shell.visible = k > 0;
+      shell.position.copy(c);
+      shell.scale.setScalar(R);
+      shell.material.opacity = k * 0.35;
+      shellRings.forEach((ring, i) => {
+        ring.set(c, R, k, 0, i === 0 ? -Math.PI / 2 : 0);
+        if (i === 2) ring.m.rotation.set(0, Math.PI / 2, 0);
+      });
+      after.set(plan.target, 12, a);
+    };
   }
 
   // ---- sound (synthesised; no files) ----
@@ -695,28 +940,26 @@ function film() {
   // ---- the director (port of Cutscene.java) ----
   let run = null;
 
+  function cue(r, name, cond, fn) {
+    if (cond && !r.cues.has(name)) { r.cues.add(name); fn(); }
+  }
+
   function startFilm(typeName) {
     sound.unlock();
     stopFilm();
     resetTerrain();
     const T = TYPES[typeName];
     const origin = V(0.5, height(0, 22) + 1, 22.5);
-    const tmp = plan(typeName, origin, V(0.5, 0, 0));
-    const maxR = Math.max(...tmp.map((s) => s.radius));
-    const dist = maxR * 1.6 + 7 + (typeName === 'SEVEN_STARS' ? 14 : 0);
-    const tz = Math.floor(origin.z - dist);
+    const tz = Math.floor(origin.z - MIN_DIST[typeName]);
     const target = V(0.5, height(0, tz) + 1, tz + 0.5);
-    const stars = plan(typeName, origin, target);
-    let back = V(origin.x - target.x, 0, origin.z - target.z).normalize();
+    const plan = new Plan(typeName, origin, target);
     const r = {
-      type: typeName, T, origin, target, stars, back, fwd: back.clone().negate(), side: V(-back.z, 0, back.x),
+      type: typeName, T, plan, origin, target,
       eye: origin.clone().add(V(0, 1.62, 0)),
-      radius: typeName === 'SEVEN_STARS' ? 16 : maxR,
-      last: Math.max(...stars.map((s) => s.impact)),
-      vis: stars.map((s) => makeStarVisual(s, T.color)),
       start: performance.now(),
       cues: new Set(),
     };
+    r.update = buildStrike(r);
     run = r;
     player.position.copy(origin);
     player.rotation.y = 0;
@@ -738,113 +981,131 @@ function film() {
 
   function stopFilm() {
     if (!run) return;
-    for (const v of run.vis) fx.remove(v.g, v.ring, v.pillar, v.fire, v.fireCore);
+    for (const o of pieces) fx.remove(o);
     for (const p of particles) fx.remove(p.s);
+    for (const d of debris) fx.remove(d.m);
+    pieces = [];
     particles = [];
+    debris = [];
     run = null;
     flashLight.intensity = 0;
+    player.position.set(0.5, height(0, 22) + 1, 22.5);
+    armPivot.rotation.x = 0;
     box.classList.remove('rolling');
     document.getElementById('film-title').style.opacity = 0;
     document.getElementById('film-flash').style.opacity = 0;
     document.getElementById('film-count').textContent = '';
   }
 
+  function heroCloseUp(r, t, end) {
+    const u = smooth(progress(t, 0, end));
+    const { eye, plan } = r;
+    return [eye.clone().addScaledVector(plan.fwd, 2.6 - u * 0.6).addScaledVector(plan.side, 1.4 - 2.6 * u).add(V(0, -0.5 + 0.3 * u, 0)), eye.clone().add(V(0, -0.1 + 0.5 * u, 0))];
+  }
+
+  function around(plan, center, angle, dist) {
+    return center.clone().addScaledVector(plan.back, Math.cos(angle) * dist).addScaledVector(plan.side, Math.sin(angle) * dist);
+  }
+
   function script(r, t) {
-    const lead = r.stars[0];
-    const ig = r.T.ignite;
-    const closeEnd = ig * 0.45;
-    const { eye, fwd, side, back, origin, target, radius } = r;
-    if (t < closeEnd) {
-      const u = smooth(progress(t, 0, closeEnd));
-      return [eye.clone().addScaledVector(fwd, 2.6 - u * 0.6).addScaledVector(side, 1.4 - 2.6 * u).add(V(0, -0.5 + 0.3 * u, 0)), eye.clone().add(V(0, -0.1, 0))];
-    }
-    if (t < ig) {
-      const u = smooth(progress(t, closeEnd, ig));
-      return [origin.clone().addScaledVector(fwd, 3.4).addScaledVector(side, -1.2).add(V(0, 0.35, 0)), eye.clone().add(V(0, 0.6, 0)).lerp(lead.start, u * 0.9)];
-    }
-    if (t < ig + 18) {
-      return [eye.clone().addScaledVector(fwd, 2.8).addScaledVector(side, 0.6).add(V(0, -0.4, 0)), starPosAt(lead, t)];
-    }
-    const wideStart = r.last - 8;
-    if (t < wideStart) {
-      if (r.type === 'SEVEN_STARS') {
-        const a = (t - ig) * 0.008;
-        const dir = back.clone().multiplyScalar(Math.cos(a)).addScaledVector(side, Math.sin(a));
-        return [target.clone().addScaledVector(dir, 54).add(V(0, 22, 0)), target.clone().add(V(0, 14, 0))];
+    const { plan, eye, T } = r;
+    const { target, side, back, fwd } = plan;
+    const at = (base, b, s, u) => base.clone().addScaledVector(back, b).addScaledVector(side, s).add(V(0, u, 0));
+    if (r.type === 'ORBITAL_LANCE') {
+      if (t < 25) return heroCloseUp(r, t, 25);
+      if (t < LANCE_FIRE) return [at(target, 6, 0, 30 - smooth(progress(t, 25, LANCE_FIRE)) * 8), target.clone()];
+      if (t < LANCE_FIRE + 12) {
+        const g = target.clone().addScaledVector(fwd, -LANCE_HALF);
+        const cam = at(g, 6, 9, 0);
+        cam.y = groundAt(cam.x, cam.z) + 1.5;
+        return [cam, plan.lanceSat().lerp(g, 0.85)];
       }
-      if (r.type === 'SUPERNOVA' && t > ig + 50) {
-        const u = progress(t, ig + 50, wideStart);
-        return [target.clone().addScaledVector(back, radius * 2.8 - u * 6).addScaledVector(side, radius).add(V(0, 3, 0)), starPosAt(lead, t).lerp(target, 0.1)];
+      if (t < LANCE_END) {
+        const p = plan.lancePoint(t);
+        p.y = groundAt(p.x, p.z);
+        const cam = at(p, 5, 12, 5);
+        cam.y = Math.max(cam.y, groundAt(cam.x, cam.z) + 4);
+        return [cam, p.clone().add(V(0, 1, 0))];
       }
-      const p = starPosAt(lead, t);
-      const dir = lead.end.clone().sub(lead.start).normalize();
-      const cam = p.clone().addScaledVector(dir, -(14 + lead.size * 3)).addScaledVector(side, 8 + lead.size).add(V(0, 4, 0));
-      cam.y = Math.max(cam.y, target.y + 6);
-      return [cam, p.clone().lerp(target, 0.15)];
+      return [at(target, 12, 26, 14 + smooth(progress(t, LANCE_END, T.duration)) * 12), target.clone()];
     }
-    const wide = target.clone().addScaledVector(side, radius * 2.6 + 14).addScaledVector(back, radius * 1.8 + 10).add(V(0, radius * 0.9 + 8, 0));
-    if (t < r.last + 30) {
-      const u = smooth(progress(t, wideStart, r.last + 30));
-      const look = target.clone().add(V(0, radius * 0.25, 0));
-      if (t < r.last && r.type !== 'SEVEN_STARS') look.lerp(starPosAt(lead, t), 0.3 * (1 - progress(t, wideStart, r.last)));
-      return [wide.clone().lerp(target, 0.12 * u), look];
+    if (r.type === 'COMET_DASH') {
+      const p = r.playerAt(t);
+      if (t < DASH_START) return [eye.clone().addScaledVector(fwd, 2.2).addScaledVector(side, 0.9).add(V(0, -0.7, 0)), eye.clone().add(V(0, -0.2, 0))];
+      if (r.slamPos && t >= DASH_SLAM) return [at(r.slamPos, 7, 11, 4 + smooth(progress(t, DASH_SLAM, T.duration)) * 6), r.slamPos.clone()];
+      if (t < DASH_LEAP) return [at(p, 0, 5, 1.2).addScaledVector(fwd, -1.5), p.clone().addScaledVector(fwd, 3).add(V(0, 1, 0))];
+      return [at(p, 0, 7, -2).addScaledVector(fwd, 4), p.clone().add(V(0, 1, 0))];
     }
-    const u = smooth(progress(t, r.last + 30, r.T.duration));
-    return [wide.clone().lerp(target, 0.12).addScaledVector(back, u * radius).add(V(0, u * (radius + 10), 0)), target.clone().add(V(0, -radius * 0.2, 0))];
+    if (r.type === 'CONSTELLATION') {
+      if (t < 30) return heroCloseUp(r, t, 30);
+      const sky = target.clone().add(V(0, 14, 0));
+      if (t < CONST_LINES) return [at(target, 28 - progress(t, 30, CONST_LINES) * 4, -8, 2), sky];
+      if (t < CONST_LINES + 45) return [around(plan, target, (t - CONST_LINES) * 0.02, 30).add(V(0, 10, 0)), sky.clone().add(V(0, -2, 0))];
+      if (t < CONST_IMPLODE) return [at(target, 4, 0, 40), target.clone()];
+      return [at(target, 16, 22, 10 + smooth(progress(t, CONST_IMPLODE, T.duration)) * 10), target.clone()];
+    }
+    const c = plan.novaCenter();
+    if (t < 40) return heroCloseUp(r, t, 40);
+    if (t < NOVA_APPEAR) return [at(eye, 3, 1, 0.4), c];
+    if (t < 110) {
+      const cam = at(target, 30, 10, 0);
+      cam.y = groundAt(cam.x, cam.z) + 1.5;
+      return [cam, c];
+    }
+    if (t < NOVA_COLLAPSE) return [around(plan, c, (t - 110) * 0.03, 18).add(V(0, 4, 0)), c];
+    if (t < NOVA) return [at(c, 14 - progress(t, NOVA_COLLAPSE, NOVA) * 8, 0, 1), c];
+    return [at(target, 40, 55, 26 + smooth(progress(t, NOVA, T.duration)) * 14), target.clone()];
   }
 
   function shake(r, t) {
-    let s = 0;
-    for (const st of r.stars) {
-      const since = t - st.impact;
-      if (since >= 0 && since < 30) s += (1 - since / 30) * (0.4 + st.radius / 8);
-    }
-    if (r.type === 'SUPERNOVA') s += progress(t, r.T.ignite, r.last) * 0.25;
+    const since = t - r.T.impact;
+    let s = since >= 0 && since < 30 ? (1 - since / 30) * (r.type === 'SUPERNOVA' ? 3 : 1.4) : 0;
+    if (r.type === 'ORBITAL_LANCE' && t >= LANCE_FIRE && t < LANCE_END) s += 0.25;
+    if (r.type === 'CONSTELLATION' && t > CONST_LINES + 40 && t < CONST_IMPLODE) s += 0.15;
+    if (r.type === 'SUPERNOVA' && t >= NOVA_APPEAR && t < NOVA) s += 0.05 + 0.4 * progress(t, NOVA_APPEAR, NOVA);
     return reducedMotion ? s * 0.2 : s;
   }
 
   function lens(r, t) {
-    const ig = r.T.ignite;
     let f;
-    if (t < ig * 0.45) f = 50;
-    else if (t < ig) f = 72;
-    else if (t < ig + 18) f = lerp(22, 34, progress(t, ig, ig + 18));
-    else if (t < r.last - 8) f = r.type === 'SEVEN_STARS' ? 62 : 80;
-    else f = 64;
-    for (const st of r.stars) {
-      const since = t - st.impact;
-      if (since >= 0 && since < 8) f -= (1 - since / 8) * 8;
+    switch (r.type) {
+      case 'ORBITAL_LANCE': f = t < 25 ? 50 : t < LANCE_FIRE ? 55 : t < LANCE_FIRE + 12 ? 45 : 72; break;
+      case 'COMET_DASH': f = t < DASH_START ? 50 : t >= DASH_SLAM ? 66 : t < DASH_LEAP ? 95 : 75; break;
+      case 'CONSTELLATION': f = t < 30 ? 50 : 70; break;
+      default: f = t < 40 ? 50 : t < NOVA_APPEAR ? 40 : t < NOVA_COLLAPSE ? 78 : t < NOVA ? lerp(45, 28, progress(t, NOVA_COLLAPSE, NOVA)) : 70;
     }
+    const since = t - r.T.impact;
+    if (since >= 0 && since < 8) f -= (1 - since / 8) * 10;
     return f;
   }
 
   function overlay(r, t) {
     const T = r.T;
-    let flash = 0;
-    for (const st of r.stars) {
-      const since = t - st.impact;
-      if (since >= 0 && since < 14) flash = Math.max(flash, (1 - since / 14) * Math.min(1, st.radius / 12));
-    }
-    const ign = Math.max(0, 1 - Math.abs(t - T.ignite) / 6) * 0.35;
+    const since = t - T.impact;
+    let flash = since >= 0 && since < 14 ? 1 - since / 14 : 0;
+    if (r.type === 'ORBITAL_LANCE') flash = Math.max(flash, 0.35 * Math.max(0, 1 - Math.abs(t - LANCE_FIRE) / 4));
+    let dark = 0;
+    if (r.type === 'SUPERNOVA' && t >= NOVA_APPEAR && t < NOVA) dark = 0.4 * progress(t, NOVA_APPEAR, NOVA_COLLAPSE);
     const fl = document.getElementById('film-flash');
-    fl.style.opacity = Math.max(flash * 0.95, ign) * (reducedMotion ? 0.3 : 1);
-    fl.style.background = flash > 0.6 || ign > flash ? '#fff6d0' : '#' + T.color.toString(16).padStart(6, '0');
-
+    if (flash > dark) {
+      fl.style.opacity = flash * 0.95 * (reducedMotion ? 0.3 : 1);
+      fl.style.background = flash > 0.6 ? '#fff6d0' : '#' + T.color.toString(16).padStart(6, '0');
+    } else {
+      fl.style.opacity = dark;
+      fl.style.background = '#05000f';
+    }
     const title = document.getElementById('film-title');
-    const tin = 6, tout = T.ignite + 22;
+    const tin = 4, tout = Math.max(T.ignite + 22, 34);
     if (t > tin && t < tout) {
       title.style.opacity = Math.min(1, (tout - t) / 8);
-      document.getElementById('film-name').textContent = T.name.slice(0, Math.floor((t - tin) / 1.3));
-      document.getElementById('film-jp').style.opacity = smooth(progress(t, tin + 8, tin + 16));
+      document.getElementById('film-name').textContent = T.name.slice(0, Math.floor((t - tin) / 1.1));
+      document.getElementById('film-jp').style.opacity = smooth(progress(t, tin + 6, tin + 14));
       document.getElementById('film-rule').style.width = Math.min(1, (t - tin) / 12) * 40 + '%';
     } else {
       title.style.opacity = 0;
     }
-    document.getElementById('film-count').textContent = t > T.ignite && t < r.last ? 'T-' + ((r.last - t) / 20).toFixed(2).padStart(5, '0') : '';
-  }
-
-  function cue(r, name, cond, fn) {
-    if (cond && !r.cues.has(name)) { r.cues.add(name); fn(); }
+    document.getElementById('film-count').textContent = r.type !== 'COMET_DASH' && t > T.ignite && t < T.impact
+      ? 'T-' + ((T.impact - t) / 20).toFixed(2).padStart(5, '0') : '';
   }
 
   function resize() {
@@ -879,16 +1140,16 @@ function film() {
       const r = run;
       const t = ((now - r.start) / 1000) * 20;
       if (t >= r.T.duration) { stopFilm(); idle(now); composer.render(); return; }
-      cue(r, 'chime', t >= r.T.ignite - 20, () => sound.chime());
-      cue(r, 'whoosh', t >= r.T.ignite, () => sound.whoosh((r.last - r.T.ignite) / 20));
-      // Caster raises the weapon to the sky during the wind-up.
-      armPivot.rotation.x = -Math.PI * 0.9 * smooth(progress(t, 4, r.T.ignite * 0.6)) * (1 - smooth(progress(t, r.last, r.last + 20)));
-      if (t < r.T.ignite && Math.random() < 0.8) {
-        const a = t * 0.45;
-        const rad = 2.2 - (t % 20) * 0.08;
+      // Caster raises the weapon during the wind-up (the dash keeps it forward).
+      const raise = r.type === 'COMET_DASH' ? 0.5 : 0.9;
+      armPivot.rotation.x = -Math.PI * raise * smooth(progress(t, 2, Math.max(8, r.T.ignite * 0.6))) * (1 - smooth(progress(t, r.T.impact, r.T.impact + 20)));
+      if (r.type !== 'COMET_DASH' && t < r.T.ignite && Math.random() < 0.8) {
+        const a = t * 0.45, rad = 2.2 - (t % 20) * 0.08;
         spawnParticle(r.origin.clone().add(V(Math.cos(a) * rad, (t % 20) * 0.11, Math.sin(a) * rad)), V(0, 0.4, 0), r.T.color, 0.35, 20);
       }
-      r.vis.forEach((v) => updateStar(v, t, r.T.color));
+      r.update(t);
+      if (r.playerAt) player.position.copy(r.playerAt(t));
+      updateDebris(dt);
       const [cam, look] = script(r, t);
       const k = shake(r, t);
       if (k > 0) {
@@ -922,7 +1183,7 @@ function film() {
   const picks = document.getElementById('film-picks');
   WEAPONS.forEach((w) => {
     const b = document.createElement('button');
-    b.className = 'btn' + (w.type === 'SHOOTING_STAR' ? ' primary' : '');
+    b.className = 'btn' + (w.type === 'ORBITAL_LANCE' ? ' primary' : '');
     b.textContent = '▶ ' + TYPES[w.type].name;
     b.addEventListener('click', () => startFilm(w.type));
     picks.appendChild(b);

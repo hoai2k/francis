@@ -334,6 +334,13 @@ def write_model(name, elements, kind):
     (MODELS / f"{name}.json").write_text(json.dumps(model, indent=1) + "\n")
 
 
+def item_definition(name):
+    """Minecraft 1.21.4+ looks items up in assets/<ns>/items/ before the model."""
+    items = ASSETS / "items"
+    items.mkdir(parents=True, exist_ok=True)
+    (items / f"{name}.json").write_text(json.dumps({"model": {"type": "minecraft:model", "model": f"starfall:item/{name}"}}, indent=1) + "\n")
+
+
 def flat_item(name):
     model = {"parent": "minecraft:item/generated", "textures": {"layer0": f"starfall:item/{name}"}}
     (MODELS / f"{name}.json").write_text(json.dumps(model, indent=1) + "\n")
@@ -369,10 +376,20 @@ def radial(size, falloff, power=2.0):
     return img
 
 
+def to_alpha(img):
+    """White with alpha = brightness, for the translucent (beacon beam) render layer."""
+    out = Image.new("RGBA", img.size)
+    for y in range(img.size[1]):
+        for x in range(img.size[0]):
+            v = img.getpixel((x, y))[0]
+            out.putpixel((x, y), (255, 255, 255, v))
+    return out
+
+
 def entity_textures():
     out = TEX / "entity"
     out.mkdir(parents=True, exist_ok=True)
-    radial(64, 1.6, 2.2).save(out / "glow.png")
+    to_alpha(radial(64, 1.6, 2.2)).save(out / "glow.png")
     # Four-point sparkle.
     size = 64
     img = Image.new("RGBA", (size, size), (0, 0, 0, 255))
@@ -384,7 +401,7 @@ def entity_textures():
             core = max(0, 1 - math.hypot(dx, dy) * 2.2) ** 1.5
             v = min(1, ray + core)
             img.putpixel((x, y), (clamp(255 * v),) * 3 + (255,))
-    img.save(out / "sparkle.png")
+    to_alpha(img).save(out / "sparkle.png")
     # Shockwave ring.
     img = Image.new("RGBA", (size, size), (0, 0, 0, 255))
     for y in range(size):
@@ -392,7 +409,7 @@ def entity_textures():
             d = math.hypot(x - c, y - c) / c
             v = max(0, 1 - abs(d - 0.85) * 8) + max(0, 0.85 - d) * 0.15
             img.putpixel((x, y), (clamp(255 * v),) * 3 + (255,))
-    img.save(out / "ring.png")
+    to_alpha(img).save(out / "ring.png")
 
 
 def icon():
@@ -436,6 +453,8 @@ def main():
     write_model("seven_stars_scepter", seven_stars_scepter(), "long")
     write_model("supernova_core", supernova_core(), "small")
     flat_item("star_fragment")
+    for name in ("stellar_remote", "starfall_blade", "seven_stars_scepter", "supernova_core", "star_fragment"):
+        item_definition(name)
     star_fragment()
     entity_textures()
     icon()

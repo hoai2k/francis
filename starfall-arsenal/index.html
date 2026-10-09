@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Starfall Arsenal</title>
-  <meta name="description" content="A Minecraft (Fabric 1.21.1) mod of cosmic weapons that call down shooting stars, each strike with a full cinematic cutscene.">
+  <meta name="description" content="A Minecraft (Fabric 1.21.11) mod with four cosmic weapons, each with its own ability and a full cinematic cutscene.">
   <link rel="stylesheet" href="./style.css">
   <script type="importmap">
     {"imports": {
@@ -17,11 +17,11 @@
   <canvas id="stars-bg" aria-hidden="true"></canvas>
 
   <header class="hero">
-    <p class="eyebrow">Minecraft mod &middot; Fabric 1.21.1</p>
+    <p class="eyebrow">Minecraft mod &middot; Fabric 1.21.11</p>
     <h1>STARFALL <span>ARSENAL</span></h1>
-    <p class="lede">Four cosmic weapons. Every strike rolls a full cinematic first: the wind-up, the star igniting in the sky, the chase cam, and then the impact.</p>
+    <p class="lede">Four cosmic weapons with four completely different powers: an orbital laser, a comet dash, a constellation that becomes a gravity well, and a black hole that goes supernova. Every one rolls a full cinematic cutscene.</p>
     <div class="cta">
-      <a class="btn primary" href="./download/starfall-arsenal-1.0.0.jar" download>Download mod (.jar)</a>
+      <a class="btn primary" href="./download/starfall-arsenal-1.1.0.jar" download>Download mod (.jar)</a>
       <a class="btn" href="#film">Watch a strike</a>
     </div>
   </header>
@@ -74,12 +74,12 @@
     <section class="panel">
       <div class="section-head">
         <h2>In-game captures</h2>
-        <p>Real Minecraft 1.21.1 screenshots of the Supernova Core: the star falling, the impact, and the crater it leaves.</p>
+        <p>Real Minecraft 1.21.11 screenshots: the Orbital Lance firing from orbit, the Seven Stars forming the Big Dipper, and the Supernova's black hole swallowing the ground.</p>
       </div>
       <div class="shots">
-        <img src="./poster-1.jpg" alt="A huge orange star falling through the night sky in Minecraft" loading="lazy">
-        <img src="./poster-2.jpg" alt="The impact: a pillar of light and a fireball over the terrain" loading="lazy">
-        <img src="./poster-3.jpg" alt="A wide crater lined with glowing magma left behind" loading="lazy">
+        <img src="./poster-1.jpg" alt="A golden beam firing down from a satellite in orbit" loading="lazy">
+        <img src="./poster-2.jpg" alt="Seven glowing stars joined by lines in the shape of the Big Dipper over a vortex" loading="lazy">
+        <img src="./poster-3.jpg" alt="A black hole with an orange accretion disc pulling blocks into the sky" loading="lazy">
       </div>
     </section>
 
@@ -87,17 +87,17 @@
       <div>
         <h2>Install</h2>
         <ol class="steps">
-          <li>Install <a href="https://fabricmc.net/use/installer/" rel="noopener">Fabric Loader</a> for <b>Minecraft 1.21.1</b>.</li>
+          <li>Install <a href="https://fabricmc.net/use/installer/" rel="noopener">Fabric Loader</a> for <b>Minecraft 1.21.11</b>.</li>
           <li>Put <a href="https://modrinth.com/mod/fabric-api" rel="noopener">Fabric API</a> in your <code>mods</code> folder.</li>
-          <li>Put <a href="./download/starfall-arsenal-1.0.0.jar" download><code>starfall-arsenal-1.0.0.jar</code></a> in the same folder.</li>
-          <li>Launch the <b>fabric-loader-1.21.1</b> profile. The weapons are in the <b>Starfall Arsenal</b> creative tab.</li>
+          <li>Put <a href="./download/starfall-arsenal-1.1.0.jar" download><code>starfall-arsenal-1.1.0.jar</code></a> in the same folder.</li>
+          <li>Launch the <b>fabric-loader-1.21.11</b> profile. The weapons are in the <b>Starfall Arsenal</b> creative tab.</li>
         </ol>
-        <p class="warn"><b>Warning:</b> stars carve real craters. Try it in a test world first, or run <code>/gamerule starfallTerrainDamage false</code> to keep the blast and leave the terrain alone.</p>
+        <p class="warn"><b>Warning:</b> these weapons really wreck terrain. Try it in a test world first, or run <code>/gamerule starfall:terrain_damage false</code> to keep the blast and leave the terrain alone.</p>
       </div>
       <div>
         <h2>Controls &amp; crafting</h2>
         <ul class="steps">
-          <li><b>Right-click</b> with a weapon to strike where you're looking.</li>
+          <li><b>Right-click</b> with a weapon to use its skill where you're looking. The Starfall Blade charges straight ahead instead.</li>
           <li><kbd>J</kbd> skips a cutscene, and when no film is playing it turns films on or off. You can rebind it.</li>
           <li><b>Stellar Remote</b>: amethyst shard, 4 iron ingots, a redstone block and a gold ingot.</li>
           <li>Every impact drops <b>Star Fragments</b>. Craft them into the other weapons:
