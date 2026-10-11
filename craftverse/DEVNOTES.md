@@ -1,10 +1,10 @@
 # Craftverse — developer notes (progress log for restarts)
 
-Lives in `bloxverse/` of the `francis` monorepo (imported from the former `hoai2k/bloxverse` repo). The previous Bloxverse site lives untouched under `old/` for comparison.
+Lives in `craftverse/` of the `francis` monorepo (imported from the former `hoai2k/bloxverse` repo). The previous Bloxverse platform it replaced lives in `bloxverse/`.
 
 ## What this is
 A browser voxel sandbox (Minecraft-like) with **no build step**: ES modules + vendored Three.js r160 (`vendor/three.module.js`).
-Serve this directory statically (`python3 -m http.server -d bloxverse 8080` from the repo root) and open `index.html`. `index.html?quick&mode=creative&seed=1&dim=0&time=1000`
+Serve this directory statically (`python3 -m http.server -d craftverse 8080` from the repo root) and open `index.html`. `index.html?quick&mode=creative&seed=1&dim=0&time=1000`
 starts a throwaway world instantly (used by the headless tests).
 
 ## Architecture (src/)

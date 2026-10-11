@@ -1,7 +1,12 @@
 {
-  "title": "Craftverse",
-  "description": "A Minecraft-style voxel sandbox that runs entirely in the browser: survival & creative, 26 biomes, the Nether and the End, split-screen co-op. Imported from the Bloxverse repo (original Bloxverse platform under old/).",
-  "date": "2026-10-11",
-  "tag": "GAME",
-  "accent": "#5a9e3a"
+  "title": "Bloxverse",
+  "description": "A blocky browser game platform with six playable 3D games — fighting, obby, zombies, shooters and more — plus AI players that actually play and chat with moods.",
+  "date": "2026-07-07",
+  "tag": "GAME · PLATFORM",
+  "accent": "#3a8bff",
+  "posters": [
+    "poster-1.jpg",
+    "poster-2.jpg",
+    "poster-3.jpg"
+  ]
 }
