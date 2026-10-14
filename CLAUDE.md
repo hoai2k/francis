@@ -61,6 +61,22 @@ the user says otherwise, when a piece of work is done:
 This standing instruction is the user's explicit permission to push to `main`.
 Don't open a pull request unless the user asks for one. Never force-push `main`.
 
+## Tests and deploys
+
+Pushes to `main` build and deploy only; they run no tests. Tests are your job
+before you commit:
+
+- There are no automated tests; check the change in a browser (local server)
+  before committing. `python3 tools/build_site.py` must also succeed (see
+  Verifying above).
+- Say in the commit message what you ran and that it passed.
+
+Every deploy is paid for in GitHub Actions minutes while the repository is
+private, so batch a task's work into one push to `main` at the end rather than
+pushing after every small step. Pushes to a working branch run nothing. A newer
+push cancels a deploy still in progress, so a burst of pushes publishes only the
+last one.
+
 ## Models
 
 - Only a session already running on Fable may start Fable subagents, workers or helper agents. Opus,
