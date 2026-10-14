@@ -13,10 +13,28 @@ function fresh() {
     inventory: [rollItem(1, { id: 'wraps' }), rollItem(1, { id: 'uniform' }), rollItem(1, { id: 'talisman' })],
     completed: {},             // missionId -> best threat cleared
     unlocked: { tokyo_night: true, jujutsu_high: true },
-    lastSorcerer: 'gojo',
+    lastSorcerer: null,
+    technique: null,           // P1's rolled cursed technique
+    spins: 10,                 // technique rerolls
+    codeUnlocked: false,       // the "frannguy" code lets you pick any technique
+    treeV2: true,
     stats: { kills: 0, missions: 0, deaths: 0, domains: 0 },
     shop: null,
   };
+}
+
+// Techniques are now unlocked on the technique tree: refund old skill ranks.
+function migrate(d) {
+  if (!d.treeV2) {
+    for (const k in d.sorcerers) {
+      const S = d.sorcerers[k];
+      const spent = Object.values(S.skills ?? {}).reduce((a, b) => a + b, 0);
+      S.skills = {}; S.skillPoints = (S.skillPoints ?? 0) + spent + 3;
+    }
+    d.treeV2 = true;
+    if (d.spins == null) d.spins = 10;
+  }
+  return d;
 }
 
 export class Save {
@@ -24,7 +42,7 @@ export class Save {
   load() {
     try {
       const raw = localStorage.getItem(KEY);
-      if (raw) { const d = JSON.parse(raw); if (d && d.version === 1) return { ...fresh(), ...d }; }
+      if (raw) { const d = JSON.parse(raw); if (d && d.version === 1) return migrate({ ...fresh(), ...d }); }
     } catch (e) { /* ignore */ }
     return fresh();
   }
@@ -35,18 +53,19 @@ export class Save {
     if (!s[id]) {
       const inv = this.data.inventory;
       const w = inv.find((i) => i.id === 'wraps') ?? inv[0], a = inv.find((i) => i.id === 'uniform'), t = inv.find((i) => i.id === 'talisman');
-      s[id] = { skills: {}, skillPoints: this.data.level, gear: [w?.uid ?? null, a?.uid ?? null, t?.uid ?? null, null] };
+      s[id] = { skills: {}, skillPoints: this.data.level * 2, gear: [w?.uid ?? null, a?.uid ?? null, t?.uid ?? null, null] };
     }
     return s[id];
   }
   item(uid) { return this.data.inventory.find((i) => i.uid === uid) ?? null; }
   gearFor(id) { return this.sorc(id).gear.map((u) => (u ? this.item(u) : null)); }
+  // Each level: +2 technique-tree points (every technique) and +1 reroll.
   // XP curve: 100, 180, 260…
   xpFor(level) { return 60 + level * 60; }
   addXp(n) {
     const d = this.data; let ups = 0;
     d.xp += n;
-    while (d.xp >= this.xpFor(d.level)) { d.xp -= this.xpFor(d.level); d.level++; d.enchantPoints++; ups++; for (const k in d.sorcerers) d.sorcerers[k].skillPoints++; }
+    while (d.xp >= this.xpFor(d.level)) { d.xp -= this.xpFor(d.level); d.level++; d.enchantPoints++; d.spins = (d.spins ?? 0) + 1; ups++; for (const k in d.sorcerers) d.sorcerers[k].skillPoints += 2; }
     return ups;
   }
 }

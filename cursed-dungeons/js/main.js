@@ -32,12 +32,8 @@ import { Player } from './entities/player.js';
 import { Enemy } from './entities/enemy.js';
 import { TrainingDummy } from './entities/dummy.js';
 import { FLASH_MATERIAL } from './entities/character.js';
-import { SORCERER_IDS } from './sorcerers/index.js';
-import './sorcerers/gojo.js';
-import './sorcerers/yuji.js';
-import './sorcerers/megumi.js';
-import './sorcerers/nobara.js';
-import './sorcerers/sukuna.js';
+import { SORCERER_IDS, rollTechnique } from './sorcerers/index.js';
+import './sorcerers/all.js';
 import { Save } from './save.js';
 import { rollChest, itemInfo, RARITY } from './loot.js';
 import { openTitle, openSelect, openInventory, openSkills, openShop, openMapTable } from './ui/screens.js';
@@ -274,6 +270,7 @@ class Game {
     const d = this.save.data;
     d.completed[m.def.id ?? 'custom'] = Math.max(d.completed[m.def.id ?? 'custom'] ?? 0, m.def.difficulty);
     d.stats.missions++; d.stats.kills += m.stats.kills;
+    d.spins = (d.spins ?? 0) + 2;
     const ups = this.save.addXp(80 * m.def.difficulty);
     this.save.write();
     this.audio.levelUp();
@@ -291,6 +288,7 @@ class Game {
         h('div', { class: 'stat-line' }, 'Time', h('b', {}, `${mins}:${String(secs).padStart(2, '0')}`)),
         h('div', { class: 'stat-line' }, 'Coins collected', h('b', {}, String(st.coins ?? 0))),
         h('div', { class: 'stat-line' }, 'Secrets found', h('b', {}, String(st.secrets ?? 0))),
+        victory ? h('div', { class: 'stat-line' }, 'Technique rerolls earned', h('b', {}, '🎲 +2')) : null,
         h('div', { class: 'loot-list', id: 'results-loot' }),
         h('div', { class: 'row', style: 'justify-content:center;margin-top:10px' },
           !victory ? h('button', { class: 'btn primary', 'data-autofocus': true, onclick: () => { const d = m.def; this.ui.close('results'); this.startMission(d); } }, 'Retry') : null,
@@ -399,7 +397,7 @@ class Game {
   onBossKilled(b) { this.mission?.onBossKilled(b); if (this.save.addXp(150)) this.levelUp(); }
   levelUp() {
     const d = this.save.data;
-    toast(`LEVEL ${d.level}! +1 enchantment point, +1 skill point`, 'big');
+    toast(`LEVEL ${d.level}! +1 enchantment point, +2 technique points, +1 reroll`, 'big');
     this.audio.levelUp();
     for (const p of this.players) { this.fx.heal(p.pos, 0xffd23a); p.hp = p.maxHp; }
     this.save.write();
@@ -465,8 +463,7 @@ class Game {
           p0.device = id; toast('Controller connected to Player 1'); continue;
         }
         // the keyboard player keeps P1; if P1 is idle on keyboard and this is the only pad, still add
-        const used = new Set(this.players.map((p) => p.sorcerer));
-        const pick = SORCERER_IDS.find((s) => !used.has(s)) ?? 'gojo';
+        const pick = rollTechnique();
         const p = this.addPlayer(id, pick);
         this.fx.summonCircle(p.pos, 0x6ad8ff);
         toast(`Player ${p.index + 1} joined`);

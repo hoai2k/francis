@@ -43,6 +43,7 @@ export class Player {
     this.procs = {}; this.artifacts = [];
     this.skills = game.save ? game.save.sorc(sorcerer).skills : {};
     applyGear(this, game.save ? game.save.gearFor(sorcerer) : []);
+    this.applyTree(); this.healCharges = this.healMax;
     this.hp = this.maxHp;
     this.kit = createKit(this);
     this.heroLight = game.lights.attach(this.object, 0xffe8d0, 1.6, 7, { offsetY: 2.2, priority: 6 });
@@ -52,8 +53,18 @@ export class Player {
     const g = this.game;
     this.skills = g.save ? g.save.sorc(this.sorcerer).skills : {};
     applyGear(this, g.save ? g.save.gearFor(this.sorcerer) : []);
+    this.applyTree();
     this.kit.dispose?.();
     this.kit = createKit(this);
+  }
+  // Shared technique-tree nodes: RCT, its mastery and Cursed Energy reserves.
+  applyTree() {
+    const sk = this.skills ?? {};
+    this.rctUnlocked = !!sk.unlock_rct;
+    this.healMax = 3 + (sk.rct_mastery ?? 0); this.healCharges = Math.min(this.healCharges ?? this.healMax, this.healMax);
+    this.stats.healBonus = (this.stats.healBonus ?? 0) + (sk.rct_mastery ?? 0) * 0.1;
+    this.maxCe = 100 + (sk.ce_reserve ?? 0) * 20;
+    this.ceRegen = 1.6 * (1 + (sk.ce_flow ?? 0) * 0.5);
   }
   // ---------------------------------------------------------------- vitals
   gainCE(a) { if (this.domainActive) return; this.ce = Math.min(this.maxCe, this.ce + a * this.stats.ceGain); }
@@ -94,6 +105,10 @@ export class Player {
   }
   revive(frac = 0.4) { this.downed = false; this.dead = false; this.hp = this.maxHp * frac; this.iframes = 2; this.action = null; this.game.fx.heal(this.pos); this.game.audio?.energy('heal'); }
   useHeal() {
+    if (!this.rctUnlocked) {
+      if (this.game.time - (this.rctPing ?? -9) > 1.2) { this.rctPing = this.game.time; this.game.toast?.('🔒 Reverse Cursed Technique is locked — unlock it on the technique tree'); this.game.audio?.ui('back'); }
+      return;
+    }
     if (this.healCharges <= 0 || this.healCd > 0 || this.hp >= this.maxHp) return;
     this.healCharges--; this.healCd = 1.2;
     this.healOverTime = { left: this.maxHp * (0.45 + (this.stats.healBonus ?? 0)), t: 1.2 };
@@ -111,6 +126,8 @@ export class Player {
     else this.attackBuffer -= dt;
     if (inp.held.attack) this.attackHeldT = (this.attackHeldT ?? 0) + dt; else this.attackHeldT = 0;
     if (inp.pressed.heal) this.useHeal();
+    // passive Cursed Energy flow
+    if (!this.domainActive && !this.game.domain) this.ce = Math.min(this.maxCe, this.ce + (this.ceRegen ?? 1.6) * this.stats.ceGain * dt);
     this.barrierT = Math.max(0, (this.barrierT ?? 0) - dt); this.rampageT = Math.max(0, (this.rampageT ?? 0) - dt);
     this.artifacts.forEach((art, i) => {
       art.cdLeft = Math.max(0, art.cdLeft - dt);

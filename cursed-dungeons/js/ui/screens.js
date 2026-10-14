@@ -3,7 +3,7 @@
 import * as THREE from 'three/webgpu';
 import { h, toast } from './ui.js';
 import { openSettings } from './settingsScreen.js';
-import { SORCERERS, SORCERER_IDS, SKILL_TREES } from '../sorcerers/index.js';
+import { SORCERERS, SORCERER_IDS, SKILL_TREES, RARITIES, RARITY_ORDER, rollTechnique, techniqueOdds, UNLOCK_IDS } from '../sorcerers/index.js';
 import { ITEM_BY_ID, RARITY, ENCHANTS, itemInfo, salvageValue, itemPrice, rollItem } from '../loot.js';
 import { BIOMES } from '../world/biomes.js';
 import { PLAYER_COLORS } from '../entities/player.js';
@@ -25,44 +25,112 @@ export function openTitle(game) {
   }, { onNav: (m) => { if (m.start) { ui.close('title'); openSelect(game); } } });
 }
 
-// ------------------------------------------------------------------ character select
+// ------------------------------------------------------------------ technique roll
+// Your cursed technique is rolled at random, weighted by rarity: the popular
+// techniques are the rare ones. Rerolls cost a spin (earned by levelling up
+// and finishing missions, or bought with coins). The code "frannguy" lets
+// you choose any technique.
+const SECRET_CODE = 'frannguy';
+const SPIN_PRICE = 40;
 export function openSelect(game) {
-  const ui = game.ui;
-  const slots = game.selectSlots = [{ device: game.input.lastDevice === 'touch' || isMobile ? 'touch' : game.input.lastDevice?.startsWith('pad') ? game.input.lastDevice : 'kbm', char: SORCERER_IDS.indexOf(game.save.data.lastSorcerer) < 0 ? 0 : SORCERER_IDS.indexOf(game.save.data.lastSorcerer), ready: false }];
+  const ui = game.ui, d = game.save.data;
+  if (!SORCERERS[d.technique]) { d.technique = SORCERERS[d.lastSorcerer] && d.lastSorcerer !== 'gojo' ? d.lastSorcerer : rollTechnique(); game.save.write(); }
+  const slots = game.selectSlots = [{ device: game.input.lastDevice === 'touch' || isMobile ? 'touch' : game.input.lastDevice?.startsWith('pad') ? game.input.lastDevice : 'kbm', char: SORCERER_IDS.indexOf(d.technique), ready: false }];
   game.enterSelectView?.(slots);
+  let codeMsg = '';
+  const tech = (s) => SORCERER_IDS[s.char];
+  const persist = () => { d.technique = tech(slots[0]); d.lastSorcerer = d.technique; game.save.write(); };
+  const reroll = (s) => {
+    if (s.spinning) return;
+    if ((d.spins ?? 0) <= 0) { toast(`No rerolls left · buy one for ◆${SPIN_PRICE}`); game.audio?.ui('back'); return; }
+    d.spins--; game.save.write();
+    const final = SORCERER_IDS.indexOf(rollTechnique(tech(s)));
+    s.spinning = true; s.ready = false;
+    let n = 0; const total = 16;
+    const step = () => {
+      n++;
+      if (n < total) {
+        s.char = Math.floor(Math.random() * SORCERER_IDS.length);
+        game.audio?.tone?.({ freq: 500 + n * 40, dur: 0.04, gain: 0.04, type: 'square' });
+        ui.refresh('select');
+        setTimeout(step, 40 + n * n * 1.2);
+        return;
+      }
+      s.char = final; s.spinning = false;
+      if (s === slots[0]) persist();
+      const info = SORCERERS[tech(s)], R = RARITIES[info.rarity];
+      game.enterSelectView?.(slots);
+      ui.refresh('select');
+      if (info.rarity === 'special' || info.rarity === 'legendary') { toast(`✨ ${R.label.toUpperCase()}! ${info.technique}`, 'big'); game.audio?.levelUp(); }
+      else { toast(`${R.label}: ${info.technique}`); game.audio?.ui('buy'); }
+    };
+    step();
+  };
+  const choose = (s, dir) => {
+    if (!d.codeUnlocked || s.spinning) return;
+    s.char = (s.char + SORCERER_IDS.length + dir) % SORCERER_IDS.length; s.ready = false;
+    if (s === slots[0]) persist();
+    game.enterSelectView?.(slots); ui.refresh('select');
+  };
+  const redeem = (code) => {
+    if (code.trim().toLowerCase() === SECRET_CODE) {
+      d.codeUnlocked = true; game.save.write(); codeMsg = '✔ Code accepted — choose any technique with ◀ ▶';
+      game.audio?.levelUp(); toast('CODE ACCEPTED', 'big');
+    } else { codeMsg = '✖ Invalid code'; game.audio?.ui('back'); }
+    ui.refresh('select');
+  };
   const render = (el) => {
-    const top = h('div', { class: 'select-top' }, 'CHOOSE YOUR SORCERER');
+    const top = h('div', { class: 'select-top' }, 'YOUR CURSED TECHNIQUE',
+      h('div', { class: 'spins' }, `🎲 ${d.spins ?? 0} rerolls · ◆ ${d.coins}`));
     const cards = h('div', { class: 'slots' });
     for (let i = 0; i < 4; i++) {
       const s = slots[i];
       const pc = PLAYER_COLORS[i];
       if (!s) { cards.appendChild(h('div', { class: 'slot', style: `--pc:${pc}` }, h('div', { class: 'pn' }, `P${i + 1}`), h('div', { class: 'empty' }, isMobile ? '—' : 'Press A / Start on a controller to join'))); continue; }
-      const id = SORCERER_IDS[s.char], info = SORCERERS[id];
-      const lvl = game.save.data.level;
-      cards.appendChild(h('div', { class: 'slot joined' + (s.ready ? ' ready' : ''), style: `--pc:${pc}` },
+      const id = tech(s), info = SORCERERS[id], R = RARITIES[info.rarity ?? 'common'];
+      const odds = techniqueOdds(id) * 100;
+      cards.appendChild(h('div', { class: 'slot joined' + (s.ready ? ' ready' : '') + (s.spinning ? ' spinning' : '') + ` r-${info.rarity}`, style: `--pc:${pc};--rc:${R.color}` },
         h('div', { class: 'pn' }, `P${i + 1} · ${s.device === 'kbm' ? 'KEYBOARD' : s.device === 'touch' ? 'TOUCH' : 'GAMEPAD'}`),
-        h('div', { class: 'cn', style: `color:${info.color}` }, info.name.toUpperCase()),
-        h('div', { style: 'font-size:12px;color:#ddd' }, info.title + ' · Domain: ' + info.domain),
-        h('div', { class: 'cd' }, info.desc),
+        h('div', { class: 'rarity', style: `color:${R.color}` }, `${R.label.toUpperCase()} · ${odds < 1 ? odds.toFixed(2) : odds.toFixed(1)}%`),
+        h('div', { class: 'cn', style: `color:${info.color}` }, (info.technique ?? info.name).toUpperCase()),
+        h('div', { style: 'font-size:12px;color:#ddd' }, `${info.name} · ${info.title}`),
+        h('div', { style: 'font-size:11px;color:#aaa' }, 'Domain: ' + info.domain),
+        h('div', { class: 'cd' }, s.spinning ? '…' : info.desc),
         h('div', { class: 'arrows' },
-          h('button', { class: 'btn small', onclick: () => { s.char = (s.char + SORCERER_IDS.length - 1) % SORCERER_IDS.length; s.ready = false; game.enterSelectView?.(slots); ui.refresh('select'); } }, '◀'),
-          h('span', { style: 'font-size:12px;color:#aaa' }, `Lv ${lvl}`),
-          h('button', { class: 'btn small', onclick: () => { s.char = (s.char + 1) % SORCERER_IDS.length; s.ready = false; game.enterSelectView?.(slots); ui.refresh('select'); } }, '▶')),
-        i > 0 ? h('div', { class: 'hint' }, s.ready ? 'READY' : '◀ ▶ choose · A ready · B leave') : null));
+          d.codeUnlocked ? h('button', { class: 'btn small', onclick: () => choose(s, -1) }, '◀') : null,
+          h('button', { class: 'btn small reroll', onclick: () => reroll(s) }, s.spinning ? 'Rolling…' : '🎲 Reroll'),
+          d.codeUnlocked ? h('button', { class: 'btn small', onclick: () => choose(s, 1) }, '▶') : null),
+        i > 0 ? h('div', { class: 'hint' }, s.ready ? 'READY' : `X reroll${d.codeUnlocked ? ' · ◀ ▶ choose' : ''} · A ready · B leave`) : null));
     }
+    const input = h('input', { class: 'code-input', placeholder: 'Enter code', maxlength: 24, autocomplete: 'off', spellcheck: 'false',
+      onkeydown: (e) => { e.stopPropagation(); if (e.key === 'Enter') redeem(input.value); } });
+    const codeRow = h('div', { class: 'row code-row', style: 'justify-content:center' },
+      input,
+      h('button', { class: 'btn small', onclick: () => redeem(input.value) }, 'Redeem'),
+      h('button', { class: 'btn small', onclick: () => {
+        if (d.coins < SPIN_PRICE) { toast(`Need ◆${SPIN_PRICE}`); game.audio?.ui('back'); return; }
+        d.coins -= SPIN_PRICE; d.spins = (d.spins ?? 0) + 1; game.save.write(); game.audio?.ui('buy'); ui.refresh('select');
+      } }, `Buy reroll ◆${SPIN_PRICE}`),
+      codeMsg ? h('span', { class: 'hint', style: 'margin:0' }, codeMsg) : null);
+    const odds = h('div', { class: 'odds' }, ...RARITY_ORDER.map((r) => {
+      const n = SORCERER_IDS.filter((id) => (SORCERERS[id].rarity ?? 'common') === r);
+      const pct = n.reduce((a, id) => a + techniqueOdds(id), 0) * 100;
+      return h('span', { style: `color:${RARITIES[r].color}`, title: n.map((id) => SORCERERS[id].technique).join(', ') }, `${RARITIES[r].label} ${pct.toFixed(1)}%`);
+    }));
     const bottom = h('div', { class: 'row', style: 'justify-content:center' },
       h('button', { class: 'btn', onclick: () => { ui.close('select'); game.exitSelectView?.(); openTitle(game); } }, 'Back'),
       h('button', { class: 'btn primary', 'data-autofocus': true, onclick: () => start() }, 'Enter Jujutsu High ▶'));
-    el.appendChild(h('div', { class: 'select-wrap' }, top, cards, bottom));
+    el.appendChild(h('div', { class: 'select-wrap' }, top, cards, odds, codeRow, bottom));
   };
   const start = () => {
+    if (slots.some((s) => s.spinning)) return;
     ui.close('select');
-    game.save.data.lastSorcerer = SORCERER_IDS[slots[0].char]; game.save.write();
+    persist();
     game.exitSelectView?.();
-    game.beginSession(slots.map((s) => ({ device: s.device, sorcerer: SORCERER_IDS[s.char] })));
+    game.beginSession(slots.map((s) => ({ device: s.device, sorcerer: tech(s) })));
   };
-  // gamepads: A/Start to join, stick to change, B to leave
-  const readPad = (pad) => ({ a: !!pad.buttons[0]?.pressed, b: !!pad.buttons[1]?.pressed, s: !!pad.buttons[9]?.pressed, l: !!pad.buttons[14]?.pressed || pad.axes[0] < -0.6, r: !!pad.buttons[15]?.pressed || pad.axes[0] > 0.6 });
+  // gamepads: A/Start to join, X to reroll, stick to choose (with the code), B to leave
+  const readPad = (pad) => ({ a: !!pad.buttons[0]?.pressed, b: !!pad.buttons[1]?.pressed, x: !!pad.buttons[2]?.pressed, s: !!pad.buttons[9]?.pressed, l: !!pad.buttons[14]?.pressed || pad.axes[0] < -0.6, r: !!pad.buttons[15]?.pressed || pad.axes[0] > 0.6 });
   // Carry over buttons held on the title screen so Start cannot immediately
   // skip character select on the next frame.
   const prev = Object.fromEntries(game.input.pads().map((pad) => ['pad' + pad.index, readPad(pad)]));
@@ -77,12 +145,13 @@ export function openSelect(game) {
         const p = prev[id] || {}; prev[id] = b;
         let slot = slots.find((s) => s.device === id);
         if (!slot && (b.a && !p.a || b.s && !p.s) && slots.length < 4 && !(slots.length === 1 && slots[0].device === id)) {
-          slots.push({ device: id, char: slots.length % SORCERER_IDS.length, ready: false });
+          slots.push({ device: id, char: SORCERER_IDS.indexOf(rollTechnique()), ready: false });
           game.audio?.ui('buy'); game.enterSelectView?.(slots); ui.refresh('select'); continue;
         }
         if (!slot) continue;
-        if (b.l && !p.l) { slot.char = (slot.char + SORCERER_IDS.length - 1) % SORCERER_IDS.length; slot.ready = false; game.enterSelectView?.(slots); ui.refresh('select'); }
-        if (b.r && !p.r) { slot.char = (slot.char + 1) % SORCERER_IDS.length; slot.ready = false; game.enterSelectView?.(slots); ui.refresh('select'); }
+        if (b.l && !p.l) choose(slot, -1);
+        if (b.r && !p.r) choose(slot, 1);
+        if (b.x && !p.x) reroll(slot);
         if (b.a && !p.a) { slot.ready = !slot.ready; ui.refresh('select'); }
         if (b.b && !p.b) {
           if (slot === slots[0]) { ui.close('select'); game.exitSelectView?.(); openTitle(game); return; }
@@ -176,14 +245,16 @@ export function openSkills(game, player) {
     const cards = tree.map((sk) => {
       const r = S.skills[sk.id] ?? 0;
       const locked = sk.req && !(S.skills[sk.req] > 0);
-      return h('button', { class: 'skill' + (locked ? ' locked' : ''), style: 'text-align:left', onclick: () => {
+      const slotName = sk.slot ? player.kit.slots[sk.slot]?.name : sk.id === 'unlock_domain' ? player.kit.domain?.name : null;
+      const unlock = UNLOCK_IDS.has(sk.id) && sk.id.startsWith('unlock_');
+      return h('button', { class: 'skill' + (locked ? ' locked' : '') + (unlock ? ' unlock' + (r ? '' : ' todo') : ''), style: 'text-align:left', onclick: () => {
         if (locked || r >= sk.max || S.skillPoints <= 0) { game.audio?.ui('back'); return; }
         S.skills[sk.id] = r + 1; S.skillPoints--; save.write(); player.refreshLoadout(); game.audio?.levelUp(); ui.refresh('skills');
-      } }, h('div', { class: 'sn' }, sk.name), h('div', { class: 'sd' }, sk.desc + (locked ? ` (requires ${tree.find((t) => t.id === sk.req)?.name})` : '')), h('div', { class: 'pips' }, '◆'.repeat(r) + '◇'.repeat(sk.max - r)));
+      } }, h('div', { class: 'sn' }, sk.name + (slotName ? ` · ${slotName}` : '')), h('div', { class: 'sd' }, sk.desc + (locked ? ` (requires ${tree.find((t) => t.id === sk.req)?.name})` : '')), h('div', { class: 'pips' }, '◆'.repeat(r) + '◇'.repeat(sk.max - r)));
     });
     el.appendChild(h('div', { class: 'panel', style: 'width:min(820px,97vw)' },
-      h('h2', {}, `Skill Tree · ${SORCERERS[sid].name}`),
-      h('div', { class: 'hint', style: 'margin:0 0 8px' }, `Skill points: ${S.skillPoints} · earn one per level (all sorcerers)`),
+      h('h2', {}, `Technique Tree · ${SORCERERS[sid].technique ?? SORCERERS[sid].name}`),
+      h('div', { class: 'hint', style: 'margin:0 0 8px' }, `Technique points: ${S.skillPoints} · +2 per level · start with your first technique and unlock the rest, RCT and your Domain here`),
       h('div', { class: 'tree' }, ...cards),
       h('div', { class: 'row', style: 'justify-content:flex-end;margin-top:10px' }, h('button', { class: 'btn', 'data-autofocus': true, onclick: close }, 'Close'))));
   }, { dim: true, onBack: close });

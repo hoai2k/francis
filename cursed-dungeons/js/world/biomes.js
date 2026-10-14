@@ -48,6 +48,9 @@ export const BIOMES = {
   },
 };
 
+// Technique modules can add their own domain environments.
+export function registerDomainEnv(key, env) { DOMAINS[key] = { ...DOMAINS.resonance, ...env, grade: { ...DOMAINS.resonance.grade, ...(env.grade ?? {}) } }; }
+
 // Domain Expansion overrides use the same structure.
 export const DOMAINS = {
   unlimited_void: { skyTop: 0x000000, skyHorizon: 0x1a2a6a, fog: 0x050818, fogDensity: 0.008, hemiSky: 0x9ab0ff, hemiGround: 0x101020, hemiI: 1.4, sun: 0xc0d8ff, sunI: 0.6, grade: { tint: [0.95, 1.0, 1.12], lift: [0.0, 0.01, 0.04], sat: 1.2, contrast: 1.15, vignette: 0.5 }, floor: B.void_floor },

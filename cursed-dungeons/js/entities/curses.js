@@ -6,6 +6,7 @@ import { Skin, Rig, makeCharMaterial, PX } from './character.js';
 // Paint a grotesque curse skin: mottled base, glowing eyes, toothy mouth.
 function paintCurse(S, o) {
   const base = o.base, dark = o.dark, eye = o.eye ?? 0xfff27a;
+  S.mat = 'flesh';     // mottled, slightly moist skin in the HD skin pass
   S.box(0, 0, 8, 8, 8, base, 0.25);
   S.box(16, 16, 8, 12, 4, base, 0.25); S.box(16, 32, 8, 12, 4, dark, 0.3);
   S.box(40, 16, 4, 12, 4, base, 0.25); S.box(32, 48, 4, 12, 4, base, 0.25);
@@ -15,7 +16,9 @@ function paintCurse(S, o) {
   for (let i = 0; i < 60; i++) S.px(Math.floor(S.r() * 64), Math.floor(S.r() * 64), dark);
   // face (front 8..15, 8..15)
   const eyes = o.eyes ?? [[9, 10], [13, 10]];
+  S.mat = 'eye';
   for (const [x, y] of eyes) { S.px(x, y, eye); S.px(x + 1, y, eye); S.px(x, y + 1, 0xffffff); S.px(x + 1, y + 1, eye); }
+  S.mat = 'flesh';
   if (o.mouth !== false) {
     const my = o.mouthY ?? 13, mw = o.mouthW ?? 6, mx = 8 + Math.floor((8 - mw) / 2);
     S.rect(mx, my, mw, 2, 0x1a0508, 0.05);

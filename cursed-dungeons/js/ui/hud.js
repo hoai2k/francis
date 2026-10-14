@@ -113,6 +113,9 @@ export class HUD {
         else if (slot.startsWith('art')) { const a = p.artifacts[+slot[3] - 1]; if (!a) continue; frac = a.cdLeft / (a.cd * (1 - p.stats.cdr)); ready = a.cdLeft <= 0; }
         else if (slot === 'domain') { frac = 1 - p.ce / p.maxCe; ready = p.ce >= p.maxCe && !g.domain; }
         else { const ab = p.kit.slots[slot]; frac = ab.cdLeft / Math.max(0.01, ab.cd * p.kit.cdr); ready = ab.cdLeft <= 0 && p.ce >= (ab.ce ?? 0); if (ab.maxCharges > 1) cnt = String(ab.chargesLeft ?? ''); }
+        const locked = slot === 'heal' ? !p.rctUnlocked : slot === 'domain' ? p.kit.domainLocked : p.kit.locked?.(slot);
+        if (locked) { ready = false; frac = 0; }
+        e.el.classList.toggle('locked', !!locked);
         e.cd.style.height = (Math.min(1, frac) * 100).toFixed(0) + '%';
         e.el.classList.toggle('ready', ready);
         if (e.cnt.textContent !== cnt) e.cnt.textContent = cnt;

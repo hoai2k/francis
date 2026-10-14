@@ -13,19 +13,47 @@ Play: <https://hoai2k.github.io/francis/cursed-dungeons/>
 
 ## How to play
 
-1. On the title screen, choose **Play**, then pick a sorcerer. Extra
-   players join by pressing **A** or **Start** on a controller.
+1. On the title screen, choose **Play**. Your **cursed technique is rolled
+   at random**. Extra players join by pressing **A** or **Start** on a
+   controller, and each of them rolls a technique too.
 2. At **Jujutsu High** (the hub):
    - **Map table**: choose a mission.
    - **Merchant**: buy gear.
    - **Purple chest**: your inventory and enchanting.
-   - **Shrine steps**: the skill tree.
+   - **Shrine steps**: the technique tree.
    - **Talisman by the dummy**: summons training waves.
 3. In a mission, complete the objective (exorcise the curses, rescue the
    students, or seal the cursed objects). That opens the boss arena. Beat
    the Special Grade boss, loot its chest, and leave through the torii.
-4. Progress is saved in `localStorage`: coins, level, enchantment and
-   skill points, inventory, loadouts, skill ranks and finished missions.
+4. Progress is saved in `localStorage`: coins, level, rerolls, your rolled
+   technique, enchantment and technique points, inventory, loadouts,
+   technique-tree ranks and finished missions.
+
+### Technique rolls
+
+- Each technique has a rarity. The popular ones are the rarest:
+  **Common**, **Uncommon**, **Rare**, **Epic**, **Legendary** and
+  **Special Grade**. The select screen shows the odds.
+- A **reroll** costs one spin (🎲). You start with 10 and get +1 per level
+  and +2 per finished mission. You can also buy one for ◆40.
+- **Code:** enter `frannguy` in the code box on the select screen. You can
+  then choose any technique with ◀ ▶ (on a gamepad, use the stick or
+  D-pad).
+
+### Technique tree
+
+You start with melee and your **first technique** (RMB) only. Everything
+else is unlocked with technique points on the tree (Shrine steps). You get
+2 points per level.
+
+- **Technique I, II and III** (keys 1 / 2 / 3).
+- **Reverse Cursed Technique** (Q) and **RCT Mastery**.
+- **Domain Expansion** (F).
+- **Cursed Energy Flow**: Cursed Energy now regenerates passively, and
+  this node makes it faster. **Vast Reserves** raises max Cursed Energy.
+- Each technique also has its own upgrade nodes.
+
+Locked abilities show a 🔒 on the HUD.
 
 ### Sorcerers
 
@@ -36,6 +64,42 @@ Play: <https://hoai2k.github.io/francis/cursed-dungeons/>
 | **Megumi** | Shadow Step | Divine Dogs | Nue | Toad (pulls and stuns) | **Chimera Shadow Garden**: floods the floor with shadow and summons more shikigami |
 | **Nobara** | Nails | Hairpin: detonates embedded nails | Resonance: hits every nailed curse | Nail Storm | **Resonance Field** |
 | **Sukuna** | Dismantle | Cleave: damage scales with the target's toughness | Dismantle Flurry | Fuga: a flame arrow | **Malevolent Shrine**: slashes everything nearby, constantly |
+
+#### All 25 techniques
+
+| Technique | Sorcerer | Rarity | Domain |
+| --- | --- | --- | --- |
+| Shrine | Sukuna | Special Grade | Malevolent Shrine |
+| Limitless | Gojo | Special Grade | Unlimited Void |
+| Copy / Rika | Yuta | Special Grade | Authentic Mutual Love |
+| Ten Shadows | Megumi | Legendary | Chimera Shadow Garden |
+| Idle Death Gamble | Hakari | Legendary | Idle Death Gamble: Private Pure Love Train (jackpot = near-immortal) |
+| Judgeman | Higuruma | Legendary | Deadly Sentencing (Executioner's Sword) |
+| Mythical Beast Amber | Kashimo | Legendary | Thunderous Heavens* |
+| Heavenly Restriction | Toji | Legendary | Hunter's Instinct* (no Cursed Energy at all) |
+| Cursed Spirit Manipulation | Geto | Legendary | Abyss of Ten Thousand Curses* |
+| Star Rage | Yuki | Legendary | Star Rage: Event Horizon* |
+| Divergent Fist | Yuji | Epic | Resonant Soul |
+| Cursed Speech | Inumaki | Epic | Cursed Speech: Echo Chamber* |
+| Blood Manipulation | Choso | Epic | Crimson Womb: Blood Rain* |
+| Idle Transfiguration | Mahito | Epic | Self-Embodiment of Perfection |
+| Disaster Flames | Jogo | Epic | Coffin of the Iron Mountain |
+| Straw Doll | Nobara | Rare | Resonance Field |
+| Ratio Technique | Nanami | Rare | Endless Overtime* |
+| Boogie Woogie | Todo | Rare | Besto Friendo Stage* |
+| Disaster Plants | Hanami | Rare | Ceremonial Sea of Light |
+| Projection Sorcery | Naoya | Rare | Time Cell Moon Palace |
+| Ice Formation | Uraume | Rare | Frozen Sanctuary* |
+| Gorilla Core | Panda | Uncommon | Cursed Corpse: Bamboo Grove* |
+| Puppet Manipulation | Mechamaru | Uncommon | Remote Fortress* |
+| Construction | Mai | Common | Shooting Gallery* |
+| Simple Domain | Miwa | Common | Simple Domain: Expanded* |
+
+\* Not a canon domain: invented for the game.
+
+Each kit has its own melee combo, a starting technique on RMB, three more
+techniques on 1 / 2 / 3 and its own upgrade nodes on the technique tree.
+The select screen and the technique tree show each ability's name.
 
 Notes on the kits:
 
@@ -126,8 +190,8 @@ canvas), converging to 512 samples. **Save PNG** downloads the result.
 
 ## Tech notes
 
-- **Textures**: block textures are 16×16 pixel art painted procedurally
-  at start-up, each with a matching bevelled normal map. Nothing is
+- **Textures**: block textures are 32×32 HD pixel art painted procedurally
+  at start-up, each with a matching normal map and per-pixel roughness. Nothing is
   downloaded except the Three.js modules and fonts.
 - **Voxel world**: meshed in 16³ chunks with per-vertex ambient
   occlusion, baked coloured light and per-block roughness and emission.
@@ -141,7 +205,7 @@ canvas), converging to 512 samples. **Save PNG** downloads the result.
 - **Domain Expansion**: a shader-driven radial takeover of the world's
   materials plus a sky dome and an environment transition. Collision
   stays exact because the blocks never change.
-- **Characters**: Minecraft-style 64×64 skins painted in code, a
+- **Characters**: Minecraft-style HD (128×128) skins painted in code, with normal and roughness maps, a
   procedural animation rig (idle breathing, run, combos, dodge roll, hit
   reactions, death) and spring physics for capes and hair.
 - **Levels**: a grid layout with a main path, side rooms and a secret
@@ -160,6 +224,6 @@ canvas), converging to 512 samples. **Save PNG** downloads the result.
 - `js/gfx/`: renderer and quality tiers, materials, textures, particles, effects, lights, debris
 - `js/world/`: voxel world, blocks, biomes, building kit, room templates, level generator, the hub
 - `js/entities/`: characters, player, curses, bosses, allies
-- `js/sorcerers/`: the five technique kits
+- `js/sorcerers/`: the technique registry (`index.js`, rarities and the unlock tree) and one file per technique; `all.js` imports them all
 - `js/ui/`: menus, HUD, minimap, touch controls, settings
 - `js/combat.js`, `js/domain.js`, `js/mission.js`, `js/loot.js`, `js/save.js`, `js/audio.js`, `js/photo.js`

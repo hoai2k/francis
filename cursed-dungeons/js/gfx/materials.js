@@ -96,10 +96,14 @@ export function createBlockMaterial(atlas, { occlude = true } = {}) {
   const bake = attribute('bake', 'vec3');      // baked coloured light
   const ao = attribute('color', 'vec3');
   m.metalnessNode = mat.y;
-  const albedo = texture(atlas.map, uv()).rgb;
+  const tex = texture(atlas.map, uv());
+  const albedo = tex.rgb;
+  // atlas alpha carries per-pixel gloss (1 = as rough as the block says,
+  // ~0.7 = worn/raised texels a bit shinier than crevices)
+  const gloss = clamp(float(1).sub(float(1).sub(tex.a).mul(1.3)), 0.55, 1);
   const D = domainLook(albedo);
   m.colorNode = vec4(mix(albedo, D.col, D.mask).mul(ao), 1);
-  m.roughnessNode = mix(mat.x, float(0.06), D.mask.mul(step(U.domainType, 3.5)).mul(float(1).sub(step(1.5, U.domainType).mul(step(U.domainType, 2.5)))));
+  m.roughnessNode = mix(mat.x.mul(gloss), float(0.06), D.mask.mul(step(U.domainType, 3.5)).mul(float(1).sub(step(1.5, U.domainType).mul(step(U.domainType, 2.5)))));
   const baseEmit = albedo.mul(mat.z.mul(1.6)).add(albedo.mul(bake).mul(ao).mul(U.bakeStrength));
   m.emissiveNode = mix(baseEmit, D.emi, D.mask).add(vec3(0.6, 0.8, 1.4).mul(D.rim).mul(2)).add(trenchGlow());
   if (occlude) m.maskNode = ditherMask(occlusionAmount());

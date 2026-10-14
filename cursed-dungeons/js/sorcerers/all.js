@@ -1,0 +1,26 @@
+// Imports every cursed technique so it registers itself.
+import './gojo.js';
+import './sukuna.js';
+import './megumi.js';
+import './yuji.js';
+import './nobara.js';
+import './hakari.js';
+import './higuruma.js';
+import './inumaki.js';
+import './choso.js';
+import './kashimo.js';
+import './toji.js';
+import './nanami.js';
+import './todo.js';
+import './geto.js';
+import './mahito.js';
+import './yuta.js';
+import './jogo.js';
+import './hanami.js';
+import './naoya.js';
+import './uraume.js';
+import './yuki.js';
+import './mai.js';
+import './panda.js';
+import './miwa.js';
+import './mechamaru.js';

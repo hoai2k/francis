@@ -17,6 +17,9 @@ export class Kit {
   dispose() { for (const o of this.owned ?? []) this.game.scene.remove(o); }
   own(o) { (this.owned || (this.owned = [])).push(o); this.game.scene.add(o); return o; }
   rank(id) { return this.p.skills?.[id] ?? 0; }
+  // techniques beyond the first are unlocked on the technique tree
+  locked(k) { return (k === 't1' || k === 't2' || k === 't3') && !this.rank('unlock_' + k); }
+  get domainLocked() { return !this.rank('unlock_domain'); }
   get cdr() { return 1 - (this.p.stats.cdr ?? 0); }
   update(dt, inp) {
     for (const k in this.slots) {
@@ -27,6 +30,7 @@ export class Kit {
         s.gate = Math.max(0, (s.gate ?? 0) - dt);
         s.cdLeft = s.chargesLeft > 0 ? s.gate : s.cd * this.cdr - (s.recharge ?? 0);
       } else s.cdLeft = Math.max(0, s.cdLeft - dt);
+      if (this.locked(k)) { if (inp.pressed[k]) this.lockedPing(k); continue; }
       const pressed = s.hold ? inp.held[k] : inp.pressed[k];
       if (pressed && s.cdLeft <= 0 && this.p.ce >= (s.ce ?? 0) && this.canCast(s)) {
         if (s.use() !== false) {
@@ -36,11 +40,19 @@ export class Kit {
       }
       if (s.onRelease && inp.released[k]) s.onRelease();
     }
-    if (this.domain && inp.pressed.domain && this.p.ce >= this.p.maxCe && !this.game.domain && this.canCast(this.domain)) {
+    if (this.domain && inp.pressed.domain && this.domainLocked) this.lockedPing('domain');
+    else if (this.domain && inp.pressed.domain && this.p.ce >= this.p.maxCe && !this.game.domain && this.canCast(this.domain)) {
       this.p.ce = 0;
       this.game.startDomain(this.p, this.domain);
     }
     this.tick?.(dt, inp);
+  }
+  lockedPing(k) {
+    const g = this.game;
+    if ((g.time - (this.pingT ?? -9)) < 1.2) return;
+    this.pingT = g.time;
+    g.toast?.(`🔒 ${k === 'domain' ? 'Domain Expansion' : this.slots[k]?.name ?? 'Technique'} is locked — unlock it on the technique tree (Shrine steps)`);
+    g.audio?.ui('back');
   }
   canCast() { const a = this.p.action; return this.p.dodgeT <= 0 && !(a && a.type === 'cast' && a.lock); }
   cast(dur = 0.35, both = false, extra = {}) { this.p.action = { type: 'cast', dur, elapsed: 0, t: 0, both, moveScale: 0.35, ...extra }; this.p.facing = Math.atan2(this.p.aimDir.x, this.p.aimDir.z); }

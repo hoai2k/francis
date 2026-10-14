@@ -209,3 +209,23 @@ body.is-touch .objective { top: calc(64px + var(--safe-t)); left: calc(8px + var
 body.is-touch .coins { bottom: auto; top: calc(8px + var(--safe-t)); right: calc(128px + var(--safe-r)); }
 body.is-touch .minimap { width: 110px; height: 110px; top: calc(8px + var(--safe-t)); right: calc(8px + var(--safe-r)); }
 .noscript { padding: 40px; text-align: center; }
+
+/* ---- technique roll ---- */
+.select-top .spins { font: 600 14px var(--body, inherit); letter-spacing: 1px; color: #ffd23a; margin-top: 4px; }
+.slot .rarity { font: 700 11px var(--head); letter-spacing: 1.5px; margin-top: 4px; }
+.slot.joined { border-color: var(--rc, var(--pc)); }
+.slot.r-legendary { box-shadow: 0 0 26px color-mix(in srgb, var(--rc) 55%, transparent), inset 0 0 18px color-mix(in srgb, var(--rc) 25%, transparent); }
+.slot.r-special { box-shadow: 0 0 34px color-mix(in srgb, var(--rc) 70%, transparent), inset 0 0 24px color-mix(in srgb, var(--rc) 35%, transparent); animation: special-glow 1.4s ease-in-out infinite alternate; }
+@keyframes special-glow { from { filter: brightness(1); } to { filter: brightness(1.25); } }
+.slot.spinning { animation: spin-shake 0.12s linear infinite; }
+@keyframes spin-shake { 0% { transform: translateX(-2px); } 50% { transform: translateX(2px); } 100% { transform: translateX(-2px); } }
+.slot .arrows { justify-content: center; gap: 8px; }
+.slot .reroll { flex: 1; }
+.odds { display: flex; flex-wrap: wrap; gap: 6px 14px; justify-content: center; font: 600 12px var(--head); margin: 8px 0 4px; text-shadow: 0 2px 0 #000; }
+.code-row { gap: 8px; flex-wrap: wrap; align-items: center; margin: 6px 0 10px; }
+.code-input { font: 600 14px var(--head); background: #120d20; color: #fff; border: 2px solid var(--edge); padding: 6px 10px; width: 150px; text-transform: lowercase; }
+.code-input:focus { outline: none; border-color: #c070ff; }
+.skill.unlock .sn::before { content: '🔓 '; }
+.skill.unlock.todo .sn::before { content: '🔒 '; }
+.ab.locked { filter: grayscale(1) brightness(0.5); }
+.ab.locked::after { content: '🔒'; position: absolute; inset: 0; display: grid; place-items: center; font-size: 18px; }
