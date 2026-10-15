@@ -78,7 +78,7 @@ export function kartPortrait(ch) {
 
 // any object at a bigger size, framed to fit (the workbench's helper sheets); turnY: its yaw
 let BR = null, BS = null;
-export function bigPortrait(obj, w = 360, h = 480, turnY = 0.35) {
+export function bigPortrait(obj, w = 360, h = 480, turnY = 0.35, bg = null) {
   if (!BR) { BR = newRenderer(w, h); BS = stage(BR); }
   BR.setSize(w, h, false);
   const holder = new THREE.Group();
@@ -89,8 +89,11 @@ export function bigPortrait(obj, w = 360, h = 480, turnY = 0.35) {
   const cam = new THREE.PerspectiveCamera(30, w / h, 0.05, 200), t = Math.tan((30 * Math.PI) / 360);
   const dist = Math.max(sz.y / 2 / t, sz.x / 2 / (t * (w / h))) * 1.12 + sz.z / 2;
   cam.position.set(c.x, c.y + sz.y * 0.05, c.z + dist); cam.lookAt(c);
+  // (bg: an opaque sky behind it, so glowing effects blend as they do in a race)
+  BS.background = bg === null ? null : new THREE.Color(bg);
   BR.render(BS, cam);
   const url = BR.domElement.toDataURL('image/png');
+  BS.background = null;
   BS.remove(holder);
   return url;
 }

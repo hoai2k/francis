@@ -189,7 +189,7 @@ async function showHelpers() {
       line.set(from, from.clone().add(new THREE.Vector3(0, -lineDrop(h), 0)), 0.3);
       model.add(line.group);
       tpl.userData.animate?.(model, 0.3);
-      pic.innerHTML = `<img alt="${esc(h.name)}" src="${bigPortrait(model, 480, 640)}">`;
+      pic.innerHTML = `<img alt="${esc(h.name)}" src="${bigPortrait(model, 480, 640, 0.35, 0x9fd0ff)}">`;
     } catch (e) { console.error(e); pic.textContent = 'Could not draw this one'; }
     await new Promise((r) => requestAnimationFrame(r));
   }
