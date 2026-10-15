@@ -340,7 +340,8 @@ function tallCloud() {
   for (const [x, y, z, r] of PUFFS) b.sphere(x * CS, y * CS, z * CS, r * CS, W, { sy: 0.8 });
   b.sphere(0, 0.85 * CS, 0, 0.8 * CS, W, { sy: 0.85 });
   for (const [x, y, z, r] of [[-0.5, 0.75, 0.3, 0.5], [0.5, 0.8, -0.25, 0.5], [0.1, 1.4, 0.05, 0.55], [-0.35, 1.25, -0.3, 0.42], [0.4, 1.3, 0.3, 0.4]]) b.sphere(x * CS, y * CS, z * CS, r * CS, W, { sy: 0.9 });
-  b.sphere(1.15 * CS, 1.1 * CS, 0.3 * CS, 0.3 * CS, W);   // the puff holding the rod
+  // an arm of puffs out to the one holding the rod
+  for (const [x, y, z, r] of [[0.72, 0.92, 0.18, 0.36], [0.92, 1.02, 0.25, 0.3], [1.15, 1.1, 0.3, 0.3]]) b.sphere(x * CS, y * CS, z * CS, r * CS, W);
   cloudFace(b, 0.95 * CS, 0.78 * CS);
   for (const sd of [-1, 1]) b.sphere(sd * 0.55 * CS, 0.72 * CS, 0.62 * CS, 0.12 * CS, 0xffb3c4, { sy: 0.6 });   // rosy cheeks
   return b.build({ name: 'cloud', shadows: false });
