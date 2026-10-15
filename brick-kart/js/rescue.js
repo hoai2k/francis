@@ -246,7 +246,7 @@ function beamMaterial(color, core, strength) {
     fragmentShader: `uniform float uTime; uniform vec3 uColor; uniform vec3 uCore; uniform float uStrength; varying vec3 vN; varying vec3 vV; varying vec2 vUv;
       void main() {
         float facing = abs(dot(normalize(vN), normalize(vV)));
-        float body = pow(facing, 2.2);                                    // nothing at the silhouette
+        float body = pow(facing, 1.5);                                    // nothing at the silhouette
         float ends = smoothstep(0.0, 0.25, vUv.y) * (0.55 + 0.45 * smoothstep(0.6, 1.0, vUv.y));
         float ripple = 0.55 + 0.45 * sin(vUv.y * 22.0 - uTime * 9.0);     // pulses running up to his hands
         float swirl = 0.7 + 0.3 * sin(vUv.x * 18.85 + vUv.y * 9.0 - uTime * 5.0);
@@ -277,8 +277,8 @@ export function helperLine(def, template) {
   if (def.line === 'beam') {
     // the Force: a soft energy beam (a shader that fades to nothing at its silhouette and ends, with
     // ripples running up it), sparkles rising along it and a glow at his hands and on the kart
-    const outer = new THREE.Mesh(BEAM_GEO.outer, beamMaterial(0x2f86ff, 0x9fdcff, 0.55));
-    const inner = new THREE.Mesh(BEAM_GEO.inner, beamMaterial(0x7cc8ff, 0xffffff, 0.7));
+    const outer = new THREE.Mesh(BEAM_GEO.outer, beamMaterial(0x3a90ff, 0xbfe8ff, 1.5));
+    const inner = new THREE.Mesh(BEAM_GEO.inner, beamMaterial(0x8fd4ff, 0xffffff, 1.6));
     for (const m of [outer, inner]) { m.frustumCulled = false; m.renderOrder = 5; group.add(m); }
     const handGlow = glowSprite(0xa8e0ff, 1.3), kartGlow = glowSprite(0x4aa8ff, 3.4);
     group.add(handGlow, kartGlow);
