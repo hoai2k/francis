@@ -39,7 +39,10 @@ set), then **Export** downloads `brick-kart-simplified.json` with the chosen
 ids. Each card also has a **🗑 bin** button (or press Delete on a focused card)
 that marks it to be removed from the game entirely; marked cards turn red with
 a REMOVE stamp, stay marked in that browser until **Reset**, and are listed in
-the export under `remove` (ids and names).
+the export under `remove` (ids and names). The workbench's **Helpers** tab is
+for looking only: each rescue helper drawn big, in its cloud or pram, with its
+line hanging from the rod tip to the hook at its race length, to judge which
+models need work.
 
 ## Maps (20, in 6 cups)
 

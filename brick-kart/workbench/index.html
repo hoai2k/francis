@@ -62,6 +62,17 @@
   .count i { color: #ff8a7a; font-style: normal; }
   .card:focus-visible { outline: 3px solid var(--yellow); outline-offset: 2px; }
   .hidden { display: none; }
+  /* Helpers: view only, one big picture each */
+  .hgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; margin-top: 12px; }
+  .hcard { border-radius: 14px; overflow: hidden; background: #1c2f57; box-shadow: inset 0 0 0 2px rgba(255,255,255,.12); }
+  .hcard .pic { background: linear-gradient(180deg, #7cc3ff, #d6eeff); aspect-ratio: 3 / 4; display: grid; place-items: center; color: #34507f; font-size: 13px; }
+  .hcard img { width: 100%; height: 100%; object-fit: contain; display: block; }
+  .hcard .cap { padding: 8px 12px 10px; }
+  .hcard h3 { font-family: 'Lilita One'; font-weight: 400; font-size: 20px; margin: 0; color: var(--yellow); text-shadow: 0 2px 0 var(--ink); }
+  .hcard p { margin: 2px 0 0; color: var(--muted); font-size: 13px; line-height: 1.35; }
+  .hcard p b { color: #fff; }
+  body.view-only .acts { visibility: hidden; }
+  body.view-only main > .note { display: none; }
   #toast { position: fixed; left: 50%; bottom: max(18px, env(safe-area-inset-bottom)); transform: translateX(-50%); background: #0d1630; border: 2px solid var(--yellow); border-radius: 12px; padding: 10px 16px; font-size: 14px; opacity: 0; pointer-events: none; transition: opacity .2s; max-width: calc(100% - 32px); }
   #toast.show { opacity: 1; }
   @media (max-width: 600px) {
@@ -88,10 +99,11 @@
 </header>
 <main>
   <p class="note">Pick the drivers, karts and gliders for <b>Simplified mode</b>. Tap a card to include or leave it out. Tap its <b>🗑 bin</b> (or press Delete) to suggest removing that character, kart or glider from the game entirely; tap the bin again to undo. Then <b>Export</b> and send the JSON file to Claude. <b>Reset</b> goes back to the set that's in the game now and clears the bin marks.</p>
-  <div class="tabs"><button data-tab="drivers" class="on">Characters</button><button data-tab="karts">Karts</button><button data-tab="gliders">Gliders</button></div>
+  <div class="tabs"><button data-tab="drivers" class="on">Characters</button><button data-tab="karts">Karts</button><button data-tab="gliders">Gliders</button><button data-tab="helpers">Helpers</button></div>
   <div id="drivers"></div>
   <div id="karts" class="hidden"></div>
   <div id="gliders" class="hidden"></div>
+  <div id="helpers" class="hidden"></div>
 </main>
 <div id="toast"></div>
 <script type="module" src="./workbench.js"></script>

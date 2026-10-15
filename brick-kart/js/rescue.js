@@ -12,17 +12,17 @@ import { BrickBuilder, plastic } from './lego.js';
 import { DRIVERS, buildDriver } from './driver.js';
 
 // who comes to the rescue on each map's universe (race.movieFrom; the original maps get Captain Cloud).
-// Helpers that fly on their own (fly) need no cloud; the rest ride one.
-const HELPERS = {
-  starwars: { name: 'Grogu', load: () => import('./maps/starwars-props.js').then((m) => m.grogu(1)), pram: true },
-  jjk: { name: 'Kogane', load: () => import('./maps/jjk-culling-props.js').then((m) => m.kogane(1)), fly: true },
-  potter: { name: 'Dobby', driver: 'dobby' },
-  marvel: { name: 'Rocket', driver: 'rocket' },
-  jurassic: { name: 'Pteranodon', driver: 'pteranodon', fly: true },
-  minecraft: { name: 'Pig', driver: 'pig' },
-  pokemon: { name: 'Pikachu', driver: 'pikachu' },
-  sonic: { name: 'Tails', driver: 'tails', fly: true },
-  classic: { name: 'Captain Cloud', load: () => Promise.resolve(captainCloud()) },
+// Helpers that fly on their own (fly) need no cloud; the rest ride one. (maps: for the workbench)
+export const HELPERS = {
+  starwars: { name: 'Grogu', maps: 'Star Wars', load: () => import('./maps/starwars-props.js').then((m) => m.grogu(1)), pram: true },
+  jjk: { name: 'Kogane', maps: 'all four JJK maps', load: () => import('./maps/jjk-culling-props.js').then((m) => m.kogane(1)), fly: true },
+  potter: { name: 'Dobby', maps: 'Hogwarts', driver: 'dobby' },
+  marvel: { name: 'Rocket', maps: 'Marvel', driver: 'rocket' },
+  jurassic: { name: 'Pteranodon', maps: 'Jurassic', driver: 'pteranodon', fly: true },
+  minecraft: { name: 'Pig', maps: 'Minecraft', driver: 'pig' },
+  pokemon: { name: 'Pikachu', maps: 'Pokémon', driver: 'pikachu' },
+  sonic: { name: 'Tails', maps: 'Sonic', driver: 'tails', fly: true },
+  classic: { name: 'Captain Cloud', maps: 'the 9 original maps', load: () => Promise.resolve(captainCloud()) },
 };
 
 // when to come (seconds / metres of track)
@@ -33,7 +33,9 @@ const WRONG_TIME = 3, WRONG_DIST = 12;          // "WRONG WAY!" for 3 s, and los
 // (the helper hangs off to one side of the kart and above it, where the chase camera can see it,
 // with the rod reaching across so its tip is right over the kart)
 const CHAR_H = 2.3, HOVER = 7, DROP = 14;   // HOVER: the rod tip over the kart
-const HAND = new THREE.Vector3(0.55, 1.0, 0.35), TIP = new THREE.Vector3(2.4, 3.2, 0.9);   // in the helper's frame (it faces back along the kart, towards the camera)
+const HAND = new THREE.Vector3(0.55, 1.0, 0.35);
+export const TIP = new THREE.Vector3(2.4, 3.2, 0.9);
+export const LINE_DROP = HOVER - 1.7;   // rod tip to the hook on the kart's roof   // in the helper's frame (it faces back along the kart, towards the camera)
 
 export class Rescue {
   constructor(race) {
@@ -42,10 +44,7 @@ export class Rescue {
     this.template = null;
     const def = HELPERS[race.movieFrom] || HELPERS.classic;
     this.def = def;
-    const d = def.driver && DRIVERS.find((x) => x.id === def.driver);
-    const load = def.load ? def.load() : d ? Promise.resolve(buildDriver(d).root) : Promise.resolve(captainCloud());
-    load.then((char) => { this.template = helperModel(char, def); })
-      .catch((e) => { console.error('rescue helper', e); this.template = helperModel(captainCloud(), HELPERS.classic); });
+    loadHelper(def).then((t) => { this.template = t; });
   }
 
   update(dt) {
@@ -117,15 +116,28 @@ export class Rescue {
     const race = this.race, g = this.template.clone(true);
     g.visible = false;
     race.scene.add(g);
-    const pram = this.def.pram;   // Grogu needs no rod: the Force does it
-    const line = new THREE.Line(new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(6, 3)),
-      new THREE.LineBasicMaterial(pram ? { color: 0x9ad8ff, transparent: true, opacity: 0.8 } : { color: 0x222222 }));
-    line.frustumCulled = false; line.visible = false;
-    const hook = new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.06, 6, 12, Math.PI * 1.5), pram ? new THREE.MeshBasicMaterial({ color: 0x9ad8ff, transparent: true, opacity: 0.6 }) : plastic(0x9aa0a8));
-    hook.visible = false;
+    const { line, hook } = helperLine(this.def);
+    line.visible = hook.visible = false;
     race.scene.add(line, hook);
     return { g, line, hook, prop: g.getObjectByName('propeller'), state: 'off', t: 0, drop: 0, tipL: new THREE.Vector3() };
   }
+}
+
+// The helper's model (the character in its cloud or pram, with its rod), ready to clone.
+export function loadHelper(def) {
+  const d = def.driver && DRIVERS.find((x) => x.id === def.driver);
+  const load = def.load ? def.load() : d ? Promise.resolve(buildDriver(d).root) : Promise.resolve(captainCloud());
+  return load.then((char) => helperModel(char, def))
+    .catch((e) => { console.error('rescue helper', e); return helperModel(captainCloud(), HELPERS.classic); });
+}
+// its fishing line (two points, set by the caller) and the hook on the end
+export function helperLine(def) {
+  const pram = def.pram;   // Grogu needs no rod: the Force does it
+  const line = new THREE.Line(new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(6, 3)),
+    new THREE.LineBasicMaterial(pram ? { color: 0x9ad8ff, transparent: true, opacity: 0.8 } : { color: 0x222222 }));
+  line.frustumCulled = false;
+  const hook = new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.06, 6, 12, Math.PI * 1.5), pram ? new THREE.MeshBasicMaterial({ color: 0x9ad8ff, transparent: true, opacity: 0.6 }) : plastic(0x9aa0a8));
+  return { line, hook };
 }
 
 // the character, scaled to size, in its cloud (unless it flies), holding a fishing rod

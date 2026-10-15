@@ -76,6 +76,25 @@ export function kartPortrait(ch) {
   return url;
 }
 
+// any object at a bigger size, framed to fit (the workbench's helper sheets); turnY: its yaw
+let BR = null, BS = null;
+export function bigPortrait(obj, w = 360, h = 480, turnY = 0.35) {
+  if (!BR) { BR = newRenderer(w, h); BS = stage(BR); }
+  BR.setSize(w, h, false);
+  const holder = new THREE.Group();
+  holder.add(obj); holder.rotation.y = turnY;
+  BS.add(holder);
+  holder.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(holder), c = box.getCenter(new THREE.Vector3()), sz = box.getSize(new THREE.Vector3());
+  const cam = new THREE.PerspectiveCamera(30, w / h, 0.05, 200), t = Math.tan((30 * Math.PI) / 360);
+  const dist = Math.max(sz.y / 2 / t, sz.x / 2 / (t * (w / h))) * 1.12 + sz.z / 2;
+  cam.position.set(c.x, c.y + sz.y * 0.05, c.z + dist); cam.lookAt(c);
+  BR.render(BS, cam);
+  const url = BR.domElement.toDataURL('image/png');
+  BS.remove(holder);
+  return url;
+}
+
 // a glider on its own, open, seen from the front and a little above
 export function gliderPortrait(def) {
   if (cache.has('g' + def.id)) return cache.get('g' + def.id);
