@@ -23,7 +23,7 @@ import { DRIVERS, buildDriver } from './driver.js';
 // (maps: for the workbench)
 export const HELPERS = {
   starwars: { name: 'Grogu', maps: 'Star Wars', load: () => import('./maps/starwars-props.js').then((m) => groguHelper(m.grogu(1))), seat: 'float', line: 'beam', cloud: false, how: 'floats in his hover-pram; lifts karts with a beam of the Force from his hands' },
-  jjk: { name: 'Kogane', maps: 'all four JJK maps', load: () => import('./helpers/kogane.js').then((m) => m.build()), seat: 'float', line: 'tail', cloud: false, how: 'flies on its own; its grey tail is the line' },
+  jjk: { name: 'Kogane', maps: 'all four JJK maps', load: () => import('./helpers/kogane.js').then((m) => m.build()), seat: 'float', line: 'tail', cloud: false, hover: 4.6, how: 'flies on its own; its grey tail is the line' },
   potter: { name: 'Hedwig', maps: 'Hogwarts', load: () => import('./maps/hogwarts-props.js').then((m) => hedwigHelper(m.hedwig(1))), seat: 'fig', line: 'rod', how: 'perches on a cloud, rod under her wing' },
   marvel: { name: 'Stan Lee', maps: 'Marvel', load: () => import('./helpers/stanlee.js').then((m) => m.build()), seat: 'fig', line: 'rod', how: 'sits in a cloud' },
   jurassic: { name: 'Pteranodon', maps: 'Jurassic', driver: 'pteranodon', seat: 'rig', line: 'rod', how: 'sits in a cloud' },
@@ -40,7 +40,7 @@ const WRONG_TIME = 3, WRONG_DIST = 12;          // "WRONG WAY!" for 3 s, and los
 // how it looks: the helper hangs off to one side of the kart and above it, where the chase camera
 // can see it, its line (rod tip / beam / tail) starting HOVER over the kart
 const HOVER = 7, DROP = 14;
-export const LINE_DROP = HOVER - 1.7;           // from the line's start to the kart's roof
+export const lineDrop = (def) => (def.hover || HOVER) - 1.7;   // from the line's start to the kart's roof (def.hover: a helper whose line starts low on it flies lower, to stay in view)
 const CS = 1.45;                                // cloud size
 const CLOUD_TOP = 0.95 * CS;                    // its top
 const SIT_H = 1.9;                             // a seated character's height above its hips
@@ -103,7 +103,7 @@ export class Rescue {
       // face back along the kart (towards its camera), the line's start right over it
       const yaw = k.yaw + Math.PI, s = Math.sin(yaw), c = Math.cos(yaw);
       g.rotation.set(0, yaw, Math.sin(v.t * 2.3) * 0.06);
-      g.position.set(k.pos.x - (F.x * c + F.z * s), k.pos.y + HOVER - F.y + v.drop + Math.sin(v.t * 3) * 0.12, k.pos.z - (-F.x * s + F.z * c));
+      g.position.set(k.pos.x - (F.x * c + F.z * s), k.pos.y + (this.def.hover || HOVER) - F.y + v.drop + Math.sin(v.t * 3) * 0.12, k.pos.z - (-F.x * s + F.z * c));
       g.updateMatrixWorld(true);
       const from = g.localToWorld(v.tmp.copy(F));
       v.line.set(from, v.to.set(k.pos.x, k.pos.y + 1.7, k.pos.z), v.t);

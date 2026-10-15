@@ -8,7 +8,7 @@ import { GLIDERS, GLIDER_GROUPS } from '../js/gliders.js';
 import { SIMPLIFIED } from '../js/simplified.js';
 import { driverPortrait, kartPortrait, gliderPortrait, bigPortrait } from '../js/showcase.js';
 import * as THREE from 'three';
-import { HELPERS, LINE_DROP, loadHelper, helperLine } from '../js/rescue.js';
+import { HELPERS, lineDrop, loadHelper, helperLine } from '../js/rescue.js';
 
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -193,7 +193,7 @@ async function showHelpers() {
     try {
       const tpl = await loadHelper(h), model = tpl.clone(true);
       const line = helperLine(h, tpl), from = tpl.userData.from.clone();
-      line.set(from, from.clone().add(new THREE.Vector3(0, -LINE_DROP, 0)), 0.3);
+      line.set(from, from.clone().add(new THREE.Vector3(0, -lineDrop(h), 0)), 0.3);
       model.add(line.group);
       tpl.userData.animate?.(model, 0.3);
       pic.innerHTML = `<img alt="${esc(h.name)}" src="${bigPortrait(model, 480, 640)}">`;

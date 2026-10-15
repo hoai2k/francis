@@ -5,14 +5,14 @@
 // rod through it (root.userData.grip / gripDir). His other hand gives a friendly wave.
 // Built in the drivers' seat frame: hips at the origin, +Y up, facing +Z.
 import * as THREE from 'three';
-import { BrickBuilder, plastic, seatedFig, mat4, cached } from '../drivers/kit.js';
+import { plastic, seatedFig, mat4, cached } from '../drivers/kit.js';
 import { face } from '../drivers/classic-kit.js';
 
 const PI = Math.PI;
 const SKIN = 0xf2c9a0, SKIN_S = '#f2c9a0';               // flesh, like the Marvel map heroes
 const JACKET = 0x2c3140;                                // charcoal-navy blazer
 const SHIRT = 0xf4f4f2, LEGS = 0x45484f, SHOE = 0x1e1a18;
-const HAIR = 0xb4b9bf, HAIR_DK = 0x868b92;
+const HAIR = 0xa3a8ae;
 
 const sph = () => cached('stanSph', () => new THREE.SphereGeometry(1, 14, 9));
 const dome = () => cached('stanDome', () => new THREE.SphereGeometry(1, 18, 8, 0, PI * 2, 0, PI / 2));
@@ -49,18 +49,19 @@ function faceMat() {
     P.curve(-10, 36, 0, 32, 10, 36, '#4a4d52', 2.5);
     for (const sd of [-1, 1]) P.line([[sd * 62, 39], [sd * 92, 42]], '#4a4d52', 3.5);    // temples
     // nose
-    P.curve(-4, 78, -9, 88, 2, 90, '#c48e64', 3);
-    // broad smile with teeth, smile lines
-    g.fillStyle = '#3a1f1a'; g.beginPath(); g.moveTo(-30, 100); g.quadraticCurveTo(0, 132, 30, 100); g.closePath(); g.fill();
-    g.fillStyle = '#ffffff'; g.beginPath(); g.moveTo(-27, 101); g.quadraticCurveTo(0, 112, 27, 101); g.lineTo(26, 104); g.quadraticCurveTo(0, 116, -26, 104); g.closePath(); g.fill();
-    for (const sd of [-1, 1]) P.curve(sd * 36, 86, sd * 44, 98, sd * 36, 110, '#c48e64', 3);
+    P.curve(-4, 72, -9, 82, 2, 84, '#c48e64', 3);
+    // big open smile with teeth, smile lines
+    g.fillStyle = '#3a1f1a'; g.beginPath(); g.moveTo(-34, 95); g.quadraticCurveTo(0, 130, 34, 95); g.closePath(); g.fill();
+    g.fillStyle = '#ffffff'; g.beginPath(); g.moveTo(-31, 96); g.lineTo(31, 96); g.quadraticCurveTo(0, 110, -31, 96); g.closePath(); g.fill();
+    P.ell(0, 108, 12, 4, '#d94a5a');
+    for (const sd of [-1, 1]) P.curve(sd * 40, 80, sd * 50, 96, sd * 40, 112, '#c48e64', 3);
     // grey moustache over the smile
-    g.fillStyle = '#9a9fa5';
-    g.beginPath(); g.moveTo(0, 93);
-    g.bezierCurveTo(-10, 88, -26, 89, -34, 99); g.bezierCurveTo(-24, 102, -10, 102, 0, 99);
-    g.bezierCurveTo(10, 102, 24, 102, 34, 99); g.bezierCurveTo(26, 89, 10, 88, 0, 93);
+    g.fillStyle = '#8f949a';
+    g.beginPath(); g.moveTo(0, 86);
+    g.bezierCurveTo(-10, 81, -28, 82, -38, 95); g.bezierCurveTo(-26, 97, -10, 96, 0, 93);
+    g.bezierCurveTo(10, 96, 26, 97, 38, 95); g.bezierCurveTo(28, 82, 10, 81, 0, 86);
     g.fill();
-    g.strokeStyle = '#6f747a'; g.lineWidth = 2; g.stroke();
+    g.strokeStyle = '#5f646a'; g.lineWidth = 2; g.stroke();
   });
 }
 // torso print: open dark blazer with lapels, white shirt with an open collar and buttons
@@ -138,10 +139,6 @@ export function build() {
       blob(hb, 0, 0.62 * H, -0.42 * r, 0.98 * r, 0.42 * H, 0.72 * r, HAIR);                  // back
       for (const sd of [-1, 1]) blob(hb, sd * 0.8 * r, 0.66 * H, -0.12 * r, 0.32 * r, 0.26 * H, 0.66 * r, HAIR, 0, 0, 0); // over the ears
       blob(hb, 0, 0.98 * H, 0.42 * r, 0.82 * r, 0.24 * H, 0.6 * r, HAIR, -0.35);             // the front wave
-      // comb grooves sweeping back
-      for (const x of [-0.42, -0.14, 0.14, 0.42]) {
-        hb.addMatrix(sph(), plastic(HAIR_DK), mat4(x * r, 1.18 * H, -0.05 * r, 0.12, 0, 0, 0.05 * r, 0.06 * H, 0.7 * r));
-      }
       // ears
       for (const sd of [-1, 1]) blob(hb, sd * 0.98 * r, 0.5 * H, 0, 0.08 * r, 0.16 * H, 0.12 * r, SKIN);
     },
@@ -170,6 +167,5 @@ export function build() {
   root.worldToLocal(grip);
   root.userData.grip = grip;
   root.userData.gripDir = GRIP_DIR.clone();
-  root.userData.rig = rig;
   return root;
 }
