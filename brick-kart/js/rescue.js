@@ -3,7 +3,8 @@
 //   - stuck: no real progress along the track for a while (wedged in a fence, lost far off the
 //     road, beached somewhere) - driving on anywhere that still gains ground is fine, on the road
 //     or not, and nobody is fished for just sitting still or for being spun out by an item;
-//   - going backwards: well behind the furthest point reached, or driving the wrong way for long.
+//   - going backwards: well behind the furthest point reached, or driving the wrong way for long;
+//   - hidden: driving along under a raised stretch of road (it blocks the camera's view).
 // The kart is hooked and reeled up (Kart.startRescue), then put back down on the road at the
 // furthest point it had reached. The helper also carries in every kart the crane puts back after a
 // fall, and shows on other screens online (the kart state's HELP flag).
@@ -38,6 +39,7 @@ export const HELPERS = {
 const STALL_TIME = 6, STALL_GAIN = 10;          // trying to drive for 6 s without gaining 10 m
 const BACK_DIST = 30, BACK_TIME = 1;            // 30 m behind the furthest point reached
 const WRONG_TIME = 3, WRONG_DIST = 12;          // "WRONG WAY!" for 3 s, and lost ground doing it
+const COVER_TIME = 3.5, COVER_H = 1.5;          // 3.5 s straight under the road itself (it hides the kart)
 // how it looks: the helper hangs off to one side of the kart and above it, where the chase camera
 // can see it, its line (rod tip / beam / tail) starting HOVER over the kart
 const HOVER = 7, DROP = 14;
@@ -68,8 +70,8 @@ export class Rescue {
   // is this kart (one this screen drives) in trouble?
   watch(k, dt) {
     const d = k.raceDist;
-    const m = (k.rescueWatch ||= { best: d, mark: d, stall: 0, back: 0 });
-    if (k.finished || k.respawn > 0) { m.best = Math.max(m.best, d); m.mark = d; m.stall = m.back = 0; return; }
+    const m = (k.rescueWatch ||= { best: d, mark: d, stall: 0, back: 0, cover: 0 });
+    if (k.finished || k.respawn > 0) { m.best = Math.max(m.best, d); m.mark = d; m.stall = m.back = m.cover = 0; return; }
     m.best = Math.max(m.best, d);
     if (d >= m.mark + STALL_GAIN) { m.mark = d; m.stall = 0; }
     else {
@@ -80,8 +82,13 @@ export class Rescue {
     }
     const behind = m.best - d;
     m.back = behind > BACK_DIST ? m.back + dt : 0;
-    if (m.stall > STALL_TIME || m.back > BACK_TIME || (k.wrongWay > WRONG_TIME && behind > WRONG_DIST)) {
-      m.stall = m.back = 0;
+    // down on the ground under a raised stretch, inside its footprint: the road overhead hides the
+    // kart from its camera. Crossing underneath (to another part of the map) is over in a moment;
+    // driving along under it isn't a way to go
+    const L = k.loc;
+    m.cover = !L.gap && L.y - k.pos.y > COVER_H && Math.abs(L.lat) <= L.hw ? m.cover + dt : 0;
+    if (m.stall > STALL_TIME || m.back > BACK_TIME || m.cover > COVER_TIME || (k.wrongWay > WRONG_TIME && behind > WRONG_DIST)) {
+      m.stall = m.back = m.cover = 0;
       k.startRescue(Math.floor(m.best) - 2);
     }
   }

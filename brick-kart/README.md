@@ -346,14 +346,15 @@ you drop some.
 - **Off the road**: the grass, sand or snow beside the track is drivable but slow
   (you can't wander far from the track). Only water, lava, holes and the void of
   space drop you into a respawn. Down beside or under a raised stretch (a bridge) you
-  stay on the ground and can drive on underneath; you're never lifted up onto it. If
-  you're stuck or lost down there, the rescue helper comes for you.
+  stay on the ground; you're never lifted up onto it. Crossing underneath is fine, but
+  driving along under it (the road hides you from the camera) for 3.5 s, or getting
+  stuck or lost down there, brings the rescue helper.
 - **Falling off**: the map's rescue helper lowers you back onto a safe stretch of road. If you fall again right away, it puts you further ahead next time.
 - **Rescue helper** (like Mario Kart's Lakitu): a little character from the map's own
   universe rides down on a cloud and fishes you out of trouble: when you're stuck
   (trying to drive but not gaining ground for about 6 s, e.g. wedged in a fence or lost
-  far from the road), well behind the furthest point you'd reached, or driving the
-  wrong way for a few seconds. You're reeled up and put back on the road at the furthest
+  far from the road), well behind the furthest point you'd reached, driving the
+  wrong way for a few seconds, or hidden under a raised stretch of road for 3.5 s. You're reeled up and put back on the road at the furthest
   point you'd reached. Driving off the road is fine as long as you keep making
   progress, and sitting still or being spun out by an item never calls it. The helpers:
   Grogu in his hover-pram (Star Wars: he lifts you in a shimmering beam of the Force from
