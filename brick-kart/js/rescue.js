@@ -16,7 +16,8 @@ import { DRIVERS, buildDriver } from './driver.js';
 // (a driver rig, a map prop or one of js/helpers/*.js) placed by a small contract:
 //   seat   'rig': a driver rig (seat frame, hips at the origin): sits in the cloud, holds the rod
 //          in its +X hand (armL, raised); 'fig': a model built the same way whose userData.grip /
-//          gripDir say where the rod goes; 'perch': sits on the cloud by its lowest point
+//          gripDir say where the rod goes; 'float': flies on its own (scaled to FLOAT_H, a rod
+//          where userData.grip says, wings flapped by userData.animate)
 //   line   'rod' (fishing line), 'beam' (Grogu's Force beam from userData.beamFrom),
 //          'tail' (Kogane's own tail, from userData.tailFrom)
 //   cloud  false: it floats on its own (Grogu's hover-pram, Kogane)
@@ -24,9 +25,9 @@ import { DRIVERS, buildDriver } from './driver.js';
 export const HELPERS = {
   starwars: { name: 'Grogu', maps: 'Star Wars', load: () => import('./maps/starwars-props.js').then((m) => groguHelper(m.grogu(1))), seat: 'float', line: 'beam', cloud: false, how: 'floats in his hover-pram; lifts karts with a beam of the Force from his hands' },
   jjk: { name: 'Kogane', maps: 'all four JJK maps', load: () => import('./helpers/kogane.js').then((m) => m.build()), seat: 'float', line: 'tail', cloud: false, hover: 4.6, how: 'flies on its own; its grey tail is the line' },
-  potter: { name: 'Hedwig', maps: 'Hogwarts', load: () => import('./maps/hogwarts-props.js').then((m) => hedwigHelper(m.hedwig(1))), seat: 'fig', line: 'rod', how: 'perches on a cloud, rod under her wing' },
+  potter: { name: 'Hedwig', maps: 'Hogwarts', load: () => import('./helpers/hedwig.js').then((m) => m.build()), seat: 'float', line: 'rod', cloud: false, how: 'flies on her own, the rod in her talons' },
   marvel: { name: 'Stan Lee', maps: 'Marvel', load: () => import('./helpers/stanlee.js').then((m) => m.build()), seat: 'fig', line: 'rod', how: 'sits in a cloud' },
-  jurassic: { name: 'Pteranodon', maps: 'Jurassic', driver: 'pteranodon', seat: 'rig', line: 'rod', how: 'sits in a cloud' },
+  jurassic: { name: 'Pteranodon', maps: 'Jurassic', load: () => import('./helpers/pteranodon.js').then((m) => m.build()), seat: 'float', line: 'rod', cloud: false, how: 'flies on its own, the rod in its feet' },
   minecraft: { name: 'Pig', maps: 'Minecraft', driver: 'pig', seat: 'rig', line: 'rod', how: 'sits in a cloud' },
   pokemon: { name: 'Pikachu', maps: 'Pokémon', driver: 'pikachu', seat: 'rig', line: 'rod', how: 'sits in a cloud' },
   sonic: { name: 'Tails', maps: 'Sonic', driver: 'tails', seat: 'rig', line: 'rod', how: 'sits in a cloud' },
@@ -160,20 +161,6 @@ function groguHelper(g) {
   g.userData.beamFrom = new THREE.Vector3(0, 0.26, 0.4);
   return g;
 }
-// Hedwig: wings half folded, the rod held under the +X wing's tip; her lowest point sits on the cloud
-function hedwigHelper(g) {
-  const [wL, wR] = (g.userData.wings || []);
-  // (wings are built along +-X from their pivot: tip them down a little, the rod wing forward)
-  if (wR) wR.rotation.set(-0.3, -0.45, -0.55);
-  if (wL) wL.rotation.set(0, -0.5, 0.75);
-  g.updateMatrixWorld(true);
-  g.userData.grip = wR ? g.worldToLocal(wR.localToWorld(new THREE.Vector3(1.75, -0.05, 0))) : new THREE.Vector3(1.4, 0.2, 0.3);
-  g.userData.gripDir = GRIP_DIR.clone();
-  g.userData.seatBottom = true;
-  delete g.userData.wings;   // (userData is copied on clone: keep it to plain values)
-  return g;
-}
-
 // mark a point of `obj` so it can be read back after scaling (an empty child)
 function marker(obj, p, name) { const m = new THREE.Object3D(); m.name = name; m.position.copy(p); obj.add(m); return m; }
 
@@ -195,11 +182,6 @@ function helperModel(char, def) {
       const sc = FLOAT_H / Math.max(0.01, box.max.y - box.min.y);
       holder.scale.setScalar(sc);
       holder.position.set(-(box.min.x + box.max.x) / 2 * sc, -box.min.y * sc, -(box.min.z + box.max.z) / 2 * sc);
-    } else if (ud.seatBottom) {
-      // perches: its lowest point just sunk into the cloud's top
-      const sc = SIT_H * 1.15 / Math.max(0.01, box.max.y - box.min.y);
-      holder.scale.setScalar(sc);
-      holder.position.set(-(box.min.x + box.max.x) / 2 * sc, CLOUD_TOP - 0.3 - box.min.y * sc, 0);
     } else {
       // seated (hips at the origin): hips just inside the cloud, scaled so it sits in proportion
       const h = ud.height || box.max.y;
@@ -250,6 +232,153 @@ function span(mesh, a, b) {
   mesh.position.copy(a);
   mesh.quaternion.setFromUnitVectors(Y_DOWN, _d.divideScalar(len));
   mesh.scale.set(1, len, 1);
+}
+// Grogu's beam: an open cone from his hands (top, v = 1) down to the kart (v = 0)
+const BEAM_GEO = {
+  outer: new THREE.CylinderGeometry(0.35, 1.7, 1, 32, 1, true).translate(0, -0.5, 0),
+  inner: new THREE.CylinderGeometry(0.12, 0.7, 1, 24, 1, true).translate(0, -0.5, 0),
+};
+function beamMaterial(color, core, strength) {
+  return new THREE.ShaderMaterial({
+    uniforms: { uTime: { value: 0 }, uColor: { value: new THREE.Color(color) }, uCore: { value: new THREE.Color(core) }, uStrength: { value: strength } },
+    vertexShader: `varying vec3 vN; varying vec3 vV; varying vec2 vUv;
+      void main() { vUv = uv; vec4 mv = modelViewMatrix * vec4(position, 1.0); vV = -mv.xyz; vN = normalize(normalMatrix * normal); gl_Position = projectionMatrix * mv; }`,
+    fragmentShader: `uniform float uTime; uniform vec3 uColor; uniform vec3 uCore; uniform float uStrength; varying vec3 vN; varying vec3 vV; varying vec2 vUv;
+      void main() {
+        float facing = abs(dot(normalize(vN), normalize(vV)));
+        float body = pow(facing, 2.2);                                    // nothing at the silhouette
+        float ends = smoothstep(0.0, 0.25, vUv.y) * (0.55 + 0.45 * smoothstep(0.6, 1.0, vUv.y));
+        float ripple = 0.55 + 0.45 * sin(vUv.y * 22.0 - uTime * 9.0);     // pulses running up to his hands
+        float swirl = 0.7 + 0.3 * sin(vUv.x * 18.85 + vUv.y * 9.0 - uTime * 5.0);
+        float a = body * ends * ripple * swirl * uStrength;
+        gl_FragColor = vec4(mix(uColor, uCore, body * ripple) * a, a);
+      }`,
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+  });
+}
+let glowTex = null;
+function glowTexture() {
+  if (glowTex) return glowTex;
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const g = c.getContext('2d'), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.35, 'rgba(255,255,255,0.45)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
+  glowTex = new THREE.CanvasTexture(c);
+  return glowTex;
+}
+function glowSprite(color, size) {
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), color, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+  sp.scale.setScalar(size); sp.renderOrder = 6;
+  return sp;
+}
+export function helperLine(def, template) {
+  const group = new THREE.Group();
+  group.name = 'rescue-line';
+  if (def.line === 'beam') {
+    // the Force: a soft energy beam (a shader that fades to nothing at its silhouette and ends, with
+    // ripples running up it), sparkles rising along it and a glow at his hands and on the kart
+    const outer = new THREE.Mesh(BEAM_GEO.outer, beamMaterial(0x2f86ff, 0x9fdcff, 0.55));
+    const inner = new THREE.Mesh(BEAM_GEO.inner, beamMaterial(0x7cc8ff, 0xffffff, 0.7));
+    for (const m of [outer, inner]) { m.frustumCulled = false; m.renderOrder = 5; group.add(m); }
+    const handGlow = glowSprite(0xa8e0ff, 1.3), kartGlow = glowSprite(0x4aa8ff, 3.4);
+    group.add(handGlow, kartGlow);
+    const N = 36, pos = new Float32Array(N * 3), seeds = Array.from({ length: N }, (_, i) => [Math.random(), Math.random() * Math.PI * 2, 0.2 + Math.random() * 0.8, 0.35 + Math.random() * 0.5]);
+    const sparks = new THREE.Points(new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(pos, 3)),
+      new THREE.PointsMaterial({ color: 0xcdeeff, size: 0.28, map: glowTexture(), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+    sparks.frustumCulled = false; sparks.renderOrder = 6;
+    group.add(sparks);
+    return { group, set(a, b, t = 0) {
+      span(outer, a, b); span(inner, a, b);
+      outer.material.uniforms.uTime.value = inner.material.uniforms.uTime.value = t;
+      handGlow.position.copy(a); handGlow.scale.setScalar(1.3 * (1 + Math.sin(t * 9) * 0.15));
+      kartGlow.position.copy(b); kartGlow.scale.setScalar(3.4 * (1 + Math.sin(t * 5 + 1) * 0.1));
+      for (let i = 0; i < N; i++) {
+        const [s0, ang, rr, sp] = seeds[i], f = (s0 + t * sp) % 1;   // 0 at the kart, rising to his hands
+        const r = (1.5 + (0.3 - 1.5) * f) * rr, an = ang + t * 1.5;
+        pos[i * 3] = b.x + (a.x - b.x) * f + Math.cos(an) * r;
+        pos[i * 3 + 1] = b.y + (a.y - b.y) * f;
+        pos[i * 3 + 2] = b.z + (a.z - b.z) * f + Math.sin(an) * r;
+      }
+      sparks.geometry.attributes.position.needsUpdate = true;
+    } };
+  }
+  if (def.line === 'tail') { root.userData.from = at('tailFrom') || new THREE.Vector3(0, 0, -0.3); root.userData.tailRadius = (ud.tailRadius || 0.08) * holder.scale.x; root.userData.tailColor = ud.tailColor ?? 0x8a8a90; }
+    if (typeof ud.animate === 'function') root.userData.animate = (obj, t) => ud.animate(obj, t);
+    // (clones copy userData as JSON: the character's own bookkeeping, rig links and all, isn't needed now)
+    char.traverse((o) => { o.userData = {}; });
+  }
+  if (def.line === 'rod') {
+    // the cloud on its own holds the rod in a puff on its side
+    grip ||= new THREE.Vector3(1.25 * CS, 1.15 * CS, 0.35 * CS);
+    const tip = grip.clone().addScaledVector(gdir, ROD_LEN);
+    root.add(fishingRod(grip, gdir));
+    root.userData.from = tip;
+  }
+  root.userData.from ||= new THREE.Vector3(0, 1, 0);
+  return root;
+}
+
+// the rod: cork handle through the hand, reel just above it, a tapering pole and a tip ring
+function fishingRod(grip, dir) {
+  const rod = new THREE.Group();
+  rod.name = 'rod';
+  const L = ROD_LEN + 0.35;
+  rod.add(new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.085, 0.6, 8).translate(0, 0, 0), plastic(0xc89a62)));          // cork handle, centred in the hand
+  rod.add(new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.055, L, 8).translate(0, L / 2 - 0.35, 0), plastic(0x6b4a2a)));  // the pole
+  rod.add(new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.12, 12).rotateZ(Math.PI / 2).translate(0.12, 0.42, 0), plastic(0x333333)));   // the reel
+  rod.add(new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.018, 6, 10).translate(0, ROD_LEN, 0), plastic(0x9aa0a8)));          // tip ring
+  rod.position.copy(grip);
+  rod.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+  return rod;
+}
+
+// ---- the line: fishing line + hook, Grogu's Force beam, or Kogane's tail ------------------------
+// set(from, to, t) stretches it between two world points each frame
+const Y_DOWN = new THREE.Vector3(0, -1, 0), _d = new THREE.Vector3();
+function span(mesh, a, b) {
+  _d.subVectors(b, a);
+  const len = Math.max(0.01, _d.length());
+  mesh.position.copy(a);
+  mesh.quaternion.setFromUnitVectors(Y_DOWN, _d.divideScalar(len));
+  mesh.scale.set(1, len, 1);
+}
+// Grogu's beam: an open cone from his hands (top, v = 1) down to the kart (v = 0)
+const BEAM_GEO = {
+  outer: new THREE.CylinderGeometry(0.35, 1.7, 1, 32, 1, true).translate(0, -0.5, 0),
+  inner: new THREE.CylinderGeometry(0.12, 0.7, 1, 24, 1, true).translate(0, -0.5, 0),
+};
+function beamMaterial(color, core, strength) {
+  return new THREE.ShaderMaterial({
+    uniforms: { uTime: { value: 0 }, uColor: { value: new THREE.Color(color) }, uCore: { value: new THREE.Color(core) }, uStrength: { value: strength } },
+    vertexShader: `varying vec3 vN; varying vec3 vV; varying vec2 vUv;
+      void main() { vUv = uv; vec4 mv = modelViewMatrix * vec4(position, 1.0); vV = -mv.xyz; vN = normalize(normalMatrix * normal); gl_Position = projectionMatrix * mv; }`,
+    fragmentShader: `uniform float uTime; uniform vec3 uColor; uniform vec3 uCore; uniform float uStrength; varying vec3 vN; varying vec3 vV; varying vec2 vUv;
+      void main() {
+        float facing = abs(dot(normalize(vN), normalize(vV)));
+        float body = pow(facing, 2.2);                                    // nothing at the silhouette
+        float ends = smoothstep(0.0, 0.25, vUv.y) * (0.55 + 0.45 * smoothstep(0.6, 1.0, vUv.y));
+        float ripple = 0.55 + 0.45 * sin(vUv.y * 22.0 - uTime * 9.0);     // pulses running up to his hands
+        float swirl = 0.7 + 0.3 * sin(vUv.x * 18.85 + vUv.y * 9.0 - uTime * 5.0);
+        float a = body * ends * ripple * swirl * uStrength;
+        gl_FragColor = vec4(mix(uColor, uCore, body * ripple) * a, a);
+      }`,
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+  });
+}
+let glowTex = null;
+function glowTexture() {
+  if (glowTex) return glowTex;
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const g = c.getContext('2d'), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.35, 'rgba(255,255,255,0.45)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
+  glowTex = new THREE.CanvasTexture(c);
+  return glowTex;
+}
+function glowSprite(color, size) {
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), color, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+  sp.scale.setScalar(size); sp.renderOrder = 6;
+  return sp;
 }
 export function helperLine(def, template) {
   const group = new THREE.Group();

@@ -6,7 +6,7 @@ import { DRIVERS, UNIVERSES } from '../js/driver.js';
 import { KARTS, KART_GROUPS } from '../js/vehicles.js';
 import { GLIDERS, GLIDER_GROUPS } from '../js/gliders.js';
 import { SIMPLIFIED } from '../js/simplified.js';
-import { driverPortrait, kartPortrait, gliderPortrait, bigPortrait } from '../js/showcase.js';
+import { driverPortrait, kartPortrait, gliderPortrait, bigPortrait, standingPortrait } from '../js/showcase.js';
 import * as THREE from 'three';
 import { HELPERS, lineDrop, loadHelper, helperLine } from '../js/rescue.js';
 
@@ -99,14 +99,7 @@ document.addEventListener('click', (e) => {
   const card = e.target.closest('.card');
   if (card) { toggle(card); return; }
   const t = e.target.closest('[data-tab]');
-  if (t) {
-    for (const b of document.querySelectorAll('[data-tab]')) b.classList.toggle('on', b === t);
-    for (const kind of KINDS) $('#' + kind).classList.toggle('hidden', t.dataset.tab !== kind);
-    $('#helpers').classList.toggle('hidden', t.dataset.tab !== 'helpers');
-    document.body.classList.toggle('view-only', t.dataset.tab === 'helpers');
-    if (t.dataset.tab === 'helpers') showHelpers();
-    return;
-  }
+  if (t) { showTab(t.dataset.tab); return; }
   const g = e.target.closest('[data-gall], [data-gnone]');
   if (g) {
     const [kind, gid] = (g.dataset.gall || g.dataset.gnone).split(':');
@@ -201,3 +194,46 @@ async function showHelpers() {
     await new Promise((r) => requestAnimationFrame(r));
   }
 }
+
+// ---- tabs: the open one is kept in the address (?tab=helpers), so a reload comes back to it ----
+const TABS = [...KINDS, 'helpers'];
+function showTab(tab, remember = true) {
+  if (!TABS.includes(tab)) tab = 'drivers';
+  for (const b of document.querySelectorAll('[data-tab]')) b.classList.toggle('on', b.dataset.tab === tab);
+  for (const k of TABS) $('#' + k).classList.toggle('hidden', k !== tab);
+  document.body.classList.toggle('view-only', tab === 'helpers');
+  if (tab === 'helpers') showHelpers();
+  if (remember) {
+    const u = new URL(location.href);
+    if (tab === 'drivers') u.searchParams.delete('tab'); else u.searchParams.set('tab', tab);
+    history.replaceState(null, '', u);
+  }
+}
+showTab(new URLSearchParams(location.search).get('tab') || 'drivers', false);
+
+// ---- hold the pointer on a character for 1.5 s: a bigger picture of them standing ----------------
+const zoom = $('#zoom');
+let zoomT = 0, zoomCard = null;
+const hideZoom = () => { clearTimeout(zoomT); zoomCard = null; zoom.classList.remove('show'); };
+document.addEventListener('pointerover', (e) => {
+  if (e.pointerType !== 'mouse') return;
+  const card = e.target.closest('.card[data-kind="drivers"]');
+  if (card === zoomCard) return;
+  hideZoom();
+  if (!card) return;
+  zoomCard = card;
+  zoomT = setTimeout(() => {
+    const d = DRIVERS.find((x) => x.id === card.dataset.id);
+    if (!d || zoomCard !== card) return;
+    zoom.querySelector('img').src = standingPortrait(d);
+    zoom.querySelector('div').textContent = d.name;
+    // beside the card, on whichever side has room, kept on screen
+    const r = card.getBoundingClientRect(), W = 300, H = W * 4 / 3 + 40;
+    const x = r.right + 12 + W < innerWidth ? r.right + 12 : Math.max(8, r.left - 12 - W);
+    zoom.style.left = x + 'px';
+    zoom.style.top = Math.max(8, Math.min(innerHeight - H - 8, r.top + r.height / 2 - H / 2)) + 'px';
+    zoom.classList.add('show');
+  }, 1500);
+});
+document.addEventListener('scroll', hideZoom, { passive: true });
+document.addEventListener('pointerdown', hideZoom);

@@ -95,6 +95,20 @@ export function bigPortrait(obj, w = 360, h = 480, turnY = 0.35) {
   return url;
 }
 
+// a driver on their own feet (as on the select screen), big: the workbench's hover zoom
+export function standingPortrait(def) {
+  if (cache.has('s' + def.id)) return cache.get('s' + def.id);
+  let url = '';
+  try {
+    const rig = buildDriver(def);
+    new DriverAnim(rig).update(0.016, { steer: 0, phase: 'race', grounded: true, speed01: 0 });
+    for (const a of [rig.armL, rig.armR]) if (a) a.rotation.set(0, 0, 0);
+    url = bigPortrait(standDriver(rig).root, 420, 560, 0.4);
+  } catch (e) { console.error('standing portrait failed for', def.id, e); }
+  cache.set('s' + def.id, url);
+  return url;
+}
+
 // a glider on its own, open, seen from the front and a little above
 export function gliderPortrait(def) {
   if (cache.has('g' + def.id)) return cache.get('g' + def.id);

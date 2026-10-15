@@ -42,7 +42,9 @@ a REMOVE stamp, stay marked in that browser until **Reset**, and are listed in
 the export under `remove` (ids and names). The workbench's **Helpers** tab is
 for looking only: each rescue helper drawn big, in its cloud or pram, with its
 line hanging from the rod tip to the hook at its race length, to judge which
-models need work.
+models need work. The open tab is kept in the address (`?tab=helpers`, `?tab=karts`,
+`?tab=gliders`), so reloading stays on it, and holding the mouse on a character for
+1.5 s pops up a bigger picture of them standing.
 
 ## Maps (20, in 6 cups)
 
@@ -352,11 +354,12 @@ you drop some.
   wrong way for a few seconds. You're reeled up and put back on the road at the furthest
   point you'd reached. Driving off the road is fine as long as you keep making
   progress, and sitting still or being spun out by an item never calls it. The helpers:
-  Grogu in his hover-pram (Star Wars: he lifts you with a wide beam of the Force from his
-  hands), Kogane (all JJK maps: floats on his angel wings, and his grey tail is the line),
-  Hedwig (Hogwarts), Stan Lee (Marvel), Pteranodon (Jurassic), Pig (Minecraft), Pikachu
-  (Pokémon) and Tails (Sonic), who sit in a cloud with a fishing rod, and on the original
-  maps a tall smiling cloud that holds the rod itself.
+  Grogu in his hover-pram (Star Wars: he lifts you in a shimmering beam of the Force from
+  his hands), Kogane (all JJK maps: flies on his little angel wings, and his grey tail is
+  the line), Hedwig (Hogwarts) and a Pteranodon (Jurassic), who fly with flapping wings and
+  hold the rod in their talons/feet, Stan Lee (Marvel), Pig (Minecraft), Pikachu (Pokémon)
+  and Tails (Sonic), who sit in a cloud with a fishing rod, and on the original maps a
+  tall smiling cloud that holds the rod itself.
 - Sound mutes when you switch to another tab or window.
 - **Full screen on phones** (the same approach as Widow's Bay): on Android and iPad
   the first tap in landscape goes full screen (so does tapping the title). Turning
