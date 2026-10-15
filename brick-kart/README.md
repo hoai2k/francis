@@ -350,9 +350,9 @@ you drop some.
   point you'd reached. Driving off the road is fine as long as you keep making
   progress, and sitting still or being spun out by an item never calls it. The helpers:
   Grogu in his hover-pram (Star Wars, he uses the Force instead of a rod), Kogane (all
-  JJK maps), Dobby (Hogwarts), Rocket (Marvel), Pteranodon (Jurassic), Pig (Minecraft),
-  Pikachu (Pokémon), Tails (Sonic) and Captain Cloud, a brick pilot in a propeller cap
-  (the original maps). Online, everyone sees it fishing out other players.
+  JJK maps), Pteranodon (Jurassic) and Tails (Sonic) fly on their own; Dobby
+  (Hogwarts), Rocket (Marvel), Pig (Minecraft), Pikachu (Pokémon) and Captain Cloud, a
+  brick pilot in a propeller cap (the original maps), ride a cloud. Online, everyone sees it fishing out other players.
 - Sound mutes when you switch to another tab or window.
 - **Full screen on phones** (the same approach as Widow's Bay): on Android and iPad
   the first tap in landscape goes full screen (so does tapping the title). Turning

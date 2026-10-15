@@ -11,16 +11,17 @@ import * as THREE from 'three';
 import { BrickBuilder, plastic } from './lego.js';
 import { DRIVERS, buildDriver } from './driver.js';
 
-// who comes to the rescue on each map's universe (race.movieFrom; the original maps get Captain Cloud)
+// who comes to the rescue on each map's universe (race.movieFrom; the original maps get Captain Cloud).
+// Helpers that fly on their own (fly) need no cloud; the rest ride one.
 const HELPERS = {
   starwars: { name: 'Grogu', load: () => import('./maps/starwars-props.js').then((m) => m.grogu(1)), pram: true },
-  jjk: { name: 'Kogane', load: () => import('./maps/jjk-culling-props.js').then((m) => m.kogane(1)) },
+  jjk: { name: 'Kogane', load: () => import('./maps/jjk-culling-props.js').then((m) => m.kogane(1)), fly: true },
   potter: { name: 'Dobby', driver: 'dobby' },
   marvel: { name: 'Rocket', driver: 'rocket' },
-  jurassic: { name: 'Pteranodon', driver: 'pteranodon' },
+  jurassic: { name: 'Pteranodon', driver: 'pteranodon', fly: true },
   minecraft: { name: 'Pig', driver: 'pig' },
   pokemon: { name: 'Pikachu', driver: 'pikachu' },
-  sonic: { name: 'Tails', driver: 'tails' },
+  sonic: { name: 'Tails', driver: 'tails', fly: true },
   classic: { name: 'Captain Cloud', load: () => Promise.resolve(captainCloud()) },
 };
 
@@ -127,7 +128,7 @@ export class Rescue {
   }
 }
 
-// the character, scaled to size, sitting in its cloud, holding a fishing rod
+// the character, scaled to size, in its cloud (unless it flies), holding a fishing rod
 function helperModel(char, def) {
   const root = new THREE.Group();
   root.name = 'rescue-helper';
@@ -143,9 +144,8 @@ function helperModel(char, def) {
     holder.position.y = 0.4;
     return root;
   }
-  // sunk into the cloud to about the waist
-  holder.position.y = -0.15;
-  root.add(cloud());
+  // fliers hold themselves up; everyone else sits in a cloud, sunk to about the waist
+  if (!def.fly) { holder.position.y = -0.15; root.add(cloud()); }
   // the fishing rod, from the hand up and out to the tip
   const dir = TIP.clone().sub(HAND), len = dir.length();
   const rod = new THREE.Group();
