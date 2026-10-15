@@ -139,14 +139,16 @@ export function gliderPortrait(def) {
 
 // Delete the triangles of a mesh that lie entirely below y = cut, measured in `frame`'s space
 // (works on a copy of the geometry; keeps material groups).
-function trimBelow(mesh, frame, cut) {
+// keep(top, lowY, frontZ) decides each triangle (its highest and lowest y and its frontmost z in
+// `frame`); by default only the ones reaching above `cut` stay
+function trimBelow(mesh, frame, cut, keepTri = (top) => top > cut) {
   const toFrame = new THREE.Matrix4().copy(frame.matrixWorld).invert().multiply(mesh.matrixWorld);
   const src = mesh.geometry.index ? mesh.geometry.toNonIndexed() : mesh.geometry.clone();
   const pos = src.attributes.position, tris = pos.count / 3, keep = [], v = new THREE.Vector3();
   for (let t = 0; t < tris; t++) {
-    let top = -Infinity;
-    for (let k = 0; k < 3; k++) top = Math.max(top, v.fromBufferAttribute(pos, t * 3 + k).applyMatrix4(toFrame).y);
-    if (top > cut) keep.push(t);
+    let top = -Infinity, low = Infinity, front = -Infinity;
+    for (let k = 0; k < 3; k++) { v.fromBufferAttribute(pos, t * 3 + k).applyMatrix4(toFrame); top = Math.max(top, v.y); low = Math.min(low, v.y); front = Math.max(front, v.z); }
+    if (keepTri(top, low, front)) keep.push(t);
   }
   if (keep.length === tris) return;
   const out = new THREE.BufferGeometry();
@@ -179,7 +181,12 @@ function standDriver(rig) {
     const skip = new Set([rig.head, rig.armL, rig.armR].filter(Boolean));
     const torsoMeshes = [];
     rig.torso.traverse((o) => { if (!o.isMesh) return; for (let p = o; p && p !== rig.torso; p = p.parent) if (skip.has(p)) return; torsoMeshes.push(o); });
-    for (const m of torsoMeshes) trimBelow(m, rig.torso, chest + 0.002 * s);
+    // Everything below the waist goes. So does lap geometry built across the waist line (a gown over
+    // the knees, belt pouches or thighs that reach a little above it): triangles that come down to
+    // the waist and stick out more than half a body-depth in front. Bellies, beards and aprons stay
+    // within that (the workbench audit: ~0.45 x depth at most; the lap leftovers were 0.6-0.7).
+    const cut = chest + 0.002 * s, lapY = chest + 0.06 * s, lapZ = 0.5 * s * (d.D ?? 1);
+    for (const m of torsoMeshes) trimBelow(m, rig.torso, cut, (top, low, front) => top > cut && !(low < lapY && front > lapZ));
     const legM = plastic(d.legColor ?? 0x0055bf);
     const add = (w, h, dd, x, y, z) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, dd), legM); m.position.set(x, y, z); root.add(m); };
     add(0.9 * s * W, 0.16 * s, 0.46 * s * (d.D ?? 1), 0, cutY - 0.08 * s, 0);          // hips, up to the torso
