@@ -8,6 +8,9 @@ const G = 42;
 const DRIFT_LEVELS = [1.0, 2.1, 3.3];
 // the rescue helper's line (startRescue): seconds on it, the first FISH_HOOK while it comes down
 export const FISH_TIME = 1.5, FISH_HOOK = 0.6;
+// a road this far (m) or more above the kart is a bridge over it, not its ground; in the air a kart
+// can still land on a road up to UNDER_ROAD_AIR above it (coming in a little low off a jump)
+const UNDER_ROAD = 1.5, UNDER_ROAD_AIR = 3;
 const DRIFT_BOOST = [0.7, 1.15, 1.7];
 export const SPARK_COLORS = [0x7fd4ff, 0xff9a1a, 0xd05aff];
 
@@ -390,11 +393,13 @@ export class Kart {
     const loc = tr.locate(this.pos.x, this.pos.y, this.pos.z, this.loc.i ?? 0, this.loc);
     const prevI = this._prevI ?? loc.i;
     const absLat = Math.abs(loc.lat);
-    const onRoad = !loc.gap && absLat <= loc.hw + 0.3;
-    const onShoulder = !loc.gap && !onRoad && loc.edge !== 1 && absLat <= loc.hw + loc.sh;
+    // (a road well above the kart - a bridge it's driving beside or under - isn't its ground)
+    const below0 = loc.y - this.pos.y > (this.grounded ? UNDER_ROAD : UNDER_ROAD_AIR);
+    const onRoad = !loc.gap && !below0 && absLat <= loc.hw + 0.3;
+    const onShoulder = !loc.gap && !below0 && !onRoad && loc.edge !== 1 && absLat <= loc.hw + loc.sh;
     const hasGround = onRoad || onShoulder || (loc.edge === 0 && !loc.gap);
     const groundY = hasGround ? loc.y : -Infinity;
-    const inField = !onRoad && !onShoulder && loc.edge !== 1 && this.grounded && !!this.race.world?.groundAt?.(this.pos.x, this.pos.z);
+    const inField = !onRoad && !onShoulder && (below0 || loc.edge !== 1) && this.grounded && !!this.race.world?.groundAt?.(this.pos.x, this.pos.z);
     this.surf = onRoad ? loc.surf : onShoulder || inField ? 'offroad' : 'air';
     this.offroad = (onShoulder || inField) && this.grounded;
 
@@ -477,11 +482,15 @@ export class Kart {
     // --- vertical -----------------------------------------------------------------------
     tr.locate(this.pos.x, this.pos.y, this.pos.z, loc.i, loc);
     const absLat2 = Math.abs(loc.lat);
-    const onRoad2 = !loc.gap && absLat2 <= loc.hw + 0.3;
-    const onSh2 = !loc.gap && !onRoad2 && loc.edge !== 1 && absLat2 <= loc.hw + loc.sh + 0.2;
+    // Down on the ground beside or under a raised stretch (a bridge), the road up there isn't the
+    // kart's ground: it drives on underneath rather than being lifted onto it. (A kart that's lost
+    // or stuck down there is fished out by the rescue helper, js/rescue.js.)
+    const below = loc.y - this.pos.y > (this.grounded ? UNDER_ROAD : UNDER_ROAD_AIR);
+    const onRoad2 = !loc.gap && !below && absLat2 <= loc.hw + 0.3;
+    const onSh2 = !loc.gap && !below && !onRoad2 && loc.edge !== 1 && absLat2 <= loc.hw + loc.sh + 0.2;
     // beside the road (not a void edge): the map's ground is drivable, slowly, wherever it exists
     // (water, lava and holes still drop you into a respawn)
-    const onField = !onRoad2 && !onSh2 && loc.edge !== 1 && !!this.race.world?.groundAt?.(this.pos.x, this.pos.z);
+    const onField = !onRoad2 && !onSh2 && (below || loc.edge !== 1) && !!this.race.world?.groundAt?.(this.pos.x, this.pos.z);
     const gY = (onRoad2 || onSh2) ? loc.y : onField ? tr.groundY : -Infinity;
     if (this.grounded && onField) { this.offroad = true; this.surf = 'offroad'; }
     void groundY;
@@ -518,8 +527,7 @@ export class Kart {
       if (this.human) this.race.audio.sfx('trick');
     }
     if ((this.pos.y < loc.y - 14 && !onField) || this.pos.y < tr.groundY - 1) { this.startRespawn(); this.syncModel(dt); return; }
-    // off in the field: a soft boundary keeps karts near the track, and anyone stranded below a
-    // raised stretch of road (no way back up) gets craned back after a moment
+    // off in the field: a soft boundary keeps karts near the track
     if (onField && this.grounded) {
       const lim = loc.hw + loc.sh + 10;
       if (absLat2 > lim) {
@@ -530,12 +538,10 @@ export class Kart {
         const ty = Math.atan2(loc.tx, loc.tz), rel = angleDiff(ty, this.moveYaw);
         this.moveYaw = lerpAngle(this.moveYaw, Math.cos(rel) >= 0 ? ty : ty + Math.PI, 0.25);
       }
-      this.stranded = loc.y - tr.groundY > 3.5 ? (this.stranded || 0) + dt : 0;
-      if (this.stranded > 2.5) { this.stranded = 0; this.startRespawn(); this.syncModel(dt); return; }
-    } else this.stranded = 0;
+    }
 
     // --- walls ------------------------------------------------------------------------------
-    if (loc.edge === 0 && !loc.gap && this.pos.y < loc.y + 4) {
+    if (loc.edge === 0 && !loc.gap && !below && this.pos.y < loc.y + 4) {
       const lim = loc.hw + loc.sh - 1.2;
       if (absLat2 > lim) {
         const s = Math.sign(loc.lat), pen = absLat2 - lim;

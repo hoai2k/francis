@@ -345,7 +345,9 @@ you drop some.
   eases back towards the middle of the track. You land wherever the road is below you, and once you're past the gap you come down twice as fast. Ground obstacles like hay bales and cupcakes only stop you if you fly low enough to hit them.
 - **Off the road**: the grass, sand or snow beside the track is drivable but slow
   (you can't wander far from the track). Only water, lava, holes and the void of
-  space drop you into a respawn.
+  space drop you into a respawn. Down beside or under a raised stretch (a bridge) you
+  stay on the ground and can drive on underneath; you're never lifted up onto it. If
+  you're stuck or lost down there, the rescue helper comes for you.
 - **Falling off**: the map's rescue helper lowers you back onto a safe stretch of road. If you fall again right away, it puts you further ahead next time.
 - **Rescue helper** (like Mario Kart's Lakitu): a little character from the map's own
   universe rides down on a cloud and fishes you out of trouble: when you're stuck
