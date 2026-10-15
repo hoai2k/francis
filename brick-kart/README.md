@@ -341,7 +341,18 @@ you drop some.
 - **Off the road**: the grass, sand or snow beside the track is drivable but slow
   (you can't wander far from the track). Only water, lava, holes and the void of
   space drop you into a respawn.
-- **Falling off**: the crane puts you back on a safe stretch of road. If you fall again right away, it puts you further ahead next time.
+- **Falling off**: the map's rescue helper lowers you back onto a safe stretch of road. If you fall again right away, it puts you further ahead next time.
+- **Rescue helper** (like Mario Kart's Lakitu): a little character from the map's own
+  universe rides down on a cloud and fishes you out of trouble: when you're stuck
+  (trying to drive but not gaining ground for about 6 s, e.g. wedged in a fence or lost
+  far from the road), well behind the furthest point you'd reached, or driving the
+  wrong way for a few seconds. You're reeled up and put back on the road at the furthest
+  point you'd reached. Driving off the road is fine as long as you keep making
+  progress, and sitting still or being spun out by an item never calls it. The helpers:
+  Grogu in his hover-pram (Star Wars, he uses the Force instead of a rod), Kogane (all
+  JJK maps), Dobby (Hogwarts), Rocket (Marvel), Pteranodon (Jurassic), Pig (Minecraft),
+  Pikachu (Pokémon), Tails (Sonic) and Captain Cloud, a brick pilot in a propeller cap
+  (the original maps). Online, everyone sees it fishing out other players.
 - Sound mutes when you switch to another tab or window.
 - **Full screen on phones** (the same approach as Widow's Bay): on Android and iPad
   the first tap in landscape goes full screen (so does tapping the title). Turning
@@ -415,14 +426,15 @@ fill the rest. Rooms are open to anyone who sees them (it's a game for friends).
   doing (choosing a name / driver / kart / glider, ready ✓, loading, racing,
   watching, reconnecting…). Bubbles pop up as people join, leave and lock in.
   Drivers someone else has locked in are taken.
-- **Names**: each player first picks the name they race under: **Default**
-  (made from their driver: "Thor"; "Thor (Red Five)" if someone else in the room
-  is also Thor; "… 2" if they also share the kart), one of the **names saved on
-  this device**, or **+ New name…** (an on-screen keyboard you can use with a
-  controller, or type with a real keyboard / the phone's keyboard; up to 16
-  characters; it's saved for next time). X (Tab) on a saved name forgets it. The
-  highlight starts on what that player slot (P1, P2…) used last time, so just
-  pressing A all the way through keeps it.
+- **Names**: everyone joins as **Default** and goes straight to picking a driver;
+  there's nothing to confirm. Default means "anything will do": in the room it shows
+  as "Player 1", "Player 2"… (your place in the room), and once the race starts it
+  becomes your driver's name ("Megumi") if nobody else in the room has that driver,
+  else it stays "Player N". To race under a real name, click / tap your name tag
+  (✎) in your preview: pick one of the **names saved on this device** or
+  **+ New name…** (an on-screen keyboard you can use with a controller, or type with
+  a real keyboard / the phone's keyboard; up to 16 characters; it's saved for next
+  time). X (Tab) on a saved name forgets it; B / Esc or ✕ closes the list.
 - **Starting**: when everyone is ready the host picks **Single race** (then a
   map) or **Grand Prix** (then a cup); guests see "Host is picking a map…". The host can press **Race!** twice to start without
   someone who's still choosing (they watch that race). Then everyone sees the
@@ -553,7 +565,7 @@ Who owns what:
 | `s` | stage: `sel` / `rdy` / `load` / `race` / `spec` / `res` |
 | `pl` | the screen's players: `[slot, name, custom name?, driver id, kart id, glider id, step]` |
 | `ld`, `ri` | the race id it has loaded / is publishing karts for |
-| `ks` | racing: each owned kart's state (23 numbers: time, position, heading, velocity, steer, drift, flags for glide / boost / shield / golden / mega / bullet / ghost / frozen / finished / respawning, spin and wreck timers, race distance, item, gesture, finish time, studs) |
+| `ks` | racing: each owned kart's state (23 numbers: time, position, heading, velocity, steer, drift, flags for glide / boost / shield / golden / mega / bullet / ghost / frozen / finished / respawning / on the rescue helper's line, spin and wreck timers, race distance, item, gesture, finish time, studs) |
 | `R` (host) | room state: generation, phase, join order, select round, race setup (every second), start time, karts the host drives, results |
 
 | Topic | Sent by | Meaning |
@@ -597,6 +609,7 @@ slow to drive several players).
 - `js/main.js`: game shell, menus, Grand Prix flow, results and podium
 - `js/race.js`: one race (grid, countdown, pickups, bumping, laps, split-screen cameras)
 - `js/kart.js`: arcade kart physics, drifting, jumps, respawns, hit reactions
+- `js/rescue.js`: the rescue helper (when a kart is stuck / lost / going backwards, and each map's helper on its cloud)
 - `js/ai.js`: CPU drivers (racing line, drifting, item tactics, rubber-banding)
 - `js/items.js`: power-ups, projectiles and traps
 - `js/abilities.js`, `js/abilities/*.js`: the movie powers (plug-in packs; the contract is in abilities.js)

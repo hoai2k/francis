@@ -6,6 +6,8 @@ import { plastic } from './lego.js';
 
 const G = 42;
 const DRIFT_LEVELS = [1.0, 2.1, 3.3];
+// the rescue helper's line (startRescue): seconds on it, the first FISH_HOOK while it comes down
+export const FISH_TIME = 1.5, FISH_HOOK = 0.6;
 const DRIFT_BOOST = [0.7, 1.15, 1.7];
 export const SPARK_COLORS = [0x7fd4ff, 0xff9a1a, 0xd05aff];
 
@@ -66,7 +68,7 @@ export class Kart {
     this.studs = 0;
     this.drift = { active: false, dir: 0, charge: 0, level: 0, queued: false };
     this.boostTime = 0; this.spinTime = 0; this.wreckTime = 0; this.invuln = 0;
-    this.goldenTime = 0; this.shieldTime = 0; this.respawn = 0; this.airTime = 0;
+    this.goldenTime = 0; this.shieldTime = 0; this.respawn = 0; this.fishing = false; this.airTime = 0;
     this.trick = false; this.trickDone = false;
     this.offroad = false; this.surf = 'road';
     this.lastSafe = 0;
@@ -232,13 +234,25 @@ export class Kart {
 
   startRespawn() {
     if (this.respawn > 0) return;
-    this.respawn = 1.6; this.respawnPlaced = false;
+    this.respawn = 1.6; this.respawnPlaced = false; this.fishing = false;
     this.cancelDrift();
     this.speed = 0; this.kvx = this.kvz = this.yawKick = 0;
     this.setGliding(false);
     this.race.audio.sfx('splash', this.pos);
     this.race.fx.splash(this.pos, this.track.theme.groundOpts?.emissive ? 0xff6a00 : 0x66ccff);
     this.dropStuds(2);
+  }
+
+  // Fished out of trouble by the map's rescue helper (js/rescue.js): stuck, lost or going the wrong
+  // way. The kart hangs on the helper's line and is reeled up for a moment, then the crane drop
+  // below puts it back down at the furthest point of the track it had reached (sample baseI).
+  startRescue(baseI) {
+    if (this.respawn > 0 || this.finished) return;
+    this.cancelDrift();
+    this.speed = 0; this.vy = 0; this.kvx = this.kvz = this.yawKick = 0;
+    this.setGliding(false);
+    this.lastSafe = this.track.wrap(baseI);
+    this.respawn = 1 + FISH_TIME; this.respawnPlaced = false; this.fishing = true;
   }
 
   // Is sample i a safe place to put a kart back down?
@@ -324,6 +338,14 @@ export class Kart {
 
     if (this.respawn > 0) {
       this.respawn -= dt;
+      if (this.fishing && this.respawn > 1.0) {
+        // on the rescue helper's line: hooked while it comes down, then reeled up, swinging a little
+        const t = 1 + FISH_TIME - this.respawn;
+        if (t > FISH_HOOK) { this.pos.y += dt * 5; this.yaw += Math.sin(t * 7) * dt * 0.8; }
+        this.syncModel(dt);
+        return;
+      }
+      this.fishing = false;
       if (this.respawn < 1.0 && !this.respawnPlaced) {
         this.respawnPlaced = true;
         const i0 = this.pickSpawn();
@@ -629,7 +651,7 @@ export class Kart {
     const m = this.model;
     const d = this.drift;
     m.root.position.copy(this.pos);
-    m.root.visible = !(this.respawn > 0 && !this.respawnPlaced) && !(this.hidden > 0.05 && this.hidden < 0.8);
+    m.root.visible = !(this.respawn > 0 && !this.respawnPlaced && !this.fishing) && !(this.hidden > 0.05 && this.hidden < 0.8);
     // spin-out & wreck rotations
     let extraYaw = 0;
     if (this.spinTime > 0) extraYaw = (1 - this.spinTime / 0.9) * Math.PI * 4;

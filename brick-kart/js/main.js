@@ -578,11 +578,11 @@ class Game {
     const gGroup = (gl) => GLIDER_GROUP_NAMES[gl.group] || { name: 'Glider', color: '#fff' };
     const cellHtml = (p, d, ch, following, standing) => {
       if (p?.remote) return remoteHtml(p, d, ch, standing);
-      // online: each player first picks the name they race under (see js/online/names.js)
-      if (online && p?.phase === 'name') return online.nameCell(p);
+      // online: clicking a player's name tag opens the names they can race under (see js/online/names.js)
+      if (online && p?.naming) return online.nameCell(p);
       const kartStep = p && locked(p), glideStep = kartStep && p.sub === 'glider';
       const gl = GLIDERS[p?.gcur ?? 0];
-      const who = p && !phone ? `<i style="background:${p.color}">P${p.id + 1}</i> ` : '';
+      const who = (p && !phone ? `<i style="background:${p.color}">P${p.id + 1}</i> ` : '') + (p && online ? online.nameTag(p) : '');
       const kn = allowedK.indexOf(p?.kcur) + 1, dn = allowedD.indexOf(p?.dcur) + 1, gn = allowedG.indexOf(p?.gcur) + 1;
       const tag = !p ? 'Press <b>A</b> / <b>Enter</b> or tap a driver'
         : p.phase === 'driver' ? `${who}pick a <b>driver</b><em class="dnum">${dn} / ${allowedD.length}</em>`
@@ -741,7 +741,7 @@ class Game {
       const tk = taken(null), nD = allowedD.length;
       let pos = di >= 0 ? di : id % nD;
       for (let n = 0; n < nD && tk.has(allowedD[pos]); n++) pos = (pos + 1) % nD;
-      const p = { id, device, dcur: allowedD[pos], kcur: allowedK[ki >= 0 ? ki : 0], gcur: allowedG[gi >= 0 ? gi : 0], sub: 'kart', phase: online ? 'name' : 'driver', color: PCOL[id] };
+      const p = { id, device, dcur: allowedD[pos], kcur: allowedK[ki >= 0 ? ki : 0], gcur: allowedG[gi >= 0 ? gi : 0], sub: 'kart', phase: 'driver', color: PCOL[id] };
       online?.nameStart(p);
       players.push(p);
       players.sort((a, b) => a.id - b.id);
@@ -900,18 +900,18 @@ class Game {
             continue;
           }
           const dx = m.left ? -1 : m.right ? 1 : 0, dy = m.up ? -1 : m.down ? 1 : 0;
-          if (p.phase === 'name') {
+          if (p.naming) {
             if (dy) { online.nameMove(p, dy); this.audio.sfx('click'); refresh(); }
             if (m.x) { online.nameDelete(p); refresh(); }
-            if (m.ok || m.start) { this.audio.sfx('select'); online.nameAccept(p, () => { p.phase = 'driver'; refresh(); }); continue; }
-            if (m.back) { if (p === players[0]) { back(); return; } leave(p); }
+            if (m.ok || m.start) { this.audio.sfx('select'); online.nameAccept(p, () => { p.naming = false; refresh(); }); continue; }
+            if (m.back) { p.naming = false; this.audio.sfx('back'); refresh(); }
             continue;
           }
           if (p.phase === 'driver') {
             if (compact()) { if (dx) stepDriver(p, dx); }
             else if (dx || dy) { p.dcur = moveIn(dcards, p.dcur, dx, dy, (c) => +c.dataset.i); this.audio.sfx('click'); refresh(); }
             if (m.ok) { lockDriver(p); continue; }
-            if (m.back) { if (online) { p.phase = 'name'; this.audio.sfx('back'); refresh(); continue; } if (p === players[0]) { back(); return; } leave(p); continue; }
+            if (m.back) { if (p === players[0]) { back(); return; } leave(p); continue; }
           } else if (p.phase === 'kart') {
             if (m.back) { stepBack(p); continue; }
             if (p.kartLock) continue;
@@ -930,7 +930,7 @@ class Game {
         if (!p) p = join(isTouchDevice() ? 'touch' : 'kb');
         touched();
         if (!p || taken(p).has(i)) return;
-        if (online && p.phase === 'name') online.nameQuick(p);   // tapping a driver keeps the highlighted name
+        if (p.naming) p.naming = false;   // tapping a driver closes the name list, keeping the name
         p.dcur = i; p.phase = 'driver';
         lockDriver(p);
       },
@@ -940,7 +940,7 @@ class Game {
         if (a.startsWith('ol')) { online?.act(a, players, refresh); return; }
         if (a === 'back') {
           const p = players.find((q) => q.device === 'touch' || q.device === 'kb') || players[0];
-          if (p && online && p.phase === 'driver') { p.phase = 'name'; this.audio.sfx('back'); refresh(); return; }
+          if (p?.naming) { p.naming = false; this.audio.sfx('back'); refresh(); return; }
           if (p && p.phase !== 'driver' && p.phase !== 'name') stepBack(p); else back();
           return;
         }

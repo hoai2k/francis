@@ -1,12 +1,11 @@
 // Player names for online play.
 //
-// Each local player (P1, P2, ...) picks the name they race under on the select screen, before their
-// driver: "Default" (made from their driver, see resolveNames), one of the names saved on this
+// Each local player (P1, P2, ...) joins racing under "Default" (made from their driver, see
+// resolveNames, so it follows the driver they pick) and goes straight to picking a driver. Clicking
+// their name tag on the select screen opens the other choices: one of the names saved on this
 // device, or "New name…" (typed on an on-screen keyboard that works with a controller, or with a
-// real keyboard / the phone's own keyboard). The highlighted choice starts on what that player
-// slot used last time, so pressing A straight through keeps it.
+// real keyboard / the phone's own keyboard).
 import { DRIVERS } from '../driver.js';
-import { KARTS } from '../vehicles.js';
 import { esc, cleanName } from './proto.js';
 
 const KEY = 'brickkart.names.v1';
@@ -22,11 +21,6 @@ export class Names {
   store() { try { localStorage.setItem(KEY, JSON.stringify({ saved: this.saved, last: this.last })); } catch { /* storage unavailable */ } }
   // the choices for a player: 'default', the saved names, 'new'
   options() { return ['default', ...this.saved, 'new']; }
-  startIndex(slot) {
-    const l = this.last[slot], opts = this.options();
-    const i = typeof l === 'string' ? opts.indexOf(l) : -1;
-    return i > 0 && i < opts.length - 1 ? i : 0;
-  }
   remember(slot, choice) { this.last[slot] = choice; this.store(); }
   add(name) {
     name = cleanName(name);
@@ -41,21 +35,18 @@ export class Names {
   }
 }
 
-// Names for everyone in the room. humans: [{ key, custom (a chosen name or null), d, k }] in room
-// order (driver / kart indices). A default name is the driver's name; if anyone else would show the
-// same name it becomes "Driver (Kart)", and if that still clashes a number follows ("Thor 2").
-// Every screen runs this on the same data, so they all agree.
-export function resolveNames(humans) {
-  const base = humans.map((h) => (h.custom ? h.custom : DRIVERS[h.d]?.name || 'Racer'));
-  const count = (list, v) => list.filter((x) => x === v).length;
-  const second = humans.map((h, i) => (h.custom || count(base, base[i]) < 2 ? base[i] : `${DRIVERS[h.d]?.name || 'Racer'} (${KARTS[h.k]?.vehicle || 'Kart'})`));
-  const out = new Map(), seen = new Map();
+// Names for everyone in the room. humans: [{ key, custom (a chosen name or null), d }] in room order
+// (driver indices). "Default" leaves the name up to us: before a race it's "Player N" (N = place in
+// the room), and once the race starts (race = true) it becomes the driver's name if nobody else in
+// the room has that driver (or took it as their name), else it stays "Player N". Every screen runs
+// this on the same data, so they all agree.
+export function resolveNames(humans, race = false) {
+  const out = new Map();
   humans.forEach((h, i) => {
-    let n = second[i];
-    if (!h.custom && count(second, n) > 1) {
-      const k = (seen.get(n) || 0) + 1;
-      seen.set(n, k);
-      if (k > 1) n = `${n} ${k}`;
+    let n = h.custom || `Player ${i + 1}`;
+    if (!h.custom && race) {
+      const dn = DRIVERS[h.d]?.name;
+      if (dn && !humans.some((o, j) => j !== i && (o.d === h.d || o.custom === dn))) n = dn;
     }
     out.set(h.key, n);
   });

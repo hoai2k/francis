@@ -15,6 +15,7 @@ import { ABILITY, ABILITIES } from './abilities.js';
 import { MAP_FROM } from './tracks.js';
 import { HUD, splitCells } from './hud.js';
 import { Hazards, hazardSeeds } from './hazards.js';
+import { Rescue } from './rescue.js';
 
 export const MAX_RACERS = 12;   // karts per race, players included
 const V = new THREE.Vector3();
@@ -317,6 +318,8 @@ export class Race {
 
     // online: pose the remote karts for this frame and carry out other players' item uses
     net?.update(dt);
+    // the map's rescue helper fishes stuck, lost and wrong-way karts back onto the road (js/rescue.js)
+    (this.rescue ||= new Rescue(this)).update(dt);
 
     // pickups: item boxes, studs, boost pads, ramps
     const n = this.karts.length;

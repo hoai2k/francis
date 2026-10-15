@@ -136,7 +136,7 @@ export class NetRace {
           k.pos.set(s.x, s.y, s.z); k.yaw = s.yaw;
           k.speed = Math.max(0, s.spd); k.vy = s.vy; k.moveYaw = k.yaw;
           k.grounded = !!(s.flags & F.GROUND);
-          if (k.respawn > 0) { k.respawn = 0; k.respawnPlaced = true; }
+          if (k.respawn > 0) { k.respawn = 0; k.respawnPlaced = true; k.fishing = false; }
         }
         k.kvx = k.kvz = 0;
         race.track.locate(k.pos.x, k.pos.y, k.pos.z, -1, k.loc);
@@ -366,6 +366,7 @@ export class NetRace {
     k.trickSpin = s.trick;
     k.lookBack = !!(s.flags & F.LOOK);
     k.respawn = gone ? 1 : 0; k.respawnPlaced = !gone;
+    k.netHelp = !!(s.flags & F.HELP);
     p.ctl.steer = s.steer; k.ctl = p.ctl; k.glideSteer = s.steer;   // (while gliding it's the glide steering)
     k.studs = s.studs;
     k.item = s.item; k.itemCount = s.item ? MULTI[s.item] || 1 : 0;
