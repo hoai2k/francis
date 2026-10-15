@@ -18,8 +18,9 @@ export function openTitle(game) {
       h('div', { class: 'logo' }, 'CURSED', h('span', {}, 'DUNGEONS')),
       h('div', { class: 'tag' }, 'A Jujutsu Kaisen dungeon crawler · Level ' + save.level + ' · ◆ ' + save.coins),
       h('div', { class: 'title-menu' },
-        h('button', { class: 'btn primary', 'data-autofocus': true, onclick: () => { ui.close('title'); openSelect(game); } }, save.stats.missions ? 'Continue' : 'Play'),
+        h('button', { class: 'btn primary', 'data-autofocus': true, onclick: () => { ui.close('title'); openSelect(game); } }, save.stats.missions || save.technique ? 'Continue' : 'Play'),
         h('button', { class: 'btn', onclick: () => openSettings(game) }, 'Settings'),
+        h('button', { class: 'btn', onclick: () => openSaveCode(game) }, 'Save Code'),
         h('button', { class: 'btn', onclick: () => { if (confirm('Erase all progress?')) { game.save.reset(); ui.refresh('title'); toast('Progress reset'); } } }, 'Reset Save'))),
       h('div', { class: 'footer-note' }, isMobile ? 'Tap to begin · landscape recommended' : 'Keyboard + mouse or up to 4 controllers · Press A / Start on a controller to join'));
   }, { onNav: (m) => { if (m.start) { ui.close('title'); openSelect(game); } } });
@@ -94,7 +95,7 @@ export function openSelect(game) {
         h('div', { class: 'rarity', style: `color:${R.color}` }, `${R.label.toUpperCase()} · ${odds < 1 ? odds.toFixed(2) : odds.toFixed(1)}%`),
         h('div', { class: 'cn', style: `color:${info.color}` }, (info.technique ?? info.name).toUpperCase()),
         h('div', { style: 'font-size:12px;color:#ddd' }, `${info.name} · ${info.title}`),
-        h('div', { style: 'font-size:11px;color:#aaa' }, 'Domain: ' + info.domain),
+        h('div', { style: 'font-size:11px;color:#aaa' }, (info.ultimate ? 'Ultimate: ' + info.ultimate : 'Domain: ' + info.domain)),
         h('div', { class: 'cd' }, s.spinning ? '…' : info.desc),
         h('div', { class: 'arrows' },
           d.codeUnlocked ? h('button', { class: 'btn small', onclick: () => choose(s, -1) }, '◀') : null,
@@ -245,7 +246,7 @@ export function openSkills(game, player) {
     const cards = tree.map((sk) => {
       const r = S.skills[sk.id] ?? 0;
       const locked = sk.req && !(S.skills[sk.req] > 0);
-      const slotName = sk.slot ? player.kit.slots[sk.slot]?.name : sk.id === 'unlock_domain' ? player.kit.domain?.name : null;
+      const slotName = sk.slot ? player.kit.slots[sk.slot]?.name : sk.id === 'unlock_domain' ? (player.kit.domain?.name ?? player.kit.ultimate?.name) : null;
       const unlock = UNLOCK_IDS.has(sk.id) && sk.id.startsWith('unlock_');
       return h('button', { class: 'skill' + (locked ? ' locked' : '') + (unlock ? ' unlock' + (r ? '' : ' todo') : ''), style: 'text-align:left', onclick: () => {
         if (locked || r >= sk.max || S.skillPoints <= 0) { game.audio?.ui('back'); return; }
@@ -310,5 +311,33 @@ export function openMapTable(game) {
       h('div', { class: 'setting' }, h('label', {}, 'Threat level'), (() => { const s = h('select', {}, ...[['0', 'Normal'], ['1', 'Hard (+1 grade)'], ['2', 'Nightmare (+2 grades)']].map(([v, t]) => { const o = h('option', { value: v }, t); if (+v === threat) o.selected = true; return o; })); s.addEventListener('change', () => { threat = +s.value; ui.refresh('maptable'); }); return s; })()),
       ...rows,
       h('div', { class: 'row', style: 'justify-content:flex-end;margin-top:10px' }, h('button', { class: 'btn', 'data-autofocus': true, onclick: close }, 'Close'))));
+  }, { dim: true, onBack: close });
+}
+
+// ------------------------------------------------------------------ save code
+// Progress lives in this browser's localStorage. A save code backs it up or
+// moves it to another device.
+export function openSaveCode(game) {
+  const ui = game.ui, save = game.save;
+  game.save.write();
+  const close = () => ui.close('savecode');
+  ui.open('savecode', (el) => {
+    const code = save.exportCode();
+    const out = h('textarea', { class: 'save-code', readonly: true, rows: 4 }, code);
+    const inp = h('textarea', { class: 'save-code', rows: 3, placeholder: 'Paste a save code here', onkeydown: (e) => e.stopPropagation() });
+    el.appendChild(h('div', { class: 'panel', style: 'width:min(560px,96vw)' },
+      h('h2', {}, 'Save Code'),
+      h('div', { class: 'hint', style: 'margin:0 0 6px' }, 'The game saves automatically in this browser. Copy this code to back up your progress or continue on another device.'),
+      out,
+      h('div', { class: 'row', style: 'justify-content:flex-end;margin:6px 0 12px' },
+        h('button', { class: 'btn small', onclick: () => { out.select(); navigator.clipboard?.writeText(code).then(() => toast('Save code copied'), () => { document.execCommand?.('copy'); toast('Save code copied'); }); } }, 'Copy')),
+      inp,
+      h('div', { class: 'row', style: 'justify-content:flex-end;margin-top:6px;gap:8px' },
+        h('button', { class: 'btn small', onclick: () => {
+          if (!inp.value.trim()) return;
+          if (!confirm('Load this save? Your current progress will be replaced.')) return;
+          if (save.importCode(inp.value)) { toast('Save loaded'); setTimeout(() => location.reload(), 600); } else { toast('That save code is not valid'); game.audio?.ui('back'); }
+        } }, 'Load Code'),
+        h('button', { class: 'btn', 'data-autofocus': true, onclick: close }, 'Close'))));
   }, { dim: true, onBack: close });
 }

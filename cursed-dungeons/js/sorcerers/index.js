@@ -18,8 +18,8 @@ export const SORCERERS = {
   gojo: { name: 'Gojo', technique: 'Limitless', rarity: 'special', title: 'The Strongest', desc: 'Limitless: Blue pulls, Red repels, Hollow Purple erases. Infinity makes you untouchable.', domain: 'Unlimited Void', color: '#6ad8ff' },
   sukuna: { name: 'Sukuna', technique: 'Shrine', rarity: 'special', title: 'King of Curses', desc: 'Dismantle and Cleave carve the battlefield. Fuga looses a flaming arrow.', domain: 'Malevolent Shrine', color: '#ff3a4a' },
   megumi: { name: 'Megumi', technique: 'Ten Shadows', rarity: 'legendary', title: 'Ten Shadows', desc: 'Summon Divine Dogs, Nue and Toad as allies. Shadow-step through your own shadow.', domain: 'Chimera Shadow Garden', color: '#8a8aff' },
-  yuji: { name: 'Yuji', technique: 'Divergent Fist', rarity: 'epic', title: 'Vessel', desc: 'Brutal combos, Divergent Fist\'s delayed second impact, and Black Flash on perfect timing.', domain: 'Resonant Fists', color: '#ff5a4a' },
-  nobara: { name: 'Nobara', technique: 'Straw Doll', rarity: 'rare', title: 'Straw Doll', desc: 'Hammer and nails: Hairpin detonates nails, Resonance strikes everything you have nailed.', domain: 'Resonance Field', color: '#ffa050' },
+  yuji: { name: 'Yuji', technique: 'Divergent Fist', rarity: 'epic', title: 'Vessel', desc: 'Brutal combos, Divergent Fist\'s delayed second impact, and Black Flash on perfect timing.', ultimate: 'Consecutive Black Flash', color: '#ff5a4a' },
+  nobara: { name: 'Nobara', technique: 'Straw Doll', rarity: 'rare', title: 'Straw Doll', desc: 'Hammer and nails: Hairpin detonates nails, Resonance strikes everything you have nailed.', ultimate: 'Resonance: Blood Doll', color: '#ffa050' },
 };
 export const SORCERER_IDS = Object.keys(SORCERERS);
 
@@ -58,7 +58,7 @@ export const UNLOCK_NODES = [
   { id: 'unlock_t3', slot: 't3', name: 'Technique III', desc: 'Unlock your fourth technique (3 / Y).', max: 1, req: 'unlock_t2' },
   { id: 'rct_mastery', name: 'RCT Mastery', desc: '+1 RCT charge and stronger healing per rank.', max: 2, req: 'unlock_rct' },
   { id: 'ce_reserve', name: 'Vast Reserves', desc: '+20 max Cursed Energy per rank.', max: 3, req: 'ce_flow' },
-  { id: 'unlock_domain', name: 'Domain Expansion', desc: 'Unlock your Domain Expansion (F / LT).', max: 1, req: 'unlock_t3' },
+  { id: 'unlock_domain', name: 'Domain / Ultimate', desc: 'Unlock your Domain Expansion, or your ultimate attack if your sorcerer has no domain (F / LT).', max: 1, req: 'unlock_t3' },
 ];
 export const UNLOCK_IDS = new Set(UNLOCK_NODES.map((n) => n.id));
 

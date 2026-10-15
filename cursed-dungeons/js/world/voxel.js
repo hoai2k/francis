@@ -77,6 +77,15 @@ export class World {
     }
     return -Infinity;
   }
+  // Floor height to stand on near a room's floor level: the closest y to
+  // nearY with solid ground below and two free cells of headroom. Unlike
+  // groundBelow it never lands on a roof, wall top or ceiling above.
+  standY(x, z, nearY, reach = 3) {
+    const bx = Math.floor(x), bz = Math.floor(z), y0 = Math.floor(nearY);
+    const ok = (y) => { const a = this.get(bx, y - 1, bz), b = this.get(bx, y, bz), c = this.get(bx, y + 1, bz); return a && BLOCKS[a].solid && !BLOCKS[a].liquid && !(b && BLOCKS[b].solid) && !(c && BLOCKS[c].solid); };
+    for (let d = 0; d <= reach; d++) { if (ok(y0 - d)) return y0 - d; if (d && ok(y0 + d)) return y0 + d; }
+    return -Infinity;
+  }
   liquidAt(x, y, z) { const id = this.blockAt(x, y, z); return id ? BLOCKS[id].liquid : null; }
   addLight(x, y, z, color, intensity, distance) {
     this.staticLights.push({ x, y, z, color: new THREE.Color(color), intensity, distance });

@@ -148,7 +148,7 @@ export function generateLevel(mission) {
     room.waves = [];
     if (room.type === 'start' || room.type === 'boss') continue;
     const area = (room.x1 - room.x0) * (room.z1 - room.z0);
-    const budget = Math.round((4 + diff * 1.5 + area / 70) * (room.type === 'secret' ? 0.7 : 1));
+    const budget = Math.min(9, Math.round((3 + diff + area / 110) * (room.type === 'secret' ? 0.7 : 1)));
     const nWaves = room.type === 'combat' && diff > 1 ? 2 : 1;
     for (let w = 0; w < nWaves; w++) {
       const list = [];

@@ -36,7 +36,7 @@ import { SORCERER_IDS, rollTechnique } from './sorcerers/index.js';
 import './sorcerers/all.js';
 import { Save } from './save.js';
 import { rollChest, itemInfo, RARITY } from './loot.js';
-import { openTitle, openSelect, openInventory, openSkills, openShop, openMapTable } from './ui/screens.js';
+import { openTitle, openSelect, openInventory, openSkills, openShop, openMapTable, openSaveCode } from './ui/screens.js';
 import { buildSorcererModel } from './entities/models.js';
 import { openPhotoMode } from './photo.js';
 import { DomainSystem } from './domain.js';
@@ -120,6 +120,10 @@ class Game {
     window.addEventListener('resize', () => this.gr.resize());
     const persist = () => this.save.write();
     window.addEventListener('beforeunload', persist);
+    window.addEventListener('pagehide', persist);       // iOS / mobile never fire beforeunload
+    // autosave every 15 s while playing (coins, XP and loot are kept even if the tab is killed)
+    setInterval(() => { if (this.state === 'playing') this.save.write(); }, 15000);
+    if (!this.save.write()) setTimeout(() => toast('⚠ Your browser is blocking saves — use Pause → Save Code to keep progress', 'big'), 4000);
     document.addEventListener('visibilitychange', () => { if (document.hidden) { persist(); if (this.state === 'playing' && !this.paused && !this.ui.stack.length) this.pause(); } });
     window.addEventListener('keydown', (e) => { if (e.code === 'F3') { settings.showFps = !settings.showFps; saveSettings(); this.setReadout(settings.showFps); } });
     if (isMobile) { document.body.classList.add('is-touch'); this.touch = new TouchControls(this); this.touch.show(true); }
@@ -222,7 +226,7 @@ class Game {
       p.spawn(at.clone().add(new THREE.Vector3((i % 2) * 1.4 - 0.7 * (i > 0), 0, Math.floor(i / 2) * 1.4)));
       p.hp = p.maxHp; p.dead = false; p.downed = false; p.deadT = 0; p.downT = 0; p.reviveProgress = 0;
       p.action = null; p.healCharges = p.healMax; p.iframes = 2; p.knock?.set(0, 0, 0);
-      p.hurtT = 0; p.rig.swap(null);
+      p.hurtT = 0; p.rig.swap(null); p.invulnerable = false; p.domainActive = false;
       p.rig.hips.rotation.x = 0;
     });
     this.rig.snap(at);
@@ -354,7 +358,7 @@ class Game {
     kinds.forEach((k, i) => {
       const a = (i / kinds.length) * Math.PI * 2 + Math.random();
       const pos = new THREE.Vector3(c.x + Math.cos(a) * 7, c.y, c.z + 4 + Math.sin(a) * 5);
-      const gy = this.world.groundBelow(pos.x, pos.z, pos.y + 3); if (!isFinite(gy)) return;
+      const gy = this.world.standY(pos.x, pos.z, c.y); if (!isFinite(gy)) return;
       pos.y = gy;
       const elite = this.wave >= 3 && i === 0 ? ['swift', 'armored', 'vampiric', 'explosive', 'shadow'][this.wave % 5] : null;
       this.spawnEnemy(k, pos, { elite });
@@ -440,7 +444,9 @@ class Game {
         h('h2', {}, 'Paused'),
         h('button', { class: 'btn primary', 'data-autofocus': true, onclick: () => this.resume() }, 'Resume'),
         h('button', { class: 'btn', onclick: () => { this.ui.close('pause'); openInventory(this, player); } }, 'Inventory'),
-        h('button', { class: 'btn', onclick: () => { this.ui.close('pause'); openSkills(this, player); } }, 'Skill Tree'),
+        h('button', { class: 'btn', onclick: () => { this.ui.close('pause'); openSkills(this, player); } }, 'Technique Tree'),
+        h('button', { class: 'btn', onclick: () => { toast(this.save.write() ? '💾 Game saved' : '⚠ Browser blocked saving — use Save Code'); this.audio.ui('buy'); } }, '💾 Save Game'),
+        h('button', { class: 'btn', onclick: () => openSaveCode(this) }, 'Save Code'),
         h('button', { class: 'btn', onclick: () => openSettings(this) }, 'Settings'),
         h('button', { class: 'btn', onclick: () => { this.ui.close('pause'); this.openPhotoMode(); } }, '📷 Photo Mode'),
         h('button', { class: 'btn', onclick: () => { this.ui.close('pause'); this.paused = false; this.save.write(); this.toTitle(); } }, 'Quit to Title'),
@@ -448,7 +454,7 @@ class Game {
       ));
     }, { dim: true, onBack: () => this.resume() });
   }
-  resume() { this.ui.close('pause'); this.paused = false; this.last = performance.now(); }
+  resume() { this.save.write(); this.ui.close('pause'); this.paused = false; this.last = performance.now(); }
 
   // Drop-in co-op: an unassigned controller pressing Start/A joins.
   checkJoin() {

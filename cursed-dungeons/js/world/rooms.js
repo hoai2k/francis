@@ -32,8 +32,8 @@ function spawnGrid(c, n = 10, margin = 3) {
   const { x0, z0, x1, z1, y } = c;
   for (let i = 0; i < n * 3 && c.spawns.length < n; i++) {
     const x = x0 + margin + Math.floor(c.r() * (x1 - x0 - margin * 2)), z = z0 + margin + Math.floor(c.r() * (z1 - z0 - margin * 2));
-    const gy = c.k.w.groundBelow(x + 0.5, z + 0.5, y + 8);
-    if (!isFinite(gy) || c.k.w.solidAt(x + 0.5, gy + 0.5, z + 0.5) || c.k.w.solidAt(x + 0.5, gy + 1.5, z + 0.5)) continue;
+    const gy = c.k.w.standY(x + 0.5, z + 0.5, y, 2);
+    if (!isFinite(gy)) continue;
     c.spawns.push([x + 0.5, gy, z + 0.5]);
   }
 }

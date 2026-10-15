@@ -4,8 +4,9 @@
 //        (including crates, walls and pillars).
 //   1    Cleave: an adaptive X-cut on the nearest curse that scales with its toughness.
 //   2    Dismantle Flurry: a fan of cutting waves.
-//   3    Fuga: "Open" — a flame bow forms and looses a burning arrow.
-//   F    Domain: Malevolent Shrine — everything nearby is sliced, constantly.
+//   3    Fuga (Divine Flame: "Open") — a flame bow forms and looses a burning arrow.
+//   F    Domain: Malevolent Shrine — an open domain (no barrier): the shrine of
+//        mouths and skulls rises and Cleave + Dismantle cut everything in reach.
 import * as THREE from 'three/webgpu';
 import { Kit } from './kit.js';
 import { registerKit } from './index.js';
@@ -43,46 +44,107 @@ class SukunaKit extends Kit {
       t2: this.ability({ name: 'Flurry', icon: '🌪️', cd: 9, ce: 16, use: () => this.flurry() }),
       t3: this.ability({ name: 'Fuga', icon: '🏹', cd: 16, ce: 40, use: () => this.fuga() }),
     };
+    // Malevolent Shrine is an OPEN domain: no barrier closes the sky — the
+    // shrine simply manifests, and everything within its (vast) reach is cut
+    // by Dismantle and Cleave without pause. Cleave adapts to each target's
+    // toughness; Dismantle carves the scenery.
     this.domain = {
       name: 'Malevolent Shrine', icon: '⛩️', key: 'malevolent_shrine', type: 2, color: 0xff3a2a, sound: 'shrine', flash: 0xff2020,
-      duration: 8 + r('shrine') * 1.5, radius: 22,
-      onStart: (g, d) => { this.shrineProp(g, d); },
+      duration: 8 + r('shrine') * 1.5, radius: 28,
+      onStart: (g, d) => {
+        g.domainSys.dome.visible = false;   // no barrier: the real sky stays
+        this.shrineProp(g, d);
+        g.toast?.('No barrier — a domain without walls');
+      },
       onTick: (g, d, dt) => {
         d.tick = (d.tick ?? 0) - dt;
         if (d.tick > 0) return;
-        d.tick = 0.16 - r('shrine') * 0.02;
-        const list = g.enemies.filter((e) => !e.dead && !e.isDummy && g.domainSys.inside(e.pos));
-        for (let i = 0; i < Math.min(3, list.length); i++) {
-          const e = list[Math.floor(Math.random() * list.length)];
-          const at = e.pos.clone().setY(e.pos.y + e.height * (0.3 + Math.random() * 0.6));
-          g.combat.damageEnemy(e, 7, this.p, { stagger: 0.1, ceGain: 0, unblockable: true });
-          const a = Math.random() * Math.PI * 2;
-          g.fx.slashLine(at.clone().add(new THREE.Vector3(Math.cos(a) * 1.4, (Math.random() - 0.5), Math.sin(a) * 1.4)), new THREE.Vector3(-Math.cos(a), (Math.random() - 0.5) * 0.6, -Math.sin(a)), 2.8, 0xffffff, 0.12, 0.12, Math.random() * 3);
+        d.tick = 0.24 - r('shrine') * 0.03;
+        d.n = (d.n ?? 0) + 1;
+        let shown = 0;
+        for (const e of g.enemies) {
+          if (e.dead || e.isDummy || !g.domainSys.inside(e.pos)) continue;
+          // Cleave: one slash tuned to the target's toughness; Dismantle: the constant default cut
+          const cleave = Math.min(e.maxHp * 0.022, 30);
+          g.combat.damageEnemy(e, 5 + cleave, this.p, { stagger: 0.12, ceGain: 0, unblockable: true, crit: false, color: '#ff6a6a' });
+          if (shown++ < 8) {
+            const at = e.pos.clone().setY(e.pos.y + e.height * (0.3 + Math.random() * 0.6));
+            const ang = Math.random() * Math.PI * 2;
+            if (d.n % 3 === 0) g.fx.slashX(at, 1.6 + e.height * 0.4, 0xffffff);
+            else g.fx.slashLine(at.clone().add(new THREE.Vector3(Math.cos(ang) * 1.4, (Math.random() - 0.5), Math.sin(ang) * 1.4)), new THREE.Vector3(-Math.cos(ang), (Math.random() - 0.5) * 0.6, -Math.sin(ang)), 2.8, 0xffffff, 0.12, 0.12, Math.random() * 3);
+          }
         }
-        // the ground and scenery get cut too
-        if (Math.random() < 0.5) { const a = Math.random() * Math.PI * 2, r0 = Math.random() * d.radius; const at = d.center.clone().add(new THREE.Vector3(Math.cos(a) * r0, 0.3, Math.sin(a) * r0)); g.fx.slashLine(at, new THREE.Vector3(Math.cos(a + 1.5), 0, Math.sin(a + 1.5)), 3, 0xff4a4a, 0.08, 0.15); g.combat.hitBlocks(at, tmp.set(0, 0, 1), 1, Math.PI, 30, this.p); }
-        if (Math.random() < 0.3) g.audio?.energy('slash');
+        // Dismantle: the ground and scenery are carved up too
+        for (let k = 0; k < 2; k++) {
+          const ang = Math.random() * Math.PI * 2, r0 = Math.random() * d.radius;
+          const at = d.center.clone().add(new THREE.Vector3(Math.cos(ang) * r0, 0.3, Math.sin(ang) * r0));
+          g.fx.slashLine(at, new THREE.Vector3(Math.cos(ang + 1.5), 0, Math.sin(ang + 1.5)), 3.5, 0xff4a4a, 0.08, 0.15);
+          g.combat.hitBlocks(at, tmp.set(0, 0, 1), 1.2, Math.PI, 40, this.p);
+        }
+        if (Math.random() < 0.4) g.audio?.energy('slash');
       },
-      onEnd: () => { if (this.shrine) { this.game.scene.remove(this.shrine); this.shrine = null; } },
+      onEnd: () => this.removeShrine(),
     };
   }
-  // the shrine itself: a dark gate of skulls behind the caster
+  removeShrine() { if (this.shrine) { this.game.scene.remove(this.shrine); this.shrine = null; } }
+  dispose() { super.dispose(); this.removeShrine(); }
+  // The shrine: a temple of dark wood on a mound of skulls, its front a giant
+  // fanged mouth, smaller mouths on the pillars, an ox skull on the roof.
   shrineProp(g, d) {
+    this.removeShrine();
     const grp = new THREE.Group();
     const mk = (o) => { const m = new THREE.MeshStandardNodeMaterial(o); m.maskNode = ditherMask(occlusionAmount()); return m; };
-    const wood = mk({ color: 0x2a0a0a, roughness: 0.6 }), bone = mk({ color: 0xe8dcc0, roughness: 0.8 }), mouth = mk({ color: 0x080000, emissive: 0x801008, emissiveIntensity: 0.6 });
-    const b = (w, h, dd, x, y, z, m) => { const mm = new THREE.Mesh(new THREE.BoxGeometry(w, h, dd), m); mm.position.set(x, y, z); mm.castShadow = true; grp.add(mm); };
-    for (const x of [-3, 3]) b(0.8, 7, 0.8, x, 3.5, 0, wood);
-    b(9, 0.8, 2.6, 0, 7.2, 0, wood); b(10.5, 0.5, 3.2, 0, 7.9, 0, wood); b(6, 3.6, 1.5, 0, 3, -0.6, mouth);
-    for (let i = 0; i < 14; i++) b(0.7, 0.7, 0.7, (Math.random() - 0.5) * 8, Math.random() * 0.8, 1 + Math.random(), bone);
+    const wood = mk({ color: 0x2a0808, roughness: 0.6 }), roof = mk({ color: 0x140404, roughness: 0.5 }), bone = mk({ color: 0xe8dcc0, roughness: 0.8 });
+    const mouth = mk({ color: 0x080000, emissive: 0x801008, emissiveIntensity: 0.8 }), lip = mk({ color: 0x7a0a10, roughness: 0.4 }), eye = mk({ color: 0x050000 });
+    const b = (w, h, dd, x, y, z, m, parent = grp, rz = 0) => { const mm = new THREE.Mesh(new THREE.BoxGeometry(w, h, dd), m); mm.position.set(x, y, z); mm.rotation.z = rz; mm.castShadow = true; parent.add(mm); return mm; };
+    const skull = (x, y, z, s = 0.7, horns = false) => {
+      const k = new THREE.Group(); k.position.set(x, y, z); k.rotation.y = (Math.random() - 0.5) * 0.8; grp.add(k);
+      b(s, s * 0.85, s, 0, 0, 0, bone, k); b(s * 0.62, s * 0.3, s * 0.7, 0, -s * 0.5, s * 0.12, bone, k);
+      b(s * 0.22, s * 0.2, 0.05, -s * 0.2, s * 0.08, s * 0.5, eye, k); b(s * 0.22, s * 0.2, 0.05, s * 0.2, s * 0.08, s * 0.5, eye, k);
+      if (horns) { b(s * 1.1, s * 0.16, s * 0.16, -s * 0.85, s * 0.45, 0, bone, k, 0.5); b(s * 1.1, s * 0.16, s * 0.16, s * 0.85, s * 0.45, 0, bone, k, -0.5); }
+    };
+    // mound of skulls the shrine stands on
+    for (let i = 0; i < 46; i++) { const a = Math.random() * Math.PI * 2, rr = Math.random() * 6; skull(Math.cos(a) * rr * 1.2, Math.random() * 0.9 * (1 - rr / 7), Math.sin(a) * rr * 0.8 + 1, 0.5 + Math.random() * 0.5, Math.random() < 0.15); }
+    b(9, 1, 5, 0, 1, 0, wood);
+    // pillars, each with a small mouth
+    for (const x of [-3.6, -1.6, 1.6, 3.6]) {
+      b(0.7, 6.5, 0.7, x, 4.5, 1.6, wood);
+      b(0.5, 0.4, 0.1, x, 4.6, 1.98, mouth); b(0.62, 0.1, 0.12, x, 4.85, 1.98, lip); b(0.62, 0.1, 0.12, x, 4.35, 1.98, lip);
+    }
+    b(8, 6.2, 3, 0, 4.6, -0.4, wood);
+    // the great mouth: lips, black maw and two rows of fangs; the jaw works
+    b(4.6, 2.8, 0.2, 0, 3.6, 1.12, mouth);
+    b(5, 0.35, 0.4, 0, 5.1, 1.2, lip);
+    const jaw = new THREE.Group(); jaw.position.set(0, 2.2, 1.2); grp.add(jaw);
+    b(5, 0.35, 0.4, 0, 0, 0, lip, jaw);
+    for (let i = 0; i < 9; i++) {
+      const x = -2 + i * 0.5;
+      b(0.26, 0.6, 0.18, x, 4.65, 1.26, bone);
+      b(0.26, 0.55, 0.18, x, 0.42, 0.06, bone, jaw);
+    }
+    // three-tier roof with upturned eaves
+    const tiers = [[10.5, 7.9, 4.6], [8.4, 8.8, 3.8], [6, 9.6, 3]];
+    for (const [w, y, dd] of tiers) {
+      b(w, 0.45, dd, 0, y, 0.1, roof);
+      b(1.4, 0.3, dd, -w / 2 - 0.4, y + 0.25, 0.1, roof, grp, 0.35);
+      b(1.4, 0.3, dd, w / 2 + 0.4, y + 0.25, 0.1, roof, grp, -0.35);
+    }
+    skull(0, 10.4, 0.6, 1.1, true);
     // stand it across the arena, away from the camera, facing the caster
     const cam = this.game.rig.camera.position;
     const away = new THREE.Vector3(d.center.x - cam.x, 0, d.center.z - cam.z).normalize();
-    grp.position.copy(d.center).addScaledVector(away, 9);
+    grp.position.copy(d.center).addScaledVector(away, 11);
     grp.rotation.y = Math.atan2(-away.x, -away.z);
     grp.scale.setScalar(0.01);
     g.scene.add(grp); this.shrine = grp;
-    let t = 0; g.addUpdater((dt) => { t += dt; grp.scale.setScalar(Math.min(1, t * 2)); return t < 0.6; });
+    let t = 0;
+    g.addUpdater((dt) => {
+      if (this.shrine !== grp) return false;
+      t += dt;
+      grp.scale.setScalar(Math.min(1, t * 1.6));
+      jaw.position.y = 2.2 - Math.max(0, Math.sin(t * 3)) * 0.7;
+      return true;
+    });
   }
   dismantle(angle, len = 11) {
     const g = this.game, p = this.p;

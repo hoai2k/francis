@@ -6,8 +6,10 @@
 //   2    Rika: the Queen of Curses manifests behind you for a while and her
 //        giant arms smash whatever comes close.
 //   3    Pure Love: Yuta and Rika pour out their love as a colossal beam.
-//   F    Domain: Authentic Mutual Love — swords rise from the ground and every
-//        copied technique lands as a sure hit.
+//   F    Domain: Authentic Mutual Love — an ashen field of katanas, each
+//        holding a copied technique. Every beat Yuta draws one and its
+//        technique lands as a sure hit (Cursed Speech, Rika's smash, a katana
+//        cut, or Reverse Cursed Technique healing), with Rika manifested.
 import * as THREE from 'three/webgpu';
 import { Kit } from './kit.js';
 import { registerKit, registerSorcerer } from './index.js';
@@ -19,7 +21,7 @@ import { beamMaterial } from '../gfx/orbs.js';
 const CE = 0x9ad0ff, RIKA = 0xd86aff, LOVE = 0xff8ad8;
 const tmp = new THREE.Vector3(), tmp2 = new THREE.Vector3();
 
-registerSorcerer('yuta', { name: 'Yuta', technique: 'Copy', rarity: 'special', title: 'Queen of Curses', desc: 'Katana cuts, copied techniques like Cursed Speech, Rika\'s monstrous arms and the Pure Love beam.', domain: 'Authentic Mutual Love', color: '#d86aff' });
+registerSorcerer('yuta', { name: 'Yuta', technique: 'Copy', rarity: 'special', title: 'Special Grade Sorcerer', desc: 'Katana cuts, copied techniques like Cursed Speech, Rika\'s monstrous arms and the Pure Love beam.', domain: 'Authentic Mutual Love', color: '#d86aff' });
 
 registerLook('yuta', {
   paint: { skinTone: 0xf0d0b8, hair: 0x14151c, hairVolume: true, top: 0xeceef2, collar: 0xdfe2ea, topTrim: 0xc8ccd6, buttons: 0x9aa0b0, sleeve: 0xeceef2, pants: 0xeceef2, shoes: 0x2a2a30, eye: 0x1a1a24, fringe: 3, hairSide: 4, hairBack: 6 },
@@ -91,28 +93,41 @@ class YutaKit extends Kit {
       t2: this.ability({ name: 'Rika', icon: '💍', cd: 18, ce: 22, use: () => this.manifest() }),
       t3: this.ability({ name: 'Pure Love', icon: '💗', cd: 20, ce: 45, use: () => this.pureLove() }),
     };
+    // Authentic Mutual Love: an ashen field of countless katanas stuck in the
+    // ground, each one holding a technique Yuta has copied. The sure-hit lands
+    // through the katanas: every beat Yuta draws a blade and its copied
+    // technique strikes every curse inside, with Rika fully manifested.
     this.domain = {
-      name: 'Authentic Mutual Love', icon: '⚔️', key: 'authentic_mutual_love', type: 1, color: RIKA, sound: 'void', flash: 0xffd8ff,
+      name: 'Authentic Mutual Love', icon: '⚔️', key: 'authentic_mutual_love', type: 6, color: RIKA, sound: 'void', flash: 0xffd8ff,
+      look: { floor: 0x3a3640, seam: 0x8a6ab8, sparkle: 0xe0d0ff, skyTop: 0x06040c, skyHorizon: 0x5a3a6a, stars: 0.5, band: 0xffc8ff },
       duration: 9, radius: 24,
-      onStart: (g, d) => { this.swordField(g, d); if (!this.rika) this.manifest(true); },
+      onStart: (g, d) => { this.swordField(g, d); if (!this.rika) this.manifest(true); else this.rika.life = Math.max(this.rika.life, 10); },
       onTick: (g, d, dt) => {
-        d.tick = (d.tick ?? 0) - dt;
+        d.tick = (d.tick ?? 0.3) - dt;
         if (d.tick > 0) return;
-        d.tick = 0.85;
+        d.tick = 0.9;
         const list = g.enemies.filter((e) => !e.dead && !e.isDummy && g.domainSys.inside(e.pos));
-        if (!list.length) return;
-        // a different copied technique each beat, all of them sure hits
-        const pick = d.beat = ((d.beat ?? -1) + 1) % 3;
-        if (pick === 0) this.speech(list);
-        else if (pick === 1) for (const e of list.slice(0, 5)) this.rikaSmash(e.pos.clone(), 0.7);
-        else for (const e of list) { const at = e.pos.clone().setY(e.pos.y + e.height * 0.55); g.fx.slashX(at, 2.4, CE); g.combat.damageEnemy(e, 22, this.p, { stagger: 0.4, unblockable: true, ceGain: 0 }); }
-        g.audio?.energy('slash');
+        // a different copied technique each beat, drawn from a katana, all of them sure hits
+        const pick = d.beat = ((d.beat ?? -1) + 1) % 4;
+        if (!list.length && pick !== 3) return;
+        this.drawSword(g, list[0]);
+        if (pick === 0) { g.toast?.('Copy: Cursed Speech'); this.speech(list); }
+        else if (pick === 1) { g.toast?.('Rika!'); for (const e of list.slice(0, 6)) this.rikaSmash(e.pos.clone(), 0.8); }
+        else if (pick === 2) {
+          g.toast?.('Katana: Cursed Energy Cut');
+          for (const e of list) { const at = e.pos.clone().setY(e.pos.y + e.height * 0.55); g.fx.slashX(at, 2.4, CE); g.combat.damageEnemy(e, 28, this.p, { stagger: 0.4, unblockable: true, ceGain: 0 }); }
+          g.audio?.energy('slash');
+        } else {
+          // Yuta can output Reverse Cursed Technique — he heals himself through the blade
+          g.toast?.('Reverse Cursed Technique');
+          this.p.heal(this.p.maxHp * 0.15); g.fx.heal?.(this.p.pos, 0x9affd8);
+        }
       },
-      onEnd: (g) => { if (this.swords) { g.scene.remove(this.swords); this.swords = null; } },
+      onEnd: (g) => this.clearSwords(),
     };
     this.beamMats = [beamMaterial(LOVE), beamMaterial(0xffffff, true)];
   }
-  dispose() { super.dispose(); if (this.rika) { this.game.scene.remove(this.rika.grp); this.game.lights.remove(this.rika.light); } if (this.swords) this.game.scene.remove(this.swords); this.rika = null; }
+  dispose() { super.dispose(); if (this.rika) { this.game.scene.remove(this.rika.grp); this.game.lights.remove(this.rika.light); } this.clearSwords(); this.rika = null; }
   // -------------------------------------------------------------- RMB
   slash() {
     const g = this.game, p = this.p, rk = this.rank('cslash');
@@ -219,24 +234,64 @@ class YutaKit extends Kit {
   }
   // -------------------------------------------------------------- Pure Love
   swordField(g, d) {
+    this.clearSwords();
     const grp = new THREE.Group();
     const steel = new THREE.MeshStandardNodeMaterial({ color: 0xd8e0ec, metalness: 0.9, roughness: 0.25, emissive: 0x6a4a9a, emissiveIntensity: 0.4 });
+    const lit = new THREE.MeshStandardNodeMaterial({ color: 0xffffff, metalness: 0.6, roughness: 0.2, emissive: RIKA, emissiveIntensity: 4 });
     const hilt = new THREE.MeshStandardNodeMaterial({ color: 0x1a1a22, roughness: 0.8 });
-    for (let i = 0; i < 46; i++) {
-      const a = Math.random() * Math.PI * 2, r0 = 3 + Math.random() * (d.radius - 4);
+    const wrap = new THREE.MeshStandardNodeMaterial({ color: 0xe8e4f0, roughness: 0.7 });
+    const tsuba = new THREE.MeshStandardNodeMaterial({ color: 0x8a7a4a, metalness: 0.7, roughness: 0.4 });
+    const G = { blade: new THREE.BoxGeometry(0.07, 1.8, 0.18), tip: new THREE.BoxGeometry(0.06, 0.3, 0.12), guard: new THREE.BoxGeometry(0.34, 0.06, 0.34), grip: new THREE.BoxGeometry(0.09, 0.55, 0.09), band: new THREE.BoxGeometry(0.1, 0.06, 0.1) };
+    const list = [];
+    for (let i = 0; i < 72; i++) {
+      const a = Math.random() * Math.PI * 2, r0 = 2.5 + Math.sqrt(Math.random()) * (d.radius - 3.5);
       const s = new THREE.Group();
-      const blade = new THREE.Mesh(new THREE.BoxGeometry(0.08, 1.6, 0.2), steel); blade.position.y = 0.6;
-      const guard = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.06, 0.4), hilt); guard.position.y = 1.42;
-      const grip = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.5, 0.08), hilt); grip.position.y = 1.7;
-      s.add(blade, guard, grip);
+      const blade = new THREE.Mesh(G.blade, steel); blade.position.y = 0.5;
+      const tip = new THREE.Mesh(G.tip, steel); tip.position.set(0, -0.5, 0.02); tip.rotation.x = 0.3;
+      const guard = new THREE.Mesh(G.guard, tsuba); guard.position.y = 1.42;
+      const grip = new THREE.Mesh(G.grip, hilt); grip.position.y = 1.72;
+      s.add(blade, tip, guard, grip);
+      for (const y of [1.58, 1.72, 1.86]) { const b = new THREE.Mesh(G.band, wrap); b.position.y = y; s.add(b); }
       const x = d.center.x + Math.cos(a) * r0, z = d.center.z + Math.sin(a) * r0;
       const gy = g.world.groundBelow(x, z, d.center.y + 3);
       s.position.set(x, (isFinite(gy) ? gy : d.center.y) - 0.3, z);
       s.rotation.set((Math.random() - 0.5) * 0.5, Math.random() * 6, (Math.random() - 0.5) * 0.5);
-      grp.add(s);
+      grp.add(s); list.push({ s, blade, baseY: s.position.y });
     }
+    grp.userData = { G, steel, lit, list };
     grp.position.y = -2; g.scene.add(grp); this.swords = grp;
     let t = 0; g.addUpdater((dt) => { t += dt; grp.position.y = Math.min(0, -2 + t * 4); return t < 0.6 && this.swords === grp; });
+  }
+  // Yuta draws a katana from the field: it lifts out of the ground glowing
+  // and a streak of cursed energy links it to him.
+  drawSword(g, near) {
+    const grp = this.swords; if (!grp) return;
+    const { list, lit, steel } = grp.userData;
+    const ref = near ? near.pos : this.p.pos;
+    let best = list[0], bd = Infinity;
+    for (const it of list) { if (it.busy) continue; const dd = it.s.position.distanceToSquared(ref) + Math.random() * 20; if (dd < bd) { bd = dd; best = it; } }
+    if (!best || best.busy) return;
+    best.busy = true; best.blade.material = lit;
+    const at = best.s.position.clone().setY(best.baseY + 1.5);
+    g.particles.burst(at, { count: 16, color: RIKA, speed: 3, up: 1.5, life: 0.5, size: 0.16, shape: 1 });
+    const to = this.p.pos.clone().setY(this.p.pos.y + 1.2), dir = to.clone().sub(at);
+    g.fx.slashLine(at, dir.clone().normalize(), dir.length(), RIKA, 0.18, 0.3);
+    g.lights.flash(at, RIKA, 6, 7, 0.4);
+    g.audio?.tone({ freq: 1800, to: 2400, dur: 0.15, gain: 0.05, type: 'triangle', rev: 0.4 });
+    let t = 0;
+    g.addUpdater((dt) => {
+      t += dt;
+      best.s.position.y = best.baseY + Math.sin(Math.min(1, t / 0.7) * Math.PI) * 1.2;
+      if (t < 0.7 && this.swords === grp) return true;
+      best.s.position.y = best.baseY; best.blade.material = steel; best.busy = false;
+      return false;
+    });
+  }
+  clearSwords() {
+    if (!this.swords) return;
+    this.game.scene.remove(this.swords);
+    for (const geo of Object.values(this.swords.userData.G)) geo.dispose();
+    this.swords = null;
   }
   pureLove() {
     const g = this.game, p = this.p, rk = this.rank('pure_love');

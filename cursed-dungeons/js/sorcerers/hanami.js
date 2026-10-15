@@ -6,8 +6,10 @@
 //        Energy into you.
 //   3    Flower Field: a field of flowers blooms around you; curses inside are
 //        calmed (slowed, attacks interrupted) while you regenerate.
-//   F    Domain: Ceremonial Sea of Light — a sea of flowers and trees whose
-//        roots and buds sap every curse inside.
+//   F    Domain: Ceremonial Sea of Light — a sunlit sea of flowers under
+//        great trees. The flowers sap every curse's Cursed Energy (slower,
+//        faltering attacks; Hanami drinks it in as healing) and the sure-hit is wood: roots
+//        spear up under every curse inside.
 import * as THREE from 'three/webgpu';
 import { Kit } from './kit.js';
 import { registerKit, registerSorcerer } from './index.js';
@@ -58,7 +60,7 @@ export const HANAMI_SKILLS = [
   { id: 'roots', name: 'Root Spikes', desc: 'Root Spikes reach further and hit harder.', max: 3 },
   { id: 'buds', name: 'Cursed Buds', desc: 'Buds drain faster and heal more.', max: 3 },
   { id: 'field', name: 'Flower Field', desc: 'Flower Field is wider and lasts longer.', max: 2, req: 'buds' },
-  { id: 'sea', name: 'Sea of Light', desc: 'Domain lasts 2s longer and drains harder.', max: 1, req: 'field' },
+  { id: 'sea', name: 'Sea of Light', desc: 'Ceremonial Sea of Light lasts 2s longer and its roots hit harder.', max: 1, req: 'field' },
 ];
 
 class HanamiKit extends Kit {
@@ -79,25 +81,114 @@ class HanamiKit extends Kit {
       t2: this.ability({ name: 'Cursed Buds', icon: '🌱', cd: 10, ce: 16, use: () => this.buds() }),
       t3: this.ability({ name: 'Flower Field', icon: '🌸', cd: 18, ce: 30, use: () => this.flowerField() }),
     };
+    // Ceremonial Sea of Light: a sunlit sea of flowers under great trees. The
+    // flowers sap the Cursed Energy of everything inside (their attacks come
+    // slower and falter, Hanami drinks it in) and the sure-hit is wood — roots
+    // spear up under every curse in the domain, again and again.
     this.domain = {
-      name: 'Ceremonial Sea of Light', icon: '🌸', key: 'ceremonial_sea_of_light', type: 5, color: BLOOM, sound: 'garden', flash: 0xfff0c0,
+      name: 'Ceremonial Sea of Light', icon: '🌸', key: 'ceremonial_sea_of_light', type: 6, color: BLOOM, sound: 'garden', flash: 0xfff0c0,
+      look: { floor: 0x4a8a2a, seam: 0xfff0a0, sparkle: 0xffb0e0, skyTop: 0x5a9ad8, skyHorizon: 0xfff0c8, stars: 0, band: 0xffffff },
       duration: 8 + r('sea') * 2, radius: 24,
+      onStart: (g, d) => { this.buildSea(g, d); g.toast?.('The flowers sap the Cursed Energy of every curse inside'); },
       onTick: (g, d, dt) => {
-        d.tick = (d.tick ?? 0) - dt;
-        // petals drifting across the whole domain
+        d.tick = (d.tick ?? 0.3) - dt;
+        // petals drifting and motes of light rising out of the flowers
         for (let i = 0; i < 3; i++) { const a = Math.random() * Math.PI * 2, rr = Math.random() * d.radius; g.particles.glow.emit(d.center.x + Math.cos(a) * rr, d.center.y + 0.5 + Math.random() * 4, d.center.z + Math.sin(a) * rr, 1, -0.4, 0.5, 2, 2.4, 1.2, 1.8, 0.14, 0, 0.5, 0.8, 1); }
-        if (d.tick > 0) return;
-        d.tick = 0.6;
-        let drained = 0;
+        for (let i = 0; i < 2; i++) { const a = Math.random() * Math.PI * 2, rr = Math.random() * d.radius; g.particles.glow.emit(d.center.x + Math.cos(a) * rr, d.center.y + 0.3, d.center.z + Math.sin(a) * rr, 0, 1 + Math.random(), 0, 2.2, 2.6, 2.5, 1.6, 0.1, -0.2, 0.5, 0.4, 0); }
+        // the sap: every curse inside loses Cursed Energy continuously
         for (const e of g.enemies) if (!e.dead && !e.isDummy && g.domainSys.inside(e.pos)) {
-          e.slowT = 0.7;
-          drained += g.combat.damageEnemy(e, 9 + r('sea') * 5, this.p, { stagger: 0.1, ceGain: 0, unblockable: true, color: '#b8ff6a' });
-          if (Math.random() < 0.35) this.spike(e.pos.clone(), 1.6, 18);
+          e.cd = (e.cd ?? 0) + dt * 0.5; e.slowT = Math.max(e.slowT ?? 0, 0.3);
+          if (Math.random() < dt * 3) g.particles.burst(tmp.copy(e.pos).setY(e.pos.y + e.height * 0.7), { count: 2, color: SAP, speed: 0, dir: tmp.clone().subVectors(this.p.pos, e.pos).setY(0.4).normalize().multiplyScalar(5), spread: 0.15, life: 0.8, size: 0.14, shape: 1 });
         }
-        if (drained) this.p.heal(drained * 0.08, true);
+        if (d.tick > 0) return;
+        d.tick = 0.7;
+        let drained = 0, n = 0;
+        for (const e of g.enemies) if (!e.dead && !e.isDummy && g.domainSys.inside(e.pos)) {
+          n++;
+          // sure-hit wooden attack: roots tear up under the curse
+          const at = e.pos.clone(); at.y = this.groundAt(at.x, at.z, at.y);
+          for (let k = 0; k < 3; k++) this.rootStab(at.clone().add(new THREE.Vector3((Math.random() - 0.5) * e.radius * 2, 0, (Math.random() - 0.5) * e.radius * 2)), 1.6 + e.height * 0.9, 0.35 + Math.random() * 0.2);
+          const dmg = (14 + r('sea') * 6) + (e.maxHp ?? 100) * (e.isBoss ? 0.012 : 0.07);
+          drained += g.combat.damageEnemy(e, dmg, this.p, { stagger: 0.35, ceGain: 0, unblockable: true, crit: false, color: '#b8ff6a' });
+          if (!e.isBoss) e.vel.y = Math.max(e.vel.y, 4);
+          // sapped curses lose the strength to finish an attack
+          if (!e.isBoss && e.state === 'windup' && Math.random() < 0.4) { e.cancelAttack?.(); e.state = 'stagger'; e.stateT = 0; e.stagger = 0.5; }
+        }
+        if (n) { this.p.heal(drained * 0.08, true); g.audio?.breakBlock('wood'); g.shake(0.12); }
       },
+      onEnd: () => this.clearSea(),
     };
-    this.buddedT = 0;
+    this.roots = [];
+    this.rootGeo = new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0);
+    this.rootMat = new THREE.MeshStandardNodeMaterial({ color: 0x6a4420, roughness: 0.95 });
+  }
+  dispose() { super.dispose(); this.clearSea(); for (const rt of this.roots) this.game.scene.remove(rt.m); this.roots = []; }
+  // A sharpened root that spears out of the ground and sinks back.
+  rootStab(at, h = 2.2, w = 0.5) {
+    if (this.roots.length >= 48) return;
+    const m = new THREE.Mesh(this.rootGeo, this.rootMat);
+    m.position.copy(at).setY(at.y - 0.2);
+    m.rotation.set((Math.random() - 0.5) * 0.7, Math.random() * Math.PI * 2, (Math.random() - 0.5) * 0.7);
+    m.scale.set(w, 0.01, w); m.castShadow = true;
+    this.game.scene.add(m);
+    this.roots.push({ m, t: 0, h, w });
+  }
+  tick(dt) {
+    for (let i = this.roots.length - 1; i >= 0; i--) {
+      const rt = this.roots[i]; rt.t += dt;
+      const k = rt.t < 0.1 ? rt.t / 0.1 : rt.t < 0.5 ? 1 : Math.max(0, 1 - (rt.t - 0.5) / 0.3);
+      rt.m.scale.set(rt.w * (0.6 + k * 0.4), Math.max(0.01, rt.h * k), rt.w * (0.6 + k * 0.4));
+      if (rt.t >= 0.8) { this.game.scene.remove(rt.m); this.roots.splice(i, 1); }
+    }
+  }
+  // Sea of flowers set-piece: instanced flowers carpeting the domain, great
+  // trees around the rim and roots arching out of the ground.
+  buildSea(g, d) {
+    this.clearSea();
+    const grp = new THREE.Group(), box = new THREE.BoxGeometry(1, 1, 1);
+    const N = 260, R = d.radius - 1;
+    const stems = new THREE.InstancedMesh(box, new THREE.MeshStandardNodeMaterial({ color: 0x3a8a2a, roughness: 0.8 }), N);
+    const heads = new THREE.InstancedMesh(box, new THREE.MeshStandardNodeMaterial({ color: 0xffffff, roughness: 0.6, emissive: 0xffe0f0, emissiveIntensity: 0.35 }), N);
+    const M = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), pos = new THREE.Vector3(), col = new THREE.Color();
+    const petals = [0xff9ad8, 0xffffff, 0xffe06a, 0xd8a0ff, 0xff6a8a, 0xa0d8ff];
+    for (let i = 0; i < N; i++) {
+      const a = Math.random() * Math.PI * 2, rr = Math.sqrt(Math.random()) * R;
+      const x = d.center.x + Math.cos(a) * rr, z = d.center.z + Math.sin(a) * rr, y = this.groundAt(x, z, d.center.y);
+      const h = 0.3 + Math.random() * 0.4;
+      q.setFromAxisAngle(tmp.set(0, 1, 0), Math.random() * Math.PI);
+      M.compose(pos.set(x, y + h * 0.5, z), q, sc.set(0.06, h, 0.06)); stems.setMatrixAt(i, M);
+      M.compose(pos.set(x, y + h + 0.06, z), q, sc.set(0.22, 0.1, 0.22)); heads.setMatrixAt(i, M);
+      heads.setColorAt(i, col.set(petals[i % petals.length]));
+    }
+    grp.add(stems, heads);
+    // great trees with pale blossom canopies around the rim
+    const bark = new THREE.MeshStandardNodeMaterial({ color: 0x5a3a1e, roughness: 0.95 });
+    const bloom = new THREE.MeshStandardNodeMaterial({ color: 0xffc8e8, roughness: 0.7, emissive: 0xff9ad8, emissiveIntensity: 0.25 });
+    const leaf = new THREE.MeshStandardNodeMaterial({ color: 0x5aa83a, roughness: 0.8 });
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2 + 0.3, rr = R - 2;
+      const x = d.center.x + Math.cos(a) * rr, z = d.center.z + Math.sin(a) * rr, y = this.groundAt(x, z, d.center.y);
+      const add = (m, w, h, dd, px, py, pz, rx = 0, rz = 0) => { const o = new THREE.Mesh(box, m); o.scale.set(w, h, dd); o.position.set(px, py, pz); o.rotation.set(rx, 0, rz); o.castShadow = true; grp.add(o); return o; };
+      add(bark, 1.4, 9, 1.4, x, y + 4.5, z);
+      add(bark, 0.7, 4, 0.7, x + 1.2, y + 7.5, z, 0, -0.7);
+      add(bark, 0.7, 4, 0.7, x - 1.2, y + 7, z, 0, 0.7);
+      add(i % 2 ? bloom : leaf, 6, 3, 6, x, y + 10, z);
+      add(bloom, 4, 2, 4, x + 0.6, y + 12, z - 0.4);
+      // roots arching out of the ground towards the centre
+      for (let k = 0; k < 3; k++) {
+        const ra = a + Math.PI + (k - 1) * 0.5;
+        add(bark, 0.5, 4, 0.5, x + Math.cos(ra) * 1.6, y + 0.6, z + Math.sin(ra) * 1.6, Math.sin(ra) * 1.1, -Math.cos(ra) * 1.1);
+      }
+    }
+    grp.userData.box = box;
+    grp.scale.y = 0.01; g.scene.add(grp); this.sea = grp;
+    this.seaLight = g.lights.flash(d.center.clone().setY(d.center.y + 6), 0xfff0c0, 5, d.radius * 1.8, 60, { priority: 4, fade: false });
+    let t = 0; g.addUpdater((dt) => { t += dt; grp.scale.y = Math.min(1, t * 2); return t < 0.5 && this.sea === grp; });
+  }
+  clearSea() {
+    const g = this.game;
+    if (this.sea) { g.scene.remove(this.sea); this.sea.userData.box?.dispose(); this.sea = null; }
+    if (this.seaLight) { g.lights.remove(this.seaLight); this.seaLight = null; }
   }
   onMeleeHit(e, step) { if (step.roots) this.spike(e.pos.clone(), 1.4, 12); }
   groundAt(x, z, y) { const gy = this.game.world.groundBelow(x, z, y + 3); return isFinite(gy) ? gy : y; }
@@ -107,6 +198,7 @@ class HanamiKit extends Kit {
     at.y = this.groundAt(at.x, at.z, at.y);
     g.combat.aoe(at, R, dmg, p, { knock: 3, stagger: 0.5 });
     for (const e of g.enemies) if (!e.dead && !e.isBoss && e.pos.distanceTo(at) < R + 0.3) e.vel.y = Math.max(e.vel.y, 7);
+    for (let k = 0; k < 2; k++) this.rootStab(at.clone().add(new THREE.Vector3((Math.random() - 0.5) * R, 0, (Math.random() - 0.5) * R)), 1.4 + Math.random() * 0.8, 0.3 + Math.random() * 0.15);
     const c = at.clone().setY(at.y + 0.2);
     g.particles.burst(c, { count: 10, color: WOOD, additive: false, speed: 6, spread: 0.25, dir: tmp.set(0, 2, 0), life: 0.5, size: 0.35, sizeEnd: 0.15, gravity: 10, intensity: 1 });
     g.particles.burst(c, { count: 8, color: LEAF, speed: 4, up: 2, life: 0.5, size: 0.14, shape: 1 });

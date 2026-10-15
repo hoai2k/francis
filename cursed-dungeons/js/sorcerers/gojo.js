@@ -1,10 +1,11 @@
 // Gojo-style kit — Limitless.
 //   RMB  Red (Reversal): a crimson orb that detonates in a huge repulsion blast.
 //   1    Blue (Lapse): a singularity that drags curses (and rubble) inward.
-//   2    Infinity: a brief untouchable barrier that stops projectiles dead.
+//   2    Infinity: attacks slow down infinitely as they approach and never arrive.
 //   3    Hollow Purple: Blue and Red spiral together, then an erasing beam
 //        tears through walls, leaving a glowing trench and flying debris.
-//   F    Domain Expansion: Unlimited Void — every curse freezes in a starry void.
+//   F    Domain Expansion: Unlimited Void — infinite information paralyses
+//        everything inside (sure-hit stun, no damage); Gojo hits freely.
 import * as THREE from 'three/webgpu';
 import { Kit } from './kit.js';
 import { registerKit } from './index.js';
@@ -49,15 +50,28 @@ class GojoKit extends Kit {
     this.domain = {
       name: 'Unlimited Void', icon: '∞', key: 'unlimited_void', type: 1, color: 0x9ad8ff, sound: 'void', flash: 0xffffff,
       duration: 8 + r('void_duration') * 2, radius: 26,
-      onStart: (g) => { g.frozen = true; },
+      // Canon: the sure-hit is not damage but INFINITE INFORMATION — everything
+      // inside perceives everything forever and can't act. Gojo then hits freely.
+      onStart: (g) => { g.frozen = true; g.toast?.('Infinite information floods every mind'); },
       onTick: (g, d, dt) => {
         d.tick = (d.tick ?? 0) - dt;
+        // streams of information pouring into every frozen head
+        for (const e of g.enemies) {
+          if (e.dead || !g.domainSys.inside(e.pos) || Math.random() > 0.35) continue;
+          const hx = e.pos.x, hy = e.pos.y + e.height, hz = e.pos.z;
+          const a = Math.random() * Math.PI * 2, r = 2 + Math.random() * 2;
+          g.particles.glow.emit(hx + Math.cos(a) * r, hy + 1 + Math.random() * 2, hz + Math.sin(a) * r, -Math.cos(a) * r * 2.2, -2, -Math.sin(a) * r * 2.2, 0.45, 1.6, 1.9, 2.4, 0.08, 0, 0, 0.02, 1);
+        }
         if (d.tick <= 0) {
-          d.tick = 0.5;
-          for (const e of g.enemies) if (!e.dead && g.domainSys.inside(e.pos)) { g.combat.damageEnemy(e, 5, this.p, { stagger: 0, ceGain: 0 }); g.particles.burst(tmp.copy(e.pos).setY(e.pos.y + e.height), { count: 3, color: 0x9ad8ff, speed: 1, life: 0.6, size: 0.12, up: 1, shape: 1 }); }
+          d.tick = 0.6;
+          for (const e of g.enemies) if (!e.dead && g.domainSys.inside(e.pos)) { e.flashT = 0.06; e.cancelAttack?.(); }
         }
       },
-      onEnd: (g) => { g.frozen = false; },
+      onEnd: (g) => {
+        g.frozen = false;
+        // the brain is still processing: the paralysis lingers a moment
+        for (const e of g.enemies) if (!e.dead && !e.isBoss && g.domainSys.inside(e.pos)) e.sealT = Math.max(e.sealT ?? 0, 1.5);
+      },
     };
     this.p.stats.crit += r('six_eyes') * 0.04; this.p.stats.ceGain += r('six_eyes') * 0.1;
     this.infT = 0;
@@ -91,9 +105,12 @@ class GojoKit extends Kit {
       // stop projectiles dead, push curses out
       for (const pr of g.projectiles.list) {
         if (pr.team !== 'enemy') continue;
-        if (pr.pos.distanceTo(this.shell.position) < 2.2) {
-          if (this.rank('infinity_reflect')) { pr.team = 'player'; pr.vel.multiplyScalar(-1.4); pr.onHit = (e) => g.combat.damageEnemy(e, pr.dmg * 2, p, { knock: pr.vel.clone().setLength(5) }); pr.hit.clear(); }
-          else { pr.vel.multiplyScalar(0.8); pr.gravity = 3; }
+        const dist = pr.pos.distanceTo(this.shell.position);
+        if (dist < 3.2) {
+          // Infinity: the closer it gets, the slower it goes — it never arrives
+          pr.vel.multiplyScalar(Math.max(0, Math.min(1, (dist - 1.3) / 1.9)) ** (dt * 30));
+          pr.gravity = 0; pr.t = Math.min(pr.t, pr.life - 0.2); pr.stalled = true;
+          if (this.rank('infinity_reflect') && pr.vel.lengthSq() < 0.5) { pr.team = 'player'; pr.stalled = false; tmp2.subVectors(pr.pos, p.pos).setY(0).normalize().multiplyScalar(26); pr.vel.copy(tmp2); pr.t = 0; pr.onHit = (e) => g.combat.damageEnemy(e, pr.dmg * 2, p, { knock: pr.vel.clone().setLength(5) }); pr.hit.clear(); }
         }
       }
       for (const e of g.enemies) {
@@ -101,7 +118,11 @@ class GojoKit extends Kit {
         tmp.subVectors(e.pos, p.pos).setY(0); const d = tmp.length();
         if (d < 1.6) e.knock.addScaledVector(tmp.normalize(), (1.6 - d) * 20 * dt * 10);
       }
-      if (this.infT <= 0) { this.shell.visible = false; p.invulnerable = false; }
+      if (this.infT <= 0) {
+        this.shell.visible = false; p.invulnerable = false;
+        // Infinity drops: the stalled attacks fall out of the air
+        for (const pr of g.projectiles.list) if (pr.stalled) { pr.stalled = false; pr.gravity = 14; pr.vel.set(0, -1, 0); }
+      }
     }
   }
   onIncoming(amount, src) {

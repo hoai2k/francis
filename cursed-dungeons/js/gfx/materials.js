@@ -18,7 +18,11 @@ export const U = {
   // Domain Expansion: radial takeover of the world's look
   domainCenter: uniform(new THREE.Vector3()),
   domainRadius: uniform(0),
-  domainType: uniform(0),        // 1 void, 2 shrine, 3 garden, 4 fire, 5 resonance
+  domainType: uniform(0),        // 1 void, 2 shrine, 3 garden, 4 fire, 5 resonance, 6 custom
+  // type 6: colours set per domain (def.look = { floor, seam, sparkle })
+  domainFloor: uniform(new THREE.Color(0.1, 0.1, 0.1)),
+  domainSeam: uniform(new THREE.Color(0, 0, 0)),
+  domainSparkle: uniform(new THREE.Color(0, 0, 0)),
   trench: uniform(new THREE.Vector4(0, 0, 0, 0)),
 };
 
@@ -45,9 +49,12 @@ function domainLook(albedo) {
   const fireE = vec3(0.7, 0.2, 0.04).mul(edge).mul(sin(U.time.mul(4).add(h.mul(20))).mul(0.3).add(0.7)).add(vec3(1.2, 0.4, 0.1).mul(step(0.993, h)));
   const resC = vec3(0.16, 0.08, 0.05).mul(lum.add(0.5));
   const resE = vec3(1.4, 0.5, 0.15).mul(step(0.992, h)).mul(sin(U.time.mul(5).add(h.mul(30))).mul(0.5).add(0.5)).add(vec3(0.18, 0.05, 0.01).mul(edge));
+  // 6: custom colours
+  const cusC = vec3(U.domainFloor).mul(lum.mul(0.8).add(0.45)).mul(float(1).sub(edge.mul(0.5)));
+  const cusE = vec3(U.domainSeam).mul(edge).add(vec3(U.domainSparkle).mul(step(0.993, h)).mul(sin(U.time.mul(4).add(h.mul(30))).mul(0.5).add(0.5)));
   const sel = (i) => step(i - 0.5, t).mul(step(t, i + 0.5));
-  const col = voidC.mul(sel(1)).add(shrC.mul(sel(2))).add(garC.mul(sel(3))).add(fireC.mul(sel(4))).add(resC.mul(sel(5)));
-  const emi = voidE.mul(sel(1)).add(shrE.mul(sel(2))).add(garE.mul(sel(3))).add(fireE.mul(sel(4))).add(resE.mul(sel(5)));
+  const col = cusC.mul(sel(6)).add(voidC.mul(sel(1)).add(shrC.mul(sel(2))).add(garC.mul(sel(3))).add(fireC.mul(sel(4))).add(resC.mul(sel(5))));
+  const emi = cusE.mul(sel(6)).add(voidE.mul(sel(1)).add(shrE.mul(sel(2))).add(garE.mul(sel(3))).add(fireE.mul(sel(4))).add(resE.mul(sel(5))));
   const d = length(p.xz.sub(U.domainCenter.xz));
   const mask = smoothstep(U.domainRadius, U.domainRadius.sub(1.2), d).mul(step(0.5, t));
   const rim = smoothstep(1.4, 0.0, abs(d.sub(U.domainRadius))).mul(step(0.5, t)).mul(step(0.1, U.domainRadius));

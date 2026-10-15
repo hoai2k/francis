@@ -69,7 +69,7 @@ export class Mission {
     if (it.waved) return; it.waved = true;
     const g = this.game;
     toast('The cursed object resists!');
-    for (let i = 0; i < 4; i++) { const a = Math.random() * Math.PI * 2; const p = it.pos.clone().add(new THREE.Vector3(Math.cos(a) * 5, 0, Math.sin(a) * 5)); const gy = g.world.groundBelow(p.x, p.z, p.y + 3); if (!isFinite(gy)) continue; p.y = gy; g.spawnEnemy(i === 0 ? 'spitter' : 'swarmer', p, { level: this.def.difficulty }); g.fx.summonCircle(p, 0xff2a4a); }
+    for (let i = 0; i < 4; i++) { const a = Math.random() * Math.PI * 2; const p = it.pos.clone().add(new THREE.Vector3(Math.cos(a) * 5, 0, Math.sin(a) * 5)); const gy = g.world.standY(p.x, p.z, it.pos.y); if (!isFinite(gy)) continue; p.y = gy; g.spawnEnemy(i === 0 ? 'spitter' : 'swarmer', p, { level: this.def.difficulty }); g.fx.summonCircle(p, 0xff2a4a); }
   }
   makeChest(c) {
     const g = this.game;
@@ -173,7 +173,7 @@ export class Mission {
       if (g.enemies.filter((e) => !e.dead).length >= cap) return;
       const sp = spots[(i * 7 + room.waveIdx * 3) % spots.length];
       const pos = new THREE.Vector3(sp[0] + (Math.random() - 0.5) * 1.5, sp[1], sp[2] + (Math.random() - 0.5) * 1.5);
-      const gy = g.world.groundBelow(pos.x, pos.z, pos.y + 3); if (!isFinite(gy)) return; pos.y = gy;
+      const gy = g.world.standY(pos.x, pos.z, sp[1]); if (!isFinite(gy)) { pos.set(sp[0], sp[1], sp[2]); } else pos.y = gy;
       const e = g.spawnEnemy(s.kind, pos, { elite: s.elite, level: this.def.difficulty });
       if (e) { room.enemies.push(e); g.fx.summonCircle(pos, e.elite ? 0xff9aff : 0x9a5aff); }
     });
@@ -215,7 +215,7 @@ export class Mission {
       g.lights.attach(grp, 0x7affd8, 6, 10, { offsetY: 2 });
       g.interactables.push({ id: 'exit', pos: exit, radius: 2.8, label: 'Leave the mission', action: () => g.completeMission() });
       const chest = { pos: exit.clone().add(new THREE.Vector3(3, 0, 0)), room: this.L.bossRoom, rarity: 'rare', opened: false, boss: true };
-      chest.pos.y = g.world.groundBelow(chest.pos.x, chest.pos.z, chest.pos.y + 3); if (!isFinite(chest.pos.y)) chest.pos.y = exit.y;
+      chest.pos.y = g.world.standY(chest.pos.x, chest.pos.z, chest.pos.y); if (!isFinite(chest.pos.y)) chest.pos.y = exit.y;
       this.L.chests.push(chest); this.makeChest(chest);
       for (const gate of this.L.gates) this.openGate(gate);
       this.updateText();

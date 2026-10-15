@@ -25,7 +25,11 @@ Play: <https://hoai2k.github.io/francis/cursed-dungeons/>
 3. In a mission, complete the objective (exorcise the curses, rescue the
    students, or seal the cursed objects). That opens the boss arena. Beat
    the Special Grade boss, loot its chest, and leave through the torii.
-4. Progress is saved in `localStorage`: coins, level, rerolls, your rolled
+4. The game **saves automatically** (every 15 seconds, on every purchase,
+   level-up and chest, and when you leave the page). **Pause → 💾 Save
+   Game** saves right away. **Save Code** (pause menu or title screen)
+   gives you a code that backs up your progress or moves it to another
+   device. Progress is saved in `localStorage`: coins, level, rerolls, your rolled
    technique, enchantment and technique points, inventory, loadouts,
    technique-tree ranks and finished missions.
 
@@ -48,7 +52,7 @@ else is unlocked with technique points on the tree (Shrine steps). You get
 
 - **Technique I, II and III** (keys 1 / 2 / 3).
 - **Reverse Cursed Technique** (Q) and **RCT Mastery**.
-- **Domain Expansion** (F).
+- **Domain Expansion or ultimate attack** (F).
 - **Cursed Energy Flow**: Cursed Energy now regenerates passively, and
   this node makes it faster. **Vast Reserves** raises max Cursed Energy.
 - Each technique also has its own upgrade nodes.
@@ -57,45 +61,37 @@ Locked abilities show a 🔒 on the HUD.
 
 ### Sorcerers
 
-| Sorcerer | RMB | 1 | 2 | 3 | Domain Expansion (F) |
-| --- | --- | --- | --- | --- | --- |
-| **Gojo** | Red: a repulsion blast | Blue: pulls curses in | Infinity: untouchable shield | Hollow Purple: a beam that carves a glowing trench through walls | **Unlimited Void**: freezes every curse in a starry void |
-| **Yuji** | Rubble Throw | Divergent Fist: a delayed second impact | Manji Kick: launches everything nearby | Black Flash Focus | **Resonant Soul**: every blow is a Black Flash |
-| **Megumi** | Shadow Step | Divine Dogs | Nue | Toad (pulls and stuns) | **Chimera Shadow Garden**: floods the floor with shadow and summons more shikigami |
-| **Nobara** | Nails | Hairpin: detonates embedded nails | Resonance: hits every nailed curse | Nail Storm | **Resonance Field** |
-| **Sukuna** | Dismantle | Cleave: damage scales with the target's toughness | Dismantle Flurry | Fuga: a flame arrow | **Malevolent Shrine**: slashes everything nearby, constantly |
+Only characters with a canon Domain Expansion have one. Everyone else
+casts a canon **ultimate attack** with **F** when their Cursed Energy bar
+is full.
 
-#### All 25 techniques
-
-| Technique | Sorcerer | Rarity | Domain |
+| Technique | Sorcerer | Rarity | F |
 | --- | --- | --- | --- |
-| Shrine | Sukuna | Special Grade | Malevolent Shrine |
-| Limitless | Gojo | Special Grade | Unlimited Void |
-| Copy / Rika | Yuta | Special Grade | Authentic Mutual Love |
-| Ten Shadows | Megumi | Legendary | Chimera Shadow Garden |
-| Idle Death Gamble | Hakari | Legendary | Idle Death Gamble: Private Pure Love Train (jackpot = near-immortal) |
-| Judgeman | Higuruma | Legendary | Deadly Sentencing (Executioner's Sword) |
-| Mythical Beast Amber | Kashimo | Legendary | Thunderous Heavens* |
-| Heavenly Restriction | Toji | Legendary | Hunter's Instinct* (no Cursed Energy at all) |
-| Cursed Spirit Manipulation | Geto | Legendary | Abyss of Ten Thousand Curses* |
-| Star Rage | Yuki | Legendary | Star Rage: Event Horizon* |
-| Divergent Fist | Yuji | Epic | Resonant Soul |
-| Cursed Speech | Inumaki | Epic | Cursed Speech: Echo Chamber* |
-| Blood Manipulation | Choso | Epic | Crimson Womb: Blood Rain* |
-| Idle Transfiguration | Mahito | Epic | Self-Embodiment of Perfection |
-| Disaster Flames | Jogo | Epic | Coffin of the Iron Mountain |
-| Straw Doll | Nobara | Rare | Resonance Field |
-| Ratio Technique | Nanami | Rare | Endless Overtime* |
-| Boogie Woogie | Todo | Rare | Besto Friendo Stage* |
-| Disaster Plants | Hanami | Rare | Ceremonial Sea of Light |
-| Projection Sorcery | Naoya | Rare | Time Cell Moon Palace |
-| Ice Formation | Uraume | Rare | Frozen Sanctuary* |
-| Gorilla Core | Panda | Uncommon | Cursed Corpse: Bamboo Grove* |
-| Puppet Manipulation | Mechamaru | Uncommon | Remote Fortress* |
-| Construction | Mai | Common | Shooting Gallery* |
-| Simple Domain | Miwa | Common | Simple Domain: Expanded* |
-
-\* Not a canon domain: invented for the game.
+| Shrine | Sukuna | Special Grade | Domain: Malevolent Shrine (open, no barrier; Cleave and Dismantle hit everything) |
+| Limitless | Gojo | Special Grade | Domain: Unlimited Void (infinite information paralyses everything) |
+| Copy / Rika | Yuta | Special Grade | Domain: Authentic Mutual Love (katana field, copied techniques as sure hits) |
+| Ten Shadows | Megumi | Legendary | Domain: Chimera Shadow Garden (incomplete; shikigami rise from shadows) |
+| Idle Death Gamble | Hakari | Legendary | Domain: Idle Death Gamble (pachinko reels, 1/239 jackpot, riichi events; jackpot = infinite CE + automatic RCT) |
+| Judgeman | Higuruma | Legendary | Domain: Deadly Sentencing (violence forbidden; evidence, plea, verdict: Confiscation or the Executioner's Sword) |
+| Mythical Beast Amber | Kashimo | Legendary | Ultimate: Mythical Beast Amber (his body breaks down afterwards) |
+| Heavenly Restriction | Toji | Legendary | Ultimate: Sorcerer Killer (no Cursed Energy; the bar fills from hits) |
+| Cursed Spirit Manipulation | Geto | Legendary | Ultimate: Maximum: Uzumaki |
+| Star Rage | Yuki | Legendary | Ultimate: Star Rage: Black Hole |
+| Divergent Fist | Yuji | Epic | Ultimate: Consecutive Black Flash |
+| Cursed Speech | Inumaki | Epic | Ultimate: "Die" (tears his throat) |
+| Blood Manipulation | Choso | Epic | Ultimate: Supernova |
+| Idle Transfiguration | Mahito | Epic | Domain: Self-Embodiment of Perfection (sure-hit transfiguration) |
+| Disaster Flames | Jogo | Epic | Domain: Coffin of the Iron Mountain (volcano interior, sure-hit heat) |
+| Straw Doll | Nobara | Rare | Ultimate: Resonance: Blood Doll |
+| Ratio Technique | Nanami | Rare | Ultimate: Collapse |
+| Boogie Woogie | Todo | Rare | Ultimate: Boogie Woogie × Black Flash |
+| Disaster Plants | Hanami | Rare | Domain: Ceremonial Sea of Light |
+| Projection Sorcery | Naoya | Rare | Domain: Time Cell Moon Palace (moving inside breaks your body) |
+| Ice Formation | Uraume | Rare | Ultimate: Frost Calm: Full Output |
+| Gorilla Core | Panda | Uncommon | Ultimate: Gorilla Core: Drumming Beat |
+| Puppet Manipulation | Mechamaru | Uncommon | Ultimate: Ultra Cannon: Maximum Output |
+| Construction | Mai | Common | Ultimate: Construction: Special Bullet |
+| Simple Domain | Miwa | Common | Ultimate: Batto Sword Drawing: Simple Domain |
 
 Each kit has its own melee combo, a starting technique on RMB, three more
 techniques on 1 / 2 / 3 and its own upgrade nodes on the technique tree.
@@ -106,7 +102,7 @@ Notes on the kits:
 - **Yuji's Black Flash**: press attack again right as a hit lands. The
   next blow does 2.5× damage with a black-and-red flash, black lightning,
   heavy hit-stop and a distorted shockwave.
-- **Domain Expansion** needs a full Cursed Energy bar. The arena changes
+- **Domain Expansion** (and every ultimate) needs a full Cursed Energy bar. The arena changes
   completely (floor, walls, sky, lighting and grade), and for about 8
   seconds every attack hits automatically.
 - Each sorcerer has a **skill tree**. Points come from levelling up.
@@ -208,6 +204,9 @@ canvas), converging to 512 samples. **Save PNG** downloads the result.
 - **Characters**: Minecraft-style HD (128×128) skins painted in code, with normal and roughness maps, a
   procedural animation rig (idle breathing, run, combos, dodge roll, hit
   reactions, death) and spring physics for capes and hair.
+- **Spawning**: curses, cages and altars are placed on the room's floor
+  (never on roofs or wall tops). Only three melee curses attack the same
+  player at once; the rest circle and wait their turn.
 - **Levels**: a grid layout with a main path, side rooms and a secret
   room, stamped from hand-designed room templates per biome.
 - **Bosses**: attack patterns are generator coroutines with telegraphed

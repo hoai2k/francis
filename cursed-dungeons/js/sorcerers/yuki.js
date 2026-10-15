@@ -6,24 +6,25 @@
 //        and ends in a cratering slam.
 //   2    Garuda: her shikigami circles her and whips its mass-heavy tail down
 //        on nearby curses.
-//   3    Black Hole: a singularity that drags everything in, then implodes.
-//   F    Domain: Star Rage: Event Horizon (invented — Yuki's domain is never
-//        shown in detail): curses grow heavy and sink toward the centre while
-//        mass-laden stars fall on them.
+//   3    Garuda Lash: Yuki takes Garuda in hand as a rigid, mass-laden rod and
+//        swings it round in one crushing sweep (canon: she wields Garuda as a
+//        weapon against Kenjaku).
+//   F    Ultimate — Star Rage: Black Hole. Yuki has no Domain Expansion shown
+//        in canon; her last resort against Kenjaku was to give herself
+//        near-infinite mass and collapse into a black hole. She becomes the
+//        singularity: everything is dragged in, then crushed in the implosion.
 import * as THREE from 'three/webgpu';
 import { Kit } from './kit.js';
 import { registerKit, registerSorcerer } from './index.js';
 import { registerLook } from '../entities/models.js';
-import { registerDomainEnv } from '../world/biomes.js';
-import { B } from '../world/blocks.js';
 import { makeOrb } from '../gfx/orbs.js';
 
 const GOLD = 0xffb02a, STAR = 0xffe08a, VOID = 0x9a5aff;
 const tmp = new THREE.Vector3(), tmp2 = new THREE.Vector3();
 
 registerSorcerer('yuki', {
-  name: 'Yuki', technique: 'Star Rage', rarity: 'legendary', title: 'Special Grade', color: '#ffb02a', domain: 'Star Rage: Event Horizon',
-  desc: 'Star Rage loads every blow with virtual mass: crater-making punches, a meteor charge, the shikigami Garuda and a Black Hole that swallows the room.',
+  name: 'Yuki', technique: 'Star Rage', rarity: 'legendary', title: 'Special Grade', color: '#ffb02a', ultimate: 'Star Rage: Black Hole',
+  desc: 'Star Rage loads every blow with virtual mass: crater-making punches, a meteor charge, the shikigami Garuda — and, at the very end, collapsing into a Black Hole.',
 });
 
 registerLook('yuki', {
@@ -50,18 +51,13 @@ registerLook('yuki', {
   },
 });
 
-registerDomainEnv('event_horizon', {
-  skyTop: 0x000000, skyHorizon: 0x4a2a0a, fog: 0x0a0610, fogDensity: 0.012, hemiSky: 0xffc07a, hemiGround: 0x100820, hemiI: 1.1, sun: 0xffd08a, sunI: 0.9,
-  grade: { tint: [1.1, 0.98, 1.05], lift: [0.02, 0.0, 0.03], sat: 1.25, contrast: 1.2, vignette: 0.6 }, floor: B.void_floor,
-});
-
 export const YUKI_SKILLS = [
   { id: 'mass', name: 'Virtual Mass', desc: '+8% melee damage and heavier knockback per rank.', max: 3 },
   { id: 'star_shot', name: 'Heavy Star', desc: 'Star Shot craters are bigger and hit harder.', max: 3 },
   { id: 'bonbaye', name: 'Bonbaye', desc: 'The meteor charge reaches further and its landing hits harder.', max: 3 },
   { id: 'garuda', name: 'Garuda', desc: 'Garuda stays longer and slams more often.', max: 2 },
-  { id: 'black_hole', name: 'Singularity', desc: 'Black Hole pulls from further away and implodes harder.', max: 3, req: 'star_shot' },
-  { id: 'horizon', name: 'Event Horizon', desc: 'Domain lasts 2s longer and stars fall faster.', max: 2 },
+  { id: 'lash', name: 'Garuda Lash', desc: 'Garuda Lash sweeps wider and hits harder.', max: 3, req: 'garuda' },
+  { id: 'black_hole', name: 'Singularity', desc: 'Black Hole (ultimate) pulls from further away and implodes harder.', max: 3, req: 'star_shot' },
 ];
 
 class YukiKit extends Kit {
@@ -80,34 +76,12 @@ class YukiKit extends Kit {
       ranged: this.ability({ name: 'Star Shot', icon: '⭐', cd: 1.3, ce: 0, use: () => this.starShot() }),
       t1: this.ability({ name: 'Bonbaye', icon: '☄️', cd: 6, ce: 12, use: () => this.bonbaye() }),
       t2: this.ability({ name: 'Garuda', icon: '🐦‍⬛', cd: 16, ce: 18, use: () => this.summonGaruda() }),
-      t3: this.ability({ name: 'Black Hole', icon: '🕳️', cd: 22, ce: 45, use: () => this.blackHole() }),
+      t3: this.ability({ name: 'Garuda Lash', icon: '🪶', cd: 11, ce: 22, use: () => this.garudaLash() }),
     };
-    this.domain = {
-      name: 'Star Rage: Event Horizon', icon: '🌌', key: 'event_horizon', type: 1, color: GOLD, sound: 'void', flash: 0xffe0a0,
-      duration: 8 + r('horizon') * 2, radius: 24,
-      onStart: () => { this.p.stats.meleeMult += 0.5; },
-      onTick: (g, d, dt) => {
-        for (const e of g.enemies) {
-          if (e.dead || e.isDummy || !g.domainSys.inside(e.pos)) continue;
-          e.slowT = 0.3;   // everything grows heavy
-          tmp.subVectors(d.center, e.pos).setY(0);
-          if (tmp.lengthSq() > 4) e.knock.addScaledVector(tmp.normalize(), dt * 18);
-        }
-        d.tick = (d.tick ?? 0) - dt;
-        if (d.tick > 0) return;
-        d.tick = 0.8 - r('horizon') * 0.15;
-        const list = g.enemies.filter((e) => !e.dead && !e.isDummy && g.domainSys.inside(e.pos));
-        if (list.length) this.fallingStar(list[Math.floor(Math.random() * list.length)].pos.clone());
-      },
-      onEnd: (g, d) => {
-        this.p.stats.meleeMult -= 0.5;
-        g.combat.aoe(d.center, d.radius, 40, this.p, { knock: -10, stagger: 0.8, ceGain: 0, blocks: false });
-        g.fx.screenWave(d.center, 1.2, 0.5); g.fx.chroma(1);
-      },
-    };
-    this.garuda = null;
+    this.ultimate = { name: 'Star Rage: Black Hole', icon: '🕳️', use: () => this.blackHole() };
+    this.garuda = null; this.bh = null;
   }
-  dispose() { super.dispose(); this.dismissGaruda(); }
+  dispose() { super.dispose(); this.dismissGaruda(); this.endBlackHole(); if (this.rod) this.p.rig.handR.remove(this.rod); }
   onMeleeHit(e, step) {
     if (step.launch && !e.isBoss) e.vel.y = Math.max(e.vel.y, 9);
   }
@@ -248,60 +222,110 @@ class YukiKit extends Kit {
       return true;
     });
   }
-  // ------------------------------------------------------------- Black Hole
+  // ------------------------------------------------------------- Garuda Lash
+  garudaLash() {
+    const g = this.game, p = this.p, rk = this.rank('lash');
+    const held = !!this.garuda;
+    if (held) this.dismissGaruda();   // Garuda straightens into her weapon
+    if (this.rod) p.rig.handR.remove(this.rod);
+    const rod = this.rod = new THREE.Group();
+    const m = new THREE.MeshStandardNodeMaterial({ color: 0x15121c, roughness: 0.5, emissive: VOID, emissiveIntensity: 0.6 });
+    const tipM = new THREE.MeshStandardNodeMaterial({ color: STAR, emissive: STAR, emissiveIntensity: 3 });
+    const shaft = new THREE.Mesh(new THREE.BoxGeometry(0.14, 2.8, 0.14).translate(0, -1.4, 0), m);
+    const tip = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 0.3), tipM); tip.position.y = -2.8;
+    rod.add(shaft, tip); p.rig.handR.add(rod);
+    p.facing = Math.atan2(p.aimDir.x, p.aimDir.z);
+    p.action = { type: 'attack', step: { style: 'spin', strike: 0.55, windup: 0.3 }, style: 'spin', dur: 0.5, elapsed: 0, t: 0, windup: 0.3, strike: 0.55, struck: true, moveScale: 0.15 };
+    g.audio?.whoosh(1.5);
+    let t = 0, done = false;
+    g.addUpdater((dt) => {
+      t += dt;
+      if (!done && t >= 0.2) {
+        done = true;
+        const R = 5 + rk * 0.6, dmg = (38 + rk * 14) * (held ? 1.3 : 1);
+        g.combat.aoe(p.pos, R, dmg, p, { melee: true, knock: 15, stagger: 0.9, unblockable: true });
+        g.fx.slashArc(p.pos, p.facing, STAR, R, Math.PI, 0.3);
+        g.fx.slashArc(p.pos, p.facing, VOID, R * 0.85, Math.PI, 0.35, true);
+        g.fx.shockwave(p.pos, GOLD, R + 1); g.fx.debris(p.pos, 0x8a7a6a, 10);
+        g.shake(0.45); g.hitStop(0.06); g.audio?.impact(1.8);
+      }
+      if (t < 0.5) return true;
+      if (this.rod === rod) { p.rig.handR.remove(rod); this.rod = null; }
+      return false;
+    });
+  }
+  // ------------------------------------------------------------- Black Hole (ultimate)
+  // Yuki gives herself near-infinite virtual mass and collapses into a black
+  // hole: she is the singularity, everything is dragged in, then crushed.
   blackHole() {
     const g = this.game, p = this.p, rk = this.rank('black_hole');
-    this.cast(0.6, true);
-    const target = g.domainSys?.sureHit(p) ? g.nearestEnemy(p.pos, 30) : null;
-    const c = target ? target.pos.clone() : p.aimPoint.clone();
-    tmp.subVectors(c, p.pos).setY(0); if (tmp.length() > 11) c.copy(p.pos).addScaledVector(tmp.normalize(), 11);
-    const gy = g.world.groundBelow(c.x, c.z, p.pos.y + 3); c.y = (isFinite(gy) ? gy : p.pos.y) + 1.6;
-    const R = 7.5 + rk * 1.3, dur = 2.4;
+    if (this.bh) return false;
+    const R = 15 + rk * 2, dur = 3.4;
+    const c = p.pos.clone(); c.y += 2.4;
     const orb = makeOrb(VOID, { radius: 0.1, darkCore: true });
     orb.position.copy(c); g.scene.add(orb);
-    const light = g.lights.flash(c, VOID, 14, R * 2, dur + 0.4, { priority: 5, fade: false });
-    g.audio?.energy('blue'); g.fx.flash(0x100020, 0.3, 0.2);
+    const light = g.lights.flash(c, VOID, 22, R * 2.2, dur + 1, { priority: 6, fade: false });
+    const B = this.bh = { orb, light };
+    p.invulnerable = true;
+    p.action = { type: 'raise', dur: dur + 0.5, elapsed: 0, t: 0, moveScale: 0, lock: true, hold: true, cancelable: false };
+    g.toast?.('Star Rage: Black Hole', 'big');
+    g.fx.dimTarget = 0.55; g.fx.flash(0x000000, 0.7, 0.4); g.fx.chroma(1.2);
+    g.slowMo(0.9, 0.35); g.shake(0.4);
+    g.audio?.charge(1.2, 0.5); g.audio?.energy('blue');
+    g.audio?.tone({ freq: 45, to: 22, dur, gain: 0.5, type: 'sawtooth', filter: 300, rev: 0.5 });
     let t = 0, tick = 0, ring = 0;
     g.addUpdater((dt) => {
+      if (this.bh !== B) return false;
       t += dt; tick -= dt; ring -= dt;
-      orb.scale.setScalar((0.3 + Math.min(1, t / 0.4) * 0.9) * (1 + Math.sin(t * 25) * 0.04));
-      orb.rotation.y += dt * 6;
-      if (ring <= 0) { ring = 0.18; g.fx.darkRings.spawn(tmp.set(c.x, c.y - 1.5, c.z), { color: 0x000000, r0: R, r1: 0.5, dur: 0.5, thick: 0.3 }); g.fx.rings.spawn(tmp.set(c.x, c.y - 1.45, c.z), { color: GOLD, r0: R * 0.8, r1: 0.4, dur: 0.45, thick: 0.08 }); }
-      for (let i = 0; i < 8; i++) {   // accretion disc spiralling in
-        const a = Math.random() * Math.PI * 2, rr = 1 + Math.random() * R;
-        const px = c.x + Math.cos(a) * rr, pz = c.z + Math.sin(a) * rr, py = c.y + (Math.random() - 0.5) * 0.8;
-        const sp = 6 + Math.random() * 4, col = Math.random() < 0.5 ? [2, 1.2, 0.3] : [1.2, 0.6, 2];
-        g.particles.glow.emit(px, py, pz, (c.x - px) / rr * sp - Math.sin(a) * 6, (c.y - py), (c.z - pz) / rr * sp + Math.cos(a) * 6, rr / sp, col[0], col[1], col[2], 0.12, 0, 0, 0.3, 1);
+      const grow = Math.min(1, t / 0.8);
+      orb.scale.setScalar((0.4 + grow * 2.4) * (1 + Math.sin(t * 30) * 0.05));
+      orb.rotation.y += dt * 8;
+      const gy = p.pos.y + 0.08;
+      if (ring <= 0) {
+        ring = 0.14;
+        g.fx.darkRings.spawn(tmp.set(c.x, gy, c.z), { color: 0x000000, r0: R, r1: 0.6, dur: 0.55, thick: 0.4 });
+        g.fx.rings.spawn(tmp.set(c.x, gy + 0.05, c.z), { color: GOLD, r0: R * 0.85, r1: 0.5, dur: 0.5, thick: 0.1 });
+      }
+      for (let i = 0; i < 14; i++) {   // accretion disc spiralling into her
+        const a = Math.random() * Math.PI * 2, rr = 1.5 + Math.random() * R;
+        const px = c.x + Math.cos(a) * rr, pz = c.z + Math.sin(a) * rr, py = c.y + (Math.random() - 0.5) * 1.5;
+        const sp = 7 + Math.random() * 5, col = Math.random() < 0.5 ? [2.2, 1.3, 0.3] : [1.2, 0.6, 2.2];
+        g.particles.glow.emit(px, py, pz, (c.x - px) / rr * sp - Math.sin(a) * 7, (c.y - py), (c.z - pz) / rr * sp + Math.cos(a) * 7, rr / sp, col[0], col[1], col[2], 0.14, 0, 0, 0.3, 1);
       }
       for (const e of g.enemies) {
         if (e.dead || e.isDummy) continue;
         tmp.subVectors(c, e.pos); const dy = tmp.y; tmp.y = 0; const dist = tmp.length();
-        if (dist > R || Math.abs(dy) > 5) continue;
-        e.knock.lerp(tmp.normalize().multiplyScalar(Math.min(dist * 7, 16) * (1 - (e.def?.knockResist ?? 0) * 0.5)), Math.min(1, dt * 10));
+        if (dist > R * 1.2 || Math.abs(dy) > 7) continue;
+        e.slowT = 0.3;
+        e.knock.lerp(tmp.normalize().multiplyScalar(Math.min(dist * 8, 22) * (1 - (e.def?.knockResist ?? 0) * 0.4)), Math.min(1, dt * 10));
         if (e.state === 'windup') { e.cancelAttack?.(); e.state = 'stagger'; e.stateT = 0; e.stagger = 0.3; }
       }
-      if (tick <= 0) { tick = 0.25; g.combat.aoe(c, 2.6, 8 + rk * 3, p, { stagger: 0.1, ceGain: 1, blocks: false }); }
+      for (const pr of [...g.projectiles.list]) {   // nothing escapes the event horizon
+        if (pr.team === 'enemy' && pr.pos.distanceTo(c) < R) g.projectiles.kill(pr, 'cut');
+      }
+      if (tick <= 0) { tick = 0.2; g.combat.aoe(tmp2.set(c.x, p.pos.y, c.z), 4, 12 + rk * 4, p, { stagger: 0.15, ceGain: 0, blocks: false }); }
       if (t < dur) return true;
-      // implosion
-      g.scene.remove(orb); g.lights.remove(light);
-      const I = R * 0.55;
-      g.combat.aoe(c, I, 95 + rk * 30, p, { knock: 16, stagger: 1, unblockable: true, falloff: true });
-      for (const e of g.enemies) if (!e.dead && !e.isBoss && e.pos.distanceTo(c) < I) e.vel.y = Math.max(e.vel.y, 10);
-      g.fx.explosion(c, VOID, I);
-      g.fx.shockwave(tmp.copy(c).setY(c.y - 1.5), GOLD, R + 2);
-      g.particles.burst(c, { count: 50, color: STAR, speed: 18, life: 0.5, size: 0.12, drag: 3, shape: 1, intensity: 4 });
-      g.fx.flash(0xffe0ff, 0.6, 0.25); g.fx.screenWave(c, 1.4, 0.6); g.fx.chroma(1.5);
-      g.shake(0.9); g.hitStop(0.1); g.slowMo(0.35, 0.35);
-      g.audio?.blackFlash(); g.audio?.energy('explode');
+      // collapse
+      this.endBlackHole();
+      const gc = p.pos.clone(), I = R * 0.7;
+      g.combat.aoe(gc, I, 260 + rk * 70, p, { knock: 22, stagger: 1.2, unblockable: true, falloff: true, ceGain: 0 });
+      for (const e of g.enemies) if (!e.dead && !e.isBoss && e.pos.distanceTo(gc) < I) e.vel.y = Math.max(e.vel.y, 12);
+      g.fx.explosion(c, VOID, 6); g.fx.explosion(gc, GOLD, 4);
+      g.fx.shockwave(gc, GOLD, R + 4, 0.7); g.fx.shockwave(gc, VOID, R, 0.5);
+      g.particles.burst(c, { count: 90, color: STAR, speed: 24, life: 0.6, size: 0.14, drag: 3, shape: 1, intensity: 4 });
+      g.fx.flash(0xffffff, 0.9, 0.35); g.fx.screenWave(c, 2, 0.8); g.fx.chroma(2);
+      g.shake(1.2); g.hitStop(0.15); g.slowMo(0.6, 0.25);
+      g.audio?.blackFlash(); g.audio?.energy('purple'); g.audio?.energy('explode');
       return false;
     });
   }
-  // a mass-laden star dropped by the domain
-  fallingStar(at) {
+  endBlackHole() {
+    const B = this.bh; if (!B) return;
+    this.bh = null;
     const g = this.game, p = this.p;
-    g.projectiles.fire({ pos: at.clone().add(tmp.set((Math.random() - 0.5) * 3, 12, (Math.random() - 0.5) * 3)), vel: new THREE.Vector3(0, -30, 0), team: 'player', shape: 'orb', color: STAR, emissive: 5, scale: 2, life: 0.4, radius: 0.8, light: 6, ghost: true,
-      trail: (q) => g.particles.burst(q.pos, { count: 3, color: GOLD, speed: 1, life: 0.4, size: 0.5, sizeEnd: 0.1 }),
-      onExpire: () => this.massBlast(at, 2.8, 22, 9), pierce: true });
+    g.scene.remove(B.orb); g.lights.remove(B.light);
+    p.invulnerable = false; g.fx.dimTarget = 0;
+    if (p.action?.type === 'raise') p.action = null;
   }
 }
 registerKit('yuki', YukiKit, YUKI_SKILLS);

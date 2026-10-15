@@ -6,9 +6,7 @@ import { DRIVERS, UNIVERSES } from '../js/driver.js';
 import { KARTS, KART_GROUPS } from '../js/vehicles.js';
 import { GLIDERS, GLIDER_GROUPS } from '../js/gliders.js';
 import { SIMPLIFIED } from '../js/simplified.js';
-import { driverPortrait, kartPortrait, gliderPortrait, bigPortrait, standingPortrait } from '../js/showcase.js';
-import * as THREE from 'three';
-import { HELPERS, lineDrop, loadHelper, helperLine } from '../js/rescue.js';
+import { driverPortrait, kartPortrait, gliderPortrait } from '../js/showcase.js';
 
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -99,7 +97,11 @@ document.addEventListener('click', (e) => {
   const card = e.target.closest('.card');
   if (card) { toggle(card); return; }
   const t = e.target.closest('[data-tab]');
-  if (t) { showTab(t.dataset.tab); return; }
+  if (t) {
+    for (const b of document.querySelectorAll('[data-tab]')) b.classList.toggle('on', b === t);
+    for (const kind of KINDS) $('#' + kind).classList.toggle('hidden', t.dataset.tab !== kind);
+    return;
+  }
   const g = e.target.closest('[data-gall], [data-gnone]');
   if (g) {
     const [kind, gid] = (g.dataset.gall || g.dataset.gnone).split(':');
@@ -169,71 +171,3 @@ function fill() {
   requestAnimationFrame(fill);
 }
 requestAnimationFrame(fill);
-
-// ---- Helpers: the rescue helpers (js/rescue.js), to look at, not to pick ----------------------
-// Each one big, in its cloud (or floating), with its line (fishing line, Grogu's beam, Kogane's
-// tail) hanging from where it starts down to the kart's roof, at its length in a race.
-let helpersBuilt = false;
-async function showHelpers() {
-  if (helpersBuilt) return;
-  helpersBuilt = true;
-  const list = Object.entries(HELPERS);
-  $('#helpers').innerHTML = `<p class="note">The rescue helper for each map: they fish karts that are stuck, lost or going the wrong way back onto the road. Look only (nothing to pick here): each is shown bigger than in a race, with its line hanging from where it starts down to the kart's roof at its race length, so you can see how it connects. Tell Claude which models need work.</p>
-    <div class="hgrid">${list.map(([id, h]) => `<div class="hcard"><div class="pic" data-helper="${id}">Loading…</div>
-      <div class="cap"><h3>${esc(h.name)}</h3><p>${esc(h.maps[0].toUpperCase() + h.maps.slice(1))} · ${esc(h.how)}</p></div></div>`).join('')}</div>`;
-  for (const [id, h] of list) {
-    const pic = $(`[data-helper="${id}"]`);
-    try {
-      const tpl = await loadHelper(h), model = tpl.clone(true);
-      const line = helperLine(h, tpl), from = tpl.userData.from.clone();
-      line.set(from, from.clone().add(new THREE.Vector3(0, -lineDrop(h), 0)), 0.3);
-      model.add(line.group);
-      tpl.userData.animate?.(model, 0.3);
-      pic.innerHTML = `<img alt="${esc(h.name)}" src="${bigPortrait(model, 480, 640, 0.35, 0x9fd0ff)}">`;
-    } catch (e) { console.error(e); pic.textContent = 'Could not draw this one'; }
-    await new Promise((r) => requestAnimationFrame(r));
-  }
-}
-
-// ---- tabs: the open one is kept in the address (?tab=helpers), so a reload comes back to it ----
-const TABS = [...KINDS, 'helpers'];
-function showTab(tab, remember = true) {
-  if (!TABS.includes(tab)) tab = 'drivers';
-  for (const b of document.querySelectorAll('[data-tab]')) b.classList.toggle('on', b.dataset.tab === tab);
-  for (const k of TABS) $('#' + k).classList.toggle('hidden', k !== tab);
-  document.body.classList.toggle('view-only', tab === 'helpers');
-  if (tab === 'helpers') showHelpers();
-  if (remember) {
-    const u = new URL(location.href);
-    if (tab === 'drivers') u.searchParams.delete('tab'); else u.searchParams.set('tab', tab);
-    history.replaceState(null, '', u);
-  }
-}
-showTab(new URLSearchParams(location.search).get('tab') || 'drivers', false);
-
-// ---- hold the pointer on a character for 1.5 s: a bigger picture of them standing ----------------
-const zoom = $('#zoom');
-let zoomT = 0, zoomCard = null;
-const hideZoom = () => { clearTimeout(zoomT); zoomCard = null; zoom.classList.remove('show'); };
-document.addEventListener('pointerover', (e) => {
-  if (e.pointerType !== 'mouse') return;
-  const card = e.target.closest('.card[data-kind="drivers"]');
-  if (card === zoomCard) return;
-  hideZoom();
-  if (!card) return;
-  zoomCard = card;
-  zoomT = setTimeout(() => {
-    const d = DRIVERS.find((x) => x.id === card.dataset.id);
-    if (!d || zoomCard !== card) return;
-    zoom.querySelector('img').src = standingPortrait(d);
-    zoom.querySelector('div').textContent = d.name;
-    // beside the card, on whichever side has room, kept on screen
-    const r = card.getBoundingClientRect(), W = 300, H = W * 4 / 3 + 40;
-    const x = r.right + 12 + W < innerWidth ? r.right + 12 : Math.max(8, r.left - 12 - W);
-    zoom.style.left = x + 'px';
-    zoom.style.top = Math.max(8, Math.min(innerHeight - H - 8, r.top + r.height / 2 - H / 2)) + 'px';
-    zoom.classList.add('show');
-  }, 1500);
-});
-document.addEventListener('scroll', hideZoom, { passive: true });
-document.addEventListener('pointerdown', hideZoom);

@@ -1,30 +1,28 @@
-// Choso-style kit — Blood Manipulation.
-//   LMB  blood-coated martial arts combo.
+// Choso kit — Blood Manipulation.
+//   LMB  blood-coated martial arts; the finisher is Blood Edge, a blade of
+//        hardened blood along the forearm.
 //   RMB  Piercing Blood: compressed blood fired as a near-instant beam that
 //        pierces every curse (and crate) in a line.
 //   1    Convergence: compress blood between the palms — the next few Piercing
 //        Bloods become huge, wall-cutting beams.
 //   2    Flowing Red Scale: blood pressure and temperature surge — faster,
 //        stronger, tougher, with glowing veins.
-//   3    Supernova: blood orbs gather around Choso, fly at curses and burst in
-//        sprays of piercing blood.
-//   F    Domain (invented — Choso has no canon domain): Crimson Womb: Blood
-//        Rain — a blood-red sky rains piercing needles on every curse inside
-//        while supernovae burst among them and Choso's blood replenishes.
+//   3    Slicing Exorcism: two spinning discs of blood fly out and back.
+//   F    Ultimate (Choso has no canon domain): Supernova — a ring of
+//        compressed blood orbs swells around him and bursts one after another,
+//        spraying Piercing Blood in every direction.
 import * as THREE from 'three/webgpu';
 import { Kit } from './kit.js';
 import { registerKit, registerSorcerer } from './index.js';
 import { registerLook } from '../entities/models.js';
-import { registerDomainEnv } from '../world/biomes.js';
-import { B } from '../world/blocks.js';
 
 const BLOOD = 0xd0102a, DARK = 0x5a0410, CORE = 0xffb0b8;
 const tmp = new THREE.Vector3(), tmp2 = new THREE.Vector3();
 
 registerSorcerer('choso', {
   name: 'Choso', technique: 'Blood Manipulation', rarity: 'epic', title: 'Eldest Brother', color: '#d0102a',
-  desc: 'Piercing Blood beams, Convergence-charged shots, Flowing Red Scale and exploding Supernova orbs; his Blood Rain domain is invented, as Choso has none in canon.',
-  domain: 'Crimson Womb: Blood Rain',
+  desc: 'Blood Manipulation: Convergence-charged Piercing Blood, Flowing Red Scale, Blood Edge and Slicing Exorcism — and Supernova, a storm of bursting blood orbs, as his ultimate.',
+  ultimate: 'Supernova',
 });
 
 registerLook('choso', {
@@ -47,18 +45,13 @@ registerLook('choso', {
   },
 });
 
-registerDomainEnv('blood_rain', {
-  skyTop: 0x0c0002, skyHorizon: 0x6a0410, fog: 0x2a0206, fogDensity: 0.02, hemiSky: 0xff4a5a, hemiGround: 0x100002, hemiI: 0.7, sun: 0xff3a4a, sunI: 0.9,
-  grade: { tint: [1.12, 0.9, 0.9], lift: [0.02, 0.0, 0.0], sat: 1.15, contrast: 1.18, vignette: 0.55 }, floor: B.blood_brick,
-});
-
 export const CHOSO_SKILLS = [
-  { id: 'piercing', name: 'Piercing Blood', desc: 'Longer, stronger beams.', max: 3 },
+  { id: 'piercing', name: 'Piercing Blood', desc: 'Longer, stronger beams and Slicing Exorcism discs.', max: 3 },
   { id: 'convergence', name: 'Convergence', desc: '+1 empowered shot per Convergence and bigger beams.', max: 2, req: 'piercing' },
   { id: 'scale', name: 'Flowing Red Scale', desc: 'Red Scale lasts 2s longer and boosts more.', max: 3 },
-  { id: 'nova', name: 'Supernova', desc: 'More orbs and bigger bursts.', max: 2 },
+  { id: 'nova', name: 'Supernova', desc: 'More orbs and bigger bursts in your ultimate.', max: 2 },
   { id: 'brawl', name: 'Blood Fists', desc: '+8% melee damage per rank.', max: 3 },
-  { id: 'womb', name: 'Death Painting', desc: '+15 max HP per rank; the domain heals more.', max: 2 },
+  { id: 'womb', name: 'Death Painting', desc: '+15 max HP per rank (a Death Painting\'s body is hard to kill).', max: 2 },
 ];
 
 class ChosoKit extends Kit {
@@ -69,7 +62,7 @@ class ChosoKit extends Kit {
       { style: 'punch', dur: 0.28, windup: 0.28, strike: 0.5, dmg: 12, range: 2.5, arc: 1.1, lunge: 7, knock: 3, stop: 0.045, shake: 0.14, trail: BLOOD, sparkColor: 0xff5a6a, chainAt: 0.55 },
       { style: 'swingL', dur: 0.3, windup: 0.3, strike: 0.52, dmg: 13, range: 2.6, arc: 1.2, lunge: 6, knock: 3.5, stop: 0.05, shake: 0.16, trail: BLOOD, sparkColor: 0xff5a6a, chainAt: 0.55 },
       { style: 'uppercut', dur: 0.38, windup: 0.3, strike: 0.5, dmg: 16, range: 2.6, arc: 1.0, lunge: 5, knock: 5, stop: 0.065, shake: 0.22, trail: BLOOD, launch: true, chainAt: 0.6 },
-      { style: 'slam', dur: 0.56, windup: 0.42, strike: 0.6, dmg: 27, range: 3.3, arc: Math.PI, lunge: 4, knock: 11, stop: 0.09, shake: 0.42, ring: true, ringColor: BLOOD, stagger: 0.55, trail: BLOOD },
+      { style: 'swingR', dur: 0.5, windup: 0.4, strike: 0.6, dmg: 27, range: 3.4, arc: 1.6, lunge: 6, knock: 9, stop: 0.09, shake: 0.38, stagger: 0.55, trail: BLOOD, edge: true },   // Blood Edge
     ];
     this.p.stats.meleeMult += r('brawl') * 0.08;
     this.p.maxHp += r('womb') * 15; this.p.hp = Math.min(this.p.hp + r('womb') * 15, this.p.maxHp);
@@ -77,37 +70,16 @@ class ChosoKit extends Kit {
       ranged: this.ability({ name: 'Piercing Blood', icon: '🩸', cd: 1.1, ce: 0, use: () => this.piercing() }),
       t1: this.ability({ name: 'Convergence', icon: '🔴', cd: 10, ce: 12, use: () => this.convergence() }),
       t2: this.ability({ name: 'Red Scale', icon: '♨️', cd: 16, ce: 18, use: () => this.redScale() }),
-      t3: this.ability({ name: 'Supernova', icon: '💥', cd: 14, ce: 30, use: () => this.supernova() }),
+      t3: this.ability({ name: 'Slicing Exorcism', icon: '⭕', cd: 9, ce: 18, use: () => this.slicing() }),
     };
     this.conv = 0; this.scaleT = 0;
-    this.domain = {
-      name: 'Crimson Womb: Blood Rain', icon: '🩸', key: 'blood_rain', type: 2, color: BLOOD, sound: 'shrine', flash: 0xff2030,
-      duration: 8, radius: 24,
-      onStart: (g, d) => { d.needle = 0; d.nova = 1; },
-      onTick: (g, d, dt) => {
-        // blood rain
-        for (let i = 0; i < 6; i++) { const a = Math.random() * Math.PI * 2, rr = Math.random() * d.radius; g.particles.glow.emit(d.center.x + Math.cos(a) * rr, d.center.y + 7 + Math.random() * 3, d.center.z + Math.sin(a) * rr, 0, -14, 0, 0.7, 1.6, 0.05, 0.1, 0.06, 6, 0, 1, 3); }
-        this.p.heal(this.p.maxHp * (0.012 + r('womb') * 0.006) * dt, true);
-        const list = g.enemies.filter((e) => !e.dead && !e.isDummy && g.domainSys.inside(e.pos));
-        if (!list.length) return;
-        d.needle -= dt; d.nova -= dt;
-        if (d.needle <= 0) {
-          d.needle = 0.25;
-          for (let i = 0; i < Math.min(3, list.length); i++) {
-            const e = list[Math.floor(Math.random() * list.length)];
-            const at = e.pos.clone().setY(e.pos.y + e.height + 5);
-            g.fx.slashLine(at, new THREE.Vector3((Math.random() - 0.5) * 0.3, -1, (Math.random() - 0.5) * 0.3).normalize(), 5.5, BLOOD, 0.22, 0.18);
-            g.combat.damageEnemy(e, 8, this.p, { stagger: 0.12, ceGain: 0, unblockable: true });
-            g.fx.splat(e.pos.clone().setY(e.pos.y + e.height * 0.6), BLOOD);
-          }
-        }
-        if (d.nova <= 0) { d.nova = 1.5; const e = list[Math.floor(Math.random() * list.length)]; this.burst(e.pos.clone().setY(e.pos.y + 0.8), 2.6, 30); }
-      },
-    };
+    this.ultimate = { name: 'Supernova', icon: '💥', use: () => this.supernova() };
   }
   onMeleeHit(e, step) {
+    const g = this.game;
     if (step.launch && !e.isBoss) e.vel.y = Math.max(e.vel.y, 8);
-    this.game.fx.splat(e.pos.clone().setY(e.pos.y + e.height * 0.6), BLOOD);
+    g.fx.splat(e.pos.clone().setY(e.pos.y + e.height * 0.6), BLOOD);
+    if (step.edge) g.fx.slashLine(e.pos.clone().add(new THREE.Vector3(-1.1, e.height * 0.9, 0)), new THREE.Vector3(1, -0.6, Math.random() - 0.5).normalize(), 2.6, BLOOD, 0.35, 0.2, Math.random());
   }
   onIncoming(amount) { return this.scaleT > 0 ? amount * (0.75 - this.rank('scale') * 0.04) : amount; }
   // ------------------------------------------------------------ Piercing Blood
@@ -189,7 +161,52 @@ class ChosoKit extends Kit {
     }
     if (this.conv > 0 && Math.random() < 0.5) { const h = this.handPos(); g.particles.glow.emit(h.x, h.y, h.z, (Math.random() - 0.5), 0.5, (Math.random() - 0.5), 0.3, 2.4, 0.1, 0.2, 0.08 + this.conv * 0.03, 0, 1, 0.3, 0); }
   }
-  // ------------------------------------------------------------ Supernova
+  // ------------------------------------------------------------ Slicing Exorcism
+  // Two spinning discs of blood fly out in arcs and come back to Choso.
+  slicing() {
+    const g = this.game, p = this.p, rk = this.rank('piercing');
+    this.cast(0.4, true);
+    const face = Math.atan2(p.aimDir.x, p.aimDir.z);
+    p.facing = face;
+    const geo = new THREE.TorusGeometry(0.55, 0.07, 4, 24);
+    const mat = new THREE.MeshBasicNodeMaterial({ color: BLOOD, fog: false });
+    const core = new THREE.MeshBasicNodeMaterial({ color: CORE, fog: false });
+    const discs = [-1, 1].map((side) => {
+      const d = new THREE.Group();
+      const ring = new THREE.Mesh(geo, mat); ring.rotation.x = Math.PI / 2; d.add(ring);
+      const inner = new THREE.Mesh(geo, core); inner.rotation.x = Math.PI / 2; inner.scale.setScalar(0.6); d.add(inner);
+      g.scene.add(d);
+      return { d, side, hit: new Map() };
+    });
+    const L = 9 + rk, dmg = 18 + rk * 5, T = 1.1;
+    const origin = p.pos.clone();
+    let t = 0;
+    g.audio?.whoosh(1.2);
+    g.addUpdater((dt) => {
+      t += dt;
+      const k = Math.min(1, t / T);
+      const out = Math.sin(k * Math.PI);                     // out and back
+      for (const D of discs) {
+        const a = face + D.side * (0.9 - k * 1.8) * 0.6;     // sweep across the front
+        const base = tmp2.copy(origin).lerp(p.pos, k);
+        D.d.position.set(base.x + Math.sin(a) * L * out, p.pos.y + 1.1, base.z + Math.cos(a) * L * out);
+        D.d.rotation.y += dt * 30;
+        if (Math.random() < 0.6) g.particles.burst(D.d.position, { count: 1, color: BLOOD, speed: 0.6, life: 0.3, size: 0.12, shape: 1 });
+        for (const e of g.combat.query(D.d.position, tmp.set(0, 0, 1), 0.9, Math.PI)) {
+          if (g.time - (D.hit.get(e) ?? -9) < 0.35) continue;
+          D.hit.set(e, g.time);
+          g.combat.damageEnemy(e, dmg, p, { stagger: 0.4, unblockable: true, knock: tmp2.subVectors(e.pos, D.d.position).setY(0).normalize().multiplyScalar(3) });
+          g.fx.splat(e.pos.clone().setY(e.pos.y + e.height * 0.6), BLOOD);
+          g.audio?.energy('slash');
+        }
+      }
+      if (k < 1) return true;
+      for (const D of discs) g.scene.remove(D.d);
+      geo.dispose(); mat.dispose(); core.dispose();
+      return false;
+    });
+  }
+  // ------------------------------------------------------------ Ultimate: Supernova
   burst(at, R, dmg) {
     const g = this.game, p = this.p;
     g.fx.explosion(at, BLOOD, R);
@@ -202,40 +219,48 @@ class ChosoKit extends Kit {
     }
     g.audio?.energy('explode');
   }
+  // Blood compressed into orbs all around Choso, which then burst, spraying
+  // Piercing Blood in every direction.
   supernova() {
     const g = this.game, p = this.p, rk = this.rank('nova');
-    const n = 6 + rk * 2, R = 2.4 + rk * 0.5, dmg = 34 + rk * 10;
-    this.cast(0.6, true, { type: 'raise' });
-    g.audio?.charge(0.6, 0.8);
+    const n = 16 + rk * 4, R = 3.2 + rk * 0.5, dmg = 55 + rk * 15;
+    p.action = { type: 'sign', dur: 1.2, elapsed: 0, t: 0, moveScale: 0, lock: true, hold: true, cancelable: false };
+    p.iframes = Math.max(p.iframes ?? 0, 1.6);
+    g.slowMo(1.1, 0.25); g.fx.dimTarget = 0.55;
+    g.toast?.('SUPERNOVA', 'domain');
+    g.audio?.charge(1.1, 0.7);
+    g.lights.flash(p.pos.clone().setY(p.pos.y + 1.5), BLOOD, 10, 12, 1.2, { priority: 7 });
+    const foes = g.enemies.filter((e) => !e.dead && !e.isDummy && e.pos.distanceTo(p.pos) < 18);
     const orbs = [];
     for (let i = 0; i < n; i++) {
-      const pr = g.projectiles.fire({ pos: p.pos.clone().setY(p.pos.y + 1.4), vel: new THREE.Vector3(), team: 'player', shape: 'orb', color: BLOOD, emissive: 2.5, scale: 1.7, radius: 0.55, life: 3, ghost: true, light: i % 3 === 0 ? 4 : 0,
-        trail: (q) => { if (Math.random() < 0.5) g.particles.burst(q.pos, { count: 1, color: BLOOD, speed: 0.5, life: 0.3, size: 0.25, sizeEnd: 0.05 }); },
+      const pr = g.projectiles.fire({ pos: p.pos.clone().setY(p.pos.y + 1.4), vel: new THREE.Vector3(), team: 'player', shape: 'orb', color: BLOOD, emissive: 3, scale: 2, radius: 0.6, life: 99, ghost: true, light: i % 4 === 0 ? 5 : 0,
+        trail: (q) => { if (Math.random() < 0.5) g.particles.burst(q.pos, { count: 1, color: BLOOD, speed: 0.5, life: 0.3, size: 0.3, sizeEnd: 0.05 }); },
         onExpire: (q) => this.burst(q.pos.clone(), R, dmg) });
-      if (pr) orbs.push(pr);
+      if (pr) orbs.push({ q: pr, a: i / n * Math.PI * 2, h: 0.6 + (i % 3) * 0.9, target: foes.length && i % 2 === 0 ? foes[(i / 2) % foes.length | 0] : null });
     }
-    if (!orbs.length) return false;
-    let t = 0, launched = false;
+    if (!orbs.length) { if (p.action?.type === 'sign') p.action = null; g.fx.dimTarget = 0; return false; }
+    let t = 0, popped = 0;
+    const center = p.pos.clone();
     g.addUpdater((dt) => {
       t += dt;
-      if (!launched) {
-        orbs.forEach((q, i) => {
-          const a = i / orbs.length * Math.PI * 2 + t * 5, rr = 1.2 + t * 1.2;
-          q.pos.set(p.pos.x + Math.cos(a) * rr, p.pos.y + 1.4 + Math.sin(t * 8 + i) * 0.2, p.pos.z + Math.sin(a) * rr);
-          q.t = 0;
-        });
-        if (t < 0.6) return true;
-        launched = true;
-        const foes = g.enemies.filter((e) => !e.dead && !e.isDummy && (e.pos.distanceTo(p.pos) < 16 || (g.domainSys?.sureHit(p) && g.domainSys.inside(e.pos))));
-        orbs.forEach((q, i) => {
-          const e = foes.length ? foes[i % foes.length] : null;
-          const dir = e ? tmp.subVectors(e.pos, q.pos).setY(e.pos.y + e.height * 0.5 - q.pos.y) : tmp.subVectors(q.pos, p.pos).setY(0);
-          q.vel.copy(dir.normalize().multiplyScalar(16)); q.life = 0.9; q.t = 0;
-          if (e) { q.homing = 10; q.target = e; }
-        });
-        g.audio?.whoosh(1.3);
-        return false;
-      }
+      // compress: orbs gather and swell around Choso, then fan out toward curses
+      const spread = t < 0.7 ? 1.5 : 1.5 + (t - 0.7) * 9;
+      orbs.forEach((o) => {
+        if (o.done) return;
+        const ring = tmp.set(center.x + Math.cos(o.a + t * 2.5) * Math.min(spread, 7), center.y + o.h + Math.sin(t * 6 + o.a) * 0.15, center.z + Math.sin(o.a + t * 2.5) * Math.min(spread, 7));
+        if (o.target && !o.target.dead && t > 0.7) ring.lerp(tmp2.copy(o.target.pos).setY(o.target.pos.y + o.target.height * 0.5), Math.min(1, (t - 0.7) * 2.2));
+        o.q.pos.copy(ring); o.q.t = 0;
+      });
+      if (t > 0.7 && p.action?.type === 'sign') { p.action = null; g.fx.dimTarget = 0; }
+      if (t < 1.25) return true;
+      // detonate one after another
+      const due = Math.min(orbs.length, Math.floor((t - 1.25) / 0.04) + 1);
+      for (; popped < due; popped++) { const o = orbs[popped]; o.done = true; o.q.life = 0; }
+      if (popped === 1) { g.fx.flash(0xff2030, 0.5, 0.3); g.fx.screenWave(center.clone().setY(center.y + 1), 1.6, 0.8); g.fx.chroma(1.4); }
+      g.shake(0.25);
+      if (popped < orbs.length) return true;
+      g.shake(0.9); g.hitStop(0.1);
+      g.fx.darkRings.spawn(tmp.set(center.x, center.y + 0.07, center.z), { color: 0x000000, r0: 0.5, r1: 9, dur: 0.7, thick: 0.5 });
       return false;
     });
   }

@@ -42,11 +42,26 @@ export class Save {
   load() {
     try {
       const raw = localStorage.getItem(KEY);
-      if (raw) { const d = JSON.parse(raw); if (d && d.version === 1) return migrate({ ...fresh(), ...d }); }
+      if (raw) { const d = JSON.parse(raw); if (d && d.version === 1) return { ...fresh(), ...migrate(d) }; }
     } catch (e) { /* ignore */ }
     return fresh();
   }
-  write() { try { localStorage.setItem(KEY, JSON.stringify(this.data)); } catch (e) { /* storage full / private mode */ } }
+  // Returns false when the browser blocks storage (private mode, full disk);
+  // the pause menu then offers a save code instead.
+  write() {
+    this.data.savedAt = Date.now();
+    try { localStorage.setItem(KEY, JSON.stringify(this.data)); this.ok = true; } catch (e) { this.ok = false; }
+    return this.ok;
+  }
+  // Portable save code: copy it to keep progress or move it to another device.
+  exportCode() { return 'CD1.' + btoa(unescape(encodeURIComponent(JSON.stringify(this.data)))); }
+  importCode(code) {
+    try {
+      const d = JSON.parse(decodeURIComponent(escape(atob(code.trim().replace(/^CD1\./, '')))));
+      if (!d || d.version !== 1 || !Array.isArray(d.inventory)) return false;
+      this.data = { ...fresh(), ...migrate(d) }; this.write(); return true;
+    } catch (e) { return false; }
+  }
   reset() { this.data = fresh(); this.write(); }
   sorc(id) {
     const s = this.data.sorcerers;

@@ -1,31 +1,32 @@
-// Kashimo-style kit — Mythical Beast Amber (cursed energy with the properties
-// of electricity).
+// Kashimo kit — cursed energy with the properties of electricity.
+//   Kashimo's electric cursed energy charges whatever it touches, and his
+//   lightning is drawn to the charge — it cannot miss a charged target.
 //   LMB  Nyoi staff combo; every hit stores Charge on the curse. At 5 Charge
 //        the stored electricity discharges as a lightning strike.
-//   RMB  Discharge: a lightning bolt that chains between curses, favouring
-//        charged ones.
+//   RMB  Electric Discharge: a bolt that chains between curses, favouring
+//        charged ones. During Mythical Beast Amber it becomes a beam.
 //   1    Nyoi Staff Throw: the staff flies out and plants itself as a
 //        lightning rod that zaps every curse around it.
-//   2    Thunderclap: every charged curse is struck from the sky at once.
-//   3    Mythical Beast Amber: Kashimo's body becomes pure electricity — huge
-//        speed and damage, lightning on every hit, a blinding body — but when
-//        it ends the body breaks down (heavy HP drain).
-//   F    Domain (invented — Kashimo has no canon domain): Thunderous Heavens —
-//        lightning rains on every curse inside, stacking Charge until it bursts.
+//   2    Charged Strike: every charged curse is struck from the sky at once.
+//   3    Full Discharge: all his stored electricity leaves his body in a burst.
+//   F    Ultimate (Kashimo has no canon domain): Mythical Beast Amber — his
+//        one-time technique. An electromagnetic burst, then 12s as living
+//        lightning (huge speed and damage, lightning on every hit, arcs that
+//        leap to curses, Discharge becomes a beam) — and when it ends his body
+//        breaks down: most of his HP drains away and he cannot use techniques
+//        for a few seconds.
 import * as THREE from 'three/webgpu';
 import { Kit } from './kit.js';
 import { registerKit, registerSorcerer } from './index.js';
 import { registerLook } from '../entities/models.js';
-import { registerDomainEnv } from '../world/biomes.js';
-import { B } from '../world/blocks.js';
 
 const VOLT = 0x6ae8ff, WHITE = 0xe8fbff, DEEP = 0x2a7aff;
 const tmp = new THREE.Vector3(), tmp2 = new THREE.Vector3();
 
 registerSorcerer('kashimo', {
   name: 'Kashimo', technique: 'Mythical Beast Amber', rarity: 'legendary', title: 'The God of Lightning', color: '#6ae8ff',
-  desc: 'An electric staff fighter who stacks Charge on curses and calls lightning onto them, then burns his body out as Mythical Beast Amber for a storm of raw power.',
-  domain: 'Thunderous Heavens',
+  desc: 'His cursed energy is electricity: staff hits charge curses and his lightning cannot miss them. His ultimate, Mythical Beast Amber, turns him into living lightning — at the cost of his body.',
+  ultimate: 'Mythical Beast Amber',
 });
 
 registerLook('kashimo', {
@@ -50,16 +51,11 @@ registerLook('kashimo', {
   },
 });
 
-registerDomainEnv('thunder_heavens', {
-  skyTop: 0x01030c, skyHorizon: 0x1a4a8a, fog: 0x050c1e, fogDensity: 0.014, hemiSky: 0x9ad8ff, hemiGround: 0x060814, hemiI: 1.1, sun: 0xc0ecff, sunI: 0.9,
-  grade: { tint: [0.92, 1.0, 1.15], lift: [0.0, 0.01, 0.04], sat: 1.15, contrast: 1.2, vignette: 0.5 }, floor: B.obsidian,
-});
-
 export const KASHIMO_SKILLS = [
-  { id: 'conduct', name: 'Conductivity', desc: 'Charge stacks faster; strikes hit harder.', max: 3 },
+  { id: 'conduct', name: 'Conductivity', desc: 'Charge stacks faster; strikes and Full Discharge hit harder.', max: 3 },
   { id: 'chain', name: 'Chain Lightning', desc: 'Discharge jumps to one more curse per rank.', max: 2 },
   { id: 'staff', name: 'Nyoi Staff', desc: '+8% melee damage per rank; the planted staff lasts longer.', max: 3 },
-  { id: 'clap', name: 'Thunderclap', desc: 'Thunderclap strikes harder per Charge.', max: 2, req: 'conduct' },
+  { id: 'clap', name: 'Charged Strike', desc: 'Charged Strike hits harder per Charge.', max: 2, req: 'conduct' },
   { id: 'amber', name: 'Mythical Beast', desc: 'Mythical Beast Amber lasts 2s longer and the breakdown is gentler.', max: 2 },
 ];
 
@@ -92,24 +88,13 @@ class KashimoKit extends Kit {
     ];
     this.p.stats.meleeMult += r('staff') * 0.08;
     this.slots = {
-      ranged: this.ability({ name: 'Discharge', icon: '⚡', cd: 0.9, ce: 0, use: () => this.discharge() }),
+      ranged: this.ability({ name: 'Electric Discharge', icon: '⚡', cd: 0.9, ce: 0, use: () => (this.amberT > 0 ? this.beam() : this.discharge()) }),
       t1: this.ability({ name: 'Staff Throw', icon: '🦯', cd: 8, ce: 12, use: () => this.staffThrow() }),
-      t2: this.ability({ name: 'Thunderclap', icon: '🌩️', cd: 7, ce: 16, use: () => this.thunderclap() }),
-      t3: this.ability({ name: 'Mythical Beast Amber', icon: '🐉', cd: 45, ce: 50, use: () => this.amber() }),
+      t2: this.ability({ name: 'Charged Strike', icon: '🌩️', cd: 7, ce: 16, use: () => this.thunderclap() }),
+      t3: this.ability({ name: 'Full Discharge', icon: '💥', cd: 12, ce: 26, use: () => this.fullDischarge() }),
     };
     this.amberT = 0; this.burnT = 0; this.arcT = 0; this.rod = null;
-    this.domain = {
-      name: 'Thunderous Heavens', icon: '🌩️', key: 'thunder_heavens', type: 1, color: VOLT, sound: 'void', flash: 0xc0f0ff,
-      duration: 8, radius: 24,
-      onTick: (g, d, dt) => {
-        d.bolt = (d.bolt ?? 0) - dt;
-        if (d.bolt > 0) return;
-        d.bolt = this.amberT > 0 ? 0.18 : 0.35;
-        const list = g.enemies.filter((e) => !e.dead && !e.isDummy && g.domainSys.inside(e.pos));
-        if (list.length) { const e = list[Math.floor(Math.random() * list.length)]; this.strike(e.pos.clone(), 12, 1.4); this.charge(e, 1); }
-        else { const a = Math.random() * Math.PI * 2, rr = Math.random() * d.radius; this.strike(d.center.clone().add(new THREE.Vector3(Math.cos(a) * rr, 0, Math.sin(a) * rr)), 0, 1); }
-      },
-    };
+    this.ultimate = { name: 'Mythical Beast Amber', icon: '🐉', use: () => this.amber() };
   }
   // ------------------------------------------------------------ charge & lightning
   charge(e, n) {
@@ -218,37 +203,102 @@ class KashimoKit extends Kit {
     }, i * 60));
     g.shake(0.35); g.fx.chroma(0.6);
   }
+  // Full output: every bit of stored electricity leaves his body at once.
+  fullDischarge() {
+    const g = this.game, p = this.p, rk = this.rank('conduct');
+    const R = 7.5;
+    this.cast(0.5, true, { type: 'raise' });
+    g.audio?.charge(0.3, 1.6);
+    setTimeout(() => {
+      const body = p.pos.clone().setY(p.pos.y + 1.2);
+      g.fx.flash(0xc0f0ff, 0.35, 0.2); g.fx.chroma(0.8);
+      g.fx.shockwave(p.pos, VOLT, R); g.fx.rings.spawn(tmp.set(p.pos.x, p.pos.y + 0.08, p.pos.z), { color: WHITE, r0: 0.5, r1: R, dur: 0.35, thick: 0.15 });
+      g.lights.flash(body, VOLT, 18, R + 4, 0.3, { priority: 6 });
+      for (let i = 0; i < 10; i++) { const a = i / 10 * Math.PI * 2; zap(g, body, body.clone().add(new THREE.Vector3(Math.cos(a) * R * 0.8, (Math.random() - 0.5) * 1.5, Math.sin(a) * R * 0.8)), i % 2 ? VOLT : WHITE, 0.2, 4); }
+      for (const e of g.combat.query(p.pos, tmp.set(0, 0, 1), R, Math.PI)) {
+        const stacks = Math.round(e.kCharge ?? 0); e.kCharge = 0;
+        zap(g, body, e.pos.clone().setY(e.pos.y + e.height * 0.6), VOLT, 0.3, 5);
+        g.combat.damageEnemy(e, (26 + rk * 6) * (1 + stacks * 0.35) * (this.amberT > 0 ? 1.5 : 1), p, { stagger: 0.9, knock: tmp2.subVectors(e.pos, p.pos).setY(0).normalize().multiplyScalar(9), color: '#6ae8ff' });
+      }
+      g.shake(0.45); g.hitStop(0.05);
+      g.audio?.noise({ dur: 0.5, gain: 0.5, type: 'highpass', freq: 2000, sweep: 400, rev: 0.4 }); g.audio?.blackFlash();
+    }, 260);
+  }
+  // In Mythical Beast Amber, Discharge becomes a beam of pure electricity.
+  beam() {
+    const g = this.game, p = this.p;
+    this.cast(0.3, true);
+    const dir = p.aimDir.clone().setY(0).normalize(); p.facing = Math.atan2(dir.x, dir.z);
+    const from = p.pos.clone().setY(p.pos.y + 1.3).addScaledVector(dir, 0.6), L = 22, W = 1.1;
+    g.fx.slashLine(from, dir, L, DEEP, W * 2.2, 0.3, 0); g.fx.slashLine(from, dir, L, VOLT, W * 1.3, 0.26, 0); g.fx.slashLine(from, dir, L, WHITE, W * 0.5, 0.2, 0);
+    for (let s = 2; s < L; s += 3) zap(g, from.clone().addScaledVector(dir, s - 2), from.clone().addScaledVector(dir, s + 1), WHITE, 0.15, 3);
+    g.lights.flash(from.clone().addScaledVector(dir, 4), VOLT, 16, 14, 0.2);
+    for (const e of g.enemies) {
+      if (e.dead) continue;
+      tmp.subVectors(e.pos, p.pos); const along = tmp.dot(dir);
+      if (along < 0 || along > L || Math.abs(tmp.x * dir.z - tmp.z * dir.x) > W + e.radius) continue;
+      g.combat.damageEnemy(e, 45, p, { stagger: 0.8, unblockable: true, knock: dir.clone().multiplyScalar(6), color: '#e8fbff' });
+      g.fx.hitSpark(e.pos.clone().setY(e.pos.y + e.height * 0.6), dir, { color: VOLT, big: true });
+    }
+    for (let s = 1; s < L; s += 1.5) g.combat.hitBlocks(from.clone().addScaledVector(dir, s).setY(p.pos.y), dir, 1, Math.PI, 30, p);
+    g.shake(0.3); g.audio?.energy('red');
+  }
+  // Ultimate: Mythical Beast Amber — Kashimo's one-time technique. His body is
+  // rebuilt to turn every phenomenon of his electric cursed energy into
+  // reality: a blinding electromagnetic burst, then a short reign of pure
+  // lightning... and a body that breaks down when it ends.
   amber() {
     const g = this.game, p = this.p;
-    if (this.amberT > 0 || this.burnT > 0) { g.audio?.ui('back'); return false; }
+    if (this.amberT > 0 || this.burnT > 0) { g.toast?.('His body is still breaking down'); g.audio?.ui('back'); return false; }
     const rk = this.rank('amber');
-    this.amberT = 10 + rk * 2;
-    this.boost = { as: 1.6, mm: 0.6, tm: 0.4 };
-    p.stats.attackSpeed *= this.boost.as; p.stats.meleeMult += this.boost.mm; p.stats.techMult += this.boost.tm; this.speedMul = 1.5;
-    p.action = { type: 'sign', dur: 0.8, elapsed: 0, t: 0, moveScale: 0, lock: true, hold: true, cancelable: false };
-    p.iframes = Math.max(p.iframes, 1);
-    g.slowMo(0.6, 0.25); g.fx.dimTarget = 0.4;
+    p.action = { type: 'sign', dur: 1.1, elapsed: 0, t: 0, moveScale: 0, lock: true, hold: true, cancelable: false };
+    p.iframes = Math.max(p.iframes ?? 0, 1.6);
+    g.slowMo(1.2, 0.2); g.fx.dimTarget = 0.65;
     g.toast?.('MYTHICAL BEAST AMBER', 'domain');
-    g.audio?.charge(0.7, 1.2);
-    setTimeout(() => {
+    g.audio?.charge(1.0, 1.2);
+    // lightning gathers onto him from the sky
+    let t = 0;
+    g.addUpdater((dt) => {
+      t += dt;
+      if (Math.random() < 0.5) { const a = Math.random() * Math.PI * 2, r = 4 + Math.random() * 4; zap(g, p.pos.clone().add(new THREE.Vector3(Math.cos(a) * r, 8, Math.sin(a) * r)), p.pos.clone().setY(p.pos.y + 1.2), Math.random() < 0.5 ? VOLT : WHITE, 0.25, 6); }
+      return t < 0.9;
+    });
+    this.amberTimer = setTimeout(() => {
+      this.amberTimer = null;
       if (p.action?.type === 'sign') p.action = null;
       g.fx.dimTarget = 0;
-      g.fx.flash(WHITE, 0.7, 0.35); g.fx.screenWave(p.pos.clone().setY(p.pos.y + 1), 1.6, 0.7); g.fx.chroma(1.5);
-      g.shake(0.8); g.hitStop(0.08);
-      for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; this.strike(p.pos.clone().add(new THREE.Vector3(Math.cos(a) * 3, 0, Math.sin(a) * 3)), 25, 2); }
-      g.audio?.blackFlash();
-    }, 700);
+      this.amberT = 12 + rk * 2;
+      this.boost = { as: 1.6, mm: 0.6, tm: 0.5 };
+      p.stats.attackSpeed *= this.boost.as; p.stats.meleeMult += this.boost.mm; p.stats.techMult += this.boost.tm; this.speedMul = 1.6;
+      // the transformation's electromagnetic burst
+      const c = p.pos.clone(), R = 14;
+      g.fx.flash(WHITE, 0.9, 0.5); g.fx.screenWave(c.clone().setY(c.y + 1), 2, 0.9); g.fx.chroma(2); g.fx.blackFlash(0.15);
+      g.shake(1); g.hitStop(0.12);
+      zap(g, c.clone().setY(c.y + 30), c.clone().setY(c.y + 0.2), WHITE, 1.2, 10);
+      zap(g, c.clone().setY(c.y + 30), c.clone().setY(c.y + 0.2), VOLT, 0.7, 8);
+      for (let i = 0; i < 4; i++) g.fx.rings.spawn(tmp.set(c.x, c.y + 0.1 + i * 0.5, c.z), { color: i % 2 ? WHITE : VOLT, r0: 0.5, r1: R * (0.5 + i * 0.17), dur: 0.5 + i * 0.12, thick: 0.15 });
+      g.lights.flash(c.clone().setY(c.y + 3), VOLT, 40, R + 10, 0.7, { priority: 9 });
+      for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2, r = 3 + Math.random() * (R - 4); this.strike(c.clone().add(new THREE.Vector3(Math.cos(a) * r, 0, Math.sin(a) * r)), 0, 2); }
+      for (const e of g.combat.query(c, tmp.set(0, 0, 1), R, Math.PI)) {
+        zap(g, c.clone().setY(c.y + 1.2), e.pos.clone().setY(e.pos.y + e.height * 0.6), WHITE, 0.35, 6);
+        g.combat.damageEnemy(e, 90 + rk * 20 + (e.isBoss ? e.maxHp * 0.06 : 0), p, { stagger: 1.2, unblockable: true, knock: tmp2.subVectors(e.pos, c).setY(0).normalize().multiplyScalar(12), color: '#e8fbff' });
+        this.charge(e, 3);
+      }
+      g.audio?.blackFlash(); g.audio?.energy('explode');
+    }, 1000);
   }
   endAmber() {
     const g = this.game, p = this.p;
     p.stats.attackSpeed /= this.boost.as; p.stats.meleeMult -= this.boost.mm; p.stats.techMult -= this.boost.tm; this.speedMul = 1;
     // the transformation destroys the body that hosts it
-    this.burnT = 3; this.burnLeft = p.hp * (0.45 - this.rank('amber') * 0.08);
-    p.slowT = 4;
-    g.toast?.('Mythical Beast Amber fades — the body breaks down');
-    g.fx.flash(0x101820, 0.4, 0.3);
+    this.burnT = 4; this.burnLeft = p.hp * (0.7 - this.rank('amber') * 0.1);
+    p.slowT = 6;
+    g.toast?.('Mythical Beast Amber fades — his body breaks down (no techniques for 4s)', 'big');
+    g.fx.flash(0x101820, 0.5, 0.35);
     g.audio?.hurt();
   }
+  // a breaking-down body cannot channel techniques
+  canCast(s) { if (this.burnT > 0 && s !== this.ultimate) return false; return super.canCast(s); }
   tick(dt) {
     const g = this.game, p = this.p;
     const mat = p.rig.material.userData;
@@ -270,7 +320,7 @@ class KashimoKit extends Kit {
       if (this.amberT <= 0) this.endAmber();
     } else if (this.burnT > 0) {
       this.burnT -= dt;
-      const loss = Math.min(this.burnLeft * dt / 3, Math.max(0, p.hp - 1));
+      const loss = Math.min(this.burnLeft * dt / 4, Math.max(0, p.hp - 1));
       p.hp -= loss;
       if (Math.random() < 0.4) g.particles.smoke.emit(p.pos.x + (Math.random() - 0.5) * 0.6, p.pos.y + Math.random() * 1.8, p.pos.z + (Math.random() - 0.5) * 0.6, 0, 1, 0, 0.8, 0.12, 0.12, 0.14, 0.25, -0.5, 1, 2, 0);
       if (Math.random() < 0.15) zap(g, p.pos.clone().setY(p.pos.y + 1), p.pos.clone().add(new THREE.Vector3((Math.random() - 0.5) * 2, 1.5, (Math.random() - 0.5) * 2)), 0x3a6a8a, 0.1, 2);
@@ -295,6 +345,6 @@ class KashimoKit extends Kit {
     // charged curses crackle
     if (Math.random() < 0.35) for (const e of g.enemies) if (!e.dead && e.kCharge > 0 && Math.random() < 0.35) g.particles.glow.emit(e.pos.x + (Math.random() - 0.5) * 0.8, e.pos.y + Math.random() * e.height, e.pos.z + (Math.random() - 0.5) * 0.8, (Math.random() - 0.5) * 2, 1, (Math.random() - 0.5) * 2, 0.2, 0.8, 2.4, 3, 0.05 + e.kCharge * 0.015, 0, 2, 0.2, 3);
   }
-  dispose() { super.dispose(); this.removeRod(); this.amberT = 0; this.burnT = 0; this.speedMul = 1; }
+  dispose() { super.dispose(); this.removeRod(); if (this.amberTimer) { clearTimeout(this.amberTimer); this.amberTimer = null; } this.game.fx.dimTarget = 0; this.amberT = 0; this.burnT = 0; this.speedMul = 1; }
 }
 registerKit('kashimo', KashimoKit, KASHIMO_SKILLS);

@@ -10,13 +10,16 @@
 //        crushing smash.
 //   3    Split Soul Katana: blink to a curse and cut its soul — ignores armor,
 //        scales with the target's toughness.
-//   F    Hunter's Instinct (not a domain: Toji has none) — a rampage. Faster,
-//        harder, and Toji blinks from curse to curse cutting them down.
+//   F    Sorcerer Killer (ultimate — Toji has no domain): the full Hunter's
+//        Instinct meter (filled only by hits and kills) unleashes the hunt that
+//        killed Gojo once. Slow-mo, Toji blinks through the curses around his
+//        prey cutting their souls, then runs the strongest one through with the
+//        Inverted Spear of Heaven: its technique is nullified, a normal curse
+//        dies outright and a boss takes a massive wound. A short rampage follows.
 import * as THREE from 'three/webgpu';
 import { Kit } from './kit.js';
 import { registerKit, registerSorcerer } from './index.js';
 import { registerLook } from '../entities/models.js';
-import { registerDomainEnv } from '../world/biomes.js';
 import { B } from '../world/blocks.js';
 
 const GREEN = 0xb8f070, SILVER = 0xe8f0f4, BLOOD = 0xff3a3a;
@@ -25,7 +28,7 @@ const tmp = new THREE.Vector3(), tmp2 = new THREE.Vector3();
 registerSorcerer('toji', {
   name: 'Toji', technique: 'Heavenly Restriction', rarity: 'legendary', title: 'Sorcerer Killer',
   desc: 'Zero cursed energy, monstrous body: cursed tools (Inverted Spear, Chain, Playful Cloud, Split Soul Katana) cost nothing, and hits fuel a Hunter\'s Instinct rampage.',
-  domain: 'Hunter\'s Instinct', color: '#b8f070',
+  ultimate: 'Sorcerer Killer', color: '#b8f070',
 });
 
 registerLook('toji', {
@@ -77,18 +80,13 @@ registerLook('toji', {
   },
 });
 
-registerDomainEnv('hunters_instinct', {
-  skyTop: 0x040604, skyHorizon: 0x26341f, fog: 0x0a100a, fogDensity: 0.024, hemiSky: 0x9ab08a, hemiGround: 0x050805, hemiI: 0.8, sun: 0xd0e0c0, sunI: 0.8,
-  grade: { tint: [0.95, 1.05, 0.92], lift: [0.0, 0.01, 0.0], sat: 0.65, contrast: 1.3, vignette: 0.65 }, floor: B.concrete,
-});
-
 export const TOJI_SKILLS = [
   { id: 'spear', name: 'Inverted Spear', desc: 'The spear dash reaches further and stabs harder.', max: 3 },
   { id: 'chain', name: 'Thousand Miles', desc: 'Wider chain sweep and a stronger pull.', max: 2 },
   { id: 'cloud', name: 'Playful Cloud', desc: 'Every staff blow hits harder.', max: 3 },
   { id: 'katana', name: 'Split Soul', desc: 'The katana cuts deeper into tough curses.', max: 3, req: 'spear' },
   { id: 'physique', name: 'Heavenly Body', desc: '+20 max HP and +5% speed per rank.', max: 3 },
-  { id: 'instinct', name: 'Hunter\'s Instinct', desc: 'Kills fill the meter faster; the rampage lasts longer.', max: 2 },
+  { id: 'instinct', name: 'Hunter\'s Instinct', desc: 'Kills fill the meter faster; Sorcerer Killer cuts down more curses and its rampage lasts longer.', max: 2 },
 ];
 
 class TojiKit extends Kit {
@@ -116,24 +114,20 @@ class TojiKit extends Kit {
       t2: this.ability({ name: 'Playful Cloud', icon: '🥢', cd: 8, ce: 0, use: () => this.cloud() }),
       t3: this.ability({ name: 'Split Soul', icon: '⚔️', cd: 12, ce: 0, use: () => this.katana() }),
     };
-    this.domain = {
-      name: 'Hunter\'s Instinct', icon: '🐆', key: 'hunters_instinct', type: 3, color: GREEN, sound: 'hunt', flash: 0x203018,
-      duration: 7 + r('instinct') * 1.5, radius: 24, sureHit: false,
-      onStart: (g) => { this.rampage = true; g.toast?.('No cursed energy. Only the hunt.'); },
-      onTick: (g, d, dt) => {
-        d.tick = (d.tick ?? 0) - dt;
-        if (d.tick > 0 || p.dead || p.downed) return;
-        d.tick = 0.38;
-        const list = g.enemies.filter((e) => !e.dead && !e.isDummy && g.domainSys.inside(e.pos));
-        if (!list.length) return;
-        this.assassinate(list[Math.floor(Math.random() * list.length)], 26 + r('instinct') * 6);
-      },
-      onEnd: () => { this.rampage = false; },
-    };
+    // no domain: the meter is spent on one perfect kill
+    this.ultimate = { name: 'Sorcerer Killer', icon: '🐆', use: () => this.sorcererKiller() };
+    this.rampageT = 0;
     this.readyPinged = false;
   }
+  get rampage() { return this.rampageT > 0; }
   get speedMul() { return this.rampage ? 1.45 : 1; }
-  dispose() { super.dispose(); this.disposed = true; }
+  dispose() {
+    super.dispose(); this.disposed = true;
+    clearTimeout(this.toolTimer);
+    for (const id of this.ultTimers ?? []) clearTimeout(id);
+    this.ultTimers = [];
+    if (this.ultActive) { this.game.fx.dimTarget = 0; this.ultActive = false; }
+  }
   // ------------------------------------------------------------- helpers
   showTool(name, dur = 1.1) {
     const tools = this.p.rig.extras.tools; if (!tools) return;
@@ -165,10 +159,11 @@ class TojiKit extends Kit {
     if (step.launch && !e.isBoss) e.vel.y = Math.max(e.vel.y, 9);
     if (e.dead) this.onKill(e);
   }
-  tick() {
+  tick(dt) {
     const p = this.p, g = this.game;
-    if (!this.domainLocked && !this.readyPinged && p.ce >= p.maxCe && !g.domain) { this.readyPinged = true; g.toast?.('🐆 Hunter\'s Instinct is primed — unleash it (F)'); }
+    if (!this.domainLocked && !this.readyPinged && p.ce >= p.maxCe) { this.readyPinged = true; g.toast?.('🐆 Hunter\'s Instinct is full — Sorcerer Killer is ready (F)'); }
     if (p.ce < p.maxCe) this.readyPinged = false;
+    this.rampageT = Math.max(0, this.rampageT - dt);
     if (this.rampage && Math.random() < 0.5) g.particles.glow.emit(p.pos.x + (Math.random() - 0.5) * 0.8, p.pos.y + Math.random() * 1.8, p.pos.z + (Math.random() - 0.5) * 0.8, 0, 1.2, 0, 0.4, 1.4, 2.2, 0.8, 0.12, 0, 1, 0.2, 1);
   }
   // ---------------------------------------------------------- techniques
@@ -293,7 +288,91 @@ class TojiKit extends Kit {
       g.audio?.energy('slash'); g.audio?.impact(1.8, 'crit');
     }, 140);
   }
+  // ---------------------------------------------------------- ultimate
+  // Sorcerer Killer: the prey is the toughest curse in reach. Its escorts are
+  // cut down first, then the Inverted Spear of Heaven runs it through.
+  sorcererKiller() {
+    const g = this.game, p = this.p, rk = this.rank('instinct');
+    if (this.ultActive) return false;
+    let prey = null, best = -1;
+    for (const e of g.enemies) {
+      if (e.dead || e.untargetable) continue;
+      const d = e.pos.distanceTo(p.pos); if (d > 22) continue;
+      const score = (e.isBoss ? 1e6 : 0) + e.maxHp - d;
+      if (score > best) { best = score; prey = e; }
+    }
+    if (!prey) { g.toast?.('🐆 No prey in sight — the meter waits.'); g.audio?.ui('back'); return false; }
+    this.ultActive = true; this.ultTimers = [];
+    const later = (ms, fn) => this.ultTimers.push(setTimeout(() => { if (!this.disposed && !p.dead) fn(); }, ms));
+    const escorts = g.enemies.filter((e) => e !== prey && !e.dead && !e.untargetable && !e.isBoss && e.pos.distanceTo(prey.pos) < 11)
+      .sort((a, b) => a.pos.distanceTo(p.pos) - b.pos.distanceTo(p.pos)).slice(0, 4 + rk * 2);
+    const total = 650 + escorts.length * 170 + 900;
+    p.iframes = Math.max(p.iframes, total / 1000 + 0.4);
+    g.slowMo(total / 1000, 0.3);
+    g.fx.dimTarget = 0.45; g.fx.flash(0x0a1408, 0.5, 0.3); g.fx.chroma(0.8);
+    g.toast?.('SORCERER KILLER', 'domain');
+    g.rig.cinematic?.({ center: prey.pos.clone().setY(prey.pos.y + 0.6), dur: total / 1000 + 0.6, dist: 11, pitch: 0.45, orbit: 0.35 });
+    g.audio?.charge(0.6, 0.7);
+    // the hunter's stare: green motes rush in toward Toji
+    for (let i = 0; i < 40; i++) {
+      const a = Math.random() * Math.PI * 2, r = 2 + Math.random() * 3;
+      g.particles.glow.emit(p.pos.x + Math.cos(a) * r, p.pos.y + 0.3 + Math.random() * 2, p.pos.z + Math.sin(a) * r, -Math.cos(a) * r * 2, 0, -Math.sin(a) * r * 2, 0.5, 1.4, 2.4, 0.8, 0.14, 0, 1, 0.2, 1);
+    }
+    // 1) cut down the escorts, one blink each — a soul cut, no armor
+    escorts.forEach((e, i) => later(650 + i * 170, () => {
+      if (e.dead) return;
+      this.assassinate(e, 70 + rk * 20 + Math.min(e.maxHp * 0.35, 200));
+      g.fx.slashX(e.pos.clone().setY(e.pos.y + e.height * 0.55), 2.4, GREEN);
+    }));
+    // 2) the kill: blink in front of the prey and run it through
+    const strike = 650 + escorts.length * 170 + 150;
+    later(strike, () => {
+      if (prey.dead) return;
+      const dir = tmp.subVectors(prey.pos, p.pos).setY(0); if (dir.lengthSq() < 0.01) dir.set(Math.sin(p.facing), 0, Math.cos(p.facing)); dir.normalize();
+      const front = this.safeSpot(prey.pos.x - dir.x * (prey.radius + 1.3), prey.pos.z - dir.z * (prey.radius + 1.3), prey.pos.y);
+      if (front) this.blinkTo(front);
+      p.facing = Math.atan2(prey.pos.x - p.pos.x, prey.pos.z - p.pos.z);
+      this.showTool('spear', 1.2);
+      p.action = { type: 'attack', step: { style: 'punch', strike: 0.35, windup: 0.3 }, style: 'punch', dur: 0.5, elapsed: 0, t: 0, windup: 0.3, strike: 0.35, struck: true, moveScale: 0 };
+      // the Inverted Spear of Heaven forcibly nullifies its technique
+      prey.cancelAttack?.(); prey.cd = Math.max(prey.cd ?? 0, 5); prey.sealT = Math.max(prey.sealT ?? 0, prey.isBoss ? 1.2 : 2);
+      g.fx.rings.spawn(tmp2.set(prey.pos.x, prey.pos.y + prey.height * 0.55, prey.pos.z), { color: SILVER, r0: prey.radius + 2.5, r1: 0.2, dur: 0.3, thick: 0.12 });
+      g.audio?.energy('infinity');
+    });
+    later(strike + 260, () => {
+      if (prey.dead) return;
+      const at = prey.pos.clone().setY(prey.pos.y + prey.height * 0.55);
+      const dir = tmp.subVectors(prey.pos, p.pos).setY(0).normalize();
+      const from = p.pos.clone().setY(p.pos.y + 1.1);
+      // a normal curse dies outright; a boss takes a wound it cannot shrug off
+      const dmg = prey.isBoss ? 160 + Math.min(prey.maxHp * (0.28 + rk * 0.04), 900) : (prey.hp + 1) / Math.max(0.2, 1 - (prey.armor ?? 0));
+      this.hit(prey, dmg, { melee: true, unblockable: true, crit: true, critMult: 1, stagger: 1.2, knock: dir.clone().multiplyScalar(prey.isBoss ? 2 : 16), color: '#e8fff0', ceGain: 0 });
+      g.fx.slashLine(from, dir, 9, 0xffffff, 0.7, 0.35);
+      g.fx.slashLine(from.clone().setY(from.y - 0.1), dir, 12, GREEN, 0.35, 0.5);
+      g.fx.hitSpark(at, dir, { color: SILVER, big: true, crit: true });
+      g.particles.burst(at, { count: 50, color: BLOOD, additive: false, speed: 7, dir: dir.clone().multiplyScalar(6), up: 0.6, life: 0.7, size: 0.18, gravity: 14, shape: 1 });
+      g.particles.burst(at, { count: 40, color: 0xe8fff0, speed: 9, life: 0.5, size: 0.14, shape: 1, intensity: 3 });
+      g.fx.shockwave(prey.pos, SILVER, 6); g.fx.screenWave(at, 1.4, 0.6);
+      g.lights.flash(at, 0xe8fff0, 22, 18, 0.5, { priority: 8 });
+      g.fx.flash(0xffffff, 0.55, 0.12); g.fx.blackFlash(0.2); g.fx.chroma(1.4);
+      g.hitStop(0.16); g.shake(0.9);
+      g.audio?.impact(2.2, 'crit'); g.audio?.energy('slash');
+    });
+    // 3) the follow-through: a katana cross through whatever is left
+    this.ultTimers.push(setTimeout(() => { if (!this.disposed) { this.ultActive = false; g.fx.dimTarget = 0; } }, strike + 560));
+    later(strike + 560, () => {
+      this.rampageT = 4 + rk * 1.5;
+      if (prey.dead) { g.toast?.('🐆 Target eliminated.'); return; }
+      this.showTool('katana', 0.6);
+      const at = prey.pos.clone().setY(prey.pos.y + prey.height * 0.55);
+      this.hit(prey, 50 + rk * 20, { melee: true, unblockable: true, stagger: 0.8, knock: new THREE.Vector3(), color: '#b8f070' });
+      g.fx.slashX(at, 3.6 + prey.height * 0.5, GREEN);
+      g.shake(0.4); g.audio?.energy('slash');
+    });
+    return true;
+  }
   // rampage: blink to a curse and cut it down
+
   assassinate(e, dmg) {
     const g = this.game, p = this.p;
     const a = Math.random() * Math.PI * 2;

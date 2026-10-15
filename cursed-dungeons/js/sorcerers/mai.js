@@ -4,24 +4,24 @@
 //   1    Ricochet: a trick shot that bounces from curse to curse.
 //   2    Smoke Cover: a smoke bomb and a back-step; inside the smoke she is
 //        hard to hit and every shot is a critical.
-//   3    Construction: Special Bullet — she builds a single bullet from her own
-//        cursed energy and fires a piercing round that hits like a truck.
-//   F    Domain: Construction: Shooting Gallery (invented and deliberately
-//        weak — Mai never shows a Domain Expansion): bottomless ammo, homing
-//        shots and constructed targets that pop over every curse.
+//   3    Fan the Hammer: she empties whatever is left in the cylinder in one
+//        rapid volley.
+//   F    Ultimate — Construction: Special Bullet. Mai has no Domain Expansion;
+//        her Construction can build only one bullet at a time and it takes a
+//        toll on her body (it costs HP). Fired when the opponent thinks she is
+//        out of rounds (empty revolver) it becomes the canon "seventh bullet"
+//        and hits even harder.
 import * as THREE from 'three/webgpu';
 import { Kit } from './kit.js';
 import { registerKit, registerSorcerer } from './index.js';
 import { registerLook } from '../entities/models.js';
-import { registerDomainEnv } from '../world/biomes.js';
-import { B } from '../world/blocks.js';
 
 const BRASS = 0xffd27a, SMOKE = 0x9a9aa4, CONSTRUCT = 0x9ae8ff;
-const tmp = new THREE.Vector3(), UP = new THREE.Vector3(0, 1, 0);
+const tmp = new THREE.Vector3();
 
 registerSorcerer('mai', {
-  name: 'Mai', technique: 'Construction', rarity: 'common', title: 'Zenin Clan', color: '#d8c08a', domain: 'Construction: Shooting Gallery',
-  desc: 'A six-shot revolver, ricochet trick shots and smoke cover — plus one constructed bullet that ends fights.',
+  name: 'Mai', technique: 'Construction', rarity: 'common', title: 'Zenin Clan', color: '#d8c08a', ultimate: 'Construction: Special Bullet',
+  desc: 'A six-shot revolver, ricochet trick shots and smoke cover — plus Construction: one bullet built from her own body that ends fights.',
 });
 
 registerLook('mai', {
@@ -51,17 +51,12 @@ registerLook('mai', {
   },
 });
 
-registerDomainEnv('shooting_gallery', {
-  skyTop: 0x1a0a14, skyHorizon: 0x8a4a2a, fog: 0x2a1410, fogDensity: 0.015, hemiSky: 0xffd0a0, hemiGround: 0x2a1008, hemiI: 1.15, sun: 0xffe0b0, sunI: 1.1,
-  grade: { tint: [1.1, 1.0, 0.88], lift: [0.03, 0.015, 0.0], sat: 1.25, contrast: 1.08, vignette: 0.4 }, floor: B.floor_boards,
-});
-
 export const MAI_SKILLS = [
   { id: 'caliber', name: 'Heavy Caliber', desc: 'Revolver rounds deal more damage.', max: 3 },
   { id: 'quickdraw', name: 'Quick Reload', desc: 'Rounds reload faster.', max: 3 },
   { id: 'ricochet', name: 'Ricochet', desc: 'Trick shots bounce more; regular shots gain a bounce at rank 2.', max: 3 },
   { id: 'smoke', name: 'Smoke Screen', desc: 'Bigger, longer-lasting smoke.', max: 2 },
-  { id: 'construct', name: 'Construction', desc: 'The Special Bullet hits harder and leaves a blast.', max: 3, req: 'caliber' },
+  { id: 'construct', name: 'Construction', desc: 'The Special Bullet (ultimate) hits harder and its blast grows.', max: 3, req: 'caliber' },
   { id: 'zenin', name: 'Zenin Training', desc: '+10% melee damage per rank.', max: 2 },
 ];
 
@@ -79,34 +74,9 @@ class MaiKit extends Kit {
       ranged: this.ability({ name: 'Revolver', icon: '🔫', cd: 0.75 - r('quickdraw') * 0.12, ce: 0, use: () => this.shoot(), maxCharges: 6, chargesLeft: 6, gateTime: 0.2 }),
       t1: this.ability({ name: 'Ricochet', icon: '↯', cd: 4.5, ce: 8, use: () => this.trickShot() }),
       t2: this.ability({ name: 'Smoke Cover', icon: '💨', cd: 12, ce: 12, use: () => this.smoke() }),
-      t3: this.ability({ name: 'Special Bullet', icon: '🔹', cd: 26, ce: 40, use: () => this.special() }),
+      t3: this.ability({ name: 'Fan the Hammer', icon: '💥', cd: 10, ce: 16, use: () => this.fanHammer() }),
     };
-    this.domain = {
-      name: 'Construction: Shooting Gallery', icon: '🎯', key: 'shooting_gallery', type: 5, color: BRASS, sound: 'resonance', flash: 0xffe0a0,
-      duration: 8, radius: 22,
-      onStart: () => { this.gallery = true; },
-      onTick: (g, d, dt) => {
-        const s = this.slots.ranged; s.chargesLeft = s.maxCharges;   // bottomless ammo
-        d.tick = (d.tick ?? 0) - dt;
-        if (d.tick > 0) return;
-        d.tick = 0.55;
-        const list = g.enemies.filter((e) => !e.dead && !e.isDummy && g.domainSys.inside(e.pos));
-        if (!list.length) return;
-        const e = list[Math.floor(Math.random() * list.length)];
-        const at = e.pos.clone().setY(e.pos.y + e.height + 0.4);
-        // a constructed target pops up, then a phantom round pings it
-        const tilt = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().lookAt(g.rig.camera.position, at, UP));
-        g.fx.rings.spawn(at, { color: 0xff3a3a, r0: 0.7, r1: 0.7, dur: 0.3, thick: 0.15, tilt });
-        g.fx.rings.spawn(at, { color: 0xffffff, r0: 0.35, r1: 0.35, dur: 0.3, thick: 0.15, tilt });
-        setTimeout(() => {
-          if (e.dead) return;
-          g.combat.damageEnemy(e, 10, this.p, { stagger: 0.2, ceGain: 0, color: '#ffd27a' });
-          g.fx.hitSpark(at, null, { color: BRASS });
-          g.audio?.coin();
-        }, 220);
-      },
-      onEnd: () => { this.gallery = false; },
-    };
+    this.ultimate = { name: 'Construction: Special Bullet', icon: '🔹', use: () => this.special() };
     this.smokeT = 0; this.smokeAt = new THREE.Vector3(); this.smokeR = 0;
   }
   inSmoke(pos = this.p.pos) { return this.smokeT > 0 && Math.hypot(pos.x - this.smokeAt.x, pos.z - this.smokeAt.z) < this.smokeR; }
@@ -175,42 +145,74 @@ class MaiKit extends Kit {
     g.audio?.noise({ dur: 0.8, gain: 0.45, type: 'lowpass', freq: 1200, sweep: 300, rev: 0.3 });
     for (const e of g.enemies) if (!e.dead && this.inSmoke(e.pos) && e.state === 'windup') { e.cancelAttack?.(); e.state = 'stagger'; e.stateT = 0; e.stagger = 0.5; }
   }
+  fanHammer() {
+    const g = this.game, p = this.p, s = this.slots.ranged;
+    const n = s.chargesLeft;
+    if (n <= 0) { g.toast?.('Out of rounds'); g.audio?.tone({ freq: 900, dur: 0.05, gain: 0.08, type: 'square', filter: 4000 }); return false; }
+    s.chargesLeft = 0; s.recharge = 0;
+    p.action = { type: 'cast', dur: 0.12 + n * 0.07, elapsed: 0, t: 0, moveScale: 0.25, faceAim: true };
+    const dmg = 13 + this.rank('caliber') * 4;
+    for (let i = 0; i < n; i++) setTimeout(() => {
+      if (this.p.kit !== this) return;
+      const from = this.handPos(), dir = p.aimDir.clone();
+      dir.applyAxisAngle(tmp.set(0, 1, 0), (Math.random() - 0.5) * 0.22);
+      this.bullet(from, dir, dmg, { bounces: this.rank('ricochet') >= 2 ? 1 : 0 });
+      this.muzzle(from, dir);
+      g.audio?.noise({ dur: 0.1, gain: 0.45, type: 'lowpass', freq: 3500, sweep: 400 });
+      g.audio?.tone({ freq: 170, to: 60, dur: 0.08, gain: 0.22 });
+      g.shake(0.07);
+    }, i * 70);
+  }
+  // Ultimate: Construction — one bullet built from nothing, paid for by her body.
   special() {
     const g = this.game, p = this.p, rk = this.rank('construct');
-    p.action = { type: 'cast', both: true, dur: 1.0, elapsed: 0, t: 0, moveScale: 0.1, lock: true, hold: true, cancelable: false, faceAim: true };
-    g.toast?.('Construction');
-    g.audio?.charge(0.9, 1.2);
-    g.fx.dimTarget = 0.35;
+    if (this.constructing) return false;
+    this.constructing = true;
+    const seventh = this.slots.ranged.chargesLeft <= 0;   // they think she is out of ammo
+    p.action = { type: 'cast', both: true, dur: 1.3, elapsed: 0, t: 0, moveScale: 0, lock: true, hold: true, cancelable: false, faceAim: true };
+    // Construction strains her body: it costs HP (never lethal here)
+    const cost = Math.min(Math.max(0, p.hp - 1), p.maxHp * 0.12);
+    p.hp -= cost;
+    if (cost > 0) { g.fx.hurtVignette(); g.fx.damageNumber(p.pos, cost, { color: '#ff6a6a' }); }
+    g.toast?.(seventh ? 'Construction — the seventh bullet' : 'Construction: Special Bullet', 'big');
+    g.audio?.charge(1.1, 1.2);
+    g.fx.dimTarget = 0.6; g.slowMo(1.1, 0.4); g.fx.chroma(0.6);
     let t = 0;
     g.addUpdater((dt) => {
+      if (this.p.kit !== this) { this.constructing = false; g.fx.dimTarget = 0; return false; }
       t += dt;
       const h = this.handPos();
-      for (let i = 0; i < 3; i++) {   // cursed energy threads weaving the bullet
-        const a = Math.random() * Math.PI * 2, rr = 1 + Math.random() * 0.8;
-        g.particles.glow.emit(h.x + Math.cos(a) * rr, h.y + (Math.random() - 0.5) * 1.2, h.z + Math.sin(a) * rr, -Math.cos(a) * rr * 3, 0, -Math.sin(a) * rr * 3, 0.32, 0.8, 1.8, 2.2, 0.1, 0, 0, 0.2, 1);
+      const k = Math.min(1, t / 1.1);
+      for (let i = 0; i < 5; i++) {   // cursed energy threads weaving the bullet
+        const a = Math.random() * Math.PI * 2, rr = 0.4 + (1 - k) * 1.6 + Math.random() * 0.6;
+        g.particles.glow.emit(h.x + Math.cos(a) * rr, h.y + (Math.random() - 0.5) * 1.4 * (1 - k), h.z + Math.sin(a) * rr, -Math.cos(a) * rr * 3, 0, -Math.sin(a) * rr * 3, 0.32, 0.8, 1.8, 2.2, 0.1, 0, 0, 0.2, 1);
       }
-      if (t < 0.95) return true;
+      g.particles.burst(h, { count: 1, color: CONSTRUCT, speed: 0, life: 0.08, size: 0.2 + k * 0.5, sizeEnd: 0.1, intensity: 3 });
+      if (t < 1.15) return true;
+      this.constructing = false;
       g.fx.dimTarget = 0; p.action = null;
-      const dir = p.aimDir.clone(), dmg = 140 + rk * 45;
+      const dir = p.aimDir.clone(), dmg = (300 + rk * 90) * (seventh ? 1.5 : 1);
       const target = g.domainSys?.sureHit(p) ? g.nearestEnemy(p.aimPoint, 30) : null;
-      g.projectiles.fire({ pos: h.clone(), vel: dir.clone().multiplyScalar(70), team: 'player', dmg: 200, shape: 'arrow', color: CONSTRUCT, emissive: 6, scale: 0.6, life: 0.6, radius: 0.6, pierce: true, light: 8,
+      g.projectiles.fire({ pos: h.clone(), vel: dir.clone().multiplyScalar(80), team: 'player', dmg, shape: 'arrow', color: CONSTRUCT, emissive: 8, scale: 0.8, life: 0.6, radius: 0.8, pierce: true, light: 10,
         homing: target ? 20 : 0, target,
-        trail: (q) => { g.particles.burst(q.pos, { count: 3, color: CONSTRUCT, speed: 1, life: 0.3, size: 0.25, sizeEnd: 0.05, intensity: 3 }); },
+        trail: (q) => { g.particles.burst(q.pos, { count: 5, color: CONSTRUCT, speed: 1.5, life: 0.35, size: 0.3, sizeEnd: 0.05, intensity: 3 }); },
         onHit: (e, q) => {
-          g.combat.damageEnemy(e, dmg, p, { knock: q.vel.clone().setLength(12), stagger: 1, unblockable: true });
+          g.combat.damageEnemy(e, dmg, p, { knock: q.vel.clone().setLength(16), stagger: 1.4, unblockable: true, crit: true, critMult: 1.5 });
           g.fx.hitSpark(q.pos, q.vel.clone().normalize(), { color: CONSTRUCT, big: true, crit: true });
-          g.hitStop(0.06); g.audio?.impact(2);
+          g.fx.screenWave(q.pos, 0.6, 0.3);
+          g.hitStop(0.1); g.shake(0.5); g.audio?.impact(2.2);
         },
         onExpire: (q) => {
-          if (!rk) return;
-          g.combat.aoe(q.pos, 2 + rk * 0.5, 30 + rk * 15, p, { knock: 8, stagger: 0.6 });
-          g.fx.explosion(q.pos, CONSTRUCT, 2 + rk * 0.5);
+          const R = 3 + rk * 0.7;
+          g.combat.aoe(q.pos, R, 60 + rk * 25, p, { knock: 10, stagger: 0.8 });
+          g.fx.explosion(q.pos, CONSTRUCT, R);
         } });
-      g.fx.slashLine(h, dir, 22, CONSTRUCT, 0.35, 0.25);
+      g.fx.slashLine(h, dir, 30, CONSTRUCT, 0.6, 0.35);
+      g.fx.slashLine(h, dir, 30, 0xffffff, 0.2, 0.25);
       this.muzzle(h, dir);
-      g.fx.flash(0xc0f0ff, 0.4, 0.15); g.fx.screenWave(h, 0.8, 0.35); g.fx.chroma(0.8);
-      g.shake(0.6); g.hitStop(0.08);
-      g.audio?.blackFlash();
+      g.fx.flash(0xc0f0ff, 0.6, 0.2); g.fx.screenWave(h, 1.4, 0.5); g.fx.chroma(1.4);
+      g.shake(0.9); g.hitStop(0.12); g.slowMo(0.5, 0.3);
+      g.audio?.blackFlash(); g.audio?.energy('explode');
       return false;
     });
   }

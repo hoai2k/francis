@@ -5,17 +5,17 @@
 //   RMB  Spirit Swarm: loose three homing grub spirits. Kills may absorb the curse.
 //   1    Release Spirits: absorbed curses fight at your side.
 //   2    Rainbow Dragon: an armoured serpent spirit tears through a line of curses.
-//   3    Maximum: Uzumaki — compress every summoned spirit and banked stock into
-//        one spiralling blast. More spirits, more power.
-//   F    Abyss of Ten Thousand Curses (invented — Geto never shows a domain):
-//        spirits pour out, curses inside are battered by spiralling spirits, and
-//        weakened curses are absorbed outright.
+//   3    Kuchisake-onna: the Slit-Mouthed Woman steps out and asks "Am I
+//        pretty?" — every curse around her is bound in place until the question
+//        is answered (a simple sure-hit, like the one Geto set on Yuta), then
+//        her giant scissors cut them.
+//   F    Maximum: Uzumaki (ultimate — Geto never shows a domain): every
+//        summoned spirit, every banked stock and a horde from his reserve are
+//        compressed into one spiralling mass and fired as a colossal beam.
 import * as THREE from 'three/webgpu';
 import { Kit } from './kit.js';
 import { registerKit, registerSorcerer } from './index.js';
 import { registerLook } from '../entities/models.js';
-import { registerDomainEnv } from '../world/biomes.js';
-import { B } from '../world/blocks.js';
 import { buildCurseModel } from '../entities/curses.js';
 import { FLASH_MATERIAL } from '../entities/character.js';
 import { moveEntity, groundAhead } from '../physics.js';
@@ -27,8 +27,8 @@ const tmp = new THREE.Vector3(), tmp2 = new THREE.Vector3();
 
 registerSorcerer('geto', {
   name: 'Geto', technique: 'Cursed Spirit Manipulation', rarity: 'legendary', title: 'Curse User',
-  desc: 'Release absorbed cursed spirits as allies, send a Rainbow Dragon through the horde, absorb weakened curses and compress them all into Uzumaki.',
-  domain: 'Abyss of Ten Thousand Curses', color: '#9a5aff',
+  desc: 'Release absorbed cursed spirits as allies, send a Rainbow Dragon through the horde, bind curses with Kuchisake-onna\'s question, absorb weakened curses and compress them all into Maximum: Uzumaki.',
+  ultimate: 'Maximum: Uzumaki', color: '#9a5aff',
 });
 
 registerLook('geto', {
@@ -58,11 +58,6 @@ registerLook('geto', {
     K.box(rig.torso, 9.4, 3, 5, stole, 0, 7, 0, 0, 0, 0.7);
     K.box(rig.torso, 2.5, 9, 4.6, stole, 2.4, 5, 0, 0, 0, 0.1);
   },
-});
-
-registerDomainEnv('myriad_curses', {
-  skyTop: 0x05020a, skyHorizon: 0x3a1a5a, fog: 0x120818, fogDensity: 0.022, hemiSky: 0xa08ad8, hemiGround: 0x0a0410, hemiI: 0.9, sun: 0xb89aff, sunI: 0.7,
-  grade: { tint: [0.98, 0.92, 1.12], lift: [0.01, 0.0, 0.03], sat: 0.9, contrast: 1.2, vignette: 0.6 }, floor: B.dark_brick,
 });
 
 // ---------------------------------------------------------------- spirits
@@ -178,8 +173,8 @@ export const GETO_SKILLS = [
   { id: 'legion', name: 'Legion', desc: '+20% spirit damage per rank; one more spirit released.', max: 3 },
   { id: 'hardy', name: 'Hardy Spirits', desc: 'Spirits are tougher and last longer.', max: 2, req: 'legion' },
   { id: 'dragon', name: 'Rainbow Dragon', desc: 'The dragon is bigger and hits harder.', max: 3 },
-  { id: 'uzumaki', name: 'Uzumaki', desc: 'Uzumaki gains more power from each spirit.', max: 3 },
-  { id: 'abyss', name: 'Abyss', desc: 'Domain absorbs curses at higher health and lasts longer.', max: 2 },
+  { id: 'uzumaki', name: 'Maximum: Uzumaki', desc: 'Maximum: Uzumaki gains more power from each spirit.', max: 3 },
+  { id: 'abyss', name: 'Kuchisake-onna', desc: 'Her question binds curses longer and her scissors cut deeper.', max: 2 },
 ];
 
 class GetoKit extends Kit {
@@ -196,35 +191,16 @@ class GetoKit extends Kit {
       ranged: this.ability({ name: 'Spirit Swarm', icon: '🐛', cd: 1.1, ce: 0, use: () => this.swarm() }),
       t1: this.ability({ name: 'Release Spirits', icon: '👹', cd: 12, ce: 16, use: () => this.release() }),
       t2: this.ability({ name: 'Rainbow Dragon', icon: '🐉', cd: 10, ce: 20, use: () => this.dragon() }),
-      t3: this.ability({ name: 'Uzumaki', icon: '🌀', cd: 18, ce: 35, use: () => this.uzumaki() }),
+      t3: this.ability({ name: 'Kuchisake-onna', icon: '✂️', cd: 16, ce: 28, use: () => this.kuchisake() }),
     };
-    this.domain = {
-      name: 'Abyss of Ten Thousand Curses', icon: '🌀', key: 'myriad_curses', type: 3, color: VIOLET, sound: 'abyss', flash: 0x3a1a6a,
-      duration: 8 + r('abyss'), radius: 24,
-      onStart: (g) => {
-        g.toast?.('No canon domain — the curses pour out regardless.');
-        ['swarmer', 'tank', 'spitter', 'swarmer'].forEach((m, i) => this.summon(m, i, 10, true));
-      },
-      onTick: (g, d, dt) => {
-        d.tick = (d.tick ?? 0) - dt; d.absorbT = (d.absorbT ?? 0) - dt;
-        const list = g.enemies.filter((e) => !e.dead && !e.isDummy && g.domainSys.inside(e.pos));
-        if (d.tick <= 0) {
-          d.tick = 0.35;
-          for (let i = 0; i < Math.min(2, list.length); i++) {
-            const e = list[Math.floor(Math.random() * list.length)];
-            g.combat.damageEnemy(e, 9, this.p, { stagger: 0.2, ceGain: 0 });
-            this.spiralFx(e.pos, e.height);
-          }
-        }
-        if (d.absorbT <= 0) {
-          d.absorbT = 1;
-          for (const e of list) if (!e.isBoss && e.hp / e.maxHp < 0.3 + r('abyss') * 0.08) this.absorb(e);
-        }
-      },
-    };
+    this.ultimate = { name: 'Maximum: Uzumaki', icon: '🌀', use: () => this.uzumaki() };
     this.stock = 0;
   }
-  dispose() { super.dispose(); this.disposed = true; }
+  dispose() {
+    super.dispose(); this.disposed = true;
+    if (this.kuchi) { this.game.scene.remove(this.kuchi); this.kuchi = null; }
+    if (this.uzuOrb) { this.game.scene.remove(this.uzuOrb); this.game.lights.remove(this.uzuLight); this.uzuOrb = null; this.game.fx.dimTarget = 0; }
+  }
   spirits() { return this.game.allies.filter((a) => a.owner === this.p && a.kind === 'spirit' && !a.dead); }
   summon(model, i = 0, life = null, free = false) {
     const g = this.game, p = this.p;
@@ -369,10 +345,84 @@ class GetoKit extends Kit {
     });
     g.shake(0.2);
   }
+  // Kuchisake-onna: "Am I pretty?" Everyone she asks is bound until they
+  // answer; then the scissors come down.
+  kuchisake() {
+    const g = this.game, p = this.p, rk = this.rank('abyss');
+    if (this.kuchi) return false;
+    const t = this.aimTarget() ?? g.nearestEnemy(p.pos, 10);
+    const at = (t ? t.pos : p.aimPoint).clone(); tmp.subVectors(at, p.pos).setY(0);
+    if (tmp.length() > 9) at.copy(p.pos).addScaledVector(tmp.normalize(), 9);
+    const gy = g.world.groundBelow(at.x, at.z, p.pos.y + 3); at.y = isFinite(gy) && Math.abs(gy - p.pos.y) < 4 ? gy : p.pos.y;
+    this.cast(0.5, true);
+    const fig = this.buildKuchisake(); fig.position.copy(at); fig.rotation.y = Math.atan2(p.pos.x - at.x, p.pos.z - at.z) + Math.PI;
+    g.scene.add(fig); this.kuchi = fig;
+    g.fx.summonCircle(at, VIOLET);
+    g.particles.burst(at.clone().setY(at.y + 1), { count: 30, color: BLACK, additive: false, speed: 3, up: 1.5, life: 0.9, size: 0.7, sizeEnd: 2 });
+    g.audio?.energy('summon');
+    const R = 6.5, hold = 1.6 + rk * 0.4;
+    g.fx.damageNumber(at.clone().setY(at.y + 1.2), 0, { text: '「Am I pretty?」', color: '#ffd0d8' });
+    g.fx.rings.spawn(tmp.set(at.x, at.y + 0.08, at.z), { color: 0xff8aa8, r0: 0.5, r1: R, dur: 0.5, thick: 0.08 });
+    // the question binds: no one moves until it is answered
+    const bound = [];
+    for (const e of g.enemies) {
+      if (e.dead || e.untargetable || e.pos.distanceTo(at) > R) continue;
+      e.cancelAttack?.();
+      e.sealT = Math.max(e.sealT ?? 0, e.isBoss ? hold * 0.5 : hold);
+      bound.push(e);
+    }
+    g.audio?.tone({ freq: 660, to: 520, dur: 0.6, gain: 0.07, type: 'triangle', rev: 0.6 });
+    let t2 = 0, snipped = false;
+    g.addUpdater((dt) => {
+      if (this.kuchi !== fig) return false;
+      t2 += dt;
+      fig.userData.blades.rotation.z = Math.sin(t2 * (snipped ? 2 : 10)) * 0.25 + 0.3;
+      if (!snipped && t2 >= hold * 0.8) {
+        snipped = true;
+        for (const e of bound) {
+          if (e.dead) continue;
+          const c = e.pos.clone().setY(e.pos.y + e.height * 0.55);
+          g.combat.damageEnemy(e, 34 + rk * 14, p, { unblockable: true, stagger: 0.8, color: '#ffb0c0', knock: tmp.subVectors(e.pos, at).setY(0).normalize().multiplyScalar(4) });
+          g.fx.slashX(c, 2 + e.height * 0.4, 0xff8aa8);
+          g.fx.hitSpark(c, null, { color: 0xff8aa8, big: true });
+        }
+        g.fx.slashArc(at, fig.rotation.y, 0xff8aa8, R * 0.7, 1, 0.25);
+        g.shake(0.3); if (bound.length) g.hitStop(0.06);
+        g.audio?.energy('slash'); g.audio?.impact(1.3);
+      }
+      if (t2 < hold + 0.4) return true;
+      g.particles.burst(fig.position.clone().setY(at.y + 1.2), { count: 24, color: DEEP, speed: 3, life: 0.7, size: 0.4, sizeEnd: 1.5 });
+      g.scene.remove(fig); this.kuchi = null;
+      return false;
+    });
+  }
+  buildKuchisake() {
+    const grp = new THREE.Group();
+    const m = (c, e = 0) => new THREE.MeshStandardNodeMaterial({ color: c, roughness: 0.75, emissive: e ? c : 0, emissiveIntensity: e });
+    const coat = m(0xc8b898), hair = m(0x0a0a0c), skin = m(0xf0e0d8), mask = m(0xf4f4f0), steel = m(0xd0d4dc), red = m(0xff2a3a, 2);
+    const box = (w, h, d, x, y, z, mat, par = grp) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); b.position.set(x, y, z); b.castShadow = true; par.add(b); return b; };
+    box(0.8, 1.6, 0.5, 0, 0.8, 0, coat);                 // long trench coat
+    box(0.7, 0.7, 0.45, 0, 1.95, 0, coat);
+    box(0.45, 0.45, 0.45, 0, 2.55, 0, skin);             // head
+    box(0.47, 0.18, 0.08, 0, 2.47, 0.24, mask);          // surgical mask hiding the slit
+    box(0.06, 0.04, 0.02, -0.1, 2.62, 0.235, red); box(0.06, 0.04, 0.02, 0.1, 2.62, 0.235, red);
+    box(0.55, 0.3, 0.55, 0, 2.8, -0.02, hair);           // long black hair
+    box(0.55, 1.1, 0.2, 0, 2.1, -0.25, hair);
+    // the giant scissors in her right hand
+    const blades = new THREE.Group(); blades.position.set(0.55, 1.6, 0.2); grp.add(blades);
+    box(0.08, 1.4, 0.05, 0, 0.7, 0, steel, blades);
+    const b2 = box(0.08, 1.4, 0.05, 0, 0.7, 0, steel, blades); b2.rotation.z = -0.5;
+    box(0.25, 0.25, 0.06, 0, -0.1, 0, m(0x3a1a1a), blades);
+    grp.userData.blades = blades;
+    return grp;
+  }
+  // Maximum: Uzumaki — the ultimate. Every spirit and stock, plus a horde
+  // from Geto's reserve, compressed into one spiral.
   uzumaki() {
     const g = this.game, p = this.p, rk = this.rank('uzumaki');
+    if (this.uzuOrb) return false;
     const mine = this.spirits();
-    const power = Math.min(12, mine.length * (1 + rk * 0.25) + this.stock);
+    const power = Math.min(24, 8 + mine.length * (1 + rk * 0.25) + this.stock);
     // every spirit is drawn back and compressed
     for (const s of mine) {
       const from = s.pos.clone().setY(s.pos.y + s.height * 0.5);
@@ -380,26 +430,39 @@ class GetoKit extends Kit {
       s.despawn();
     }
     this.stock = 0;
-    p.action = { type: 'cast', both: true, dur: 1.05, elapsed: 0, t: 0, moveScale: 0.1, lock: true, hold: true, cancelable: false, faceAim: true };
+    const CH = 1.6;   // real seconds of charge
+    p.action = { type: 'cast', both: true, dur: 9, elapsed: 0, t: 0, moveScale: 0, lock: true, hold: true, cancelable: false, faceAim: true };
+    p.iframes = Math.max(p.iframes, CH + 0.4);
     const orb = makeOrb(VIOLET, { radius: 0.3, darkCore: true, coreColor: 0x000000 });
-    g.scene.add(orb);
-    const light = g.lights.attach(orb, VIOLET, 8, 10, { offsetY: 0, priority: 5 });
-    g.fx.dimTarget = 0.35;
-    g.toast?.(power > 0 ? `🌀 Maximum: Uzumaki ×${Math.round(power)}` : '🌀 Uzumaki');
-    g.audio?.charge(0.95, 0.6);
-    let t = 0;
-    g.addUpdater((dt) => {
-      t += dt;
+    g.scene.add(orb); this.uzuOrb = orb;
+    const light = g.lights.attach(orb, VIOLET, 10, 14, { offsetY: 0, priority: 6 }); this.uzuLight = light;
+    g.fx.dimTarget = 0.5;
+    g.slowMo(CH + 0.6, 0.35);
+    g.toast?.('MAXIMUM: UZUMAKI', 'domain');
+    setTimeout(() => { if (!this.disposed) g.toast?.(`🌀 ${Math.round(power * 186)} curses compressed into one`); }, 600);
+    g.rig.cinematic?.({ center: p.pos.clone().setY(p.pos.y + 1.5), dur: CH + 1.2, dist: 13, pitch: 0.35, orbit: 0.3 });
+    g.audio?.charge(CH, 0.5); g.audio?.energy('summon');
+    let t = 0, ring = 0;
+    g.addUpdater((dt, realDt) => {
+      if (this.uzuOrb !== orb) return false;
+      if (p.dead) { g.scene.remove(orb); g.lights.remove(light); this.uzuOrb = null; g.fx.dimTarget = 0; p.action = null; return false; }
+      t += realDt;
       p.facing = Math.atan2(p.aimDir.x, p.aimDir.z);
-      const hp = this.handPos();
-      orb.position.copy(hp); orb.rotation.y += dt * 12;
-      orb.scale.setScalar(0.3 + t * (0.6 + power * 0.05));
-      for (let i = 0; i < 4; i++) {
-        const a = g.time * 9 + i * Math.PI / 2, r = 2.2 - (t % 0.3) * 4;
-        g.particles.glow.emit(hp.x + Math.cos(a) * r, hp.y + Math.sin(a * 0.7) * 0.6, hp.z + Math.sin(a) * r, -Math.cos(a) * 5, 0, -Math.sin(a) * 5, 0.3, 1.4, 0.6, 2.6, 0.16, 0, 3, 0.1, 0);
+      // the mass hangs above his raised hand, swallowing the horde
+      const hp = this.handPos().setY(p.pos.y + 2.4 + Math.min(1, t) * 0.8);
+      orb.position.copy(hp); orb.rotation.y += realDt * 14;
+      orb.scale.setScalar(0.4 + Math.min(1, t / CH) * (1.6 + power * 0.08));
+      // curses pouring in from every direction: a black and violet vortex
+      for (let i = 0; i < 10; i++) {
+        const a = Math.random() * Math.PI * 2, r = 5 + Math.random() * 7, y = hp.y + (Math.random() - 0.4) * 5;
+        const sx = hp.x + Math.cos(a) * r, sz = hp.z + Math.sin(a) * r;
+        g.particles.glow.emit(sx, y, sz, (hp.x - sx) * 2.4 - Math.sin(a) * 4, (hp.y - y) * 2.4, (hp.z - sz) * 2.4 + Math.cos(a) * 4, 0.4, 1.3, 0.55, 2.6, 0.22, 0, 0.5, 0.05, 0);
       }
-      if (t < 0.95) return true;
-      g.scene.remove(orb); g.lights.remove(light);
+      if (Math.random() < 0.6) { const a = Math.random() * Math.PI * 2; g.particles.burst(tmp2.set(hp.x + Math.cos(a) * 6, hp.y + (Math.random() - 0.5) * 3, hp.z + Math.sin(a) * 6), { count: 2, color: BLACK, additive: false, speed: 1, dir: tmp.set(-Math.cos(a) * 9, 0, -Math.sin(a) * 9), life: 0.6, size: 0.7, sizeEnd: 0.1 }); }
+      ring -= realDt;
+      if (ring <= 0) { ring = 0.3; g.fx.darkRings.spawn(tmp.set(p.pos.x, p.pos.y + 0.08, p.pos.z), { color: 0x000000, r0: 7, r1: 0.5, dur: 0.4, thick: 0.3 }); g.shake(0.12); }
+      if (t < CH) return true;
+      g.scene.remove(orb); g.lights.remove(light); this.uzuOrb = null;
       g.fx.dimTarget = 0;
       p.action = null;
       this.fireUzumaki(power);
@@ -410,8 +473,8 @@ class GetoKit extends Kit {
     const g = this.game, p = this.p, rk = this.rank('uzumaki');
     const dir = p.aimDir.clone().setY(0).normalize();
     const from = this.handPos();
-    const L = 20 + power, W = 1.5 + power * 0.12;
-    const dmg = 55 + power * 20 + rk * 15;
+    const L = 22 + power, W = 1.8 + power * 0.13;
+    const dmg = 80 + power * 18 + rk * 20;
     for (const e of g.enemies) {
       if (e.dead) continue;
       tmp.subVectors(e.pos, from).setY(0); const along = tmp.dot(dir);
@@ -435,8 +498,9 @@ class GetoKit extends Kit {
     for (let s = 2; s < L; s += 3) g.fx.darkRings.spawn(tmp.copy(from).addScaledVector(dir, s).setY(p.pos.y + 0.08), { color: 0x000000, r0: 0.4, r1: W + 1, dur: 0.5, thick: 0.3 });
     for (let s = 1; s < L; s += 1) g.combat.hitBlocks(tmp2.copy(from).addScaledVector(dir, s).setY(p.pos.y), dir, W, Math.PI, 80, p);
     g.lights.flash(from.clone().addScaledVector(dir, L * 0.4), VIOLET, 20 + power, 20, 0.6, { priority: 8 });
-    g.fx.screenWave(from.clone().addScaledVector(dir, 4), 1.2, 0.6); g.fx.flash(0x6a3aff, 0.4, 0.2); g.fx.chroma(1.2);
-    g.shake(0.5 + power * 0.04); g.hitStop(0.08);
+    g.fx.screenWave(from.clone().addScaledVector(dir, 4), 1.6, 0.7); g.fx.flash(0x6a3aff, 0.55, 0.3); g.fx.chroma(1.5); g.fx.blackFlash(0.15);
+    g.shake(0.6 + power * 0.03); g.hitStop(0.12);
+
     g.audio?.energy('purple');
   }
 }

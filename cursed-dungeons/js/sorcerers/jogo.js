@@ -5,8 +5,10 @@
 //        launches everything standing on it, leaving pools of lava.
 //   2    Ember Insects: a swarm of fiery insects seeks out curses and pops.
 //   3    Maximum: Meteor — a colossal meteor falls on the aim point.
-//   F    Domain: Coffin of the Iron Mountain — the inside of a volcano;
-//        everything burns just by being there and the floor keeps erupting.
+//   F    Domain: Coffin of the Iron Mountain — the inside of a volcano. The
+//        sure-hit is the heat itself: ordinary curses burn to death almost
+//        at once, bosses lose a big share of health every second, and the
+//        crater floor keeps erupting.
 import * as THREE from 'three/webgpu';
 import { Kit } from './kit.js';
 import { registerKit, registerSorcerer } from './index.js';
@@ -49,7 +51,7 @@ export const JOGO_SKILLS = [
   { id: 'volcano', name: 'Eruption', desc: 'Volcano erupts wider and harder.', max: 3 },
   { id: 'insects', name: 'Ember Swarm', desc: 'More ember insects per swarm.', max: 2 },
   { id: 'meteor', name: 'Maximum: Meteor', desc: 'Bigger meteor and longer-lasting fires.', max: 2, req: 'volcano' },
-  { id: 'iron', name: 'Iron Mountain', desc: 'Domain burns hotter and lasts 2s longer.', max: 1, req: 'meteor' },
+  { id: 'iron', name: 'Iron Mountain', desc: 'Coffin of the Iron Mountain burns 25% hotter and lasts 2s longer.', max: 1, req: 'meteor' },
 ];
 
 class JogoKit extends Kit {
@@ -70,27 +72,102 @@ class JogoKit extends Kit {
       t2: this.ability({ name: 'Ember Insects', icon: '🐞', cd: 9, ce: 16, use: () => this.insects() }),
       t3: this.ability({ name: 'Maximum: Meteor', icon: '☄️', cd: 22, ce: 50, use: () => this.meteor() }),
     };
+    // Coffin of the Iron Mountain: the inside of a volcano. The sure-hit is the
+    // heat itself — in canon it would burn a normal sorcerer to death at once
+    // (Gojo needed Infinity just to stand there). Ordinary curses are cooked
+    // within a second or two; bosses lose a big slice of health every second.
     this.domain = {
-      name: 'Coffin of the Iron Mountain', icon: '🌋', key: 'coffin_iron_mountain', type: 4, color: FIRE, sound: 'fire', flash: 0xff8a3a,
+      name: 'Coffin of the Iron Mountain', icon: '🌋', key: 'coffin_iron_mountain', type: 6, color: FIRE, sound: 'fire', flash: 0xff8a3a,
+      look: { floor: 0x2a1610, seam: 0xff3a08, sparkle: 0xffc040, skyTop: 0x140402, skyHorizon: 0xff4a10, stars: 0, band: 0xffa040 },
       duration: 8 + r('iron') * 2, radius: 24,
+      onStart: (g, d) => {
+        this.buildCrater(g, d);
+        g.toast?.('Sure-hit: the heat of the volcano burns everything inside');
+        g.fx.flash(0xff6a1a, 0.5, 0.4); g.shake(0.7); g.audio?.energy('explode');
+      },
       onTick: (g, d, dt) => {
-        d.burn = (d.burn ?? 0) - dt; d.erupt = (d.erupt ?? 0) - dt;
+        d.burn = (d.burn ?? 0.25) - dt; d.erupt = (d.erupt ?? 0.6) - dt;
         if (d.burn <= 0) {
           d.burn = 0.5;
+          const heat = 1 + r('iron') * 0.25;
           for (const e of g.enemies) if (!e.dead && !e.isDummy && g.domainSys.inside(e.pos)) {
-            g.combat.damageEnemy(e, 7 + r('iron') * 4, this.p, { stagger: 0, ceGain: 0, unblockable: true, color: '#ff8a3a' });
-            g.particles.burst(tmp.copy(e.pos).setY(e.pos.y + e.height * 0.5), { count: 4, color: FIRE, speed: 1.5, up: 2, life: 0.5, size: 0.3, sizeEnd: 0.05 });
+            const mx = e.maxHp ?? 100;
+            const dmg = (e.isBoss ? mx * 0.03 : Math.max(25, mx * 0.4)) * heat;
+            g.combat.damageEnemy(e, dmg, this.p, { stagger: e.isBoss ? 0 : 0.2, ceGain: 0, unblockable: true, crit: false, color: '#ff8a3a' });
+            const at = tmp.copy(e.pos).setY(e.pos.y + e.height * 0.5);
+            g.particles.burst(at, { count: 10, color: FIRE, speed: 2, up: 3, life: 0.6, size: 0.45, sizeEnd: 0.05, intensity: 3 });
+            g.particles.burst(at, { count: 3, color: 0x1a1210, additive: false, speed: 1, up: 2, life: 1, size: 0.6, sizeEnd: 1.6 });
           }
         }
+        // the crater floor keeps erupting under the curses
         if (d.erupt <= 0) {
-          d.erupt = 0.9;
+          d.erupt = 0.8;
           const list = g.enemies.filter((e) => !e.dead && !e.isDummy && g.domainSys.inside(e.pos));
           for (let i = 0; i < Math.min(3, list.length); i++) this.erupt(list[Math.floor(Math.random() * list.length)].pos.clone(), 0.45, 0.8);
+          // and a random lava fountain somewhere in the crater
+          const a = Math.random() * Math.PI * 2, rr = 4 + Math.random() * (d.radius - 6);
+          const at = new THREE.Vector3(d.center.x + Math.cos(a) * rr, d.center.y, d.center.z + Math.sin(a) * rr);
+          at.y = this.groundAt(at.x, at.z, d.center.y);
+          for (let k = 0; k < 2; k++) g.particles.burst(at, { count: 18, color: k ? LAVA : EMBER, speed: 6, spread: 0.3, dir: tmp.set(0, 4, 0), life: 1.1, size: 0.4, sizeEnd: 0.1, gravity: 9, intensity: 3 });
         }
-        // falling ash and embers everywhere
-        for (let i = 0; i < 3; i++) { const a = Math.random() * Math.PI * 2, rr = Math.random() * d.radius; g.particles.glow.emit(d.center.x + Math.cos(a) * rr, d.center.y + 6 + Math.random() * 4, d.center.z + Math.sin(a) * rr, 0, -2, 0, 2, 3, 1.2, 0.3, 0.1, 0, 0.5, 0.5, 1); }
+        // falling ash and embers, heat shimmer
+        for (let i = 0; i < 4; i++) { const a = Math.random() * Math.PI * 2, rr = Math.random() * d.radius; g.particles.glow.emit(d.center.x + Math.cos(a) * rr, d.center.y + 6 + Math.random() * 6, d.center.z + Math.sin(a) * rr, 0, -2, 0, 2, 3, 1.2, 0.3, 0.1, 0, 0.5, 0.5, 1); }
+        if (Math.random() < 0.3) { const a = Math.random() * Math.PI * 2, rr = Math.random() * d.radius; g.particles.smoke.emit(d.center.x + Math.cos(a) * rr, d.center.y + 8, d.center.z + Math.sin(a) * rr, 0, -0.6, 0, 2.5, 0.12, 0.09, 0.08, 1.4, 0, 0.5, 3, 0); }
+        // the crater walls' lava streams pulse
+        if (this.crater) this.crater.userData.lava.emissiveIntensity = 3 + Math.sin(g.time * 5) * 0.8;
       },
+      onEnd: () => this.clearCrater(),
     };
+  }
+  dispose() { super.dispose(); this.clearCrater(); }
+  // Volcano interior set-piece: a ring of black rock walls leaning inward,
+  // lava streams pouring down them and glowing vents in the floor.
+  buildCrater(g, d) {
+    this.clearCrater();
+    const grp = new THREE.Group();
+    const rock = new THREE.MeshStandardNodeMaterial({ color: 0x241612, roughness: 0.95, emissive: 0x3a0a00, emissiveIntensity: 0.4 });
+    const lava = new THREE.MeshStandardNodeMaterial({ color: LAVA, emissive: LAVA, emissiveIntensity: 3, roughness: 0.6 });
+    const box = new THREE.BoxGeometry(1, 1, 1);
+    const R = d.radius - 0.5, N = 44;
+    for (let i = 0; i < N; i++) {
+      const a = (i / N) * Math.PI * 2 + Math.random() * 0.05;
+      const h = 9 + Math.random() * 9, w = (2 * Math.PI * R) / N + 1.2;
+      const x = d.center.x + Math.cos(a) * R, z = d.center.z + Math.sin(a) * R;
+      const gy = this.groundAt(x, z, d.center.y);
+      const wall = new THREE.Mesh(box, rock);
+      wall.scale.set(w, h, 3 + Math.random() * 2);
+      wall.position.set(x, gy + h * 0.5 - 1, z);
+      wall.rotation.y = -a + Math.PI / 2; wall.rotateX(-0.28 - Math.random() * 0.12); // lean in over the crater
+      grp.add(wall);
+      if (i % 4 === 0) { // a lava stream running down the wall
+        const fall = new THREE.Mesh(box, lava);
+        fall.scale.set(0.7, h * 0.95, 0.4);
+        fall.position.set(d.center.x + Math.cos(a) * (R - 1.6), gy + h * 0.45 - 1, d.center.z + Math.sin(a) * (R - 1.6));
+        fall.rotation.copy(wall.rotation);
+        grp.add(fall);
+        const pool = new THREE.Mesh(box, lava);
+        pool.scale.set(2.6, 0.12, 2.6); pool.position.set(d.center.x + Math.cos(a) * (R - 3), gy + 0.04, d.center.z + Math.sin(a) * (R - 3));
+        grp.add(pool);
+      }
+    }
+    // glowing cracks / vents across the crater floor
+    for (let i = 0; i < 14; i++) {
+      const a = Math.random() * Math.PI * 2, rr = 3 + Math.random() * (R - 6);
+      const x = d.center.x + Math.cos(a) * rr, z = d.center.z + Math.sin(a) * rr;
+      const vent = new THREE.Mesh(box, lava);
+      vent.scale.set(0.35, 0.08, 2 + Math.random() * 3); vent.rotation.y = Math.random() * Math.PI;
+      vent.position.set(x, this.groundAt(x, z, d.center.y) + 0.03, z);
+      grp.add(vent);
+    }
+    grp.userData = { lava, box };
+    grp.position.y = -6; g.scene.add(grp); this.crater = grp;
+    this.craterLight = g.lights.flash(d.center.clone().setY(d.center.y + 4), FIRE, 6, d.radius * 1.6, 60, { priority: 4, fade: false });
+    let t = 0; g.addUpdater((dt) => { t += dt; grp.position.y = Math.min(0, -6 + t * 12); return t < 0.6 && this.crater === grp; });
+  }
+  clearCrater() {
+    const g = this.game;
+    if (this.crater) { g.scene.remove(this.crater); this.crater.userData.box?.dispose(); this.crater = null; }
+    if (this.craterLight) { g.lights.remove(this.craterLight); this.craterLight = null; }
   }
   onMeleeHit(e, step) {
     if (step.fireRing && this.rank('scorch')) this.game.hazards.add({ pos: e.pos.clone(), radius: 1.3, dps: 8 + this.rank('scorch') * 4, dur: 2.5, color: FIRE, team: 'player', src: this.p });

@@ -12,6 +12,7 @@ import { toast } from './ui/ui.js';
 // Sky dome shader per domain type.
 function domeMaterial() {
   const type = uniform(1), fade = uniform(0);
+  const cTop = uniform(new THREE.Color(0, 0, 0)), cHor = uniform(new THREE.Color(0.2, 0.2, 0.2)), cStars = uniform(0), cBand = uniform(new THREE.Color(0, 0, 0));
   const m = new THREE.MeshBasicNodeMaterial({ side: THREE.BackSide, depthWrite: false, fog: false, transparent: true });
   const d = normalize(positionLocal);
   const t = U.time;
@@ -33,9 +34,11 @@ function domeMaterial() {
   const fireCol = mix(vec3(1.0, 0.3, 0.05), vec3(0.15, 0.02, 0.0), smoothstep(-0.2, 0.7, d.y));
   const resCol = mix(vec3(0.9, 0.55, 0.25), vec3(0.2, 0.08, 0.04), smoothstep(-0.2, 0.7, d.y)).add(vec3(1, 0.7, 0.3).mul(stars).mul(0.5));
   const sel = (i) => step(i - 0.5, type).mul(step(type, i + 0.5));
-  const col = voidCol.mul(sel(1)).add(shrineCol.mul(sel(2))).add(garden.mul(sel(3))).add(fireCol.mul(sel(4))).add(resCol.mul(sel(5)));
+  // 6: custom gradient sky with optional stars and a glowing horizon band
+  const cusCol = mix(vec3(cHor), vec3(cTop), smoothstep(-0.1, 0.7, d.y)).add(vec3(1.2, 1.2, 1.3).mul(stars).mul(cStars)).add(vec3(cBand).mul(smoothstep(0.06, 0.0, abs(d.y.add(0.02)))));
+  const col = cusCol.mul(sel(6)).add(voidCol.mul(sel(1)).add(shrineCol.mul(sel(2))).add(garden.mul(sel(3))).add(fireCol.mul(sel(4))).add(resCol.mul(sel(5))));
   m.colorNode = vec4(col, fade);
-  m.userData = { type, fade };
+  m.userData = { type, fade, cTop, cHor, cStars, cBand };
   return m;
 }
 
@@ -47,7 +50,7 @@ export class DomainSystem {
     this.dome.visible = false; this.dome.frustumCulled = false; this.dome.renderOrder = -1;
     game.scene.add(this.dome);
   }
-  // def: { name, key (DOMAINS key), type, duration, radius, sound, color, sureHit, onStart, onTick, onEnd }
+  // def: { name, key (DOMAINS key), type (6 = custom: def.look = { floor, seam, sparkle, skyTop, skyHorizon, stars, band } as hex colours), duration, radius, sound, color, sureHit, onStart, onTick, onEnd }
   start(caster, def) {
     const g = this.game;
     if (this.active) return false;
@@ -88,6 +91,11 @@ export class DomainSystem {
         g.shake(0.6);
         g.env.set(DOMAINS[def.key], false);
         U.domainType.value = def.type; U.domainCenter.value.copy(d.center);
+        if (def.type === 6) {
+          const L = def.look ?? {}, ud = this.dome.material.userData;
+          U.domainFloor.value.set(L.floor ?? 0x202020); U.domainSeam.value.set(L.seam ?? 0x000000); U.domainSparkle.value.set(L.sparkle ?? 0x000000);
+          ud.cTop.value.set(L.skyTop ?? 0x000000); ud.cHor.value.set(L.skyHorizon ?? 0x303030); ud.cStars.value = L.stars ?? 0; ud.cBand.value.set(L.band ?? 0x000000);
+        }
         this.dome.material.userData.type.value = def.type;
         this.dome.visible = true; this.dome.position.copy(d.center); this.dome.scale.setScalar(55); this.dome.material.userData.fade.value = 0;
         d.caster.action = null; d.caster.invulnerable = false;

@@ -23,10 +23,10 @@ export const QUALITY_LABEL = { low: 'Low / Mobile', medium: 'Medium', high: 'Hig
 
 // Tier presets. Everything the rest of the game needs to know lives here.
 export const PRESETS = {
-  low: { pixelRatio: 0.7, maxPR: 1, shadows: false, shadowSize: 0, pointLights: 2, pointShadows: 0, bloom: 0.35, ao: false, ssr: false, ssgi: false, fxaa: false, traa: false, shafts: false, particles: 1200, enemyCap: 14, bake: 1.0, fogDetail: 0, decoDensity: 0.4 },
-  medium: { pixelRatio: 1, maxPR: 1.25, shadows: true, shadowSize: 1024, shadowType: 'pcf', pointLights: 6, pointShadows: 0, bloom: 0.6, ao: false, ssr: false, ssgi: false, fxaa: true, traa: false, shafts: false, particles: 3000, enemyCap: 24, bake: 0.55, fogDetail: 1, decoDensity: 0.7 },
-  high: { pixelRatio: 1, maxPR: 1.5, shadows: true, shadowSize: 2048, shadowType: 'pcf', pointLights: 16, pointShadows: 1, bloom: 0.8, ao: true, ssr: 'water', ssgi: false, fxaa: true, traa: false, shafts: true, particles: 6000, enemyCap: 36, bake: 0.4, fogDetail: 2, decoDensity: 1 },
-  ultra: { pixelRatio: 1, maxPR: 2, shadows: true, shadowSize: 4096, shadowType: 'vsm', pointLights: 48, pointShadows: 2, bloom: 0.9, ao: true, ssr: 'all', ssgi: true, fxaa: false, traa: true, shafts: true, particles: 12000, enemyCap: 48, bake: 0.25, fogDetail: 3, decoDensity: 1, clustered: true },
+  low: { pixelRatio: 0.7, maxPR: 1, shadows: false, shadowSize: 0, pointLights: 2, pointShadows: 0, bloom: 0.35, ao: false, ssr: false, ssgi: false, fxaa: false, traa: false, shafts: false, particles: 1200, enemyCap: 12, bake: 1.0, fogDetail: 0, decoDensity: 0.4 },
+  medium: { pixelRatio: 1, maxPR: 1.25, shadows: true, shadowSize: 1024, shadowType: 'pcf', pointLights: 6, pointShadows: 0, bloom: 0.6, ao: false, ssr: false, ssgi: false, fxaa: true, traa: false, shafts: false, particles: 3000, enemyCap: 16, bake: 0.55, fogDetail: 1, decoDensity: 0.7 },
+  high: { pixelRatio: 1, maxPR: 1.5, shadows: true, shadowSize: 2048, shadowType: 'pcf', pointLights: 16, pointShadows: 1, bloom: 0.8, ao: true, ssr: 'water', ssgi: false, fxaa: true, traa: false, shafts: true, particles: 6000, enemyCap: 20, bake: 0.4, fogDetail: 2, decoDensity: 1 },
+  ultra: { pixelRatio: 1, maxPR: 2, shadows: true, shadowSize: 4096, shadowType: 'vsm', pointLights: 48, pointShadows: 2, bloom: 0.9, ao: true, ssr: 'all', ssgi: true, fxaa: false, traa: true, shafts: true, particles: 12000, enemyCap: 24, bake: 0.25, fogDetail: 3, decoDensity: 1, clustered: true },
 };
 
 // Compatibility shim: some Chromium builds reject the default 'rgba'

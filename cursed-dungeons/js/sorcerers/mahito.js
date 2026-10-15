@@ -8,8 +8,12 @@
 //   2    Transfigured Humans: release grotesque reshaped humans that rush curses
 //        and burst on death.
 //   3    Polymorphic Soul Isomer: hurl a mass of fused souls that detonates.
-//   F    Self-Embodiment of Perfection: a field of giant hands — Mahito's touch
-//        reaches every curse inside, again and again.
+//   F    Self-Embodiment of Perfection: Mahito's domain — a dark cavern walled
+//        with countless reaching hands. Its sure-hit is Idle Transfiguration
+//        itself: the instant the domain completes, his touch lands on every
+//        soul inside. Ordinary curses are transfigured outright; a boss's soul
+//        is mauled (a huge wound plus maximum soul distortion). Anything that
+//        wanders in later is touched too.
 import * as THREE from 'three/webgpu';
 import { Kit } from './kit.js';
 import { registerKit, registerSorcerer } from './index.js';
@@ -174,7 +178,7 @@ export const MAHITO_SKILLS = [
   { id: 'repel', name: 'Body Repel', desc: 'More spikes, harder hits.', max: 2 },
   { id: 'collector', name: 'Soul Collector', desc: 'Transfigured curses become minions more often; minions burst harder.', max: 3 },
   { id: 'isomer', name: 'Polymorphic Soul Isomer', desc: 'Bigger, deadlier isomer.', max: 3, req: 'collector' },
-  { id: 'perfection', name: 'Perfection', desc: 'Domain touches land faster and last longer.', max: 2 },
+  { id: 'perfection', name: 'Perfection', desc: 'The domain lasts longer and its sure-hit touch mauls bosses harder.', max: 2 },
 ];
 
 class MahitoKit extends Kit {
@@ -194,23 +198,24 @@ class MahitoKit extends Kit {
       t3: this.ability({ name: 'Soul Isomer', icon: '💣', cd: 18, ce: 35, use: () => this.isomer() }),
     };
     this.domain = {
-      name: 'Self-Embodiment of Perfection', icon: '✋', key: 'self_embodiment', type: 3, color: SOUL, sound: 'perfection', flash: 0x9ad8ff,
-      duration: 8 + r('perfection'), radius: 24,
-      onStart: (g, d) => this.raiseHands(g, d),
+      name: 'Self-Embodiment of Perfection', icon: '✋', key: 'self_embodiment', type: 6, color: SOUL, sound: 'perfection', flash: 0x9ad8ff,
+      // a dim, slate cavern: pale stitched floor seams, a teal soul-glow horizon
+      look: { floor: 0x1a1e26, seam: 0x8a96a4, sparkle: 0x7ac8f0, skyTop: 0x030406, skyHorizon: 0x262e3a, stars: 0, band: 0x3a6a84 },
+      duration: 8 + r('perfection') * 1.5, radius: 22,
+      onStart: (g, d) => { d.touched = new Set(); d.touchT = 0.7; d.tick = 0; this.raiseHands(g, d); },
       onTick: (g, d, dt) => {
-        d.tick = (d.tick ?? 0) - dt;
-        if (d.tick > 0) return;
-        d.tick = 0.6 - r('perfection') * 0.1;
-        for (const e of g.enemies) {
-          if (e.dead || e.isDummy || !g.domainSys.inside(e.pos)) continue;
-          // the touch lands, no matter what
-          g.combat.damageEnemy(e, 10, this.p, { stagger: 0.3, ceGain: 0, unblockable: true });
-          this.handprint(e);
-          this.soulTouch(e, 1);
+        // the sure-hit: once the domain completes, the touch reaches every soul
+        if (d.touchT > 0) {
+          d.touchT -= dt;
+          if (d.touchT <= 0) this.perfectionTouch(g, d, true);
+          return;
         }
-        g.audio?.tone({ freq: 160, to: 90, dur: 0.18, gain: 0.08, type: 'triangle' });
+        d.tick -= dt;
+        if (d.tick > 0) return;
+        d.tick = 0.4;
+        this.perfectionTouch(g, d, false);
       },
-      onEnd: () => this.lowerHands(),
+      onEnd: (g, d) => { d.touched?.clear(); this.lowerHands(); },
     };
   }
   dispose() { super.dispose(); this.disposed = true; this.lowerHands(); }
@@ -365,35 +370,109 @@ class MahitoKit extends Kit {
     g.audio?.energy('explode');
   }
   // ------------------------------------------------------------ domain
+  // Idle Transfiguration as a sure-hit: every soul inside is touched once
+  // (first = the moment the domain completes; later = anything that walks in).
+  perfectionTouch(g, d, first) {
+    const p = this.p, rk = this.rank('perfection');
+    let n = 0;
+    for (const e of g.enemies) {
+      if (e.dead || !g.domainSys.inside(e.pos)) continue;
+      if (e.isBoss) {
+        // a soul too vast to reshape in one touch — it is mauled instead
+        if (!d.touched.has(e)) {
+          d.touched.add(e);
+          const wound = 120 + Math.min(e.maxHp * (0.25 + rk * 0.05), 1100);
+          g.combat.damageEnemy(e, wound / Math.max(0.2, 1 - (e.armor ?? 0)), p, { unblockable: true, stagger: 1, ceGain: 0, color: '#7ac8f0' });
+          e.soul = 5; e.soulT = 6; e.soulTick = 0.5; e.slowT = Math.max(e.slowT ?? 0, 3);
+          this.bigHand(e); n++;
+        } else if (!e.dead) { this.soulTouch(e, 1); this.handprint(e); }
+        continue;
+      }
+      if (d.touched.has(e)) continue;
+      d.touched.add(e);
+      this.bigHand(e);
+      if (e.isDummy) { g.combat.damageEnemy(e, 200, p, { unblockable: true, stagger: 0.5, ceGain: 0, color: '#7ac8f0' }); continue; }
+      this.transfigure(e);   // the shape of its soul is rewritten: death
+      n++;
+    }
+    if (first) {
+      g.fx.flash(0x9ad8ff, 0.45, 0.2); g.fx.chroma(1.2); g.fx.screenWave(d.center.clone().setY(d.center.y + 1), 1.2, 0.6);
+      g.shake(0.6); g.hitStop(0.1);
+      g.toast?.('✋ Idle Transfiguration — sure hit');
+      g.audio?.tone({ freq: 140, to: 60, dur: 0.6, gain: 0.25, type: 'sawtooth', filter: 900, rev: 0.5 });
+      if (this.handsGrp) this.handsGrp.userData.lunge = 0.5;
+    } else if (n) g.audio?.tone({ freq: 220, to: 90, dur: 0.25, gain: 0.1, type: 'triangle' });
+  }
+  // a pale, stitched hand slaps down on the soul
+  bigHand(e) {
+    const g = this.game;
+    const at = e.pos.clone().setY(e.pos.y + e.height * 0.55);
+    this.handprint(e);
+    g.fx.arcs.spawn(at, { color: 0xe8f4ff, r0: 0.4, r1: 1.4 + e.radius, dur: 0.35, thick: 0.5, arc: 0.6, rotY: Math.random() * Math.PI * 2 });
+    g.fx.rings.spawn(tmp.set(e.pos.x, e.pos.y + 0.08, e.pos.z), { color: SOUL, r0: 0.2, r1: 2 + e.radius, dur: 0.4, thick: 0.18 });
+    g.particles.burst(at, { count: 24, color: SOUL, speed: 5, life: 0.5, size: 0.14, shape: 1, intensity: 3 });
+    g.lights.flash(at, SOUL, 8, 8, 0.3);
+  }
+  // The domain interior: a cavern of enormous hands. A ring of arms reaches
+  // in from the barrier wall, arching overhead like ribs, and more hands rise
+  // from the floor. They lunge inward when the sure-hit lands.
   raiseHands(g, d) {
     this.lowerHands();
     const grp = new THREE.Group();
-    const skin = new THREE.MeshStandardNodeMaterial({ color: 0xb8b0a8, roughness: 0.8 }), seam = new THREE.MeshStandardNodeMaterial({ color: STITCH, roughness: 0.9 });
+    const skin = new THREE.MeshStandardNodeMaterial({ color: 0xb8b0a8, roughness: 0.8 }), pale = new THREE.MeshStandardNodeMaterial({ color: 0x9a948e, roughness: 0.85 });
+    const seam = new THREE.MeshStandardNodeMaterial({ color: STITCH, roughness: 0.9 }), glow = new THREE.MeshBasicNodeMaterial({ color: new THREE.Color(SOUL).multiplyScalar(2) });
+    const unit = new THREE.BoxGeometry(1, 1, 1);
     const hands = [];
-    for (let i = 0; i < 12; i++) {
-      const a = i / 12 * Math.PI * 2 + Math.random() * 0.3, r = 9 + Math.random() * 8;
-      const h = new THREE.Group();
-      const b = (w, hh, dd, x, y, z, m, rx = 0) => { const mm = new THREE.Mesh(new THREE.BoxGeometry(w, hh, dd), m); mm.position.set(x, y, z); mm.rotation.x = rx; mm.castShadow = true; h.add(mm); };
-      const s = 1.4 + Math.random() * 0.8;
-      b(0.9 * s, 3 * s, 0.9 * s, 0, 1.5 * s, 0, skin);                // forearm
-      b(1.6 * s, 1.8 * s, 0.5 * s, 0, 3.8 * s, 0, skin);              // palm
-      b(1.62 * s, 0.12 * s, 0.52 * s, 0, 3.2 * s, 0, seam);
-      for (let f = 0; f < 4; f++) b(0.32 * s, 1.4 * s, 0.32 * s, (f - 1.5) * 0.4 * s, 5.3 * s, 0, skin, (Math.random() - 0.5) * 0.4);
-      b(0.32 * s, 1 * s, 0.32 * s, 0.95 * s, 4 * s, 0, skin, 0); h.children[h.children.length - 1].rotation.z = -0.8;
-      h.position.set(d.center.x + Math.cos(a) * r, d.center.y - 7, d.center.z + Math.sin(a) * r);
-      h.rotation.y = -a + Math.PI / 2;
-      h.userData = { y0: d.center.y - 0.5, ph: Math.random() * 6 };
+    const makeHand = (s, mat, shadow) => {
+      const h = new THREE.Group(), arm = new THREE.Group(); h.add(arm);
+      const b = (w, hh, dd, x, y, z, m, rx = 0, rz = 0) => { const mm = new THREE.Mesh(unit, m); mm.scale.set(w * s, hh * s, dd * s); mm.position.set(x * s, y * s, z * s); mm.rotation.set(rx, 0, rz); mm.castShadow = shadow; arm.add(mm); };
+      b(0.9, 4, 0.9, 0, 2, 0, mat);                 // forearm
+      b(0.95, 0.12, 0.95, 0, 2.6, 0, seam);         // stitched seam
+      b(1.6, 1.8, 0.5, 0, 4.9, 0, mat);             // palm
+      for (let f = 0; f < 4; f++) b(0.32, 1.5, 0.32, (f - 1.5) * 0.42, 6.5, 0.1, mat, 0.25 + Math.random() * 0.3);
+      b(0.32, 1.1, 0.32, 0.95, 5, 0.1, mat, 0, -0.8); // thumb
+      b(0.5, 0.5, 0.05, 0, 4.9, 0.27, glow);       // a soul-light in the palm
+      return { h, arm };
+    };
+    const R = (d.def.radius ?? 22) * 0.92, c = d.center;
+    // wall ring: two tiers, leaning inward so they arch over the arena
+    for (let tier = 0; tier < 2; tier++) {
+      const n = tier ? 16 : 22;
+      for (let i = 0; i < n; i++) {
+        const a = (i + tier * 0.5) / n * Math.PI * 2 + (Math.random() - 0.5) * 0.08;
+        const s = tier ? 2.2 + Math.random() * 0.6 : 1.5 + Math.random() * 0.5;
+        const { h, arm } = makeHand(s, i % 3 ? skin : pale, false);
+        const r = R + tier * 1.5;
+        h.position.set(c.x + Math.cos(a) * r, c.y - 9, c.z + Math.sin(a) * r);
+        h.rotation.y = Math.atan2(-Math.cos(a), -Math.sin(a));   // face the centre
+        arm.rotation.x = tier ? 0.95 : 0.45 + Math.random() * 0.2;   // lean in
+        h.userData = { y0: c.y - 0.5 + tier * 2, ph: Math.random() * 6, lean: arm.rotation.x, arm, dir: new THREE.Vector3(-Math.cos(a), 0, -Math.sin(a)), base: new THREE.Vector3(c.x + Math.cos(a) * r, 0, c.z + Math.sin(a) * r) };
+        grp.add(h); hands.push(h);
+      }
+    }
+    // floor hands rising between the curses
+    for (let i = 0; i < 9; i++) {
+      const a = Math.random() * Math.PI * 2, r = 5 + Math.random() * (R - 8);
+      const { h, arm } = makeHand(0.9 + Math.random() * 0.5, skin, true);
+      h.position.set(c.x + Math.cos(a) * r, c.y - 7, c.z + Math.sin(a) * r);
+      h.rotation.y = Math.random() * Math.PI * 2;
+      h.userData = { y0: c.y - 0.6, ph: Math.random() * 6, lean: 0, arm, dir: null };
       grp.add(h); hands.push(h);
     }
+    grp.userData.res = [unit, skin, pale, seam, glow];
     g.scene.add(grp); this.handsGrp = grp;
     let t = 0;
     g.addUpdater((dt) => {
       if (this.handsGrp !== grp) return false;
       t += dt;
+      const L = grp.userData.lunge ?? 0; if (L > 0) grp.userData.lunge = L - dt;
+      const k = L > 0 ? Math.sin((1 - L / 0.5) * Math.PI) : 0;   // grab in, then back
       for (const h of hands) {
-        h.position.y += (h.userData.y0 - h.position.y) * Math.min(1, dt * 4);
-        h.rotation.z = Math.sin(t * 1.3 + h.userData.ph) * 0.15;
-        h.rotation.x = Math.sin(t * 0.9 + h.userData.ph) * 0.1;
+        const u = h.userData;
+        h.position.y += (u.y0 - h.position.y) * Math.min(1, dt * 3);
+        u.arm.rotation.x = u.lean + Math.sin(t * 1.1 + u.ph) * 0.06 + (u.dir ? k * 0.35 : 0);
+        u.arm.rotation.z = Math.sin(t * 0.8 + u.ph) * 0.08;
+        if (u.dir) { h.position.x = u.base.x + u.dir.x * k * 3; h.position.z = u.base.z + u.dir.z * k * 3; }
       }
       return true;
     });
@@ -401,7 +480,9 @@ class MahitoKit extends Kit {
   lowerHands() {
     if (!this.handsGrp) return;
     this.game.scene.remove(this.handsGrp);
+    for (const r of this.handsGrp.userData.res ?? []) r.dispose?.();
     this.handsGrp = null;
   }
+
 }
 registerKit('mahito', MahitoKit, MAHITO_SKILLS);

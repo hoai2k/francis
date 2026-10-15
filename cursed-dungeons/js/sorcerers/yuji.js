@@ -4,9 +4,10 @@
 //   RMB  Rubble Throw: rip up a chunk of the floor and hurl it.
 //   1    Divergent Fist: dash punch whose cursed energy lands a second time a beat later.
 //   2    Manji Kick: spinning kick that launches everything around you.
-//   3    Black Flash Focus: for a few seconds the timing window widens and the
-//        first hit is a guaranteed Black Flash.
-//   F    Domain: Resonant Soul — every blow is a Black Flash for 8 seconds.
+//   3    The Zone: the post-Black-Flash flow state — for a few seconds the timing
+//        window widens and the first hit is a guaranteed Black Flash.
+//   F    Ultimate (no domain): Consecutive Black Flash — four Black Flashes in a
+//        row on the strongest curse, then a Divergent Fist finisher.
 import * as THREE from 'three/webgpu';
 import { Kit } from './kit.js';
 import { registerKit } from './index.js';
@@ -16,13 +17,13 @@ const tmp = new THREE.Vector3();
 
 export const YUJI_SKILLS = [
   { id: 'bf_window', name: 'Sparks of Black', desc: 'Wider Black Flash timing window.', max: 3 },
-  { id: 'bf_ce', name: 'The Zone', desc: 'Black Flashes restore Cursed Energy.', max: 2, req: 'bf_window' },
+  { id: 'bf_ce', name: 'Black Spark Surge', desc: 'Black Flashes restore Cursed Energy.', max: 2, req: 'bf_window' },
   { id: 'combo', name: 'Heavy Hands', desc: '+8% melee damage per rank.', max: 3 },
   { id: 'divergent', name: 'Divergent Fist', desc: 'The delayed impact hits harder.', max: 3 },
   { id: 'manji', name: 'Manji Kick', desc: 'Bigger launch radius and damage.', max: 2 },
   { id: 'rubble', name: 'Boulder', desc: 'Rubble Throw is bigger and explodes.', max: 2 },
   { id: 'vitality', name: 'Vessel Body', desc: '+15 max HP per rank.', max: 3 },
-  { id: 'focus', name: 'Focus', desc: 'Black Flash Focus lasts longer.', max: 2, req: 'bf_window' },
+  { id: 'focus', name: 'Deeper Zone', desc: 'The Zone lasts longer.', max: 2, req: 'bf_window' },
 ];
 
 class YujiKit extends Kit {
@@ -42,13 +43,12 @@ class YujiKit extends Kit {
       ranged: this.ability({ name: 'Rubble Throw', icon: '🪨', cd: 2.2, ce: 0, use: () => this.rubble() }),
       t1: this.ability({ name: 'Divergent Fist', icon: '👊', cd: 5, ce: 10, use: () => this.divergent() }),
       t2: this.ability({ name: 'Manji Kick', icon: '🦵', cd: 8, ce: 14, use: () => this.manji() }),
-      t3: this.ability({ name: 'BF Focus', icon: '⚡', cd: 18, ce: 25, use: () => this.focus() }),
+      t3: this.ability({ name: 'The Zone', icon: '⚡', cd: 18, ce: 25, use: () => this.focus() }),
     };
-    this.domain = {
-      name: 'Resonant Soul', icon: '⚡', key: 'resonance', type: 5, color: 0xff5a3a, sound: 'resonance', flash: 0xff4020,
-      duration: 8, radius: 24,
-      onStart: () => { this.domainBF = true; }, onEnd: () => { this.domainBF = false; },
-    };
+    // Yuji has no canon Domain Expansion to cast here: F is his payoff move —
+    // a chain of consecutive Black Flashes (he tied Nanami's record of four)
+    // sealed with a Divergent Fist whose cursed energy lands a beat later.
+    this.ultimate = { name: 'Consecutive Black Flash', icon: '⚡', use: () => this.blackFlashChain() };
     this.window = 0.13 + r('bf_window') * 0.035;
     this.windowAt = -9; this.armed = false; this.focusT = 0;
   }
@@ -67,7 +67,6 @@ class YujiKit extends Kit {
     if (this.armed && Math.random() < 0.6) this.game.particles.burst(this.handPos(), { count: 1, color: 0xff2020, speed: 2, life: 0.25, size: 0.1, shape: 1 });
   }
   blackFlashReady() {
-    if (this.domainBF && this.game.domainSys.sureHit(this.p)) return true;
     if (this.focusT > 0 && this.focusFirst) { this.focusFirst = false; return true; }
     if (!this.armed) return false;
     this.armed = false;
@@ -139,8 +138,100 @@ class YujiKit extends Kit {
     this.focusT = 5 + this.rank('focus') * 1.5; this.focusFirst = true;
     g.fx.flash(0x200000, 0.35, 0.2);
     g.audio?.charge(0.5, 0.6);
-    g.toast?.('Black Flash Focus');
+    g.toast?.('In the Zone');
     g.bolts.spawn(this.p.pos.clone().setY(this.p.pos.y + 1), { count: 5, length: 2, life: 0.3 });
   }
+  // -------------------------------------------------------------- ultimate
+  pickVictim(range) {
+    const g = this.game, p = this.p;
+    let best = null, bs = -1;
+    for (const e of g.enemies) {
+      if (e.dead || e.isDummy) continue;
+      const d = e.pos.distanceTo(p.pos); if (d > range) continue;
+      const sc = (e.isBoss ? 1e6 : 0) + e.hp - d * 2;
+      if (sc > bs) { bs = sc; best = e; }
+    }
+    return best;
+  }
+  blackFlashChain() {
+    const g = this.game, p = this.p;
+    let tgt = this.pickVictim(14);
+    if (!tgt) { g.toast?.('No curse in reach'); g.audio?.ui('back'); return false; }
+    const HITS = 4;
+    const styles = ['punch', 'swingR', 'swingL', 'uppercut'];
+    p.invulnerable = true; this.chainOn = true;
+    g.slowMo(2.6, 0.35);
+    g.fx.dimTarget = 0.5;
+    g.toast?.('BLACK FLASH', 'domain');
+    g.audio?.charge(0.6, 0.5);
+    g.bolts.spawn(p.pos.clone().setY(p.pos.y + 1), { count: 8, length: 2.5, life: 0.4 });
+    let t = 0, n = 0, phase = 'chain', fin = 0;
+    const strikeAt = (e) => {
+      // blink to the curse's side and strike
+      tmp.subVectors(p.pos, e.pos).setY(0); if (tmp.lengthSq() < 0.01) tmp.set(0, 0, -1);
+      tmp.setLength(e.radius + 1.1);
+      const to = e.pos.clone().add(tmp);
+      if (!g.world.solidAt(to.x, to.y + 0.5, to.z) && !g.world.solidAt(to.x, to.y + 1.5, to.z)) { p.pos.copy(to); p.visY = to.y; p.vel.set(0, 0, 0); }
+      p.facing = Math.atan2(e.pos.x - p.pos.x, e.pos.z - p.pos.z);
+    };
+    g.addUpdater((dt) => {
+      if (!this.chainOn) return false;
+      t += dt;
+      if (phase === 'chain') {
+        if (t < 0.17) return true;
+        t = 0;
+        if (!tgt || tgt.dead) tgt = this.pickVictim(10);
+        if (!tgt) { phase = 'finish'; return true; }
+        strikeAt(tgt);
+        const st = styles[n % styles.length];
+        p.action = { type: 'attack', step: { style: st, strike: 0.5, windup: 0.3 }, style: st, dur: 0.22, elapsed: 0, t: 0, windup: 0.3, strike: 0.5, struck: true, moveScale: 0 };
+        g.combat.damageEnemy(tgt, 42, p, { melee: true, blackFlash: true, unblockable: true, crit: false, stagger: 0.8, knock: new THREE.Vector3() });
+        g.combat.aoe(tgt.pos, 2.4, 14, p, { melee: true, knock: 3, stagger: 0.3, blocks: false });
+        g.combat.blackFlashFx(p, tgt);
+        g.fx.hitSpark(tgt.pos.clone().setY(tgt.pos.y + tgt.height * 0.6), null, { color: 0xff2020, big: true });
+        g.hitStop(0.09); g.shake(0.45);
+        g.audio?.impact(1.6, 'crit');
+        if (this.rank('bf_ce')) p.gainCE(6 * this.rank('bf_ce'));
+        g.bfCount = (g.bfCount ?? 0) + 1;
+        if (++n >= HITS) phase = 'finish';
+        return true;
+      }
+      // Divergent Fist: the punch lands, then the cursed energy a beat later
+      if (fin === 0) {
+        if (t < 0.22) return true;
+        fin = 1; t = 0;
+        if (!tgt || tgt.dead) tgt = this.pickVictim(10);
+        if (tgt) strikeAt(tgt);
+        p.action = { type: 'attack', step: { style: 'punch', strike: 0.5, windup: 0.3 }, style: 'punch', dur: 0.4, elapsed: 0, t: 0, windup: 0.3, strike: 0.5, struck: true, moveScale: 0 };
+        if (tgt) g.combat.damageEnemy(tgt, 40, p, { melee: true, unblockable: true, crit: false, stagger: 0.6, knock: new THREE.Vector3() });
+        g.fx.hitSpark(this.handPos(), null, { color: 0x9ad8ff, big: true });
+        g.audio?.impact(1.3);
+        return true;
+      }
+      if (t < 0.32) return true;
+      const c = tgt && !tgt.dead ? tgt.pos.clone() : this.handPos().setY(p.pos.y);
+      const dmg = 110 + this.rank('divergent') * 25;
+      if (tgt && !tgt.dead) g.combat.damageEnemy(tgt, dmg, p, { unblockable: true, crit: false, stagger: 1.2, knock: tmp.subVectors(tgt.pos, p.pos).setY(0).normalize().multiplyScalar(16), color: '#6ad8ff' });
+      g.combat.aoe(c, 4.5, 45 + this.rank('divergent') * 10, p, { knock: 12, stagger: 0.8, falloff: true });
+      g.fx.explosion(c.clone().setY(c.y + 1), 0x6ad8ff, 4);
+      g.fx.shockwave(c, 0x6ad8ff, 6);
+      g.fx.screenWave(c.clone().setY(c.y + 1), 1.4, 0.6);
+      g.fx.flash(0x9ad8ff, 0.5, 0.25); g.fx.chroma(1.5);
+      g.shake(0.9); g.hitStop(0.12);
+      g.debris.burst(c, 7, 12, 1.3);
+      g.audio?.impact(2);
+      this.endChain();
+      // the Zone after a Black Flash: sharper timing for a while
+      this.focusT = Math.max(this.focusT, 6); this.focusFirst = true;
+      return false;
+    });
+  }
+  endChain() {
+    if (!this.chainOn) return;
+    this.chainOn = false;
+    this.p.invulnerable = false; this.p.action = null;
+    this.game.fx.dimTarget = 0;
+  }
+  dispose() { super.dispose(); this.endChain(); }
 }
 registerKit('yuji', YujiKit, YUJI_SKILLS);

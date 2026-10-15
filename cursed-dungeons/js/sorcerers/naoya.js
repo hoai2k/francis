@@ -9,8 +9,10 @@
 //   2    Acceleration: max stacks; for a few seconds every blow panels its target.
 //   3    Mach Strike: spend every stack on one sound-barrier-breaking dash punch;
 //        panelled curses shatter.
-//   F    Domain: Time Cell Moon Palace — everything inside is forced to 24fps;
-//        any curse that moves tears its own body apart.
+//   F    Domain: Time Cell Moon Palace — Projection Sorcery on every body
+//        inside: whatever moves breaks apart in proportion to how far it
+//        moved (attacking counts), freezing in 24fps panels; holding still
+//        is the only defence. A full moon and a ring of 24 film frames.
 import * as THREE from 'three/webgpu';
 import { Kit } from './kit.js';
 import { registerKit, registerSorcerer } from './index.js';
@@ -51,7 +53,7 @@ export const NAOYA_SKILLS = [
   { id: 'dash', name: 'Projection', desc: 'Projection Dash reaches further and hits harder.', max: 3 },
   { id: 'blitz', name: 'Blitz', desc: 'More Blitz strikes.', max: 2, req: 'dash' },
   { id: 'mach', name: 'Sound Barrier', desc: 'Mach Strike scales harder with stacks.', max: 3, req: 'tempo' },
-  { id: 'palace', name: 'Moon Palace', desc: 'Domain lasts 2s longer and moving curses take more damage.', max: 1, req: 'frames' },
+  { id: 'palace', name: 'Moon Palace', desc: 'Time Cell Moon Palace lasts 2s longer and moving bodies break harder.', max: 1, req: 'frames' },
 ];
 
 class NaoyaKit extends Kit {
@@ -72,27 +74,40 @@ class NaoyaKit extends Kit {
       t2: this.ability({ name: 'Acceleration', icon: '⏩', cd: 14, ce: 16, use: () => this.accelerate() }),
       t3: this.ability({ name: 'Mach Strike', icon: '💨', cd: 15, ce: 30, use: () => this.mach() }),
     };
+    // Time Cell Moon Palace: Projection Sorcery applied to the cells of every
+    // body inside. Anything that moves out of step with the 24 frames breaks
+    // itself apart — damage is proportional to how far it moved (attacking
+    // counts as moving), and each break freezes it in a flat 24fps panel.
     this.domain = {
-      name: 'Time Cell Moon Palace', icon: '🌕', key: 'time_cell_moon_palace', type: 1, color: FRAME, sound: 'void', flash: 0xe0f4ff,
+      name: 'Time Cell Moon Palace', icon: '🌕', key: 'time_cell_moon_palace', type: 6, color: FRAME, sound: 'void', flash: 0xe0f4ff,
+      look: { floor: 0x161a2c, seam: 0xa8f0ff, sparkle: 0xffffff, skyTop: 0x000004, skyHorizon: 0x1a2a4a, stars: 0.8, band: 0xd8e8ff },
       duration: 8 + r('palace') * 2, radius: 24,
-      onStart: (g) => { for (const e of g.enemies) e.cellPos = e.pos.clone(); this.stacks = this.maxStacks; },
+      onStart: (g, d) => {
+        for (const e of g.enemies) e.cellPos = e.pos.clone();
+        this.stacks = this.maxStacks;
+        this.buildPalace(g, d);
+        g.toast?.('Every body inside now moves at 24 frames per second — moving breaks it');
+      },
       onTick: (g, d, dt) => {
         this.stacks = this.maxStacks; this.stackT = 3;
+        if (this.palace) { this.palace.userData.strip.rotation.y += dt * 0.08; }
         d.tick = (d.tick ?? 0) - dt;
         if (d.tick > 0) return;
         d.tick = 0.25;
         for (const e of g.enemies) {
-          if (e.dead || e.isDummy || !g.domainSys.inside(e.pos)) continue;
-          const moved = e.cellPos ? Math.hypot(e.pos.x - e.cellPos.x, e.pos.z - e.cellPos.z) : 0;
+          if (e.dead || e.isDummy || !g.domainSys.inside(e.pos)) { if (!e.dead) e.cellPos = null; continue; }
+          let moved = e.cellPos ? Math.hypot(e.pos.x - e.cellPos.x, e.pos.z - e.cellPos.z) + Math.abs(e.pos.y - e.cellPos.y) : 0;
           e.cellPos = (e.cellPos ?? new THREE.Vector3()).copy(e.pos);
-          e.slowT = 0.4;
-          // moving out of step with the 24 frames destroys the body from the inside
-          const dmg = 3 + moved * (14 + r('palace') * 8);
-          g.combat.damageEnemy(e, dmg, this.p, { stagger: moved > 0.4 ? 0.3 : 0, ceGain: 0, unblockable: true, color: '#a8f0ff' });
-          if (moved > 0.3 || Math.random() < 0.25) this.panel(e, 0.35);
+          if (e.state === 'windup' || e.state === 'recover') moved += 0.6;   // swinging is moving too
+          if (moved < 0.05) continue;   // perfectly still: the cells hold
+          const dmg = 2 + moved * (26 + r('palace') * 10) * (e.isBoss ? 0.6 : 1);
+          g.combat.damageEnemy(e, dmg, this.p, { stagger: moved > 0.5 ? 0.35 : 0, ceGain: 0, unblockable: true, crit: false, color: '#a8f0ff' });
+          // the body cracks along the frame lines
+          g.particles.burst(tmp.copy(e.pos).setY(e.pos.y + e.height * 0.5), { count: 4 + Math.min(12, Math.round(moved * 6)), color: Math.random() < 0.5 ? FRAME : 0xffffff, speed: 3, life: 0.35, size: 0.1, drag: 3, shape: 1, intensity: 3 });
+          if (moved > 0.3) this.panel(e, 0.25);
         }
       },
-      onEnd: (g) => { for (const e of g.enemies) e.cellPos = null; },
+      onEnd: (g) => { for (const e of g.enemies) e.cellPos = null; this.clearPalace(); },
     };
     this.stacks = 0; this.stackT = 0; this.accelT = 0;
     this.panels = [];
@@ -102,7 +117,44 @@ class NaoyaKit extends Kit {
   get maxStacks() { return 8 + this.rank('tempo'); }
   get speedMul() { return 1 + this.stacks * 0.05 + (this.accelT > 0 ? 0.25 : 0); }
   get power() { return 1 + this.stacks * 0.05; }
-  dispose() { super.dispose(); for (const pn of this.panels) this.game.scene.remove(pn.mesh); this.panels = []; }
+  dispose() { super.dispose(); for (const pn of this.panels) this.game.scene.remove(pn.mesh); this.panels = []; this.clearPalace(); }
+  // Domain set-piece: a vast full moon over the palace and a ring of 24 film
+  // frames (with sprocket holes) circling the arena.
+  buildPalace(g, d) {
+    this.clearPalace();
+    const grp = new THREE.Group();
+    const moonMat = new THREE.MeshBasicNodeMaterial({ color: new THREE.Color(0xfff6e0).multiplyScalar(2.2), fog: false });
+    const haloMat = new THREE.MeshBasicNodeMaterial({ color: new THREE.Color(0xa8c8ff).multiplyScalar(0.8), transparent: true, opacity: 0.35, depthWrite: false, fog: false });
+    const moon = new THREE.Mesh(new THREE.CircleGeometry(9, 48), moonMat);
+    const halo = new THREE.Mesh(new THREE.RingGeometry(9.2, 13, 48), haloMat);
+    const mp = d.center.clone().add(new THREE.Vector3(0, 16, -34));
+    for (const m of [moon, halo]) { m.position.copy(mp); m.lookAt(d.center.x, d.center.y + 2, d.center.z); grp.add(m); }
+    halo.position.addScaledVector(tmp.subVectors(d.center, mp).normalize(), -0.2);
+    // the film strip: 24 frames, one for each frame of a second
+    const strip = new THREE.Group(); strip.position.copy(d.center).setY(d.center.y + 4.5);
+    const edge = this.panelMats.edge, holeMat = new THREE.MeshBasicNodeMaterial({ color: 0x05060a });
+    const bar = new THREE.BoxGeometry(1, 1, 1);
+    const R = d.radius - 3, W = (2 * Math.PI * R) / 24 * 0.86, H = 3.2;
+    for (let i = 0; i < 24; i++) {
+      const a = (i / 24) * Math.PI * 2;
+      const f = new THREE.Group(); f.position.set(Math.cos(a) * R, 0, Math.sin(a) * R); f.rotation.y = -a - Math.PI / 2;
+      const add = (m, w, h, dd, x, y) => { const o = new THREE.Mesh(bar, m); o.scale.set(w, h, dd); o.position.set(x, y, 0); f.add(o); };
+      add(edge, W, 0.08, 0.08, 0, H / 2); add(edge, W, 0.08, 0.08, 0, -H / 2);
+      add(edge, 0.08, H, 0.08, -W / 2, 0); add(edge, 0.08, H, 0.08, W / 2, 0);
+      for (const y of [H / 2 + 0.3, -H / 2 - 0.3]) for (let k = 0; k < 4; k++) add(holeMat, 0.3, 0.22, 0.1, -W / 2 + (k + 0.5) * W / 4, y);
+      add(edge, W + 0.3, 0.05, 0.05, 0, H / 2 + 0.6); add(edge, W + 0.3, 0.05, 0.05, 0, -H / 2 - 0.6);
+      strip.add(f);
+    }
+    grp.add(strip);
+    grp.userData = { strip, geos: [moon.geometry, halo.geometry, bar] };
+    g.scene.add(grp); this.palace = grp;
+  }
+  clearPalace() {
+    if (!this.palace) return;
+    this.game.scene.remove(this.palace);
+    for (const geo of this.palace.userData.geos) geo.dispose();
+    this.palace = null;
+  }
   addStack(n = 1) { this.stacks = Math.min(this.maxStacks, this.stacks + n); this.stackT = 2.5 + this.rank('tempo') * 0.5; }
   onMeleeHit(e) { this.addStack(1); if (this.accelT > 0) this.panel(e, 0.8); }
   // ------------------------------------------------------------ panels

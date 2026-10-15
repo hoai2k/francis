@@ -4,17 +4,17 @@
 //   1    Sword Drill: the arm becomes a spinning drill-blade and he rockets
 //        forward, grinding through curses.
 //   2    Bastion: a barrier dome that eats projectiles and blunts damage.
-//   3    Absolute Mode: mini-drones deploy and fire on curses, and the Ultra
-//        Cannon switches to Maximum Output.
-//   F    Domain: Puppet Manipulation: Remote Fortress (invented — Mechamaru
-//        never expands a domain): puppet turrets rise round the arena and
-//        rake curses with cannon fire.
+//   3    Absolute Mode (Mechamaru Mode: Absolute): the puppet goes all-out —
+//        auxiliary mini puppets deploy and fire on curses, and the Ultra
+//        Cannon fires a heavier, wider beam.
+//   F    Ultimate — Ultra Cannon: Maximum Output. Mechamaru has no Domain
+//        Expansion; his trump card is dumping the cursed energy Muta stored
+//        up for years (his Heavenly Restriction) into one colossal beam that
+//        punches through walls and everything in its path.
 import * as THREE from 'three/webgpu';
 import { Kit } from './kit.js';
 import { registerKit, registerSorcerer } from './index.js';
 import { registerLook } from '../entities/models.js';
-import { registerDomainEnv } from '../world/biomes.js';
-import { B } from '../world/blocks.js';
 import { beamMaterial, orbMaterial } from '../gfx/orbs.js';
 
 const CYAN = 0x40e0ff, WHITE = 0xe0f8ff, STEEL = 0x9aa2ae;
@@ -22,8 +22,8 @@ const tmp = new THREE.Vector3(), tmp2 = new THREE.Vector3();
 const UNIT_CYL = new THREE.CylinderGeometry(1, 1, 1, 16, 1, true);
 
 registerSorcerer('mechamaru', {
-  name: 'Mechamaru', technique: 'Puppet Manipulation', rarity: 'uncommon', title: 'Ultimate Mechamaru', color: '#40e0ff', domain: 'Puppet Manipulation: Remote Fortress',
-  desc: 'A remote-piloted battle puppet: palm-mounted Ultra Cannon, Sword Drill, a Bastion barrier and Absolute Mode drones.',
+  name: 'Mechamaru', technique: 'Puppet Manipulation', rarity: 'uncommon', title: 'Ultimate Mechamaru', color: '#40e0ff', ultimate: 'Ultra Cannon: Maximum Output',
+  desc: 'A remote-piloted battle puppet: palm-mounted Ultra Cannon, Sword Drill, a Bastion barrier, Absolute Mode — and Maximum Output, years of stored cursed energy in one beam.',
 });
 
 registerLook('mechamaru', {
@@ -53,13 +53,8 @@ registerLook('mechamaru', {
   },
 });
 
-registerDomainEnv('puppet_fortress', {
-  skyTop: 0x02060a, skyHorizon: 0x0a3a4a, fog: 0x041014, fogDensity: 0.02, hemiSky: 0x8ae8ff, hemiGround: 0x060a0e, hemiI: 1.0, sun: 0xb0f0ff, sunI: 0.8,
-  grade: { tint: [0.9, 1.02, 1.1], lift: [0.0, 0.015, 0.025], sat: 0.9, contrast: 1.2, vignette: 0.5 }, floor: B.metal_grate,
-});
-
 export const MECHAMARU_SKILLS = [
-  { id: 'cannon', name: 'Ultra Cannon', desc: 'Cannon beams hit harder and reach further.', max: 3 },
+  { id: 'cannon', name: 'Ultra Cannon', desc: 'Cannon beams (and Maximum Output) hit harder and reach further.', max: 3 },
   { id: 'overcharge', name: 'Overcharge', desc: 'Ultra Cannon recharges faster.', max: 2, req: 'cannon' },
   { id: 'drill', name: 'Sword Drill', desc: 'Longer drilling charge and a harder final thrust.', max: 3 },
   { id: 'bastion', name: 'Bastion', desc: 'Bastion lasts longer; at rank 2 it fires projectiles back.', max: 2 },
@@ -84,30 +79,7 @@ class MechamaruKit extends Kit {
       t2: this.ability({ name: 'Bastion', icon: '🛡️', cd: 13, ce: 14, use: () => this.bastion() }),
       t3: this.ability({ name: 'Absolute Mode', icon: '🤖', cd: 28, ce: 40, use: () => this.absolute() }),
     };
-    this.domain = {
-      name: 'Puppet Manipulation: Remote Fortress', icon: '🏯', key: 'puppet_fortress', type: 3, color: CYAN, sound: 'void', flash: 0xc0f8ff,
-      duration: 8, radius: 22,
-      onStart: (g, d) => this.raiseTurrets(g, d),
-      onTick: (g, d, dt) => {
-        for (const T of this.turrets ?? []) {
-          T.cd -= dt;
-          T.mesh.rotation.y += dt * 0.6;
-          if (T.cd > 0) continue;
-          T.cd = 1.1 + Math.random() * 0.4;
-          const list = g.enemies.filter((e) => !e.dead && !e.isDummy && g.domainSys.inside(e.pos));
-          if (!list.length) continue;
-          const e = list[Math.floor(Math.random() * list.length)];
-          const from = T.mesh.position.clone().setY(T.mesh.position.y + 2.2);
-          const to = tmp.copy(e.pos).setY(e.pos.y + e.height * 0.5);
-          const dir = to.clone().sub(from); const L = dir.length(); dir.normalize();
-          g.fx.slashLine(from, dir, L, CYAN, 0.45, 0.2); g.fx.slashLine(from, dir, L, WHITE, 0.15, 0.12);
-          g.combat.damageEnemy(e, 18, this.p, { stagger: 0.4, ceGain: 0, unblockable: true, knock: dir.clone().setY(0).setLength(4) });
-          g.fx.hitSpark(to, dir, { color: CYAN });
-          g.audio?.tone({ freq: 900, to: 300, dur: 0.15, gain: 0.06, type: 'sawtooth', filter: 3000 });
-        }
-      },
-      onEnd: (g) => { for (const T of this.turrets ?? []) { g.scene.remove(T.mesh); g.fx.poof(T.mesh.position); } this.turrets = null; },
-    };
+    this.ultimate = { name: 'Ultra Cannon: Maximum Output', icon: '🔆', use: () => this.maximumOutput() };
     this.beamMats = [beamMaterial(CYAN), beamMaterial(WHITE, true)];
     this.drones = []; this.absT = 0; this.bastionT = 0;
     this.dome = new THREE.Mesh(new THREE.IcosahedronGeometry(2.3, 3), orbMaterial(CYAN, { power: 2.2, intensity: 1.6 }));
@@ -117,9 +89,8 @@ class MechamaruKit extends Kit {
   dispose() {
     super.dispose();
     for (const d of this.drones) this.game.scene.remove(d.mesh);
-    for (const T of this.turrets ?? []) this.game.scene.remove(T.mesh);
     if (this.drill) this.p.rig.handR.remove(this.drill);
-    this.drones = [];
+    this.drones = []; this.maxOut = null; this.game.fx.dimTarget = 0;
   }
   // ------------------------------------------------------------- Ultra Cannon
   beam(from, dir, L, W, dmg, { pierceWalls = false, knock = 6 } = {}) {
@@ -160,10 +131,10 @@ class MechamaruKit extends Kit {
   cannon() {
     const g = this.game, p = this.p, rk = this.rank('cannon');
     const max = this.absT > 0;
-    const charge = max ? 0.45 : 0.22;
+    const charge = max ? 0.32 : 0.22;
     p.action = { type: 'cast', dur: charge + 0.15, elapsed: 0, t: 0, moveScale: max ? 0.1 : 0.3, faceAim: true, lock: true };
     g.audio?.charge(charge, max ? 0.7 : 1.4);
-    if (max) { g.toast?.('Maximum Output: Ultra Cannon'); g.fx.dimTarget = 0.35; }
+
     let t = 0;
     g.addUpdater((dt) => {
       t += dt;
@@ -172,11 +143,11 @@ class MechamaruKit extends Kit {
       if (t < charge) return true;
       const target = g.domainSys?.sureHit(p) ? g.nearestEnemy(p.aimPoint, 30) : null;
       const dir = target ? tmp2.copy(target.pos).setY(target.pos.y + target.height * 0.5).sub(h).normalize().clone() : p.aimDir.clone();
-      if (max) {
-        g.fx.dimTarget = 0;
-        this.beam(h, dir, 24 + rk * 3, 1.1, (40 + rk * 12) * 2.5, { pierceWalls: true, knock: 12 });
-        g.fx.flash(0xc0f8ff, 0.45, 0.2); g.fx.screenWave(h, 1, 0.45); g.fx.chroma(1);
-        g.shake(0.6); g.hitStop(0.07); g.audio?.energy('purple');
+      if (max) {   // Absolute Mode: a heavier, wider cannon
+        this.beam(h, dir, 17 + rk * 2, 0.75, (16 + rk * 6) * 2.2, { knock: 9 });
+        g.fx.flash(0xc0f8ff, 0.2, 0.1); g.shake(0.3); g.hitStop(0.04);
+        g.audio?.tone({ freq: 900, to: 120, dur: 0.35, gain: 0.16, type: 'sawtooth', filter: 3000 });
+        g.audio?.noise({ dur: 0.35, gain: 0.35, type: 'bandpass', freq: 2000, sweep: 400, q: 2 });
       } else {
         this.beam(h, dir, 13 + rk * 2, 0.4, 16 + rk * 6);
         g.shake(0.12);
@@ -271,23 +242,6 @@ class MechamaruKit extends Kit {
     g.toast?.('Absolute Mode');
     g.audio?.energy('summon'); g.audio?.charge(0.5, 1.5);
   }
-  raiseTurrets(g, d) {
-    const metal = new THREE.MeshStandardNodeMaterial({ color: 0x8a929e, metalness: 0.85, roughness: 0.3 });
-    const glow = new THREE.MeshStandardNodeMaterial({ color: CYAN, emissive: CYAN, emissiveIntensity: 3 });
-    this.turrets = [];
-    for (let i = 0; i < 6; i++) {
-      const a = (i / 6) * Math.PI * 2, R = d.radius * 0.6;
-      const grp = new THREE.Group();
-      const b = (w, h, dd, x, y, z, m) => { const mm = new THREE.Mesh(new THREE.BoxGeometry(w, h, dd), m); mm.position.set(x, y, z); mm.castShadow = true; grp.add(mm); };
-      b(1, 1.8, 1, 0, 0.9, 0, metal); b(1.4, 0.6, 1.4, 0, 2, 0, metal); b(0.9, 0.3, 0.2, 0, 2.05, 0.71, glow); b(0.25, 0.25, 1.2, 0, 2.2, 0.8, metal);
-      const x = d.center.x + Math.cos(a) * R, z = d.center.z + Math.sin(a) * R;
-      const gy = g.world.groundBelow(x, z, d.center.y + 4);
-      grp.position.set(x, isFinite(gy) ? gy : d.center.y, z);
-      g.scene.add(grp);
-      g.fx.summonCircle(grp.position, CYAN);
-      this.turrets.push({ mesh: grp, cd: 0.8 + i * 0.2 });
-    }
-  }
   tick(dt) {
     const g = this.game, p = this.p;
     // Bastion dome
@@ -338,6 +292,64 @@ class MechamaruKit extends Kit {
       const back = tmp.set(-Math.sin(p.facing) * 0.35, 0, -Math.cos(p.facing) * 0.35);
       g.particles.glow.emit(p.pos.x + back.x, p.pos.y + 1.2, p.pos.z + back.z, back.x, -1.2, back.z, 0.3, 0.4, 1.6, 2.2, 0.1, 0, 2, 0.1, 0);
     }
+  }
+  // ------------------------------------------------------------- Ultimate
+  // Ultra Cannon: Maximum Output — every drop of the cursed energy Muta
+  // stored up over the years, fired in one colossal beam.
+  maximumOutput() {
+    const g = this.game, p = this.p, rk = this.rank('cannon');
+    if (this.maxOut) return false;
+    const M = this.maxOut = {};
+    const charge = 1.3;
+    p.action = { type: 'cast', both: true, dur: charge + 1.2, elapsed: 0, t: 0, moveScale: 0, faceAim: true, lock: true, hold: true, cancelable: false };
+    p.iframes = Math.max(p.iframes, charge + 1.2);
+    g.toast?.('Ultra Cannon: Maximum Output', 'big');
+    g.fx.dimTarget = 0.55; g.slowMo(1.0, 0.4); g.fx.chroma(0.6);
+    g.audio?.charge(charge, 0.5); g.audio?.charge(charge, 0.75);
+    let t = 0, fired = false, pulse = 0, pulses = 0, dir = null, from = null;
+    const L = 40 + rk * 4;
+    g.addUpdater((dt) => {
+      if (this.maxOut !== M || this.p.kit !== this) { g.fx.dimTarget = 0; return false; }
+      t += dt;
+      const h = this.handPos();
+      if (!fired) {
+        const k = Math.min(1, t / charge);
+        // stored energy pours into the palm from all around him
+        for (let i = 0; i < 6; i++) {
+          const a = Math.random() * Math.PI * 2, rr = 1 + Math.random() * (3 - k * 2);
+          g.particles.glow.emit(h.x + Math.cos(a) * rr, h.y + (Math.random() - 0.5) * 2, h.z + Math.sin(a) * rr, -Math.cos(a) * rr * 4, 0, -Math.sin(a) * rr * 4, 0.25, 0.4, 1.8, 2.4, 0.12, 0, 0, 0.2, 1);
+        }
+        g.particles.burst(h, { count: 1, color: WHITE, speed: 0, life: 0.08, size: 0.4 + k * 1.6, sizeEnd: 0.2, intensity: 4 });
+        if (Math.random() < 0.3) g.fx.rings.spawn(tmp.set(p.pos.x, p.pos.y + 0.06, p.pos.z), { color: CYAN, r0: 3, r1: 0.4, dur: 0.3, thick: 0.1 });
+        g.shake(0.05 + k * 0.1);
+        if (t < charge) return true;
+        fired = true;
+        g.fx.dimTarget = 0;
+        const target = g.domainSys?.sureHit(p) ? g.nearestEnemy(p.aimPoint, 40) : null;
+        dir = target ? tmp2.copy(target.pos).setY(target.pos.y + target.height * 0.5).sub(h).normalize().clone() : p.aimDir.clone();
+        from = h.clone();
+        this.beam(from, dir, L, 2.2, 300 + rk * 70, { pierceWalls: true, knock: 18 });
+        g.fx.flash(0xe0fcff, 0.85, 0.3); g.fx.screenWave(from, 2, 0.8); g.fx.chroma(2);
+        g.shake(1.2); g.hitStop(0.12); g.slowMo(0.6, 0.3);
+        g.audio?.energy('purple'); g.audio?.energy('explode');
+        // recoil skids the puppet backwards
+        p.vel.x -= dir.x * 9; p.vel.z -= dir.z * 9;
+        return true;
+      }
+      // the beam keeps pouring out for a moment
+      pulse -= dt;
+      if (pulse <= 0 && pulses < 6) {
+        pulse = 0.14; pulses++;
+        this.beam(from, dir, L, 1.6 - pulses * 0.15, 24 + rk * 6, { pierceWalls: true, knock: 6 });
+        g.particles.burst(from, { count: 10, color: CYAN, speed: 8, dir: dir.clone(), spread: 0.4, life: 0.3, size: 0.15, shape: 1, intensity: 3 });
+        g.shake(0.3);
+        return true;
+      }
+      if (pulses < 6) return true;
+      this.maxOut = null; p.action = null;
+      g.fx.poof(p.pos);
+      return false;
+    });
   }
 }
 registerKit('mechamaru', MechamaruKit, MECHAMARU_SKILLS);

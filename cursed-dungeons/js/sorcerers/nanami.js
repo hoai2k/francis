@@ -5,17 +5,19 @@
 //   LMB  cloth-wrapped blade combo (bonus Ratio crit on the exposed mark).
 //   RMB  Ratio Strike: lunge at the mark and cut the 7:3 point — always a crit.
 //   1    7:3 Flurry: seven fast cuts, then a heavy cut through the weak point.
-//   2    Collapse: strike the ground's weak point — terrain shatters and rubble
-//        rains on every curse nearby.
+//   2    Black Flash: a tie-wrapped punch that always sparks black. Nanami
+//        holds the record — chain them within a few seconds for up to four in a
+//        row, each one harder than the last.
 //   3    Overtime: the binding vow lifts — damage up, speed up, and the weak
 //        point stays exposed. Overtime also clocks in by itself after a long fight.
-//   F    Endless Overtime (invented — Nanami has no canon domain): every curse
-//        inside is marked and ratio lines cut through them on the clock.
+//   F    Extension Technique: Collapse (ultimate — Nanami has no canon domain):
+//        the 7:3 point of the ground itself is struck. The whole floor around
+//        him shatters, curses are buried, and the ceiling's worth of rubble
+//        comes down on them.
 import * as THREE from 'three/webgpu';
 import { Kit } from './kit.js';
 import { registerKit, registerSorcerer } from './index.js';
 import { registerLook } from '../entities/models.js';
-import { registerDomainEnv } from '../world/biomes.js';
 import { B } from '../world/blocks.js';
 
 const GOLD = 0xffd84a, CLOTH = 0xf2f0e8, SUIT = 0xd8c8a0;
@@ -23,8 +25,8 @@ const tmp = new THREE.Vector3(), tmp2 = new THREE.Vector3();
 
 registerSorcerer('nanami', {
   name: 'Nanami', technique: 'Ratio Technique', rarity: 'rare', title: 'Grade 1 Salaryman',
-  desc: 'Mark a curse and cut its 7:3 weak point for huge crits, Collapse the terrain onto curses, and work Overtime for raw power.',
-  domain: 'Endless Overtime', color: '#ffd84a',
+  desc: 'Mark a curse and cut its 7:3 weak point for huge crits, land record-setting Black Flashes, work Overtime for raw power, and Collapse the very ground onto curses.',
+  ultimate: 'Collapse', color: '#ffd84a',
 });
 
 registerLook('nanami', {
@@ -60,16 +62,11 @@ registerLook('nanami', {
   },
 });
 
-registerDomainEnv('endless_overtime', {
-  skyTop: 0x1a0c08, skyHorizon: 0xff9a40, fog: 0x3a1c0c, fogDensity: 0.016, hemiSky: 0xffc890, hemiGround: 0x2a1408, hemiI: 1.1, sun: 0xffb060, sunI: 1.3,
-  grade: { tint: [1.1, 1.0, 0.86], lift: [0.03, 0.015, 0.0], sat: 1.1, contrast: 1.12, vignette: 0.45 }, floor: B.polished,
-});
-
 export const NANAMI_SKILLS = [
   { id: 'ratio', name: '7:3', desc: 'Ratio criticals hit harder.', max: 3 },
   { id: 'window', name: 'Precise Eye', desc: 'The weak point stays exposed longer.', max: 3 },
-  { id: 'flurry', name: 'Diligent Work', desc: '7:3 Flurry cuts faster and harder.', max: 2 },
-  { id: 'collapse', name: 'Collapse', desc: 'Wider collapse and more falling rubble.', max: 3 },
+  { id: 'flurry', name: 'Diligent Work', desc: '7:3 Flurry cuts faster and harder; Black Flash hits harder.', max: 2 },
+  { id: 'collapse', name: 'Collapse', desc: 'Collapse (ultimate) shatters a wider area and brings down more rubble.', max: 3 },
   { id: 'overtime', name: 'Overtime', desc: 'Overtime lasts longer and hits harder.', max: 3 },
   { id: 'contract', name: 'Binding Vow', desc: 'Overtime clocks in sooner on its own.', max: 2, req: 'overtime' },
 ];
@@ -87,25 +84,15 @@ class NanamiKit extends Kit {
     this.slots = {
       ranged: this.ability({ name: 'Ratio Strike', icon: '📏', cd: 1.6, ce: 0, use: () => this.ratioStrike() }),
       t1: this.ability({ name: '7:3 Flurry', icon: '🗡️', cd: 6, ce: 12, use: () => this.flurry() }),
-      t2: this.ability({ name: 'Collapse', icon: '🧱', cd: 10, ce: 20, use: () => this.collapse() }),
+      t2: this.ability({ name: 'Black Flash', icon: '⚡', cd: 7, ce: 16, use: () => this.blackFlashPunch() }),
       t3: this.ability({ name: 'Overtime', icon: '🕔', cd: 24, ce: 30, use: () => { this.cast(0.4, true); this.startOvertime(9 + r('overtime') * 2); } }),
     };
-    this.domain = {
-      name: 'Endless Overtime', icon: '🕔', key: 'endless_overtime', type: 5, color: GOLD, sound: 'overtime', flash: 0xffb060,
-      duration: 8, radius: 24,
-      onStart: (g) => { this.startOvertime(9, true); g.toast?.('No canon domain — this one is pure overtime.'); },
-      onTick: (g, d, dt) => {
-        d.tick = (d.tick ?? 0) - dt;
-        if (d.tick > 0) return;
-        d.tick = 0.5;
-        const list = g.enemies.filter((e) => !e.dead && !e.isDummy && g.domainSys.inside(e.pos));
-        for (let i = 0; i < Math.min(3, list.length); i++) this.ratioCut(list[Math.floor(Math.random() * list.length)], 16, 2.2);
-      },
-    };
-    this.mark = null; this.cycle = 0; this.workT = 0; this.overtimeT = 0;
+    this.ultimate = { name: 'Collapse', icon: '🧱', use: () => this.collapse() };
+    this.mark = null; this.cycle = 0; this.workT = 0; this.overtimeT = 0; this.bfStreak = 0; this.bfT = 0;
     this.buildMarker();
   }
-  dispose() { super.dispose(); this.disposed = true; }
+  dispose() { super.dispose(); this.disposed = true; for (const id of this.timers ?? []) clearTimeout(id); this.timers = []; this.game.fx.dimTarget = 0; }
+  later(ms, fn) { if ((this.timers ??= []).length > 200) this.timers = this.timers.slice(-100); this.timers.push(setTimeout(() => { if (!this.disposed) fn(); }, ms)); }
   // ------------------------------------------------------------ 7:3 marker
   buildMarker() {
     const grp = new THREE.Group();
@@ -135,6 +122,7 @@ class NanamiKit extends Kit {
   tick(dt) {
     const g = this.game, p = this.p;
     this.cycle = (this.cycle + dt) % 1.4;
+    this.bfT -= dt; if (this.bfT <= 0) this.bfStreak = 0;
     this.mark = this.pickMark();
     const m = this.marker;
     if (this.mark && !this.mark.dead) {
@@ -187,7 +175,40 @@ class NanamiKit extends Kit {
     this.pending = { step: p.action.step, target: t };
     g.audio?.whoosh(0.9);
   }
+  // Black Flash: cursed energy lands within 0.000001s of the blow — the
+  // impact distorts space and the hit is 2.5x. Nanami's record is four in a row.
+  blackFlashPunch() {
+    const g = this.game, p = this.p;
+    const t = this.mark && !this.mark.dead && this.mark.pos.distanceTo(p.pos) < 7 ? this.mark : g.nearestEnemy(p.pos, 6);
+    if (t) p.aimDir.copy(tmp.subVectors(t.pos, p.pos).setY(0).normalize());
+    if (p.rig.extras.tie) p.rig.extras.tie.visible = true;
+    const step = { style: 'punch', dur: 0.36, windup: 0.3, strike: 0.5, dmg: 0, range: 2.8, arc: 0.9, lunge: 13, knock: 0, stop: 0, shake: 0, trail: 0xff2a2a, custom: true };
+    p.startAttack(step, 0);
+    this.pendingBF = { step: p.action.step, target: t };
+    g.audio?.whoosh(1);
+  }
+  landBlackFlash(target) {
+    const g = this.game, p = this.p, rk = this.rank('flurry');
+    this.bfStreak = Math.min(4, this.bfStreak + 1); this.bfT = 4;
+    const kd = tmp.subVectors(target.pos, p.pos).setY(0).normalize();
+    g.combat.damageEnemy(target, (20 + rk * 6) * (1 + (this.bfStreak - 1) * 0.15), p, { melee: true, blackFlash: true, stagger: 1, knock: kd.clone().multiplyScalar(11) });
+    g.combat.blackFlashFx(p, target);
+    g.fx.hitSpark(target.pos.clone().setY(target.pos.y + target.height * 0.6), kd, { color: 0xff2020, big: true, crit: true });
+    g.hitStop(0.1); g.shake(0.45);
+    // in the zone: the flow of cursed energy sharpens after a Black Flash
+    p.gainCE(6);
+    g.toast?.(this.bfStreak >= 4 ? '⚡ BLACK FLASH ×4 — the record' : `⚡ BLACK FLASH${this.bfStreak > 1 ? ' ×' + this.bfStreak : ''}`);
+  }
   onStrike(step) {
+    if (this.pendingBF && step === this.pendingBF.step) {
+      const g = this.game, p = this.p, t = this.pendingBF.target; this.pendingBF = null;
+      if (p.rig.extras.tie && !this.overtime) p.rig.extras.tie.visible = false;
+      let target = t && !t.dead && t.pos.distanceTo(p.pos) < 3.4 + t.radius ? t : null;
+      if (!target) target = g.combat.query(p.pos, tmp.set(Math.sin(p.facing), 0, Math.cos(p.facing)), 3, 0.9)[0];
+      if (!target) { g.fx.slashArc(p.pos, p.facing, 0xff2a2a, 2.4, 0.3, 0.15); return; }
+      this.landBlackFlash(target);
+      return;
+    }
     if (!this.pending || step !== this.pending.step) return;
     const g = this.game, p = this.p, t = this.pending.target; this.pending = null;
     const rk = this.rank('ratio');
@@ -223,40 +244,68 @@ class NanamiKit extends Kit {
       }
     }, i * gap);
   }
+  // Extension Technique: Collapse. Nanami strikes the weak point of the
+  // ground — it is a structure like any other, so the 7:3 point brings the
+  // whole thing down. Ultimate: a huge area, in slow motion.
   collapse() {
     const g = this.game, p = this.p, rk = this.rank('collapse');
     const to = p.aimPoint.clone(); tmp.subVectors(to, p.pos).setY(0);
-    if (tmp.length() > 9) to.copy(p.pos).addScaledVector(tmp.normalize(), 9);
+    if (tmp.length() > 5) to.copy(p.pos).addScaledVector(tmp.normalize(), 5);
     const gy = g.world.groundBelow(to.x, to.z, p.pos.y + 3); to.y = isFinite(gy) ? gy : p.pos.y;
-    const R = 4 + rk * 0.8;
+    const R = 10 + rk * 1.3;
     p.facing = Math.atan2(to.x - p.pos.x, to.z - p.pos.z);
-    p.action = { type: 'attack', step: { style: 'slam', strike: 0.55, windup: 0.4 }, style: 'slam', dur: 0.6, elapsed: 0, t: 0, windup: 0.4, strike: 0.55, struck: true, moveScale: 0.1 };
-    // ratio lines etched across the ground first
-    for (let i = 0; i < 4; i++) { const a = i / 4 * Math.PI + Math.random() * 0.3; const d = tmp2.set(Math.cos(a), 0, Math.sin(a)); g.fx.slashLine(to.clone().setY(to.y + 0.12).addScaledVector(d, -R), d.clone(), R * 2, GOLD, 0.15, 0.5); }
-    g.fx.rings.spawn(tmp.set(to.x, to.y + 0.08, to.z), { color: GOLD, r0: R, r1: R * 0.7, dur: 0.35, thick: 0.08 });
-    g.audio?.charge(0.3, 1.2);
-    setTimeout(() => {
-      if (this.disposed) return;
-      g.combat.hitBlocks(to.clone().setY(to.y - 1), tmp.set(0, 0, 1), R, Math.PI, 400, p);
-      g.combat.hitBlocks(to, tmp.set(0, 0, 1), R, Math.PI, 400, p);
-      const n = g.combat.aoe(to, R, 30 + rk * 12, p, { knock: 6, stagger: 1, blocks: false, crit: true, critMult: 1.5 });
-      for (const e of g.enemies) if (!e.dead && e.pos.distanceTo(to) < R + 1) e.slowT = 2.5;   // buried in rubble
-      g.debris.burst(to.clone().setY(to.y + 0.4), B.stone_brick, 16, 1.3);
-      g.fx.shockwave(to, GOLD, R + 1.5); g.fx.screenWave(to, 0.9, 0.5);
-      g.fx.flash(0x2a1a08, 0.3, 0.15);
-      g.shake(0.6); g.hitStop(n ? 0.08 : 0.04);
-      g.audio?.breakBlock('stone'); g.audio?.energy('explode');
-      // rubble rains down
-      const rocks = 6 + rk * 2;
-      for (let i = 0; i < rocks; i++) setTimeout(() => {
-        const a = Math.random() * Math.PI * 2, rr = Math.random() * R;
-        const from = to.clone().add(tmp.set(Math.cos(a) * rr, 7 + Math.random() * 3, Math.sin(a) * rr));
-        g.projectiles.fire({ pos: from, vel: new THREE.Vector3(0, -6, 0), team: 'player', shape: 'cube', color: 0x8a8070, emissive: 0.05, gravity: 24, life: 2, scale: 1.4 + Math.random(), radius: 0.6, ghost: false,
-          onHit: (e) => { g.combat.damageEnemy(e, 14 + rk * 4, p, { stagger: 0.5, knock: new THREE.Vector3(0, 0, 0) }); },
-          onExpire: (q) => { g.combat.aoe(q.pos, 1.4, 8 + rk * 3, p, { stagger: 0.3, blocks: false }); g.fx.debris(q.pos, 0x8a8070, 4); g.audio?.impact(0.6); } });
-      }, 120 + i * 70);
-    }, 330);
+    p.action = { type: 'cast', both: true, dur: 0.75, elapsed: 0, t: 0, moveScale: 0, lock: true, hold: true, cancelable: false };
+    p.iframes = Math.max(p.iframes, 1.4);
+    g.slowMo(1.3, 0.3);
+    g.fx.dimTarget = 0.45; g.fx.chroma(0.6);
+    g.toast?.('EXTENSION TECHNIQUE: COLLAPSE', 'domain');
+    g.rig.cinematic?.({ center: to.clone().setY(to.y + 0.5), dur: 2.4, dist: 17, pitch: 0.75, orbit: 0.2 });
+    // the 7:3 lines: Nanami reads the ground as one huge target
+    const fwd = new THREE.Vector3(Math.sin(p.facing), 0, Math.cos(p.facing)), side = new THREE.Vector3(fwd.z, 0, -fwd.x);
+    for (let i = -3; i <= 3; i++) {
+      const o = i / 3 * R * 0.8, half = Math.sqrt(Math.max(0, R * R - o * o));
+      g.fx.slashLine(to.clone().setY(to.y + 0.12).addScaledVector(side, o).addScaledVector(fwd, -half), fwd.clone(), half * 2, GOLD, 0.12, 0.9);
+      g.fx.slashLine(to.clone().setY(to.y + 0.12).addScaledVector(fwd, o).addScaledVector(side, -half), side.clone(), half * 2, GOLD, 0.12, 0.9);
+    }
+    // the weak point itself: the 7:3 mark along his line of sight
+    const weak = to.clone().addScaledVector(fwd, R * 0.4).setY(to.y + 0.15);
+    g.fx.rings.spawn(weak, { color: 0xffffff, r0: 2.4, r1: 0.2, dur: 0.6, thick: 0.25 });
+    g.fx.slashLine(weak.clone().addScaledVector(side, -R * 0.7), side.clone(), R * 1.4, 0xffffff, 0.3, 0.9);
+    g.fx.rings.spawn(tmp.set(to.x, to.y + 0.1, to.z), { color: GOLD, r0: R, r1: R * 0.96, dur: 0.8, thick: 0.08 });
+    g.audio?.charge(0.6, 1.1);
+    this.later(320, () => { p.action = { type: 'attack', step: { style: 'slam', strike: 0.5, windup: 0.35 }, style: 'slam', dur: 0.55, elapsed: 0, t: 0, windup: 0.35, strike: 0.5, struck: true, moveScale: 0 }; });
+    this.later(560, () => {
+      g.fx.dimTarget = 0;
+      // the floor goes: a crater of broken blocks across the whole area
+      for (let rr = 0; rr <= R; rr += 3) g.combat.hitBlocks(to.clone().setY(to.y - 1), tmp.set(0, 0, 1), Math.max(2, rr), Math.PI, 500, p);
+      g.combat.hitBlocks(to, tmp.set(0, 0, 1), R * 0.6, Math.PI, 500, p);
+      const n = g.combat.aoe(to, R, 70 + rk * 22, p, { knock: 7, stagger: 1.2, blocks: false, crit: true, critMult: 1.5, falloff: true, color: '#ffd84a' });
+      for (const e of g.enemies) {
+        if (e.dead || e.pos.distanceTo(to) > R + 1) continue;
+        e.slowT = Math.max(e.slowT ?? 0, 5);                       // buried in rubble
+        if (!e.isBoss) { e.sealT = Math.max(e.sealT ?? 0, 1.4); e.cancelAttack?.(); }
+        if (!e.isBoss) e.vel.y = Math.max(e.vel.y, 6);
+      }
+      for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2; g.debris.burst(to.clone().add(tmp.set(Math.cos(a) * R * 0.55, 0.4, Math.sin(a) * R * 0.55)), B.stone_brick, 10, 1.6); }
+      g.debris.burst(to.clone().setY(to.y + 0.4), B.stone_brick, 24, 2);
+      g.fx.shockwave(to, GOLD, R + 2, 0.7); g.fx.shockwave(to, 0xffffff, R * 0.5, 0.4); g.fx.screenWave(to, 1.6, 0.7);
+      g.particles.burst(to.clone().setY(to.y + 0.5), { count: 60, color: 0x8a7a6a, additive: false, speed: R, up: 0.6, life: 1.4, size: 0.8, drag: 3, sizeEnd: 3 });
+      g.lights.flash(to.clone().setY(to.y + 2), GOLD, 20, R * 2, 0.5, { priority: 8 });
+      g.fx.flash(0x3a2408, 0.5, 0.25); g.fx.chroma(1.2);
+      g.shake(1); g.hitStop(n ? 0.14 : 0.06);
+      g.audio?.breakBlock('stone'); g.audio?.energy('explode'); g.audio?.impact(2.2);
+      // then everything above comes down
+      const rocks = 22 + rk * 6;
+      for (let i = 0; i < rocks; i++) this.later(160 + i * 55, () => {
+        const a = Math.random() * Math.PI * 2, rr = Math.sqrt(Math.random()) * R;
+        const from = to.clone().add(tmp.set(Math.cos(a) * rr, 9 + Math.random() * 5, Math.sin(a) * rr));
+        g.projectiles.fire({ pos: from, vel: new THREE.Vector3(0, -8, 0), team: 'player', shape: 'cube', color: 0x8a8070, emissive: 0.05, gravity: 26, life: 2.2, scale: 1.6 + Math.random() * 1.4, radius: 0.8, ghost: false,
+          onHit: (e) => { g.combat.damageEnemy(e, 22 + rk * 6, p, { stagger: 0.6, knock: new THREE.Vector3(0, 0, 0) }); },
+          onExpire: (q) => { g.combat.aoe(q.pos, 1.8, 12 + rk * 4, p, { stagger: 0.4, blocks: false }); g.fx.debris(q.pos, 0x8a8070, 5); g.shake(0.08); g.audio?.impact(0.7); } });
+      });
+    });
   }
+
   startOvertime(dur, quiet = false) {
     const g = this.game, p = this.p;
     if (!this.overtime && !this.otBonus) { this.otBonus = 0.25 + this.rank('overtime') * 0.08; p.stats.damage += this.otBonus; }

@@ -11,6 +11,7 @@ export class Kit {
       ranged: this.ability({ name: 'Cursed Blast', icon: '✦', cd: 0.55, ce: 0, use: () => this.cursedBlast() }),
     };
     this.domain = null;
+    this.ultimate = null;   // { name, icon, use } — F for sorcerers without a canon domain
     this.skills = {};   // skill-tree ranks, filled from save
   }
   ability(o) { return { cdLeft: 0, charges: 1, ...o }; }
@@ -40,10 +41,14 @@ export class Kit {
       }
       if (s.onRelease && inp.released[k]) s.onRelease();
     }
-    if (this.domain && inp.pressed.domain && this.domainLocked) this.lockedPing('domain');
-    else if (this.domain && inp.pressed.domain && this.p.ce >= this.p.maxCe && !this.game.domain && this.canCast(this.domain)) {
-      this.p.ce = 0;
-      this.game.startDomain(this.p, this.domain);
+    // F: a Domain Expansion, or for sorcerers without a canon domain, an
+    // ultimate attack. Both need a full Cursed Energy bar.
+    if (inp.pressed.domain && (this.domain || this.ultimate)) {
+      if (this.domainLocked) this.lockedPing('domain');
+      else if (this.p.ce >= this.p.maxCe && this.canCast(this.domain ?? this.ultimate)) {
+        if (this.domain && !this.game.domain) { this.p.ce = 0; this.game.startDomain(this.p, this.domain); }
+        else if (this.ultimate && this.ultimate.use() !== false) this.p.ce = 0;
+      }
     }
     this.tick?.(dt, inp);
   }
@@ -51,7 +56,7 @@ export class Kit {
     const g = this.game;
     if ((g.time - (this.pingT ?? -9)) < 1.2) return;
     this.pingT = g.time;
-    g.toast?.(`🔒 ${k === 'domain' ? 'Domain Expansion' : this.slots[k]?.name ?? 'Technique'} is locked — unlock it on the technique tree (Shrine steps)`);
+    g.toast?.(`🔒 ${k === 'domain' ? (this.domain ? 'Domain Expansion' : this.ultimate?.name ?? 'Ultimate') : this.slots[k]?.name ?? 'Technique'} is locked — unlock it on the technique tree (Shrine steps)`);
     g.audio?.ui('back');
   }
   canCast() { const a = this.p.action; return this.p.dodgeT <= 0 && !(a && a.type === 'cast' && a.lock); }

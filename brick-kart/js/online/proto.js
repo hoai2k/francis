@@ -62,7 +62,7 @@ export function withSeed(seed, fn) {
 // 19 gesture counter              20 finish time (0 = racing)  21 studs  22 trick spin
 export const F = {
   GROUND: 1, GLIDE: 2, DRIFT: 4, BOOST: 8, GOLD: 16, SHIELD: 32, MEGA: 64, BULLET: 128, GHOST: 256,
-  FROZEN: 512, FIN: 1024, GONE: 2048, LOOK: 4096, CPU: 8192, HELP: 16384,
+  FROZEN: 512, FIN: 1024, GONE: 2048, LOOK: 4096, CPU: 8192,
 };
 export const STATE_LEN = 23;
 export function encodeKart(k, t, out) {
@@ -79,8 +79,7 @@ export function encodeKart(k, t, out) {
   if (k.ghostTime > 0) f |= F.GHOST;
   if (k.frozenTime > 0) f |= F.FROZEN;
   if (k.finished) f |= F.FIN;
-  if (k.respawn > 0 && !k.respawnPlaced && !k.fishing) f |= F.GONE;
-  if (k.respawn > 0 && (k.fishing || k.respawnPlaced)) f |= F.HELP;   // on the rescue helper's line (js/rescue.js)
+  if (k.respawn > 0 && !k.respawnPlaced) f |= F.GONE;
   if (k.lookBack) f |= F.LOOK;
   if (!k.human) f |= F.CPU;
   const vx = Math.sin(k.moveYaw) * k.speed + k.kvx, vz = Math.cos(k.moveYaw) * k.speed + k.kvz;

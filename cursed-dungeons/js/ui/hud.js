@@ -61,7 +61,8 @@ export class HUD {
     for (const slot of ['ranged', 't1', 't2', 't3']) if (k.slots[slot]) mk(slot, k.slots[slot]);
     mk('heal', { name: 'Reverse CT', icon: '✚' });
     p.artifacts.forEach((a, i) => mk('art' + (i + 1), { name: a.base.name.split(' ').slice(-1)[0], icon: a.base.icon }));
-    if (k.domain) mk('domain', { name: k.domain.name, icon: k.domain.icon ?? '領' }, true);
+    const ult = k.domain ?? k.ultimate;
+    if (ult) mk('domain', { name: ult.name, icon: ult.icon ?? '領' }, true);
     this.abilityRows.set(p, { p, els, device: p.device, kit: p.kit, sig: p.artifacts.map((a) => a.it.uid).join() });
   }
   setObjective(title, desc) {
@@ -111,7 +112,7 @@ export class HUD {
         let frac = 0, ready = true, cnt = '';
         if (slot === 'heal') { frac = p.healCharges > 0 ? p.healCd / 1.2 : 1; ready = p.healCharges > 0; cnt = String(p.healCharges); }
         else if (slot.startsWith('art')) { const a = p.artifacts[+slot[3] - 1]; if (!a) continue; frac = a.cdLeft / (a.cd * (1 - p.stats.cdr)); ready = a.cdLeft <= 0; }
-        else if (slot === 'domain') { frac = 1 - p.ce / p.maxCe; ready = p.ce >= p.maxCe && !g.domain; }
+        else if (slot === 'domain') { frac = 1 - p.ce / p.maxCe; ready = p.ce >= p.maxCe && (!g.domain || !p.kit.domain); }
         else { const ab = p.kit.slots[slot]; frac = ab.cdLeft / Math.max(0.01, ab.cd * p.kit.cdr); ready = ab.cdLeft <= 0 && p.ce >= (ab.ce ?? 0); if (ab.maxCharges > 1) cnt = String(ab.chargesLeft ?? ''); }
         const locked = slot === 'heal' ? !p.rctUnlocked : slot === 'domain' ? p.kit.domainLocked : p.kit.locked?.(slot);
         if (locked) { ready = false; frac = 0; }

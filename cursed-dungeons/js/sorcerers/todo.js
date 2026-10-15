@@ -9,16 +9,17 @@
 //        them dizzy and battered.
 //   2    Stone Swap: hurl a rock, then clap — you swap to it mid-battle and
 //        crash down on the curses around it.
-//   3    Brotherly Black Flash: swap to a curse and land a four-hit chain of
-//        Black Flashes.
-//   F    Besto Friendo Stage (invented — Todo has no canon domain): the whole
-//        arena claps along, curses are shuffled endlessly and Black Flash
-//        comes easy.
+//   3    Feint Clap: a clap that swaps nothing. Every curse nearby flinches,
+//        braced for a swap that never comes — their attacks fall apart and
+//        Todo's next blow is a sure Black Flash.
+//   F    Boogie Woogie × Black Flash (ultimate — Todo has no canon domain): the
+//        Shibuya combo. Slow motion, clap after clap — Todo swaps himself and
+//        the curses around his target, every landing is a Black Flash, and the
+//        last one is a ground-breaking finisher.
 import * as THREE from 'three/webgpu';
 import { Kit } from './kit.js';
 import { registerKit, registerSorcerer } from './index.js';
 import { registerLook } from '../entities/models.js';
-import { registerDomainEnv } from '../world/biomes.js';
 import { B } from '../world/blocks.js';
 
 const VIOLET = 0xc070ff, PINK = 0xff5ac8, SWAP = 0x9ad8ff;
@@ -27,7 +28,7 @@ const tmp = new THREE.Vector3(), tmp2 = new THREE.Vector3();
 registerSorcerer('todo', {
   name: 'Todo', technique: 'Boogie Woogie', rarity: 'rare', title: 'Best Friend',
   desc: 'Clap to swap places with curses (or swap them with each other), leaving them confused, then brawl with a high Black Flash chance.',
-  domain: 'Besto Friendo Stage', color: '#c070ff',
+  ultimate: 'Boogie Woogie × Black Flash', color: '#c070ff',
 });
 
 registerLook('todo', {
@@ -52,17 +53,12 @@ registerLook('todo', {
   },
 });
 
-registerDomainEnv('besto_friendo', {
-  skyTop: 0x0e0418, skyHorizon: 0xff4ac8, fog: 0x2a0a2a, fogDensity: 0.016, hemiSky: 0xd88aff, hemiGround: 0x1a0418, hemiI: 1.2, sun: 0xffa0e8, sunI: 1.1,
-  grade: { tint: [1.08, 0.95, 1.1], lift: [0.02, 0.0, 0.03], sat: 1.3, contrast: 1.12, vignette: 0.45 }, floor: B.floor_boards,
-});
-
 export const TODO_SKILLS = [
   { id: 'clap', name: 'Boogie Woogie', desc: 'Longer swap range; swapped curses stay confused longer.', max: 3 },
   { id: 'spark', name: 'Black Spark', desc: 'Higher Black Flash chance.', max: 3 },
   { id: 'barrage', name: 'Clap Barrage', desc: 'More claps and harder shuffles.', max: 2, req: 'clap' },
   { id: 'stone', name: 'Stone Swap', desc: 'Bigger crash when you swap to the rock.', max: 2 },
-  { id: 'brother', name: 'My Brother', desc: 'Brotherly Black Flash hits harder.', max: 3, req: 'spark' },
+  { id: 'brother', name: 'My Brother', desc: 'Boogie Woogie × Black Flash (ultimate) claps more often and hits harder.', max: 3, req: 'spark' },
   { id: 'body', name: 'Brawler\'s Body', desc: '+8% melee damage and +12 max HP per rank.', max: 3 },
 ];
 
@@ -83,30 +79,13 @@ class TodoKit extends Kit {
       ranged: this.ability({ name: 'Boogie Woogie', icon: '👏', cd: 1.1, ce: 0, use: () => this.clapSwap() }),
       t1: this.ability({ name: 'Clap Barrage', icon: '🎶', cd: 8, ce: 14, use: () => this.barrage() }),
       t2: this.ability({ name: 'Stone Swap', icon: '🪨', cd: 7, ce: 12, use: () => this.stoneSwap() }),
-      t3: this.ability({ name: 'Brother BF', icon: '⚡', cd: 18, ce: 30, use: () => this.brotherFlash() }),
+      t3: this.ability({ name: 'Feint Clap', icon: '🙌', cd: 12, ce: 18, use: () => this.feintClap() }),
     };
-    this.domain = {
-      name: 'Besto Friendo Stage', icon: '🎤', key: 'besto_friendo', type: 5, color: VIOLET, sound: 'besto', flash: 0xff5ac8,
-      duration: 8, radius: 24,
-      onStart: (g) => { this.stage = true; g.toast?.('BESTO FRIENDO! (no canon domain — just vibes)'); },
-      onTick: (g, d, dt) => {
-        d.tick = (d.tick ?? 0) - dt;
-        if (d.tick > 0) return;
-        d.tick = 0.6;
-        const list = g.enemies.filter((e) => !e.dead && !e.isDummy && g.domainSys.inside(e.pos));
-        const pairs = Math.min(3, Math.floor(list.length / 2));
-        for (let i = 0; i < pairs; i++) {
-          const a = list.splice(Math.floor(Math.random() * list.length), 1)[0], b = list.splice(Math.floor(Math.random() * list.length), 1)[0];
-          this.swapPair(a, b, 10);
-        }
-        if (list.length === 1) this.confuse(list[0], 1);
-        this.clapFx(this.p.pos, 0.7);
-      },
-      onEnd: () => { this.stage = false; },
-    };
+    this.ultimate = { name: 'Boogie Woogie × Black Flash', icon: '⚡', use: () => this.brotherFlash() };
     this.openT = 0; this.bfChain = 0;
   }
-  dispose() { super.dispose(); this.disposed = true; }
+  dispose() { super.dispose(); this.disposed = true; for (const id of this.timers ?? []) clearTimeout(id); this.timers = []; this.game.fx.dimTarget = 0; }
+  later(ms, fn) { if ((this.timers ??= []).length > 200) this.timers = this.timers.slice(-100); this.timers.push(setTimeout(() => { if (!this.disposed && !this.p.dead) fn(); }, ms)); }
   // ------------------------------------------------------------ helpers
   clapFx(at, s = 1) {
     const g = this.game;
@@ -162,7 +141,7 @@ class TodoKit extends Kit {
   }
   blackFlashReady() {
     if (this.bfChain > 0) { this.bfChain--; return true; }
-    const chance = 0.06 + this.rank('spark') * 0.03 + (this.openT > 0 ? 0.35 : 0) + (this.stage && this.game.domainSys.sureHit(this.p) ? 0.3 : 0);
+    const chance = 0.06 + this.rank('spark') * 0.03 + (this.openT > 0 ? 0.35 : 0);
     if (Math.random() < chance) { this.openT = 0; return true; }
     return false;
   }
@@ -254,30 +233,101 @@ class TodoKit extends Kit {
         this.openT = 1.4;
       } });
   }
+  // Feint Clap: the threat of Boogie Woogie is the technique. A clap that
+  // swaps nothing still makes every curse brace for one.
+  feintClap() {
+    const g = this.game, p = this.p;
+    this.cast(0.3, true);
+    this.clapFx(p.pos, 1.5);
+    g.fx.rings.spawn(tmp.set(p.pos.x, p.pos.y + 0.1, p.pos.z), { color: SWAP, r0: 0.5, r1: 8, dur: 0.35, thick: 0.1 });
+    let n = 0;
+    for (const e of g.enemies) {
+      if (e.dead || e.untargetable || e.pos.distanceTo(p.pos) > 8) continue;
+      if (e.state === 'windup') e.cancelAttack?.();   // they flinch out of the attack
+      this.confuse(e, 1.3);
+      n++;
+    }
+    this.bfChain = Math.max(this.bfChain, 1);           // the opening: a sure Black Flash
+    this.openT = 2;
+    p.iframes = Math.max(p.iframes, 0.3);
+    if (n) g.toast?.('🙌 Feint! — nothing swapped');
+  }
+  // Boogie Woogie × Black Flash: clap, swap, Black Flash — over and over.
   brotherFlash() {
     const g = this.game, p = this.p, rk = this.rank('brother');
-    const t = this.aimed(14) ?? g.nearestEnemy(p.pos, 10);
-    if (!t) { g.audio?.ui('back'); return false; }
-    this.clapFx(p.pos);
-    // swap behind it, then four Black Flashes in a row
-    if (t.pos.distanceTo(p.pos) > 2.5) this.swapEntities(p, t);
-    this.confuse(t, 1.6);
-    p.iframes = Math.max(p.iframes, 1);
-    const styles = ['punch', 'swingL', 'swingR', 'uppercut'];
-    styles.forEach((style, i) => setTimeout(() => {
-      if (p.dead || this.disposed || t.dead) return;
-      p.facing = Math.atan2(t.pos.x - p.pos.x, t.pos.z - p.pos.z);
-      p.action = { type: 'attack', step: { style, strike: 0.45, windup: 0.2 }, style, dur: 0.22, elapsed: 0, t: 0, windup: 0.2, strike: 0.45, struck: true, moveScale: 0 };
-      const at = t.pos.clone().setY(t.pos.y + t.height * 0.6);
-      const kd = tmp.subVectors(t.pos, p.pos).setY(0).normalize();
-      const last = i === styles.length - 1;
-      g.combat.damageEnemy(t, 16 + rk * 6, p, { melee: true, blackFlash: true, stagger: 0.8, knock: last ? kd.clone().multiplyScalar(14) : kd.clone().multiplyScalar(0.5) });
-      g.fx.hitSpark(at, kd, { color: 0xff2020, big: true });
-      if (i === 0 || last) g.combat.blackFlashFx(p, t);
-      else { g.fx.blackLightning(at); g.fx.blackFlash(0.1); g.audio?.impact(1.8, 'crit'); g.hitStop(0.05); }
-      if (last && !t.isBoss) t.vel.y = Math.max(t.vel.y, 10);
-      g.shake(0.3);
-    }, 120 + i * 190));
+    let best = null, bs = -1;
+    for (const e of g.enemies) {
+      if (e.dead || e.untargetable) continue;
+      const d = e.pos.distanceTo(p.pos); if (d > 16) continue;
+      const s = (e.isBoss ? 1e6 : 0) + e.maxHp - d * 2;
+      if (s > bs) { bs = s; best = e; }
+    }
+    if (!best) { g.toast?.('No one to clap at!'); g.audio?.ui('back'); return false; }
+    let t = best;
+    const beats = 7 + rk, gap = 250 - rk * 15;
+    const total = beats * gap + 700;
+    p.iframes = Math.max(p.iframes, total / 1000 + 0.3);
+    g.slowMo(total / 1000, 0.35);
+    g.fx.dimTarget = 0.4; g.fx.flash(VIOLET, 0.4, 0.2);
+    g.toast?.('BOOGIE WOOGIE × BLACK FLASH', 'domain');
+    g.rig.cinematic?.({ center: t.pos.clone().setY(t.pos.y + 0.5), dur: total / 1000 + 0.5, dist: 12, pitch: 0.5, orbit: 0.5 });
+    const retarget = () => {
+      if (t && !t.dead) return t;
+      t = g.nearestEnemy(p.pos, 12);
+      return t;
+    };
+    const punch = (e, i, last) => {
+      const style = last ? 'slam' : ['punch', 'swingL', 'swingR', 'uppercut'][i % 4];
+      p.facing = Math.atan2(e.pos.x - p.pos.x, e.pos.z - p.pos.z);
+      p.action = { type: 'attack', step: { style, strike: 0.45, windup: 0.2 }, style, dur: last ? 0.45 : 0.2, elapsed: 0, t: 0, windup: 0.2, strike: 0.45, struck: true, moveScale: 0 };
+      const at = e.pos.clone().setY(e.pos.y + e.height * 0.6);
+      const kd = tmp.subVectors(e.pos, p.pos).setY(0); if (kd.lengthSq() < 0.01) kd.set(Math.sin(p.facing), 0, Math.cos(p.facing)); kd.normalize();
+      g.combat.damageEnemy(e, last ? 45 + rk * 15 : 16 + rk * 5, p, { melee: true, blackFlash: true, unblockable: true, stagger: 0.9, knock: kd.clone().multiplyScalar(last ? 16 : 0.6), ceGain: 0 });
+      g.fx.hitSpark(at, kd, { color: 0xff2020, big: true, crit: true });
+      g.fx.blackLightning(at); g.fx.blackFlash(last ? 0.3 : 0.12);
+      g.lights.flash(at, 0xff1010, last ? 18 : 9, 12, 0.25);
+      g.audio?.impact(last ? 2.2 : 1.7, 'crit');
+      if (i % 3 === 0 || last) { g.audio?.blackFlash(); g.fx.screenWave(at, last ? 1.6 : 0.8, 0.45); }
+      g.shake(last ? 0.9 : 0.3); g.hitStop(last ? 0.16 : 0.04);
+      return at;
+    };
+    for (let i = 0; i < beats; i++) this.later(300 + i * gap, () => {
+      const e = retarget(); if (!e) return;
+      this.cast(0.12, true);
+      this.clapFx(p.pos, 1.1);
+      // shuffle: swap with the target, or swap a bystander in front of the fist
+      const others = g.enemies.filter((o) => o !== e && !o.dead && !o.untargetable && o.pos.distanceTo(e.pos) < 10);
+      const roll = Math.random();
+      let victim = e;
+      if (others.length && roll < 0.35) { const o = others[Math.floor(Math.random() * others.length)]; this.swapEntities(o, e); this.confuse(o, 1); victim = Math.random() < 0.5 ? o : e; }
+      else if (roll < 0.75 || e.pos.distanceTo(p.pos) > 2.6) this.swapEntities(p, e);
+      this.confuse(victim, 1.2);
+      // land next to it and hit it with a Black Flash
+      if (victim.pos.distanceTo(p.pos) > 2.4) {
+        const dir = tmp2.subVectors(p.pos, victim.pos).setY(0).normalize();
+        const to = victim.pos.clone().addScaledVector(dir, victim.radius + 1);
+        const gy = g.world.groundBelow(to.x, to.z, victim.pos.y + 2);
+        if (isFinite(gy) && Math.abs(gy - victim.pos.y) < 2 && !g.world.solidAt(to.x, gy + 0.5, to.z)) { g.fx.blinkPuff(p.pos, SWAP); p.pos.set(to.x, gy, to.z); p.visY = gy; p.vel.set(0, 0, 0); }
+      }
+      punch(victim, i, false);
+      if (victim !== e && !e.dead && e.pos.distanceTo(p.pos) < 3.2) punch(e, i + 1, false);
+    });
+    // the finisher: a final clap pulls the target in front of Todo for one last Black Flash
+    this.timers.push(setTimeout(() => { if (!this.disposed) g.fx.dimTarget = 0; }, 300 + beats * gap + 150));
+    this.later(300 + beats * gap + 150, () => {
+      const e = retarget(); if (!e) return;
+      this.clapFx(p.pos, 1.6);
+      if (e.pos.distanceTo(p.pos) > 2.4) this.swapEntities(p, e);
+      const at = punch(e, beats, true);
+      g.combat.aoe(e.pos, 4.5, 30 + rk * 10, p, { knock: 12, stagger: 1, melee: true, ceGain: 0 });
+      if (!e.isBoss && !e.dead) e.vel.y = Math.max(e.vel.y, 12);
+      g.combat.blackFlashFx(p, e);
+      g.fx.shockwave(e.pos, 0xff2020, 6); g.fx.shockwave(e.pos, VIOLET, 4);
+      g.debris.burst(at.clone().setY(e.pos.y + 0.3), B.stone, 12, 1.4);
+      g.fx.flash(0x000000, 0.5, 0.2); g.fx.chroma(1.5);
+      this.openT = 2;
+    });
   }
+
 }
 registerKit('todo', TodoKit, TODO_SKILLS);

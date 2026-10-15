@@ -6,6 +6,8 @@ import * as THREE from 'three/webgpu';
 import { moveEntity, groundAhead } from '../physics.js';
 import { buildCurseModel, CURSES, addEliteShell } from './curses.js';
 import { FLASH_MATERIAL } from './character.js';
+
+const MAX_ATTACKERS = 3;   // melee curses allowed to engage one target at a time
 import { damp, dampAngle, clamp, angleDiff } from '../util.js';
 
 const tmp = new THREE.Vector3(), tmp2 = new THREE.Vector3();
@@ -106,9 +108,24 @@ export class Enemy {
   }
 
   // ---------------------------------------------------------------- AI
+  // Melee attack tokens: the closest MAX_ATTACKERS melee curses on a target may engage.
+  hasToken(t) {
+    const g = this.game;
+    if (g.time - (this.tokenAt ?? -9) < 0.25) return this.token;
+    this.tokenAt = g.time;
+    const my = this.pos.distanceToSquared(t.pos);
+    let closer = 0;
+    for (const o of g.enemies) {
+      if (o === this || o.dead || o.isDummy || o.target !== t) continue;
+      const ai = o.def?.ai; if (ai !== 'melee' && ai !== 'tank') continue;
+      if (o.pos.distanceToSquared(t.pos) < my) closer++;
+    }
+    this.token = closer < MAX_ATTACKERS;
+    return this.token;
+  }
   pickTarget() {
     const g = this.game;
-    let best = null, bd = this.aggro ? 30 : 15;
+    let best = null, bd = this.aggro ? 22 : 12;
     for (const t of g.hostileTargets()) {
       if (t.dead || t.downed || t.untargetable) continue;
       const d = t.pos.distanceTo(this.pos);
@@ -184,6 +201,16 @@ export class Enemy {
       const toT = tmp.subVectors(t.pos, this.pos);
       switch (ai) {
         case 'melee': case 'tank':
+          // Only a few curses may attack the same target at once; the rest
+          // circle at a short distance and wait their turn.
+          if (!this.isBoss && !this.hasToken(t)) {
+            const ring = this.def.range + 2.2;
+            if (d > ring + 1) move.copy(this.steer(toT, 0.8));
+            else if (d < ring - 0.8) move.copy(this.steer(toT.negate(), 0.6));
+            else { const side = tmp.set(-toT.z, 0, toT.x).normalize().multiplyScalar(Math.sin(this.stateT * 0.6 + this.home.z) > 0 ? 1 : -1); move.copy(this.steer(side, 0.35)); }
+            this.faceTo(t.pos, dt);
+            break;
+          }
           if (d > this.def.range * 0.9) move.copy(this.steer(toT)); else move.copy(this.steer(toT, 0.1));
           this.faceTo(t.pos, dt);
           if (d < this.def.range + 0.2 && this.cd <= 0) this.startAttack(ai === 'tank' ? 'slam' : 'bite');
@@ -199,7 +226,7 @@ export class Enemy {
           else if (d < keep - 1.5) move.copy(this.steer(toT.negate(), 0.8));
           else { const side = tmp.set(-toT.z, 0, toT.x).normalize().multiplyScalar(Math.sin(this.stateT * 0.8 + this.home.x) > 0 ? 1 : -1); move.copy(this.steer(side, 0.5)); }
           this.faceTo(t.pos, dt);
-          if (this.cd <= 0 && d < this.def.range + 1) this.startAttack(ai === 'summon' && this.summonCount < 6 ? 'summon' : 'spit');
+          if (this.cd <= 0 && d < this.def.range + 1) this.startAttack(ai === 'summon' && this.summonCount < 3 ? 'summon' : 'spit');
           break;
         }
         case 'teleport':
@@ -340,7 +367,7 @@ export class Enemy {
         for (let i = 0; i < n; i++) {
           const a2 = this.facing + (i - (n - 1) / 2) * 0.9;
           const p = this.pos.clone().add(new THREE.Vector3(Math.sin(a2) * 1.8, 0, Math.cos(a2) * 1.8));
-          const gy = g.world.groundBelow(p.x, p.z, p.y + 2); if (!isFinite(gy)) continue;
+          const gy = g.world.standY(p.x, p.z, this.pos.y); if (!isFinite(gy)) continue;
           p.y = gy;
           g.spawnEnemy('imp', p, { summoned: true });
           g.fx.summonCircle(p, 0xff6ad8);
@@ -363,8 +390,8 @@ export class Enemy {
       const ang = t && !evade ? Math.atan2(t.pos.x - this.pos.x, t.pos.z - this.pos.z) + (Math.random() - 0.5) * 1.5 : Math.random() * Math.PI * 2;
       const r = evade ? 4 + Math.random() * 3 : 2.2;
       const p = base.clone().add(new THREE.Vector3(Math.sin(ang) * r, 0, Math.cos(ang) * r));
-      const gy = g.world.groundBelow(p.x, p.z, base.y + 3);
-      if (isFinite(gy) && Math.abs(gy - base.y) < 3 && !g.world.solidAt(p.x, gy + 0.5, p.z) && !g.world.solidAt(p.x, gy + 1.5, p.z)) { p.y = gy; dest = p; }
+      const gy = g.world.standY(p.x, p.z, base.y, 2);
+      if (isFinite(gy)) { p.y = gy; dest = p; }
     }
     if (!dest) { this.blinkCd = 1; return; }
     g.fx.blinkPuff(this.pos, 0xb05aff);

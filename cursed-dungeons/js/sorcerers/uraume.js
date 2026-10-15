@@ -6,19 +6,19 @@
 //   1    Icefall: huge ice shards rain down on the aim point.
 //   2    Frost Calm: a freezing breath in a wide cone.
 //   3    Shatter: every chilled or frozen curse bursts into razor ice.
-//   F    Domain: Frozen Sanctuary (invented — Uraume has no Domain in canon)
-//        — a blizzard that keeps freezing curses and shattering them.
+//   F    Ultimate (Uraume has no Domain in canon): Ice Formation: Frost Calm
+//        at full output — a white wave of frost freezes everything around
+//        solid, then giant Icefall spears erupt through the frozen curses
+//        and shatter them.
 import * as THREE from 'three/webgpu';
 import { Kit } from './kit.js';
 import { registerKit, registerSorcerer } from './index.js';
 import { registerLook } from '../entities/models.js';
-import { registerDomainEnv } from '../world/biomes.js';
-import { B } from '../world/blocks.js';
 
 const ICE = 0x9ae0ff, FROST = 0xe0f6ff, DEEP = 0x4aa8ff;
 const tmp = new THREE.Vector3();
 
-registerSorcerer('uraume', { name: 'Uraume', technique: 'Ice Formation', rarity: 'rare', title: 'Sukuna\'s Cook', desc: 'Direct Ice spikes, Icefall shards and the Frost Calm cone freeze curses solid for a devastating Shatter (Domain: Frozen Sanctuary, invented — Uraume has none in canon).', domain: 'Frozen Sanctuary', color: '#9ae0ff' });
+registerSorcerer('uraume', { name: 'Uraume', technique: 'Ice Formation', rarity: 'rare', title: 'Sukuna\'s Cook', desc: 'Direct Ice spikes, Icefall shards and the Frost Calm cone freeze curses solid for a devastating Shatter. Ultimate: Frost Calm at full output freezes the whole area.', ultimate: 'Frost Calm: Full Output', color: '#9ae0ff' });
 
 registerLook('uraume', {
   paint: { skinTone: 0xf6e4dc, hair: 0xf2f2f6, hairVolume: true, bob: true, top: 0xe8e2f0, kimono: true, sash: 0x6a5a9a, sleeve: 0xe8e2f0, pants: 0xd8d0e4, shoes: 0x6a5a9a, eye: 0xc0405a, brow: 0xe0e0e8, fringe: 3, hairSide: 6, hairBack: 6 },
@@ -38,18 +38,13 @@ registerLook('uraume', {
   },
 });
 
-registerDomainEnv('frozen_sanctuary', {
-  skyTop: 0x0a1a2a, skyHorizon: 0x8ac8ff, fog: 0xa8d0f0, fogDensity: 0.022, hemiSky: 0xe0f4ff, hemiGround: 0x2a4a6a, hemiI: 1.5, sun: 0xd8f0ff, sunI: 1.1,
-  grade: { tint: [0.9, 1.0, 1.15], lift: [0.02, 0.03, 0.05], sat: 0.8, contrast: 1.1, vignette: 0.45 }, floor: B.marble,
-});
-
 export const URAUME_SKILLS = [
   { id: 'frost_touch', name: 'Frost Touch', desc: '+8% melee damage per rank; melee chills harder.', max: 3 },
   { id: 'direct_ice', name: 'Direct Ice', desc: 'Longer, stronger ice spike lines.', max: 3 },
   { id: 'icefall', name: 'Icefall', desc: 'More and bigger falling shards.', max: 3 },
   { id: 'frost_calm', name: 'Frost Calm', desc: 'Wider, longer freeze.', max: 2 },
   { id: 'shatter', name: 'Shatter', desc: 'Shatter hits harder and its shards fly further.', max: 3, req: 'frost_calm' },
-  { id: 'permafrost', name: 'Permafrost', desc: 'Frozen curses stay frozen longer.', max: 2 },
+  { id: 'permafrost', name: 'Permafrost', desc: 'Frozen curses stay frozen longer; Frost Calm: Full Output reaches further.', max: 2 },
 ];
 
 class UraumeKit extends Kit {
@@ -70,25 +65,15 @@ class UraumeKit extends Kit {
       t2: this.ability({ name: 'Frost Calm', icon: '❄️', cd: 10, ce: 18, use: () => this.frostCalm() }),
       t3: this.ability({ name: 'Shatter', icon: '💠', cd: 12, ce: 26, use: () => this.shatter() }),
     };
-    this.domain = {
-      name: 'Frozen Sanctuary', icon: '❄️', key: 'frozen_sanctuary', type: 1, color: ICE, sound: 'void', flash: 0xe0f6ff,
-      duration: 8, radius: 24,
-      onTick: (g, d, dt) => {
-        // blizzard
-        for (let i = 0; i < 6; i++) { const a = Math.random() * Math.PI * 2, rr = Math.random() * d.radius; g.particles.glow.emit(d.center.x + Math.cos(a) * rr, d.center.y + 1 + Math.random() * 5, d.center.z + Math.sin(a) * rr, 4, -1.5, 1.5, 1.5, 2, 2.4, 2.8, 0.08, 0, 0.3, 0.6, 1); }
-        d.tick = (d.tick ?? 0) - dt; d.burst = (d.burst ?? 2.5) - dt;
-        if (d.tick <= 0) {
-          d.tick = 0.6;
-          for (const e of g.enemies) if (!e.dead && !e.isDummy && g.domainSys.inside(e.pos)) { this.chill(e, 1); g.combat.damageEnemy(e, 8, this.p, { stagger: 0, ceGain: 0, unblockable: true, color: '#9ae0ff' }); }
-        }
-        if (d.burst <= 0) { d.burst = 2.5; this.shatter(true); }
-      },
-    };
+    // F (no canon Domain): Ice Formation: Frost Calm at full output — the
+    // whole area flash-freezes, then Icefall spears burst up through every
+    // frozen curse and shatter it.
+    this.ultimate = { name: 'Frost Calm: Full Output', icon: '❄️', use: () => this.fullFrostCalm() };
     this.ices = [];
     this.iceGeo = new THREE.BoxGeometry(1, 1, 1);
     this.iceMat = new THREE.MeshStandardNodeMaterial({ color: ICE, roughness: 0.05, metalness: 0.1, transparent: true, opacity: 0.45, emissive: DEEP, emissiveIntensity: 0.6, depthWrite: false });
   }
-  dispose() { super.dispose(); for (const it of this.ices) this.game.scene.remove(it.mesh); this.ices = []; }
+  dispose() { super.dispose(); for (const it of this.ices) this.game.scene.remove(it.mesh); this.ices = []; this.clearGlacier(); }
   onMeleeHit(e) { this.chill(e, this.rank('frost_touch') >= 2 ? 2 : 1); }
   groundAt(x, z, y) { const gy = this.game.world.groundBelow(x, z, y + 3); return isFinite(gy) ? gy : y; }
   // ------------------------------------------------------------ chill / freeze
@@ -252,6 +237,105 @@ class UraumeKit extends Kit {
     g.shake(0.35); g.hitStop(0.06); g.fx.chroma(0.5);
     g.audio?.noise({ dur: 0.4, gain: 0.5, type: 'highpass', freq: 3000, sweep: 9000, rev: 0.3 });
     g.audio?.impact(1.5);
+  }
+  // ------------------------------------------------------------ F: Frost Calm, full output
+  fullFrostCalm() {
+    const g = this.game, p = this.p, rk = this.rank('permafrost');
+    const R = 18 + rk * 2, c = p.pos.clone();
+    p.action = { type: 'cast', both: true, dur: 2.4, elapsed: 0, t: 0, moveScale: 0, lock: true, hold: true, cancelable: false };
+    p.invulnerable = true;
+    g.slowMo?.(1.4, 0.25);
+    g.fx.dimTarget = 0.5;
+    g.toast?.('Ice Formation', 'domain');
+    setTimeout(() => g.toast?.('FROST CALM', 'domain'), 450);
+    g.rig.cinematic?.({ center: c.clone().setY(c.y + 0.5), dur: 3.2, dist: 14, pitch: 35 * Math.PI / 180, orbit: 0.3 });
+    g.audio?.charge(1.1, 1.6);
+    g.audio?.noise({ dur: 1.2, gain: 0.35, type: 'highpass', freq: 1500, sweep: 7000, attack: 1, rev: 0.5 });
+    const light = g.lights.flash(c.clone().setY(c.y + 2), ICE, 8, R, 3.4, { priority: 6 });
+    const frozen = new Set();
+    let t = 0, waveR = 0, phase = 0;
+    const CHARGE = 1.0, WAVE = 0.7, ERUPT = 2.1, END = 3.4;
+    g.addUpdater((dt, realDt) => {
+      t += realDt;
+      if (phase === 0) {
+        // the cold gathers: frost spirals in towards Uraume's breath
+        for (let i = 0; i < 10; i++) { const a = Math.random() * Math.PI * 2, r = 3 + Math.random() * 6; g.particles.glow.emit(c.x + Math.cos(a) * r, c.y + 0.3 + Math.random() * 2.5, c.z + Math.sin(a) * r, -Math.cos(a) * r * 1.4 - Math.sin(a) * 3, 0.3, -Math.sin(a) * r * 1.4 + Math.cos(a) * 3, 0.6, 1.6, 2.2, 2.8, 0.14, 0, 2.5, 0.3, 1); }
+        if (t < CHARGE) return true;
+        phase = 1;
+        g.fx.flash(0xe0f6ff, 0.75, 0.35); g.fx.screenWave(c.clone().setY(c.y + 1), 1.6, 0.8); g.fx.chroma(1.2);
+        g.shake(0.8); g.fx.dimTarget = 0;
+        g.audio?.noise({ dur: 1.4, gain: 0.7, type: 'highpass', freq: 2000, sweep: 9000, rev: 0.6 });
+        g.audio?.tone({ freq: 1200, to: 300, dur: 1.4, gain: 0.15, type: 'triangle', rev: 0.7 });
+        this.buildGlacier(g, c, R);
+      }
+      if (phase === 1) {
+        // a white wall of frost sweeps outward; everything it passes freezes
+        waveR = Math.min(R, ((t - CHARGE) / WAVE) * R);
+        g.fx.rings.spawn(tmp.set(c.x, c.y + 0.08, c.z), { color: FROST, r0: Math.max(0.1, waveR - 0.4), r1: waveR + 0.4, dur: 0.12, thick: 0.25 });
+        for (let i = 0; i < 24; i++) { const a = Math.random() * Math.PI * 2; g.particles.glow.emit(c.x + Math.cos(a) * waveR, c.y + 0.2 + Math.random() * 1.5, c.z + Math.sin(a) * waveR, Math.cos(a) * 4, 1.5, Math.sin(a) * 4, 0.6, 1.8, 2.3, 2.8, 0.3, -0.5, 1.5, 1.4, 0); }
+        if (this.glacier) this.glacier.userData.reveal(waveR);
+        for (const e of g.enemies) {
+          if (e.dead || e.isDummy || frozen.has(e) || Math.hypot(e.pos.x - c.x, e.pos.z - c.z) > waveR + e.radius) continue;
+          frozen.add(e);
+          g.combat.damageEnemy(e, 40 + (e.maxHp ?? 100) * (e.isBoss ? 0.04 : 0), p, { stagger: 0.5, unblockable: true, crit: false, ceGain: 0, color: '#e0f6ff' });
+          if (e.isBoss) e.slowT = Math.max(e.slowT ?? 0, 5); else this.freeze(e, 4);
+        }
+        if (t >= ERUPT) {
+          phase = 2;
+          // Icefall: giant ice spears erupt through every frozen curse and shatter it
+          g.toast?.('Icefall');
+          for (const e of frozen) {
+            if (e.dead) continue;
+            const at = e.pos.clone().setY(e.pos.y + e.height * 0.5);
+            e.frozenEnd = 0; if (!e.isBoss) e.sealT = 0;
+            g.combat.damageEnemy(e, e.isBoss ? 120 + (e.maxHp ?? 100) * 0.12 : 160 + (e.maxHp ?? 100) * 0.5, p, { stagger: 1, unblockable: true, ceGain: 0, knock: new THREE.Vector3(0, 0, 0), color: '#e0f6ff' });
+            if (!e.dead && !e.isBoss) e.vel.y = Math.max(e.vel.y, 9);
+            g.particles.burst(at, { count: 30, color: ICE, speed: 11, life: 0.7, size: 0.16, gravity: 12, drag: 1.5, shape: 1, intensity: 3 });
+            g.particles.burst(at, { count: 1, color: FROST, speed: 0, life: 0.2, size: 3.2, sizeEnd: 1.5, drag: 0, intensity: 2.5 });
+            g.fx.shockwave(e.pos, ICE, 3);
+          }
+          if (this.glacier) this.glacier.userData.erupt();
+          g.fx.flash(0xffffff, 0.6, 0.25); g.fx.screenWave(c, 1.4, 0.6); g.fx.chroma(1.6);
+          g.shake(1); g.hitStop(0.1);
+          g.audio?.impact(2); g.audio?.noise({ dur: 0.8, gain: 0.8, type: 'highpass', freq: 2500, sweep: 10000, rev: 0.4 }); g.audio?.blackFlash?.();
+          p.action = null; p.invulnerable = false;
+        }
+        return true;
+      }
+      if (t >= END) { g.lights.remove(light); this.clearGlacier(true); return false; }
+      return true;
+    });
+    return true;
+  }
+  // The frozen field: ice crystals that grow as the frost wave passes, then
+  // jut up as giant Icefall spears.
+  buildGlacier(g, c, R) {
+    this.clearGlacier();
+    const grp = new THREE.Group();
+    const geo = new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0);
+    const mat = new THREE.MeshStandardNodeMaterial({ color: ICE, roughness: 0.05, metalness: 0.1, transparent: true, opacity: 0.7, emissive: DEEP, emissiveIntensity: 0.8 });
+    const items = [];
+    for (let i = 0; i < 90; i++) {
+      const a = Math.random() * Math.PI * 2, rr = 1.5 + Math.sqrt(Math.random()) * (R - 1.5);
+      const x = c.x + Math.cos(a) * rr, z = c.z + Math.sin(a) * rr;
+      const m = new THREE.Mesh(geo, mat);
+      m.position.set(x, this.groundAt(x, z, c.y) - 0.1, z);
+      m.rotation.set((Math.random() - 0.5) * 0.8, Math.random() * Math.PI, (Math.random() - 0.5) * 0.8);
+      m.scale.set(0.01, 0.01, 0.01); m.visible = false; grp.add(m);
+      items.push({ m, r: rr, w: 0.4 + Math.random() * 0.6, h: 0.6 + Math.random() * 1.2, big: 2.5 + Math.random() * 4 });
+    }
+    grp.userData = {
+      geo, items,
+      reveal: (wr) => { for (const it of items) if (!it.m.visible && it.r <= wr) { it.m.visible = true; it.m.scale.set(it.w, it.h, it.w); } },
+      erupt: () => { for (const it of items) { it.m.visible = true; it.m.scale.set(it.w * 1.6, it.big, it.w * 1.6); } },
+    };
+    g.scene.add(grp); this.glacier = grp;
+  }
+  clearGlacier(burst = false) {
+    if (!this.glacier) return;
+    const g = this.game;
+    if (burst) for (const it of this.glacier.userData.items) if (Math.random() < 0.25) g.particles.burst(tmp.copy(it.m.position).setY(it.m.position.y + 1), { count: 6, color: ICE, speed: 4, life: 0.5, size: 0.12, gravity: 12, shape: 1 });
+    g.scene.remove(this.glacier); this.glacier.userData.geo.dispose(); this.glacier = null;
   }
 }
 registerKit('uraume', UraumeKit, URAUME_SKILLS);

@@ -120,7 +120,6 @@ export class Audio {
       case 'shield': this.tone(600, 0.3, { vol: 0.12 * a, type: 'sine', slide: 2 }); this.tone(900, 0.3, { vol: 0.08 * a, type: 'sine', slide: 2, at: 0.05 }); break;
       case 'golden': for (let i = 0; i < 6; i++) this.tone(mtof(72 + [0, 4, 7, 12, 16, 19][i]), 0.12, { vol: 0.12, at: i * 0.05 }); break;
       case 'storm': this.noiseHit(1.2, { vol: 0.4, freq: 120, type: 'lowpass' }); this.clatter(30, 1.4, 0.2); break;
-      case 'rescue': [0, 5, 9, 12].forEach((n, i) => this.tone(mtof(79 + n), 0.12, { vol: 0.1 * a, at: i * 0.07, type: 'triangle' })); this.noiseHit(0.5, { vol: 0.12 * a, freq: 700, sweep: 2, q: 0.8 }); break;
       case 'splash': this.noiseHit(0.6, { vol: 0.3 * a, freq: 900, sweep: 0.3, q: 0.7 }); break;
       case 'lap': this.tone(784, 0.12, { vol: 0.18 }); this.tone(1047, 0.25, { vol: 0.18, at: 0.1 }); break;
       case 'finallap': [0, 4, 7, 12].forEach((n, i) => this.tone(mtof(67 + n), 0.25, { vol: 0.16, at: i * 0.12 })); break;

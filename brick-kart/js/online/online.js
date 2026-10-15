@@ -351,7 +351,7 @@ export class Online {
       for (const h of list) out.push({ ...h, key: m.uid + ':' + h.slot, uid: m.uid, me: m.me, host: m.host, si, multi: list.length > 1, stage: m.me ? this.stage() : str(m.p?.s, 4) });
     });
     // everyone's names, worked out the same way on every screen
-    const names = resolveNames(out, ['lineup', 'race', 'results'].includes(this.view));
+    const names = resolveNames(out);
     for (const h of out) h.name = names.get(h.key) || h.name;
     return out;
   }
@@ -615,7 +615,7 @@ export class Online {
       },
       hint: (players) => {
         if (!players.length) return this.humans().length >= RACERS ? `The room is full (${RACERS} players) — you can watch the next race` : '<b>A</b> / <b>Enter</b> or tap a driver to join in';
-        if (players.some((p) => p.naming)) return '<b>▲ ▼</b> pick your name · <b>A</b> OK · <b>X</b> forget a saved name';
+        if (players.some((p) => p.phase === 'name')) return '<b>▲ ▼</b> pick your name · <b>A</b> OK · <b>X</b> forget a saved name';
         const ready = players.length && players.every((p) => p.phase === 'done');
         const more = !isPhoneScreen() && players.length < 8 ? ' · more players here: press <b>A</b> on another controller' : '';
         if (!ready) return (players.some((p) => p.phase === 'kart') ? '<b>◀︎ ▶︎</b> change · <b>A</b> lock it in' : '<b>A</b> lock in your driver') + more;
@@ -645,17 +645,11 @@ export class Online {
         for (const h of this.humans()) if (!h.me && h.d === i && h.ph !== 'n' && (h.stage === 'sel' || h.stage === 'rdy')) html += `<span class="ptag ol${h.ph !== 'd' ? ' lock' : ''}">${esc(h.name.slice(0, 9))}${h.ph !== 'd' ? ' ✓' : ''}</span>`;
         return html;
       },
-      // ---- names: everyone joins as "Default" (their driver's name, so it follows the driver they
-      // pick); clicking the name tag opens the list to pick a saved name or type a new one ----
-      nameStart: (p) => { p.nsel = 0; p.olName = { pick: 'default' }; },
-      nameTag: (p) => {
-        const pick = p.olName?.pick || p.olName || 'default';
-        const shown = pick === 'default' ? this.defaultName(p) : pick;
-        return `<button class="olme" data-act="olname:${p.id}" title="Change your name">${esc(shown)} ✎</button> `;
-      },
+      // ---- the name step ----
+      nameStart: (p) => { p.nsel = this.names.startIndex(p.id); const o = opts()[p.nsel]; p.olName = { pick: o === 'new' ? 'default' : o }; },
       nameCell: (p) => {
         const list = opts().map((o, i) => `<button class="olnm${i === p.nsel ? ' on' : ''}" data-act="olnm:${p.id}:${i}">${optLabel(o, p)}${o !== 'default' && o !== 'new' ? `<span class="del" data-act="olnd:${p.id}:${i}" title="Forget this name">✕</span>` : ''}</button>`).join('');
-        return `<div class="pvstep"><i style="background:${p.color}">P${p.id + 1}</i> Pick your name <button class="olme" data-act="olnx:${p.id}">✕</button></div><div class="olnames">${list}</div>`;
+        return `<div class="pvstep"><i style="background:${p.color}">P${p.id + 1}</i> Who's racing?</div><div class="olnames">${list}</div>`;
       },
       nameMove: (p, dy) => { const n = opts().length; p.nsel = ((p.nsel ?? 0) + dy + n) % n; },
       nameDelete: (p) => {
@@ -665,20 +659,14 @@ export class Online {
         p.nsel = Math.min(p.nsel, opts().length - 1);
       },
       nameAccept: (p, next) => this.nameAccept(p, next),
+      nameQuick: (p) => { const o = opts()[p.nsel ?? 0]; const pick = o === 'new' ? 'default' : o; p.olName = { pick }; this.names.remember(p.id, pick); },
       act: (a, players, refresh) => {
         const [cmd, id, n] = a.split(':');
         if (cmd === 'olk') { this.modal?.act(a); return; }
         const p = players.find((q) => q.id === +id);
-        if (!p) return;
-        if (cmd === 'olname') {
-          if (p.naming) { p.naming = false; refresh(); return; }
-          const o = opts(), cur = p.olName?.pick || p.olName || 'default';
-          p.nsel = Math.max(0, o.indexOf(cur)); p.naming = true; this.game.audio.sfx('select'); refresh(); return;
-        }
-        if (cmd === 'olnx') { p.naming = false; this.game.audio.sfx('back'); refresh(); return; }
-        if (!p.naming) return;
+        if (!p || p.phase !== 'name') return;
         if (cmd === 'olnd') { p.nsel = +n; hooks.nameDelete(p); refresh(); return; }
-        if (cmd === 'olnm') { p.nsel = +n; this.game.audio.sfx('select'); this.nameAccept(p, () => { p.naming = false; refresh(); }); refresh(); }
+        if (cmd === 'olnm') { p.nsel = +n; this.game.audio.sfx('select'); this.nameAccept(p, () => { p.phase = 'driver'; refresh(); }); refresh(); }
       },
       get modal() { return on.modal; },
       modalUpdate: () => this.modal?.update(),
@@ -745,9 +733,8 @@ export class Online {
     // the field: everyone locked in (up to 12), then CPU racers to fill it
     // (everyone locked in: on the select screen, or still on the results of the race before when the
     // host goes straight on with the same racers - or watching it, having come back with their picks)
-    const all = this.humans(), raceNames = resolveNames(all, true);
-    const humans = all.filter((h) => h.ph === 'r' && (h.me || ['rdy', 'sel', 'res', 'race', 'load', 'spec'].includes(h.stage))).slice(0, RACERS)
-      .map((h) => ({ u: h.uid, slot: h.slot, n: raceNames.get(h.key) || h.name, d: h.d, k: h.k, g: h.g }));
+    const humans = this.humans().filter((h) => h.ph === 'r' && (h.me || ['rdy', 'sel', 'res', 'race', 'load', 'spec'].includes(h.stage))).slice(0, RACERS)
+      .map((h) => ({ u: h.uid, slot: h.slot, n: h.name, d: h.d, k: h.k, g: h.g }));
     const shuffle = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
     const used = new Set(humans.map((h) => h.d));
     const freeD = shuffle(DRIVERS.map((_, i) => i).filter((i) => !used.has(i)));
