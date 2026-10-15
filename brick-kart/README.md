@@ -352,10 +352,11 @@ you drop some.
   wrong way for a few seconds. You're reeled up and put back on the road at the furthest
   point you'd reached. Driving off the road is fine as long as you keep making
   progress, and sitting still or being spun out by an item never calls it. The helpers:
-  Grogu in his hover-pram (Star Wars, he uses the Force instead of a rod), Kogane (all
-  JJK maps), Pteranodon (Jurassic) and Tails (Sonic) fly on their own; Dobby
-  (Hogwarts), Rocket (Marvel), Pig (Minecraft), Pikachu (Pokémon) and Captain Cloud, a
-  brick pilot in a propeller cap (the original maps), ride a cloud. Online, everyone sees it fishing out other players.
+  Grogu in his hover-pram (Star Wars: he lifts you with a wide beam of the Force from his
+  hands), Kogane (all JJK maps: floats on his angel wings, and his grey tail is the line),
+  Hedwig (Hogwarts), Stan Lee (Marvel), Pteranodon (Jurassic), Pig (Minecraft), Pikachu
+  (Pokémon) and Tails (Sonic), who sit in a cloud with a fishing rod, and on the original
+  maps a tall smiling cloud that holds the rod itself.
 - Sound mutes when you switch to another tab or window.
 - **Full screen on phones** (the same approach as Widow's Bay): on Android and iPad
   the first tap in landscape goes full screen (so does tapping the title). Turning

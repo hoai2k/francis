@@ -11,31 +11,42 @@ import * as THREE from 'three';
 import { BrickBuilder, plastic } from './lego.js';
 import { DRIVERS, buildDriver } from './driver.js';
 
-// who comes to the rescue on each map's universe (race.movieFrom; the original maps get Captain Cloud).
-// Helpers that fly on their own (fly) need no cloud; the rest ride one. (maps: for the workbench)
+
+// Who comes to the rescue on each map's universe (race.movieFrom). Each is a character model
+// (a driver rig, a map prop or one of js/helpers/*.js) placed by a small contract:
+//   seat   'rig': a driver rig (seat frame, hips at the origin): sits in the cloud, holds the rod
+//          in its +X hand (armL, raised); 'fig': a model built the same way whose userData.grip /
+//          gripDir say where the rod goes; 'perch': sits on the cloud by its lowest point
+//   line   'rod' (fishing line), 'beam' (Grogu's Force beam from userData.beamFrom),
+//          'tail' (Kogane's own tail, from userData.tailFrom)
+//   cloud  false: it floats on its own (Grogu's hover-pram, Kogane)
+// (maps: for the workbench)
 export const HELPERS = {
-  starwars: { name: 'Grogu', maps: 'Star Wars', load: () => import('./maps/starwars-props.js').then((m) => m.grogu(1)), pram: true },
-  jjk: { name: 'Kogane', maps: 'all four JJK maps', load: () => import('./maps/jjk-culling-props.js').then((m) => m.kogane(1)), fly: true },
-  potter: { name: 'Dobby', maps: 'Hogwarts', driver: 'dobby' },
-  marvel: { name: 'Rocket', maps: 'Marvel', driver: 'rocket' },
-  jurassic: { name: 'Pteranodon', maps: 'Jurassic', driver: 'pteranodon', fly: true },
-  minecraft: { name: 'Pig', maps: 'Minecraft', driver: 'pig' },
-  pokemon: { name: 'Pikachu', maps: 'Pokémon', driver: 'pikachu' },
-  sonic: { name: 'Tails', maps: 'Sonic', driver: 'tails', fly: true },
-  classic: { name: 'Captain Cloud', maps: 'the 9 original maps', load: () => Promise.resolve(captainCloud()) },
+  starwars: { name: 'Grogu', maps: 'Star Wars', load: () => import('./maps/starwars-props.js').then((m) => groguHelper(m.grogu(1))), seat: 'float', line: 'beam', cloud: false, how: 'floats in his hover-pram; lifts karts with a beam of the Force from his hands' },
+  jjk: { name: 'Kogane', maps: 'all four JJK maps', load: () => import('./helpers/kogane.js').then((m) => m.build()), seat: 'float', line: 'tail', cloud: false, how: 'flies on its own; its grey tail is the line' },
+  potter: { name: 'Hedwig', maps: 'Hogwarts', load: () => import('./maps/hogwarts-props.js').then((m) => hedwigHelper(m.hedwig(1))), seat: 'fig', line: 'rod', how: 'perches on a cloud, rod under her wing' },
+  marvel: { name: 'Stan Lee', maps: 'Marvel', load: () => import('./helpers/stanlee.js').then((m) => m.build()), seat: 'fig', line: 'rod', how: 'sits in a cloud' },
+  jurassic: { name: 'Pteranodon', maps: 'Jurassic', driver: 'pteranodon', seat: 'rig', line: 'rod', how: 'sits in a cloud' },
+  minecraft: { name: 'Pig', maps: 'Minecraft', driver: 'pig', seat: 'rig', line: 'rod', how: 'sits in a cloud' },
+  pokemon: { name: 'Pikachu', maps: 'Pokémon', driver: 'pikachu', seat: 'rig', line: 'rod', how: 'sits in a cloud' },
+  sonic: { name: 'Tails', maps: 'Sonic', driver: 'tails', seat: 'rig', line: 'rod', how: 'sits in a cloud' },
+  classic: { name: 'Cloud', maps: 'the 9 original maps', seat: 'none', line: 'rod', how: 'the cloud itself: a tall, smiling cloud with a rod' },
 };
 
 // when to come (seconds / metres of track)
 const STALL_TIME = 6, STALL_GAIN = 10;          // trying to drive for 6 s without gaining 10 m
 const BACK_DIST = 30, BACK_TIME = 1;            // 30 m behind the furthest point reached
 const WRONG_TIME = 3, WRONG_DIST = 12;          // "WRONG WAY!" for 3 s, and lost ground doing it
-// how it looks
-// (the helper hangs off to one side of the kart and above it, where the chase camera can see it,
-// with the rod reaching across so its tip is right over the kart)
-const CHAR_H = 2.3, HOVER = 7, DROP = 14;   // HOVER: the rod tip over the kart
-const HAND = new THREE.Vector3(0.55, 1.0, 0.35);
-export const TIP = new THREE.Vector3(2.4, 3.2, 0.9);
-export const LINE_DROP = HOVER - 1.7;   // rod tip to the hook on the kart's roof   // in the helper's frame (it faces back along the kart, towards the camera)
+// how it looks: the helper hangs off to one side of the kart and above it, where the chase camera
+// can see it, its line (rod tip / beam / tail) starting HOVER over the kart
+const HOVER = 7, DROP = 14;
+export const LINE_DROP = HOVER - 1.7;           // from the line's start to the kart's roof
+const CS = 1.45;                                // cloud size
+const CLOUD_TOP = 0.95 * CS;                    // its top
+const SIT_H = 1.9;                             // a seated character's height above its hips
+const FLOAT_H = 2.4;                            // the floating helpers' height
+const ROD_LEN = 2.6;
+const GRIP_DIR = new THREE.Vector3(0.6, 0.75, 0.3).normalize();
 
 export class Rescue {
   constructor(race) {
@@ -80,7 +91,7 @@ export class Rescue {
     let v = this.vis.get(k);
     if (on && !v && this.template) { v = this.make(); this.vis.set(k, v); }
     if (!v) return;
-    const g = v.g;
+    const g = v.g, F = this.template.userData.from;
     if (on) {
       if (v.state !== 'on') {
         v.state = 'on'; v.t = 0; v.drop = DROP;
@@ -89,122 +100,211 @@ export class Rescue {
       }
       v.t += dt;
       v.drop = Math.max(0, v.drop - dt * DROP * 2.2);
-      // face back along the kart (towards its camera), the rod tip right over it
+      // face back along the kart (towards its camera), the line's start right over it
       const yaw = k.yaw + Math.PI, s = Math.sin(yaw), c = Math.cos(yaw);
       g.rotation.set(0, yaw, Math.sin(v.t * 2.3) * 0.06);
-      g.position.set(k.pos.x - (TIP.x * c + TIP.z * s), k.pos.y + HOVER - TIP.y + v.drop + Math.sin(v.t * 3) * 0.12, k.pos.z - (-TIP.x * s + TIP.z * c));
+      g.position.set(k.pos.x - (F.x * c + F.z * s), k.pos.y + HOVER - F.y + v.drop + Math.sin(v.t * 3) * 0.12, k.pos.z - (-F.x * s + F.z * c));
       g.updateMatrixWorld(true);
-      const tip = g.localToWorld(v.tipL.copy(TIP));
-      const hy = k.pos.y + 1.7;
-      const a = v.line.geometry.attributes.position;
-      a.setXYZ(0, tip.x, tip.y, tip.z); a.setXYZ(1, k.pos.x, hy, k.pos.z); a.needsUpdate = true;
-      v.line.geometry.computeBoundingSphere();
-      v.line.visible = v.hook.visible = v.drop < 4;
-      v.hook.position.set(k.pos.x, hy, k.pos.z);
-    } else if (v.state === 'on') { v.state = 'out'; v.t = 0; v.line.visible = v.hook.visible = false; }
+      const from = g.localToWorld(v.tmp.copy(F));
+      v.line.set(from, v.to.set(k.pos.x, k.pos.y + 1.7, k.pos.z), v.t);
+      v.line.group.visible = v.drop < 4;
+      this.template.userData.animate?.(g, v.t);
+    } else if (v.state === 'on') { v.state = 'out'; v.t = 0; v.line.group.visible = false; }
     else if (v.state === 'out') {
       // off it goes, up and away
       v.t += dt;
       g.position.y += dt * (3 + v.t * 14);
       g.rotation.y += dt * 1.5;
+      this.template.userData.animate?.(g, v.t);
       if (v.t > 1.6) { v.state = 'off'; g.visible = false; }
     }
-    if (v.prop && g.visible) v.prop.rotation.y += dt * 18;
   }
 
   make() {
     const race = this.race, g = this.template.clone(true);
     g.visible = false;
     race.scene.add(g);
-    const { line, hook } = helperLine(this.def);
-    line.visible = hook.visible = false;
-    race.scene.add(line, hook);
-    return { g, line, hook, prop: g.getObjectByName('propeller'), state: 'off', t: 0, drop: 0, tipL: new THREE.Vector3() };
+    const line = helperLine(this.def, this.template);
+    line.group.visible = false;
+    race.scene.add(line.group);
+    return { g, line, state: 'off', t: 0, drop: 0, tmp: new THREE.Vector3(), to: new THREE.Vector3() };
   }
 }
 
-// The helper's model (the character in its cloud or pram, with its rod), ready to clone.
+// ---- the helpers' models ----------------------------------------------------------------------
+// The helper ready to clone: the character in its cloud (or floating), with its rod; userData.from
+// is where its line starts (rod tip, Grogu's hands, Kogane's tail), and animate(obj, t) any motion.
 export function loadHelper(def) {
   const d = def.driver && DRIVERS.find((x) => x.id === def.driver);
-  const load = def.load ? def.load() : d ? Promise.resolve(buildDriver(d).root) : Promise.resolve(captainCloud());
+  const load = def.load ? def.load() : d ? Promise.resolve(rigHelper(buildDriver(d))) : Promise.resolve(null);
   return load.then((char) => helperModel(char, def))
-    .catch((e) => { console.error('rescue helper', e); return helperModel(captainCloud(), HELPERS.classic); });
-}
-// its fishing line (two points, set by the caller) and the hook on the end
-export function helperLine(def) {
-  const pram = def.pram;   // Grogu needs no rod: the Force does it
-  const line = new THREE.Line(new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(6, 3)),
-    new THREE.LineBasicMaterial(pram ? { color: 0x9ad8ff, transparent: true, opacity: 0.8 } : { color: 0x222222 }));
-  line.frustumCulled = false;
-  const hook = new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.06, 6, 12, Math.PI * 1.5), pram ? new THREE.MeshBasicMaterial({ color: 0x9ad8ff, transparent: true, opacity: 0.6 }) : plastic(0x9aa0a8));
-  return { line, hook };
+    .catch((e) => { console.error('rescue helper', def.name, e); return helperModel(null, HELPERS.classic); });
 }
 
-// the character, scaled to size, in its cloud (unless it flies), holding a fishing rod
+// a driver rig holding the rod up and out in its +X hand (armL), the other arm resting
+function rigHelper(rig) {
+  const root = rig.root;
+  if (rig.armL) { rig.armL.rotation.set(-1.35, 0, 0.45); }
+  if (rig.armR) { rig.armR.rotation.set(-0.5, 0, -0.15); }
+  root.updateMatrixWorld(true);
+  let grip = new THREE.Vector3(0.6, 0.9, 0.4);
+  if (rig.armL) grip = root.worldToLocal(rig.armL.localToWorld(new THREE.Vector3(0, -(rig.armLen || 1) * 0.92, 0.04)));
+  root.userData.grip = grip;
+  root.userData.gripDir = GRIP_DIR.clone();
+  root.userData.height = rig.height;
+  return root;
+}
+// Grogu in his pram: the beam comes from his hands, reaching forward over the blanket
+function groguHelper(g) {
+  g.userData.anim = null;
+  g.userData.beamFrom = new THREE.Vector3(0, 0.26, 0.4);
+  return g;
+}
+// Hedwig: wings half folded, the rod held under the +X wing's tip; her lowest point sits on the cloud
+function hedwigHelper(g) {
+  const [wL, wR] = (g.userData.wings || []);
+  // (wings are built along +-X from their pivot: tip them down a little, the rod wing forward)
+  if (wR) wR.rotation.set(-0.3, -0.45, -0.55);
+  if (wL) wL.rotation.set(0, -0.5, 0.75);
+  g.updateMatrixWorld(true);
+  g.userData.grip = wR ? g.worldToLocal(wR.localToWorld(new THREE.Vector3(1.75, -0.05, 0))) : new THREE.Vector3(1.4, 0.2, 0.3);
+  g.userData.gripDir = GRIP_DIR.clone();
+  g.userData.seatBottom = true;
+  delete g.userData.wings;   // (userData is copied on clone: keep it to plain values)
+  return g;
+}
+
+// mark a point of `obj` so it can be read back after scaling (an empty child)
+function marker(obj, p, name) { const m = new THREE.Object3D(); m.name = name; m.position.copy(p); obj.add(m); return m; }
+
 function helperModel(char, def) {
   const root = new THREE.Group();
   root.name = 'rescue-helper';
-  const box = new THREE.Box3().setFromObject(char), size = box.getSize(new THREE.Vector3());
-  const sc = CHAR_H / Math.max(0.01, size.y);
-  const holder = new THREE.Group();
-  holder.add(char);
-  char.position.set(-(box.min.x + box.max.x) / 2, -box.min.y, -(box.min.z + box.max.z) / 2);
-  holder.scale.setScalar(sc);
-  root.add(holder);
-  if (def.pram) {
-    // Grogu floats in his own hover-pram
-    holder.position.y = 0.4;
-    return root;
+  const ud = char?.userData || {};
+  if (def.cloud !== false) root.add(def.seat === 'none' ? tallCloud() : cloud());
+  let grip = null, gdir = (ud.gripDir || GRIP_DIR).clone().normalize();
+  if (char) {
+    // marks before scaling, read after
+    const mk = {};
+    for (const k of ['grip', 'beamFrom', 'tailFrom']) if (ud[k]) mk[k] = marker(char, ud[k], 'mk-' + k);
+    const holder = new THREE.Group();
+    holder.add(char); root.add(holder);
+    const box = new THREE.Box3().setFromObject(char);
+    if (def.seat === 'float') {
+      // floats on its own: centred, scaled to its height, bottom at 0
+      const sc = FLOAT_H / Math.max(0.01, box.max.y - box.min.y);
+      holder.scale.setScalar(sc);
+      holder.position.set(-(box.min.x + box.max.x) / 2 * sc, -box.min.y * sc, -(box.min.z + box.max.z) / 2 * sc);
+    } else if (ud.seatBottom) {
+      // perches: its lowest point just sunk into the cloud's top
+      const sc = SIT_H * 1.15 / Math.max(0.01, box.max.y - box.min.y);
+      holder.scale.setScalar(sc);
+      holder.position.set(-(box.min.x + box.max.x) / 2 * sc, CLOUD_TOP - 0.3 - box.min.y * sc, 0);
+    } else {
+      // seated (hips at the origin): hips just inside the cloud, scaled so it sits in proportion
+      const h = ud.height || box.max.y;
+      const sc = SIT_H / Math.max(0.01, h);
+      holder.scale.setScalar(sc);
+      holder.position.set(0, CLOUD_TOP - 0.62, -0.1);
+    }
+    root.updateMatrixWorld(true);
+    const at = (k) => mk[k] && root.worldToLocal(mk[k].getWorldPosition(new THREE.Vector3()));
+    grip = at('grip');
+    if (def.line === 'beam') root.userData.from = at('beamFrom') || new THREE.Vector3(0, 0.5, 0.5);
+    if (def.line === 'tail') { root.userData.from = at('tailFrom') || new THREE.Vector3(0, 0, -0.3); root.userData.tailRadius = (ud.tailRadius || 0.08) * holder.scale.x; root.userData.tailColor = ud.tailColor ?? 0x8a8a90; }
+    if (typeof ud.animate === 'function') root.userData.animate = (obj, t) => ud.animate(obj, t);
+    // (clones copy userData as JSON: the character's own bookkeeping, rig links and all, isn't needed now)
+    char.traverse((o) => { o.userData = {}; });
   }
-  // fliers hold themselves up; everyone else sits in a cloud, sunk to about the waist
-  if (!def.fly) { holder.position.y = -0.15; root.add(cloud()); }
-  // the fishing rod, from the hand up and out to the tip
-  const dir = TIP.clone().sub(HAND), len = dir.length();
+  if (def.line === 'rod') {
+    // the cloud on its own holds the rod in a puff on its side
+    grip ||= new THREE.Vector3(1.25 * CS, 1.15 * CS, 0.35 * CS);
+    const tip = grip.clone().addScaledVector(gdir, ROD_LEN);
+    root.add(fishingRod(grip, gdir));
+    root.userData.from = tip;
+  }
+  root.userData.from ||= new THREE.Vector3(0, 1, 0);
+  return root;
+}
+
+// the rod: cork handle through the hand, reel just above it, a tapering pole and a tip ring
+function fishingRod(grip, dir) {
   const rod = new THREE.Group();
   rod.name = 'rod';
-  rod.add(new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.06, len, 6).translate(0, len / 2, 0), plastic(0x6b4a2a)));
-  rod.add(new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.18, 8).rotateX(Math.PI / 2).translate(0, 0.35, 0.08), plastic(0x333333)));   // the reel
-  rod.position.copy(HAND);
-  rod.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
-  root.add(rod);
-  return root;
+  const L = ROD_LEN + 0.35;
+  rod.add(new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.085, 0.6, 8).translate(0, 0, 0), plastic(0xc89a62)));          // cork handle, centred in the hand
+  rod.add(new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.055, L, 8).translate(0, L / 2 - 0.35, 0), plastic(0x6b4a2a)));  // the pole
+  rod.add(new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.12, 12).rotateZ(Math.PI / 2).translate(0.12, 0.42, 0), plastic(0x333333)));   // the reel
+  rod.add(new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.018, 6, 10).translate(0, ROD_LEN, 0), plastic(0x9aa0a8)));          // tip ring
+  rod.position.copy(grip);
+  rod.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+  return rod;
 }
 
+// ---- the line: fishing line + hook, Grogu's Force beam, or Kogane's tail ------------------------
+// set(from, to, t) stretches it between two world points each frame
+const Y_DOWN = new THREE.Vector3(0, -1, 0), _d = new THREE.Vector3();
+function span(mesh, a, b) {
+  _d.subVectors(b, a);
+  const len = Math.max(0.01, _d.length());
+  mesh.position.copy(a);
+  mesh.quaternion.setFromUnitVectors(Y_DOWN, _d.divideScalar(len));
+  mesh.scale.set(1, len, 1);
+}
+export function helperLine(def, template) {
+  const group = new THREE.Group();
+  group.name = 'rescue-line';
+  if (def.line === 'beam') {
+    const add = (rt, rb, color, op) => {
+      const m = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, 1, 24, 1, true).translate(0, -0.5, 0),
+        new THREE.MeshBasicMaterial({ color, transparent: true, opacity: op, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+      m.frustumCulled = false; group.add(m); return m;
+    };
+    const outer = add(0.3, 1.7, 0x3a90ff, 0.3), inner = add(0.1, 0.6, 0x8fd0ff, 0.35);
+    const glow = new THREE.Mesh(new THREE.SphereGeometry(0.2, 14, 10), new THREE.MeshBasicMaterial({ color: 0x9fd8ff, transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending, depthWrite: false }));
+    group.add(glow);
+    return { group, set(a, b, t = 0) { span(outer, a, b); span(inner, a, b); glow.position.copy(a); const p = 1 + Math.sin(t * 9) * 0.12; glow.scale.setScalar(p); outer.material.opacity = 0.26 + Math.sin(t * 7) * 0.06; } };
+  }
+  if (def.line === 'tail') {
+    const r = template?.userData.tailRadius || 0.08;
+    const tail = new THREE.Mesh(new THREE.CylinderGeometry(r, r * 0.35, 1, 10, 1, true).translate(0, -0.5, 0), plastic(template?.userData.tailColor ?? 0x8a8a90));
+    const tip = new THREE.Mesh(new THREE.TorusGeometry(0.22, r * 0.35, 6, 12, Math.PI * 1.4), plastic(template?.userData.tailColor ?? 0x8a8a90));
+    tail.frustumCulled = false;
+    group.add(tail, tip);
+    return { group, set(a, b) { span(tail, a, b); tip.position.copy(b); } };
+  }
+  const line = new THREE.Line(new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(6, 3)), new THREE.LineBasicMaterial({ color: 0x222222 }));
+  line.frustumCulled = false;
+  const hook = new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.06, 6, 12, Math.PI * 1.5), plastic(0x9aa0a8));
+  group.add(line, hook);
+  return { group, set(a, b) { const p = line.geometry.attributes.position; p.setXYZ(0, a.x, a.y, a.z); p.setXYZ(1, b.x, b.y, b.z); p.needsUpdate = true; line.geometry.computeBoundingSphere(); hook.position.copy(b); } };
+}
+
+// ---- clouds -------------------------------------------------------------------------------------
+const PUFFS = [[-0.85, 0, 0.05, 0.62], [0.85, 0, -0.05, 0.62], [0, 0.05, 0.7, 0.58], [0, 0.05, -0.7, 0.58], [-0.55, 0.2, -0.45, 0.5], [0.55, 0.2, 0.45, 0.5], [0.5, -0.15, -0.5, 0.45], [-0.5, -0.15, 0.5, 0.45]];
+function cloudFace(b, y, z) {
+  for (const sd of [-1, 1]) b.sphere(sd * 0.3 * CS, y, z, 0.1 * CS, 0x222222, { sy: 1.4 });
+  b.box(0, y - 0.24 * CS, z - 0.02, 0.36 * CS, 0.06 * CS, 0.05, 0xff7a9a);
+}
+// the seat: a wide puffy cloud with a happy face on the front
 function cloud() {
   const b = new BrickBuilder(1), W = 0xffffff;
-  b.sphere(0, 0.1, 0, 0.95, W, { sy: 0.6 });
-  for (const [x, y, z, r] of [[-0.85, 0, 0.05, 0.62], [0.85, 0, -0.05, 0.62], [0, 0.05, 0.7, 0.58], [0, 0.05, -0.7, 0.58], [-0.55, 0.2, -0.45, 0.5], [0.55, 0.2, 0.45, 0.5], [0.5, -0.15, -0.5, 0.45], [-0.5, -0.15, 0.5, 0.45]]) b.sphere(x, y, z, r, W, { sy: 0.8 });
-  // a happy face on the front
-  for (const sd of [-1, 1]) b.sphere(sd * 0.25, 0.1, 1.2, 0.08, 0x222222, { sy: 1.4 });
-  b.box(0, -0.12, 1.18, 0.3, 0.05, 0.04, 0xff7a9a);
+  b.sphere(0, 0.1 * CS, 0, 0.95 * CS, W, { sy: 0.6 });
+  for (const [x, y, z, r] of PUFFS) b.sphere(x * CS, y * CS, z * CS, r * CS, W, { sy: 0.8 });
+  // a rim of puffs round the seat, so the rider sits in the cloud, not on it
+  for (const [x, y, z, r] of [[0, 0.5, 0.72, 0.5], [-0.62, 0.45, 0.5, 0.45], [0.62, 0.45, 0.5, 0.45], [-0.8, 0.45, -0.15, 0.42], [0.8, 0.45, -0.15, 0.42]]) b.sphere(x * CS, y * CS, z * CS, r * CS, W, { sy: 0.75 });
+  cloudFace(b, 0.15 * CS, 1.22 * CS);
   return b.build({ name: 'cloud', shadows: false });
 }
-
-// Captain Cloud: a brick pilot in goggles and a propeller cap, for the original maps
-function captainCloud() {
-  const root = new THREE.Group();
-  const b = new BrickBuilder(1), Y = 0xf6cf2a, J = 0x2a6fd6, R = 0xd62d2d, K = 0x111111;
-  b.box(0, 0, 0, 0.9, 0.78, 0.5, J);                                     // torso (flight jacket)
-  b.box(0, 0.55, 0.255, 0.22, 0.2, 0.02, 0xffffff);                       // scarf
-  for (const sd of [-1, 1]) {
-    b.box(sd * 0.56, 0.18, 0.05, 0.22, 0.56, 0.24, J);                     // arms
-    b.sphere(sd * 0.56, 0.14, 0.1, 0.12, Y);                               // hands
-  }
-  b.cyl(0, 0.78, 0, 0.12, 0.08, Y);                                      // neck
-  b.cyl(0, 0.84, 0, 0.32, 0.48, Y);                                      // head
-  for (const sd of [-1, 1]) b.sphere(sd * 0.11, 1.0, 0.3, 0.045, K);    // eyes
-  b.box(0, 0.92, 0.31, 0.14, 0.03, 0.02, K);                              // smile
-  b.cyl(0, 1.12, 0, 0.335, 0.09, 0x6b4a2a);                               // goggle strap
-  for (const sd of [-1, 1]) b.sphere(sd * 0.13, 1.17, 0.31, 0.085, 0x8fd8ff);   // goggles
-  b.sphere(0, 1.3, 0, 0.34, R, { sy: 0.55 });                            // cap
-  b.box(0, 1.27, 0.32, 0.4, 0.04, 0.2, R);                                // peak
-  b.cyl(0, 1.44, 0, 0.03, 0.14, 0x333333);                               // propeller stalk
-  root.add(b.build({ name: 'captain-cloud' }));
-  const p = new BrickBuilder(1);
-  p.box(0, 0, 0, 0.9, 0.03, 0.12, 0xffd21a);
-  p.box(0, 0, 0, 0.12, 0.03, 0.9, 0x2a6fd6);
-  const prop = p.build({ name: 'propeller', shadows: false });
-  prop.position.y = 1.57;
-  root.add(prop);
-  return root;
+// the original maps' helper: the cloud itself, tall, with a face and a puff "hand" for the rod
+function tallCloud() {
+  const b = new BrickBuilder(1), W = 0xffffff;
+  b.sphere(0, 0.1 * CS, 0, 0.95 * CS, W, { sy: 0.6 });
+  for (const [x, y, z, r] of PUFFS) b.sphere(x * CS, y * CS, z * CS, r * CS, W, { sy: 0.8 });
+  b.sphere(0, 0.85 * CS, 0, 0.8 * CS, W, { sy: 0.85 });
+  for (const [x, y, z, r] of [[-0.5, 0.75, 0.3, 0.5], [0.5, 0.8, -0.25, 0.5], [0.1, 1.4, 0.05, 0.55], [-0.35, 1.25, -0.3, 0.42], [0.4, 1.3, 0.3, 0.4]]) b.sphere(x * CS, y * CS, z * CS, r * CS, W, { sy: 0.9 });
+  b.sphere(1.15 * CS, 1.1 * CS, 0.3 * CS, 0.3 * CS, W);   // the puff holding the rod
+  cloudFace(b, 0.95 * CS, 0.78 * CS);
+  for (const sd of [-1, 1]) b.sphere(sd * 0.55 * CS, 0.72 * CS, 0.62 * CS, 0.12 * CS, 0xffb3c4, { sy: 0.6 });   // rosy cheeks
+  return b.build({ name: 'cloud', shadows: false });
 }

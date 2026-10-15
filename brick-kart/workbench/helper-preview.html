@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Helper Preview</title>
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/" } }
+</script>
+<style>
+  body { margin: 0; background: #13254a; color: #fff; font: 800 14px system-ui, sans-serif; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; padding: 8px; }
+  .row img { width: 380px; height: 480px; background: linear-gradient(180deg, #7cc3ff, #d6eeff); border-radius: 10px; }
+  p { margin: 8px; }
+</style>
+</head>
+<body>
+<p id="msg">Loading…</p>
+<div class="row" id="row"></div>
+<script type="module">
+// Developer preview for one rescue-helper model module (js/helpers/<m>.js), e.g.
+// helper-preview.html?m=stanlee. Shows it from the front, three-quarter and side, with red
+// markers on its userData points (grip, tailFrom, beamFrom) and a yellow one at the origin
+// (where it sits in its cloud).
+import * as THREE from 'three';
+import { bigPortrait } from '../js/showcase.js';
+const m = new URLSearchParams(location.search).get('m') || 'stanlee';
+const mod = await import(`../js/helpers/${m}.js`);
+const views = [0, 0.7, Math.PI / 2, Math.PI];
+const row = document.getElementById('row');
+for (const turn of views) {
+  const root = mod.build();
+  const mark = (p, c) => { const s = new THREE.Mesh(new THREE.SphereGeometry(0.06, 10, 8), new THREE.MeshBasicMaterial({ color: c, depthTest: false })); s.renderOrder = 9; s.position.copy(p); root.add(s); };
+  mark(new THREE.Vector3(), 0xffd400);
+  for (const k of ['grip', 'tailFrom', 'beamFrom']) if (root.userData[k]) mark(root.userData[k], 0xff2020);
+  const img = new Image(); img.src = bigPortrait(root, 380, 480, turn); row.appendChild(img);
+}
+document.getElementById('msg').textContent = `${m}: front, ¾, side, back · yellow = origin (seat), red = userData points`;
+window.__previewDone = true;
+</script>
+</body>
+</html>

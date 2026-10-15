@@ -7,7 +7,8 @@ import { KARTS, KART_GROUPS } from '../js/vehicles.js';
 import { GLIDERS, GLIDER_GROUPS } from '../js/gliders.js';
 import { SIMPLIFIED } from '../js/simplified.js';
 import { driverPortrait, kartPortrait, gliderPortrait, bigPortrait } from '../js/showcase.js';
-import { HELPERS, TIP, LINE_DROP, loadHelper, helperLine } from '../js/rescue.js';
+import * as THREE from 'three';
+import { HELPERS, LINE_DROP, loadHelper, helperLine } from '../js/rescue.js';
 
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -177,27 +178,24 @@ function fill() {
 requestAnimationFrame(fill);
 
 // ---- Helpers: the rescue helpers (js/rescue.js), to look at, not to pick ----------------------
-// Each one big, in its cloud or pram, with the fishing line hanging from the rod tip down to the
-// hook, as long as it is in a race (where it reaches the kart's roof).
+// Each one big, in its cloud (or floating), with its line (fishing line, Grogu's beam, Kogane's
+// tail) hanging from where it starts down to the kart's roof, at its length in a race.
 let helpersBuilt = false;
 async function showHelpers() {
   if (helpersBuilt) return;
   helpersBuilt = true;
-  const how = (h) => (h.pram ? 'floats in his hover-pram; a <b>Force line</b> instead of a rod' : h.fly ? '<b>flies on its own</b> (no cloud)' : 'rides a <b>cloud</b>');
   const list = Object.entries(HELPERS);
-  $('#helpers').innerHTML = `<p class="note">The rescue helper for each map: they fish karts that are stuck, lost or going the wrong way back onto the road. Look only (nothing to pick here): each is shown bigger than in a race, with its line hanging from the rod tip to the hook at the length it has in a race, so you can see how it connects. Tell Claude which models need work.</p>
+  $('#helpers').innerHTML = `<p class="note">The rescue helper for each map: they fish karts that are stuck, lost or going the wrong way back onto the road. Look only (nothing to pick here): each is shown bigger than in a race, with its line hanging from where it starts down to the kart's roof at its race length, so you can see how it connects. Tell Claude which models need work.</p>
     <div class="hgrid">${list.map(([id, h]) => `<div class="hcard"><div class="pic" data-helper="${id}">Loading…</div>
-      <div class="cap"><h3>${esc(h.name)}</h3><p>${esc(h.maps[0].toUpperCase() + h.maps.slice(1))} · ${how(h)}</p></div></div>`).join('')}</div>`;
+      <div class="cap"><h3>${esc(h.name)}</h3><p>${esc(h.maps[0].toUpperCase() + h.maps.slice(1))} · ${esc(h.how)}</p></div></div>`).join('')}</div>`;
   for (const [id, h] of list) {
     const pic = $(`[data-helper="${id}"]`);
     try {
-      const model = (await loadHelper(h)).clone(true);
-      const { line, hook } = helperLine(h);
-      const a = line.geometry.attributes.position;
-      a.setXYZ(0, TIP.x, TIP.y, TIP.z); a.setXYZ(1, TIP.x, TIP.y - LINE_DROP, TIP.z);
-      line.geometry.computeBoundingBox(); line.geometry.computeBoundingSphere();
-      hook.position.set(TIP.x, TIP.y - LINE_DROP, TIP.z);
-      model.add(line, hook);
+      const tpl = await loadHelper(h), model = tpl.clone(true);
+      const line = helperLine(h, tpl), from = tpl.userData.from.clone();
+      line.set(from, from.clone().add(new THREE.Vector3(0, -LINE_DROP, 0)), 0.3);
+      model.add(line.group);
+      tpl.userData.animate?.(model, 0.3);
       pic.innerHTML = `<img alt="${esc(h.name)}" src="${bigPortrait(model, 480, 640)}">`;
     } catch (e) { console.error(e); pic.textContent = 'Could not draw this one'; }
     await new Promise((r) => requestAnimationFrame(r));
