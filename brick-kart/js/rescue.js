@@ -199,10 +199,11 @@ function helperModel(char, def) {
     char.traverse((o) => { o.userData = {}; });
   }
   if (def.line === 'rod') {
-    // the cloud on its own holds the rod in a puff on its side
-    grip ||= new THREE.Vector3(1.25 * CS, 1.15 * CS, 0.35 * CS);
-    const tip = grip.clone().addScaledVector(gdir, ROD_LEN);
-    root.add(fishingRod(grip, gdir));
+    // the cloud on its own: the rod sticks out of its body, its handle buried in the puffs
+    const len = grip ? ROD_LEN : ROD_LEN + 1.0;
+    grip ||= new THREE.Vector3(0.35 * CS, 0.95 * CS, 0.2 * CS);
+    const tip = grip.clone().addScaledVector(gdir, len);
+    root.add(fishingRod(grip, gdir, len));
     root.userData.from = tip;
   }
   root.userData.from ||= new THREE.Vector3(0, 1, 0);
@@ -210,14 +211,14 @@ function helperModel(char, def) {
 }
 
 // the rod: cork handle through the hand, reel just above it, a tapering pole and a tip ring
-function fishingRod(grip, dir) {
+function fishingRod(grip, dir, len = ROD_LEN) {
   const rod = new THREE.Group();
   rod.name = 'rod';
-  const L = ROD_LEN + 0.35;
+  const L = len + 0.35;
   rod.add(new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.085, 0.6, 8).translate(0, 0, 0), plastic(0xc89a62)));          // cork handle, centred in the hand
   rod.add(new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.055, L, 8).translate(0, L / 2 - 0.35, 0), plastic(0x6b4a2a)));  // the pole
   rod.add(new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.12, 12).rotateZ(Math.PI / 2).translate(0.12, 0.42, 0), plastic(0x333333)));   // the reel
-  rod.add(new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.018, 6, 10).translate(0, ROD_LEN, 0), plastic(0x9aa0a8)));          // tip ring
+  rod.add(new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.018, 6, 10).translate(0, len, 0), plastic(0x9aa0a8)));          // tip ring
   rod.position.copy(grip);
   rod.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
   return rod;
@@ -333,15 +334,13 @@ function cloud() {
   cloudFace(b, 0.15 * CS, 1.22 * CS);
   return b.build({ name: 'cloud', shadows: false });
 }
-// the original maps' helper: the cloud itself, tall, with a face and a puff "hand" for the rod
+// the original maps' helper: the cloud itself, tall, with a face (the rod sticks out of its body)
 function tallCloud() {
   const b = new BrickBuilder(1), W = 0xffffff;
   b.sphere(0, 0.1 * CS, 0, 0.95 * CS, W, { sy: 0.6 });
   for (const [x, y, z, r] of PUFFS) b.sphere(x * CS, y * CS, z * CS, r * CS, W, { sy: 0.8 });
   b.sphere(0, 0.85 * CS, 0, 0.8 * CS, W, { sy: 0.85 });
   for (const [x, y, z, r] of [[-0.5, 0.75, 0.3, 0.5], [0.5, 0.8, -0.25, 0.5], [0.1, 1.4, 0.05, 0.55], [-0.35, 1.25, -0.3, 0.42], [0.4, 1.3, 0.3, 0.4]]) b.sphere(x * CS, y * CS, z * CS, r * CS, W, { sy: 0.9 });
-  // an arm of puffs out to the one holding the rod
-  for (const [x, y, z, r] of [[0.72, 0.92, 0.18, 0.36], [0.92, 1.02, 0.25, 0.3], [1.15, 1.1, 0.3, 0.3]]) b.sphere(x * CS, y * CS, z * CS, r * CS, W);
   cloudFace(b, 0.95 * CS, 0.78 * CS);
   for (const sd of [-1, 1]) b.sphere(sd * 0.55 * CS, 0.72 * CS, 0.62 * CS, 0.12 * CS, 0xffb3c4, { sy: 0.6 });   // rosy cheeks
   return b.build({ name: 'cloud', shadows: false });
