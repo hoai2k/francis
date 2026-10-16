@@ -288,6 +288,15 @@ function legoSplit(g) {
   return { side: make(side), top: make(top) };
 }
 
+// a material's bucket for pieces that cast no shadow (small details flush with a wall); build() gives
+// them their own mesh. Code that walks chunks can hand these keys straight back to bucket().
+const shadowlessKeys = new WeakMap();
+function shadowless(mat) {
+  let k = shadowlessKeys.get(mat);
+  if (!k) shadowlessKeys.set(mat, k = { mat, noShadow: true });
+  return k;
+}
+
 export class BrickBuilder {
   // chunk > 0 splits output meshes spatially so they can be frustum-culled.
   // opts.lego: give plain scenery boxes brick courses and studded tops (see legoMats)
@@ -297,24 +306,25 @@ export class BrickBuilder {
     this.lego = !!opts.lego;
     this.chunks = new Map();   // chunkKey -> Map(material -> geometry[])
   }
-  bucket(mat, x, z) {
+  bucket(mat, x, z, noShadow = false) {
     const key = this.chunk ? Math.floor(x / this.chunk) + ',' + Math.floor(z / this.chunk) : '0';
     let c = this.chunks.get(key);
     if (!c) { c = new Map(); this.chunks.set(key, c); }
-    let b = c.get(mat);
-    if (!b) { b = []; c.set(mat, b); }
+    const mk = noShadow && mat.isMaterial ? shadowless(mat) : mat;
+    let b = c.get(mk);
+    if (!b) { b = []; c.set(mk, b); }
     return b;
   }
-  add(geo, mat, x, y, z, rotY = 0, sx = 1, sy = 1, sz = 1) {
+  add(geo, mat, x, y, z, rotY = 0, sx = 1, sy = 1, sz = 1, noShadow = false) {
     tmpQ.setFromAxisAngle(up, rotY);
     tmpM.compose(tmpP.set(x, y, z), tmpQ, tmpS.set(sx, sy, sz));
-    return this.addMatrix(geo, mat, tmpM);
+    return this.addMatrix(geo, mat, tmpM, noShadow);
   }
-  addMatrix(geo, mat, matrix) {
+  addMatrix(geo, mat, matrix, noShadow = false) {
     let g = geo.clone().applyMatrix4(matrix);
     if (g.attributes.color) g.deleteAttribute('color');
     if (mat.userData.plain !== undefined) { paint(g, mat.userData.plain); mat = vertexColorPlastic(); }
-    this.bucket(mat, matrix.elements[12], matrix.elements[14]).push(g);
+    this.bucket(mat, matrix.elements[12], matrix.elements[14], noShadow).push(g);
     return g;
   }
   // w,d in studs, h in plates; (x, y, z) = centre bottom in world units.
@@ -332,7 +342,14 @@ export class BrickBuilder {
     if (this.legoOk(mat, sx, sy, sz, opts)) {
       tmpQ.setFromAxisAngle(up, opts.rot || 0);
       this.legoBox(geo, mat, tmpM.compose(tmpP.set(x, y, z), tmpQ, tmpS.set(sx, sy, sz)));
-    } else this.add(geo, mat, x, y, z, opts.rot || 0, sx, sy, sz);
+    } else this.add(geo, mat, x, y, z, opts.rot || 0, sx, sy, sz, !!opts.noShadow);
+    return y + sy;
+  }
+  // Flat rectangle facing +z (turned by rot), centre bottom: a face whose back and edges never show
+  // (a window pane in a wall). Casts no shadow.
+  quad(x, y, z, sx, sy, color, opts = {}) {
+    const geo = cached('uquad', () => new THREE.PlaneGeometry(1, 1).translate(0, 0.5, 0));
+    this.add(geo, opts.mat || plastic(color, opts.matOpts), x, y, z, opts.rot || 0, sx, sy, 1, true);
     return y + sy;
   }
   // Box with an arbitrary transform (unit box centred at origin).
@@ -384,14 +401,15 @@ export class BrickBuilder {
     const group = new THREE.Group();
     group.name = name;
     for (const c of this.chunks.values()) {
-      for (const [mat, geos] of c) {
+      for (const [key, geos] of c) {
+        const mat = key.isMaterial ? key : key.mat;
         const CH = 2500;
         for (let i = 0; i < geos.length; i += CH) {
           const g = mergeGeometries(geos.slice(i, i + CH));
           if (!g) continue;
           g.computeBoundingSphere();
           const mesh = new THREE.Mesh(g, mat);
-          mesh.castShadow = shadows && !mat.transparent;
+          mesh.castShadow = shadows && !mat.transparent && !key.noShadow;
           mesh.receiveShadow = receive;
           group.add(mesh);
         }

@@ -72,6 +72,12 @@ class Game {
     if (!this.settings.tiltV2) { this.settings.tiltInvert = false; this.settings.tiltV2 = true; save(SKEY, this.settings); }
     if ('useChars' in this.settings || 'charsDefault' in this.settings) { delete this.settings.useChars; delete this.settings.charsDefault; save(SKEY, this.settings); }
     this.best = load(TKEY, {});
+    // records are kept per map and engine class ("city@150"); older ones were per map only and most
+    // were set on the default 100cc
+    if (Object.keys(this.best).some((k) => !k.includes('@'))) {
+      for (const k of Object.keys(this.best)) if (!k.includes('@')) { this.best[`${k}@100`] ??= this.best[k]; delete this.best[k]; }
+      save(TKEY, this.best);
+    }
     // each player slot's last picks, by id: { chars: { 0: { driver, kart } } }
     this.picks = load(PKEY, { chars: {} });
     const app = document.getElementById('app');
@@ -427,9 +433,9 @@ class Game {
           <tr><td>Look behind</td><td>Press a stick</td></tr><tr><td>Pause</td><td>Start</td></tr></table></div>
         <div><h3>⌨️ Keyboard</h3><table>
           <tr><td>Steer</td><td>A / D or ← / →</td></tr><tr><td>Accelerate</td><td>W or ↑</td></tr><tr><td>Brake / reverse</td><td>S or ↓</td></tr>
-          <tr><td>Hop & drift</td><td>Space</td></tr><tr><td>Use item</td><td>E or Shift</td></tr><tr><td>Look behind</td><td>Q</td></tr><tr><td>Pause</td><td>Esc / P</td></tr>
-          <tr><td>2nd keyboard player</td><td>Arrows, Right Shift = drift, Enter = item (join with Right Shift)</td></tr></table>
-          <h3>📱 Touch</h3><p>Drag a finger left / right anywhere to steer; drag it down to brake. While steering, touch with a second finger to drift. ITEM (bottom right) shows what you hold. Gas is automatic.</p></div>
+          <tr><td>Hop & drift</td><td>Space</td></tr><tr><td>Use item</td><td>E or Shift</td></tr><tr><td>Throw back / forward</td><td>Hold S + item / R</td></tr><tr><td>Look behind</td><td>Q</td></tr><tr><td>Pause</td><td>Esc / P</td></tr>
+          <tr><td>2nd keyboard player</td><td>Arrows, Right Shift = drift, Enter = item, ' = throw forward (join with Right Shift)</td></tr></table>
+          <h3>📱 Touch</h3><p>Drag a finger left / right anywhere to steer; drag it down to brake. While steering, touch with a second finger to drift. ITEM (bottom right) shows what you hold: tap it to use it, flick it up to throw forward or down to fire behind. Gas is automatic.</p></div>
         <div><h3>🏁 Tips</h3><ul>
           <li>Hold drift through corners until the sparks turn <b style="color:#7fd4ff">blue</b>, <b style="color:#ff9a1a">orange</b>, then <b style="color:#d05aff">purple</b>, then let go for a mini-turbo.</li>
           <li>Press drift in mid-air off a ramp to do a trick and land with a boost.</li>
@@ -983,7 +989,7 @@ class Game {
   showTracks(mode, online = null) {
     let focus = this.lastTrack ?? 0;
     const cards = TRACKS.map((t, i) => {
-      const b = this.best[t.id];
+      const b = this.best[this.bestKey(t.id)];
       return `<div class="tcard" data-i="${i}"><img src="${this.thumbs[i]}" alt=""><div class="tn">${esc(t.name)}</div><div class="ts">${esc(t.subtitle)}</div>${mode === 'tt' && b ? `<div class="tb">Best ${fmt(b)}</div>` : ''}</div>`;
     }).join('') + `<div class="tcard rnd" data-i="${TRACKS.length}"><div class="q">?</div><div class="tn">Random</div><div class="ts">Surprise me</div></div>`;
     this.setScreen(`<div class="screen tracks"><div class="panel wide"><h2>${mode === 'tt' ? 'Time Trial' : mode === 'online' ? 'Online' : 'Quick Race'} · Choose a map</h2>
@@ -1071,7 +1077,7 @@ class Game {
     setTimeout(() => {
       if (isPhone()) this.players = this.players.slice(0, 1);   // no split screen on a phone
       const s = this.settings;
-      this.buildRace({ ...opts, players: this.players, simple: !!s.simple, cc: CC[s.cc] || 0.92, difficulty: s.difficulty, racers: 12, laps: opts.mode === 'tt' ? 3 : s.laps, bestTime: opts.mode === 'tt' ? this.best[opts.def.id] : 0 });
+      this.buildRace({ ...opts, players: this.players, simple: !!s.simple, cc: CC[s.cc] || 0.92, difficulty: s.difficulty, racers: 12, laps: opts.mode === 'tt' ? 3 : s.laps, ttKey: this.bestKey(opts.def.id), bestTime: opts.mode === 'tt' ? this.best[this.bestKey(opts.def.id)] : 0 });
       this.race.onDone = (res) => this.onRaceDone(res);
       ld.classList.add('hidden');
       this.screen = null;
@@ -1226,14 +1232,17 @@ class Game {
     this.cleanup = () => show.dispose();
   }
 
+  bestKey(mapId) { return `${mapId}@${this.settings.cc}`; }
+
   showTTResult(res) {
     const r = res[0];
-    const id = this.race.opts.def.id;
+    // the class the run was driven in, even if Options changed it since
+    const id = this.race.opts.ttKey;
     const prev = this.best[id];
     const newBest = !prev || r.time < prev;
     if (newBest) { this.best[id] = r.time; save(TKEY, this.best); }
     const laps = r.laps.map((t, i) => `<div class="rrow"><span class="pl">Lap ${i + 1}</span><span class="nm"></span><span class="tm">${fmt(t)}</span></div>`).join('');
-    this.resultsMenu(`Time Trial · ${this.race.opts.def.name}`, `<div class="results">${laps}<div class="rrow me" style="--pc:#ffd23a"><span class="pl">Total</span><span class="nm">${newBest ? '⭐ NEW BEST!' : `Best ${fmt(prev)}`}</span><span class="tm">${fmt(r.time)}</span></div></div>`, [
+    this.resultsMenu(`Time Trial · ${this.race.opts.def.name} · ${id.split('@')[1]}cc`, `<div class="results">${laps}<div class="rrow me" style="--pc:#ffd23a"><span class="pl">Total</span><span class="nm">${newBest ? '⭐ NEW BEST!' : `Best ${fmt(prev)}`}</span><span class="tm">${fmt(r.time)}</span></div></div>`, [
       { label: 'Retry', action: () => this.startRace(this.lastRaceOpts) },
       { label: 'Choose map', action: () => { this.race.dispose(); this.race = null; this.startAttract(); this.showTracks('tt'); } },
       { label: 'Main menu', action: () => this.quitToMenu() },

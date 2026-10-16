@@ -273,15 +273,31 @@ export class World {
   }
 
   // centre the shadow frustum on the viewer
-  aimSun(focus) {
+  // half = the shadow area's half-width (75 normally; split screen can share one larger area)
+  aimSun(focus, half = 75) {
+    const sc = this.sun.shadow.camera;
+    if (sc.right !== half) { sc.left = sc.bottom = -half; sc.right = sc.top = half; sc.updateProjectionMatrix(); }
     this.sun.target.position.copy(focus);
     this.sun.position.copy(focus).addScaledVector(this.sunDir, 200);
     this.sun.target.updateMatrixWorld();
   }
 
   dispose() {
-    // geometry is per-map; materials/textures are shared caches and kept
-    this.scene.traverse((o) => { if (o.geometry) o.geometry.dispose(); });
+    // geometry and textures are freed (most are per-map: road, signs, banners, masks). Some textures
+    // are module caches reused next race; three uploads those again on first use, so freeing them is
+    // safe. Materials are kept: they're cheap and mostly shared, and freeing them would recompile
+    // shaders every race. Render-target textures (the environment map) can't be re-made by uploading,
+    // so they're never freed here.
+    const textures = new Set();
+    const addTex = (v) => { if (v && v.isTexture && !v.isRenderTargetTexture) textures.add(v); };
+    this.scene.traverse((o) => {
+      if (o.geometry) o.geometry.dispose();
+      for (const m of [].concat(o.material || [])) {
+        for (const v of Object.values(m)) addTex(v);
+        if (m.uniforms) for (const u of Object.values(m.uniforms)) addTex(u?.value);
+      }
+    });
+    for (const t of textures) t.dispose();
     this.scene.clear();
   }
 }

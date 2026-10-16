@@ -2,15 +2,15 @@
 // up to four gamepads (standard mapping, with rumble) and touch buttons.
 const KB_FULL = {
   left: ['KeyA', 'ArrowLeft'], right: ['KeyD', 'ArrowRight'], gas: ['KeyW', 'ArrowUp'], brake: ['KeyS', 'ArrowDown'],
-  drift: ['Space', 'ShiftRight', 'KeyK'], item: ['KeyE', 'ShiftLeft', 'KeyX', 'KeyJ', 'ControlRight'], look: ['KeyQ', 'KeyC'],
+  drift: ['Space', 'ShiftRight', 'KeyK'], item: ['KeyE', 'ShiftLeft', 'KeyX', 'KeyJ', 'ControlRight'], itemFwd: ['KeyR', 'KeyL'], look: ['KeyQ', 'KeyC'],
   up: ['KeyW', 'ArrowUp'], down: ['KeyS', 'ArrowDown'], ok: ['Enter', 'Space', 'NumpadEnter'], back: ['Escape', 'Backspace'], pause: ['Escape', 'KeyP'],
 };
 const KB_A = {
-  left: ['KeyA'], right: ['KeyD'], gas: ['KeyW'], brake: ['KeyS'], drift: ['Space'], item: ['KeyE', 'ShiftLeft'], look: ['KeyQ'],
+  left: ['KeyA'], right: ['KeyD'], gas: ['KeyW'], brake: ['KeyS'], drift: ['Space'], item: ['KeyE', 'ShiftLeft'], itemFwd: ['KeyR'], look: ['KeyQ'],
   up: ['KeyW'], down: ['KeyS'], ok: ['Space', 'KeyE'], back: ['KeyQ', 'Escape'], pause: ['Escape'],
 };
 const KB_B = {
-  left: ['ArrowLeft'], right: ['ArrowRight'], gas: ['ArrowUp'], brake: ['ArrowDown'], drift: ['ShiftRight', 'Slash'], item: ['Enter', 'Period', 'ControlRight', 'NumpadEnter'], look: ['Comma'],
+  left: ['ArrowLeft'], right: ['ArrowRight'], gas: ['ArrowUp'], brake: ['ArrowDown'], drift: ['ShiftRight', 'Slash'], item: ['Enter', 'Period', 'ControlRight', 'NumpadEnter'], itemFwd: ['Quote'], look: ['Comma'],
   up: ['ArrowUp'], down: ['ArrowDown'], ok: ['Enter', 'NumpadEnter'], back: ['Backspace'], pause: ['KeyP'],
 };
 export const KB2_JOIN = ['ShiftRight', 'Slash'];
@@ -26,7 +26,7 @@ export class Input {
     this.padPrev = new Map();
     this.padNow = new Map();
     this.prevMenu = new Map();     // device -> { dir: {up,down,left,right} timers }
-    this.touch = { drift: false, item: false, brake: false, gas: true, pause: false, pressed: new Set(), active: false, drag: null, tilt: 0 };
+    this.touch = { drift: false, item: false, itemAim: 0, brake: false, gas: true, pause: false, pressed: new Set(), active: false, drag: null, tilt: 0 };
     // touch steering: 'both' (tilt, and dragging overrides it while a finger is down), 'drag' or 'tilt'
     // (main.js sets it; drag-only while tilt steering is switched off)
     this.steerMode = 'drag';
@@ -83,9 +83,12 @@ export class Input {
       c.throttle = this.kHeld(L.gas) || autoGas ? 1 : 0;
       c.brake = this.kHeld(L.brake) ? 1 : 0;
       c.drift = this.kHeld(L.drift); c.driftPressed = this.kEdge(L.drift);
-      c.itemPressed = this.kEdge(L.item);
-      c.back = c.brake > 0;
-      c.aimFwd = false;
+      // the item key fires its usual way (hold brake to fire or drop it behind); the throw key
+      // throws it forward (traps, Boom Bricks)
+      const fwd = this.kEdge(L.itemFwd);
+      c.itemPressed = this.kEdge(L.item) || fwd;
+      c.back = c.brake > 0 && !fwd;
+      c.aimFwd = fwd;
       c.look = this.kHeld(L.look);
       c.pause = this.kEdge(L.pause);
     } else if (dev === 'touch') {
@@ -94,7 +97,11 @@ export class Input {
       c.brake = t.brake ? 1 : 0;
       c.throttle = c.brake ? 0 : 1;
       c.drift = t.drift; c.driftPressed = t.edge.has('drift');
+      // ITEM: a tap fires it the usual way, a flick up throws it forward, a flick down fires or drops it
+      // behind (so does a tap while dragging down to brake)
       c.itemPressed = t.edge.has('item');
+      c.aimFwd = c.itemPressed && t.itemAim < 0;
+      c.back = c.itemPressed ? t.itemAim > 0 || (!t.itemAim && c.brake > 0) : c.brake > 0;
       c.pause = t.edge.has('pause');
     } else {
       const s = this.padNow.get(dev);
@@ -178,10 +185,35 @@ export class Input {
     const t = this.touch;
     const owners = new Map();
     const set = (k, v) => { if (v && !t[k]) t.pressed.add(k); t[k] = v; };
+    // ITEM waits for the finger to say which way: it fires on a flick up (forward) or down (behind), on
+    // release (a tap), or after a short hold without a flick
+    const FLICK = 22, HOLD = 0.18;
+    let aiming = null;   // { id, y0, timer }
+    const fireItem = (aim) => {
+      if (!aiming) return;
+      clearTimeout(aiming.timer); aiming = null;
+      t.itemAim = aim; t.pressed.add('item');
+    };
     root.querySelectorAll('button').forEach((btn) => {
       const k = btn.dataset.k;
-      btn.addEventListener('pointerdown', (e) => { e.preventDefault(); btn.setPointerCapture?.(e.pointerId); owners.set(e.pointerId, k); set(k, true); btn.classList.add('on'); this.lastDevice = 'touch'; t.active = true; });
-      const up = (e) => { owners.delete(e.pointerId); if (![...owners.values()].includes(k)) { set(k, false); btn.classList.remove('on'); } };
+      btn.addEventListener('pointerdown', (e) => {
+        e.preventDefault(); btn.setPointerCapture?.(e.pointerId); owners.set(e.pointerId, k); btn.classList.add('on'); this.lastDevice = 'touch'; t.active = true;
+        if (k !== 'item') { set(k, true); return; }
+        if (aiming) fireItem(0);
+        t.item = true;
+        aiming = { id: e.pointerId, y0: e.clientY, timer: setTimeout(() => fireItem(0), HOLD * 1000) };
+      });
+      if (k === 'item') {
+        btn.addEventListener('pointermove', (e) => {
+          if (!aiming || aiming.id !== e.pointerId) return;
+          const dy = e.clientY - aiming.y0;
+          if (Math.abs(dy) > FLICK) fireItem(Math.sign(dy));
+        });
+      }
+      const up = (e) => {
+        if (k === 'item' && aiming && aiming.id === e.pointerId) fireItem(0);
+        owners.delete(e.pointerId); if (![...owners.values()].includes(k)) { set(k, false); btn.classList.remove('on'); }
+      };
       btn.addEventListener('pointerup', up); btn.addEventListener('pointercancel', up); btn.addEventListener('lostpointercapture', up);
       btn.addEventListener('contextmenu', (e) => e.preventDefault());
     });

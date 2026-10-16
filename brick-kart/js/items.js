@@ -323,8 +323,8 @@ export class Items {
       if (k.itemCount <= 0) k.item = null;
     } else k.item = null;
     if (it === 'goldturbo') k.goldTurboStarted = false;
-    if (k._stolen && !k.item) { k.item = k._stolen; k.itemCount = MULTI[k.item] || 1; }
-    k._stolen = null;
+    if (k._stolen && !k.item) { k.item = k._stolen; k.itemCount = MULTI[k.item] ? k._stolenCount || MULTI[k.item] : 1; }
+    k._stolen = null; k._stolenCount = 0;
     this.race.onItemUsed?.(k, it);
   }
 
@@ -398,8 +398,9 @@ export class Items {
     const v = this.netVictim !== undefined ? this.netVictim : pool[Math.floor(Math.random() * pool.length)];
     this.lastVictim = v || null;
     if (v) {
-      if (v.nextItem) { k._stolen = v.nextItem; v.nextItem = null; }
-      else { k._stolen = v.item; v.item = null; v.itemCount = 0; }
+      // a held multi-use item goes over with the uses the victim had left, not a full set
+      if (v.nextItem) { k._stolen = v.nextItem; k._stolenCount = MULTI[v.nextItem] || 1; v.nextItem = null; }
+      else { k._stolen = v.item; k._stolenCount = Math.max(1, v.itemCount || 1); v.item = null; v.itemCount = 0; }
       if (k._stolen === 'goldturbo') v.goldTurboStarted = false;
       v.player?.rumble(0.3, 150);
     }

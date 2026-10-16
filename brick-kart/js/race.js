@@ -210,8 +210,14 @@ export class Race {
     this.doneTimer = -1;
     this.flashEl = game.flashEl;
     this.introCam = new THREE.PerspectiveCamera(55, 1, 0.1, 3000);
+    this.viewFar = this.farPlane();
     for (const k of this.karts) { k.lapTimes = []; k.lapStart = 0; k.lapSeen = 0; k.gasHold = -1; }
-    if (this.mode === 'tt') for (const k of this.karts) { k.item = 'boost3'; k.itemCount = 3; }
+    if (this.mode === 'tt') {
+      for (const k of this.karts) { k.item = 'boost3'; k.itemCount = 3; }
+      // no item boxes in Time Trial, so a record never depends on a lucky roll
+      for (const b of this.track.itemBoxes) b.g.visible = false;
+      this.track.itemBoxes = [];
+    }
     this.audio.music(this.mode === 'attract' ? null : { file: './music/arcade-kart-dash.mp3' });
   }
 
@@ -286,6 +292,9 @@ export class Race {
       if (!this.started) { ctl = { ...ctl, throttle: 0, brake: 0, steer: 0, driftPressed: false, itemPressed: false }; }
       if (ctl.itemPressed && k.item && k.roulette <= 0 && !k.stunned && this.started) {
         const it = k.item;
+        // the item reads its aim from k.ctl: hand it this frame's controls (a one-frame aim, like the
+        // throw-forward key or a flick on the touch ITEM button, isn't in last frame's)
+        k.ctl = ctl;
         if (net) net.use(k, () => this.items.use(k)); else this.items.use(k);
         if (k.anim) {
           const back = ctl.back || (TRAPS.has(it) && !ctl.aimFwd);
@@ -546,12 +555,60 @@ export class Race {
     return splitCells(this.cams.length).map(([c, r, cols, rows]) => [c * W / cols, H - (r + 1) * H / rows, W / cols, H / rows]);
   }
 
+  // How far the cameras need to draw: past the fog's end everything is fog-coloured, so scenery out
+  // there is culled, unless a map placed something that ignores fog (a moon, a planet, a dome); then
+  // the cameras reach it from anywhere on the track
+  farPlane() {
+    const fog = this.scene.fog;
+    if (!fog) return 3000;
+    const box = new THREE.Box3();
+    const P = this.track.P;
+    for (let i = 0; i < P.length; i += 3) box.expandByPoint(V.set(P[i], P[i + 1], P[i + 2]));
+    const centre = box.getCenter(new THREE.Vector3()), reach = box.getSize(new THREE.Vector3()).length() / 2 + 60;
+    const sphere = new THREE.Sphere();
+    let far = fog.far + 60;
+    this.scene.updateMatrixWorld(true);
+    this.scene.traverse((o) => {
+      if (!(o.isMesh || o.isSprite || o.isPoints) || o.frustumCulled === false || !o.geometry) return;
+      if (![].concat(o.material).some((m) => m && m.fog === false)) return;
+      if (!o.geometry.boundingSphere) o.geometry.computeBoundingSphere();
+      sphere.copy(o.geometry.boundingSphere).applyMatrix4(o.matrixWorld);
+      far = Math.max(far, sphere.center.distanceTo(centre) + sphere.radius + reach);
+    });
+    return Math.min(3000, far);
+  }
+
+  fitFar(cam) {
+    if (cam.far !== this.viewFar) { cam.far = this.viewFar; cam.updateProjectionMatrix(); }
+  }
+
+  // One shadow pass for every screen: around player 1 with 5+ screens; with 2-4, around the middle of
+  // what the screens look at when that's close enough for one shadow area (a little larger, and so a little softer,
+  // with 3-4 smaller screens) to cover them all. null = draw it per screen.
+  sharedShadow(screens) {
+    if (screens < 2) return null;
+    // what each screen looks at (3 players: the 4th screen is the TV camera)
+    const at = [];
+    for (let i = 0; i < screens; i++) at.push(this.cams[i] ? this.cams[i].kart.pos : this.tv.focus || this.karts[0].pos);
+    if (screens >= 5) return { focus: at[0], half: 75 };
+    const mid = this._shadowMid || (this._shadowMid = new THREE.Vector3());
+    mid.set(0, 0, 0);
+    for (const p of at) mid.add(p);
+    mid.divideScalar(at.length);
+    let r = 0;
+    for (const p of at) r = Math.max(r, Math.hypot(p.x - mid.x, p.z - mid.z));
+    const half = r + 40;   // each kart keeps at least 40 units of shadow around it
+    const max = screens >= 3 ? 115 : 85;
+    return half <= max ? { focus: mid, half: Math.max(75, half) } : null;
+  }
+
   render(renderer) {
     const size = renderer.getSize(V);
     const W = size.x, H = size.y;
     if (this.spec && this.state !== 'intro') {
       // online spectator: a chase camera behind the followed kart
       const cam = this.spec.chase.cam;
+      this.fitFar(cam);
       renderer.setScissorTest(false);
       renderer.setViewport(0, 0, W, H);
       if (Math.abs(cam.aspect - W / H) > 0.001) { cam.aspect = W / H; cam.updateProjectionMatrix(); }
@@ -562,7 +619,7 @@ export class Race {
     if (this.mode === 'attract' || (!this.cams.length && this.state !== 'intro')) {
       renderer.setScissorTest(false);
       renderer.setViewport(0, 0, W, H);
-      this.tv.cam.aspect = W / H; this.tv.cam.updateProjectionMatrix();
+      this.tv.cam.aspect = W / H; this.tv.cam.far = this.viewFar; this.tv.cam.updateProjectionMatrix();
       this.world.aimSun(this.tv.focus || this.karts[0].pos);
       renderer.render(this.scene, this.tv.cam);
       return;
@@ -570,13 +627,14 @@ export class Race {
     if (this.state === 'intro') {
       renderer.setScissorTest(false);
       renderer.setViewport(0, 0, W, H);
-      this.introCam.aspect = W / H; this.introCam.updateProjectionMatrix();
+      this.introCam.aspect = W / H; this.introCam.far = this.viewFar; this.introCam.updateProjectionMatrix();
       this.world.aimSun(this.track.at(-20, 0, 0));
       renderer.render(this.scene, this.introCam);
       return;
     }
     const vps = this.viewports(W, H);
-    const shareShadow = vps.length >= 5;
+    const shared = this.sharedShadow(vps.length);
+    const shareShadow = !!shared;
     renderer.shadowMap.autoUpdate = !shareShadow;
     renderer.setScissorTest(true);
     vps.forEach((vp, i) => {
@@ -586,9 +644,12 @@ export class Race {
       let cam, focus;
       if (this.cams[i]) { cam = this.cams[i].chase.cam; focus = this.cams[i].kart.pos; }
       else { cam = this.tv.cam; focus = this.tv.focus || this.karts[0].pos; }
+      this.fitFar(cam);
       if (Math.abs(cam.aspect - w / h) > 0.001) { cam.aspect = w / h; cam.updateProjectionMatrix(); }
-      // with 5+ screens the sun's shadow map is drawn once per frame (around player 1) and shared
-      if (!shareShadow || i === 0) { this.world.aimSun(focus); renderer.shadowMap.needsUpdate = true; }
+      // the sun's shadow map is drawn once per frame and shared when the players are close enough
+      // together (or there are 5+ screens), else once per screen around that screen's kart
+      if (!shareShadow) { this.world.aimSun(focus); renderer.shadowMap.needsUpdate = true; }
+      else if (i === 0) { this.world.aimSun(shared.focus, shared.half); renderer.shadowMap.needsUpdate = true; }
       renderer.render(this.scene, cam);
     });
     renderer.shadowMap.autoUpdate = true;

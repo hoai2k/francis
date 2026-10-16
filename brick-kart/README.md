@@ -15,8 +15,9 @@ Play: <https://hoai2k.github.io/francis/brick-kart/>
   Points go 15-12-10-9-8-7-6-5-4-3-2-1, and each cup ends with an award
   ceremony.
 - **Quick Race**: one race on any map, always with **12 racers** (you plus CPU racers).
-- **Time Trial**: race alone with 3 Turbo Studs. Your best time on each map is
-  saved in your browser.
+- **Time Trial**: race alone with 3 Turbo Studs; there are no item boxes, so a record
+  never depends on a lucky item. Your best time on each map and engine class is saved
+  in your browser.
 - **Online**: race friends on other
   screens, up to 12 people in a race, with everyone on each screen able to join
   in (see [Online](#online) below).
@@ -29,7 +30,7 @@ Play: <https://hoai2k.github.io/francis/brick-kart/>
 ### Simplified mode
 
 **Simplified mode** (Options, off by default, remembered once you turn it on)
-offers a smaller set (81 drivers, 41 karts and 25 gliders) on the select screen, as one
+offers a smaller set (80 drivers, 41 karts and 25 gliders) on the select screen, as one
 big grid without movie headings. CPU racers still pick from the whole roster, so you
 race against characters and karts that aren't in the set too. The set lives in
 `js/simplified.js` (`null` means all). Choose the set in the **workbench** at
@@ -328,7 +329,9 @@ you drop some.
 | Accelerate | A or RT | W / ↑ | automatic |
 | Brake / reverse | B or LT | S / ↓ | drag the steering finger down |
 | Hop & drift | RB | Space | touch with a second finger |
-| Use item | LB, X or Y | E or Shift | ITEM |
+| Use item | LB, X or Y | E or Shift | tap ITEM |
+| Throw item forward | stick up + item | R | flick ITEM up |
+| Fire / drop item behind | stick down + item | hold S / ↓ + item | flick ITEM down |
 | Look behind | click a stick | Q | |
 | Pause | Start | Esc / P | II |
 
@@ -356,7 +359,8 @@ you drop some.
   it back up to let go. While steering, touch anywhere with a second finger to hop
   and drift (or do a trick in the air). The one button is **ITEM**: it shows the item
   you're holding (and the next one beside it) and is greyed out while you have none.
-  Gas is automatic.
+  Tap it to use the item, flick it up to throw the item forward (traps, Boom Bricks)
+  or flick it down to fire or drop it behind. Gas is automatic.
 - **Tilt steering** is switched off for now (`TILT_ENABLED` in `js/main.js`), along
   with its options, until it feels right. The code is still there: Wheel or Turn
   (gyro) style, three sensitivities and invert, with a dead zone, a gentle curve and
@@ -370,8 +374,8 @@ other controllers can't join and races have no split screen). Each other player 
 their own controller to join (one empty "Press A to join" slot is shown at a
 time, up to 8 players). Two people can also share one keyboard: once the first
 keyboard player has joined, the second presses **Right Shift**. Then player 1
-uses WASD + Space (drift) + E (item), and player 2 uses the arrow keys +
-Right Shift (drift) + Enter (item). Two players get a top/bottom split,
+uses WASD + Space (drift) + E (item; R throws it forward), and player 2 uses the arrow keys +
+Right Shift (drift) + Enter (item; ' throws it forward). Two players get a top/bottom split,
 three or four get quarters, five or six a 3×2 grid and seven or eight a 4×2
 grid. Browsers expose a limited number of controllers (Chrome lists up to
 four), so eight players may need a mix of controllers and the two keyboard

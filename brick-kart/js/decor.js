@@ -147,8 +147,10 @@ export function building(b, x, z, w, d, floors, col, r, opts = {}) {
       for (let k = 0; k < n; k++) {
         const t = (k + 0.5) / n * len - len / 2, px = x + (nz ? t : nx * off), pz = z + (nz ? nz * off : t);
         const rot = nz ? 0 : Math.PI / 2;
-        if (DETAIL !== 'low') b.box(px + nx * 0.06, y + 0.7, pz + nz * 0.06, 1.9, 2.0, 0.3, 0, { mat: frameM, rot, smooth: true });   // frame
-        b.box(px + nx * 0.14, y + 0.85, pz + nz * 0.14, 1.5, 1.7, 0.3, 0, { mat: glassMat, rot });            // pane
+        // thousands of these per city: the frame casts no shadow (it's nearly flush with the wall)
+        // and the pane is just its outward face (2 triangles, not a 12-triangle box)
+        if (DETAIL !== 'low') b.box(px + nx * 0.06, y + 0.7, pz + nz * 0.06, 1.9, 2.0, 0.3, 0, { mat: frameM, rot, smooth: true, noShadow: true });   // frame
+        b.quad(px + nx * 0.29, y + 0.85, pz + nz * 0.29, 1.5, 1.7, 0, { mat: glassMat, rot: Math.atan2(nx, nz) });   // pane
       }
     }
     y += 3.3;
