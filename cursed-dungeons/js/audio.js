@@ -1,7 +1,11 @@
-// Procedural Web Audio: every sound effect and the music are synthesised —
+// Web Audio: every sound effect is synthesised (the music is two recorded
+// tracks, with a generative fallback) —
 // impacts, whooshes, energy charges, domain expansions, surface-aware
 // footsteps, ambience per biome and a small generative soundtrack.
 import { settings } from './settings.js';
+
+const MUSIC = { background: 'assets/music/background.mp3', boss: 'assets/music/boss.mp3' };
+const TRACK_GAIN = 0.45;   // the tracks are mastered loud; keep them under the effects
 
 export class Audio {
   constructor() {
@@ -10,7 +14,7 @@ export class Audio {
   }
   // Must be called from a user gesture.
   start() {
-    if (this.started) { this.ctx.resume?.(); return; }
+    if (this.started) { this.ctx.resume?.(); if (this.current?.el.paused) this.current.el.play().catch(() => {}); return; }
     const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
     const ctx = this.ctx = new AC();
     this.master = ctx.createGain(); this.master.connect(ctx.destination);
@@ -149,12 +153,55 @@ export class Audio {
     this.amb = { src, timer };
   }
 
-  // ---- music: small generative sequencer (taiko + koto-like plucks + pad)
+  // ---- music: recorded tracks (assets/music/) with crossfades — the
+  // background theme for the title, hub and missions, the boss theme for
+  // boss fights. A track that fails to load falls back to the generative
+  // sequencer below. null = silence (cutscene beats); the track pauses and
+  // picks up where it left off.
   setMusic(kind) {
     if (!this.started) { this.pendingMusic = kind; return; }
     this.musicKind = kind;
-    if (this.musicTimer) clearInterval(this.musicTimer);
+    if (this.musicTimer) { clearInterval(this.musicTimer); this.musicTimer = null; }
+    const want = kind ? (kind === 'boss' ? 'boss' : 'background') : null;
+    if (want && !this.trackFailed?.[want]) { this.playTrack(want); return; }
+    this.playTrack(null);
     if (!kind) return;
+    this.generative(kind);
+  }
+  track(name) {
+    this.tracks ??= {};
+    if (this.tracks[name]) return this.tracks[name];
+    const el = new window.Audio(MUSIC[name]);
+    el.loop = true; el.preload = 'auto'; el.crossOrigin = 'anonymous';
+    const gain = this.ctx.createGain(); gain.gain.value = 0;
+    this.ctx.createMediaElementSource(el).connect(gain); gain.connect(this.musicBus);
+    const t = this.tracks[name] = { el, gain, name };
+    el.addEventListener('error', () => {
+      (this.trackFailed ??= {})[name] = true;
+      if (this.current === t) { this.current = null; if (this.musicKind) this.generative(this.musicKind); }
+    });
+    return t;
+  }
+  playTrack(name) {
+    const now = this.ctx.currentTime, FADE = 1.4;
+    const next = name ? this.track(name) : null;
+    if (this.current === next && (!next || !next.el.paused)) return;
+    const prev = this.current;
+    if (prev && prev !== next) {
+      prev.gain.gain.cancelScheduledValues(now); prev.gain.gain.setValueAtTime(prev.gain.gain.value, now); prev.gain.gain.linearRampToValueAtTime(0, now + FADE);
+      clearTimeout(prev.stopT); prev.stopT = setTimeout(() => { if (this.current !== prev) prev.el.pause(); }, FADE * 1000 + 100);
+      // the boss theme starts over each fight; the background theme resumes
+      if (prev.name === 'boss') prev.restart = true;
+    }
+    this.current = next;
+    if (!next) return;
+    clearTimeout(next.stopT);
+    if (next.restart) { next.el.currentTime = 0; next.restart = false; }
+    next.gain.gain.cancelScheduledValues(now); next.gain.gain.setValueAtTime(next.gain.gain.value, now); next.gain.gain.linearRampToValueAtTime(TRACK_GAIN, now + FADE);
+    next.el.play().catch(() => { /* autoplay blocked until a gesture: start() resumes */ });
+  }
+  // ---- generative fallback: small sequencer (taiko + koto-like plucks + pad)
+  generative(kind) {
     const scales = {
       shrine: [0, 1, 5, 7, 8], city: [0, 3, 5, 7, 10], forest: [0, 2, 3, 7, 8], subway: [0, 1, 3, 6, 8], shibuya: [0, 1, 4, 5, 7, 8], hub: [0, 2, 4, 7, 9], boss: [0, 1, 3, 6, 7], title: [0, 2, 3, 7, 10],
     };

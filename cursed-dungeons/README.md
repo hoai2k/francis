@@ -239,9 +239,14 @@ canvas), converging to 512 samples. **Save PNG** downloads the result.
   telegraphed ground markers.
 - **Cutscenes**: in-engine cinematics with letterbox bars, keyframed
   cameras, subtitles and title cards (`js/story/`).
-- **Audio**: every sound is synthesised with the Web Audio API. That
-  covers impacts, charges, domains, footsteps that change with the
-  surface, ambience per biome and a small generative soundtrack.
+- **Music**: two recorded tracks in `assets/music/`: `background.mp3`
+  (title, Jujutsu High and missions) and `boss.mp3` (boss fights). They
+  crossfade, and the background theme resumes where it left off after a
+  boss. A small generative soundtrack is the fallback if a track can't
+  load. Volume follows Settings → Audio → Music.
+- **Sound effects**: synthesised with the Web Audio API. That covers
+  impacts, charges, domains, footsteps that change with the surface and
+  ambience per biome.
 
 ## Files
 
