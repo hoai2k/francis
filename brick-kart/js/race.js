@@ -247,15 +247,12 @@ export class Race {
   humanKarts() { return this.cams.map((c) => c.kart); }
 
   // Local drop-in: a new player joins a race already under way by taking over a CPU kart (the one
-  // furthest back that's still racing), much like online play hands a CPU's kart to a person.
-  // The screen splits again and the HUD is rebuilt. Returns the kart, or null if no one can join now.
-  canJoin() {
-    return !this.net && this.mode !== 'tt' && this.mode !== 'attract' && this.doneTimer < 0 && !this.finishedCalled;
-  }
-  addPlayer(p) {
-    if (!this.canJoin()) return null;
-    const k = [...this.order].reverse().find((o) => !o.human && !o.remote && !o.finished && o.respawn <= 0);
-    if (!k) return null;
+  // furthest back that's still racing), much like online play hands a CPU's kart to a person. With
+  // a saved look for their slot ({ driver, kart, glider } indices) the kart is rebuilt in it;
+  // without one they drive the CPU's. The screen splits again and the HUD is rebuilt.
+  // Returns the kart, or null if no one can join now.
+  // hand kart k to local player p mid-race: their controls, a chase camera and a HUD panel
+  attachPlayer(k, p) {
     this.drivers.delete(k);
     k.player = p; k.human = true; k.speedMult = 1; p.joining = true;
     p.kart = k;
@@ -267,11 +264,39 @@ export class Race {
     this.cams.push({ chase: cc, kart: k, player: p });
     this.cams.sort((a, b) => a.player.id - b.player.id);
     k.engine = this.audio.engine();
+    if (this.spec) this.spec = null;   // (online: a screen that was only watching now races)
     // the HUD is laid out per screen: build it again for the new split
     this.hud?.dispose();
     this.hud = new HUD(this, this.game.hudRoot);
     if (this.state !== 'intro') this.hud.hideTitle();
     for (const c of this.cams) if (c.kart.finished) this.hud.finish(c.kart);
+    this.net?.onPlayersChanged?.();
+  }
+  // the CPU kart a drop-in takes over: the one furthest back that's still racing
+  dropInKart() { return [...this.order].reverse().find((o) => !o.human && !o.remote && !o.netHuman && !o.finished && o.respawn <= 0) || null; }
+  // rebuild a kart in a look ({ driver, kart, glider } indices; a missing part keeps the kart's own)
+  restyleKart(k, look) {
+    const drv = look && DRIVERS[look.driver];
+    if (!drv) return;
+    const ch = KARTS[look.kart] || k.ch, gl = look.glider === undefined || look.glider === null ? k.gliderDef : GLIDERS[look.glider] || k.gliderDef;
+    k.restyle(ch, drv, gl);
+    k.driverIndex = look.driver;
+  }
+  canJoin() {
+    return !this.net && this.mode !== 'tt' && this.mode !== 'attract' && this.doneTimer < 0 && !this.finishedCalled;
+  }
+  addPlayer(p, look = null) {
+    if (!this.canJoin()) return null;
+    const k = this.dropInKart();
+    if (!k) return null;
+    this.drivers.delete(k);
+    // the same driver twice would be confusing (and share Grand Prix points): if another CPU has the
+    // saved driver it swaps to this kart's old look, except in a Grand Prix or if a person drives it
+    const clash = look && this.karts.find((o) => o !== k && o.driverIndex === look.driver);
+    if (clash && (clash.human || clash.netHuman || this.mode === 'gp')) look = null;
+    else if (clash) this.restyleKart(clash, { driver: k.driverIndex, kart: KARTS.indexOf(k.ch), glider: k.gliderDef ? GLIDERS.indexOf(k.gliderDef) : null });
+    this.restyleKart(k, look);
+    this.attachPlayer(k, p);
     return k;
   }
 

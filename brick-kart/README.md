@@ -381,10 +381,16 @@ grid. Browsers expose a limited number of controllers (Chrome lists up to
 four), so eight players may need a mix of controllers and the two keyboard
 setups.
 
-**Joining mid-race**: a controller that isn't playing can press **A** or **Start** during a local
-race (Quick Race or Grand Prix, not Time Trial) to drop in. The new player takes over the CPU racer
-furthest back that's still racing, the screen splits again, and they keep that racer (and its
-Grand Prix points) for the races after. It works the way online play hands a CPU's kart to a person.
+**Joining mid-race**: a controller that isn't playing can press **A** or **Start** during a race
+(Quick Race, Grand Prix or online, not Time Trial) to drop in. The new player takes over the CPU
+racer furthest back that's still racing and the screen splits again. They join as the racer last
+picked for their player slot (P2, P3…: the driver, kart and glider saved on the select screen),
+and as the CPU's racer if that slot has nothing saved. If a CPU already has that driver, it swaps to
+the taken-over kart's old look in a Quick Race; in a Grand Prix (where the CPUs keep their drivers
+all cup long) or if a person drives it, the new player keeps the CPU's racer instead. They stay in,
+in that look, for the races after (also on Restart race). Online, the host hands the kart over: it
+changes look and name on every screen, the joining screen drives it from where it is, and the player
+is in the room's next races too (with their saved name for that slot, else their driver's).
 Phones stay single-player.
 
 ## Online

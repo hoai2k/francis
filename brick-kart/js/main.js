@@ -258,23 +258,36 @@ class Game {
     if (race && !window.__bkNoRender) race.render(this.renderer);
   }
 
-  // a controller that isn't playing presses A or Start during a local race: it joins by taking over
-  // a CPU kart (see Race.addPlayer), and stays in for the races after
+  // the driver, kart and glider last picked in player slot `id` (indices), or null if none is saved
+  savedLook(id) {
+    const c = this.picks?.chars?.[id];
+    const driver = c ? DRIVERS.findIndex((d) => d.id === c.driver) : -1;
+    if (driver < 0) return null;
+    const kart = KARTS.findIndex((k) => k.id === c.kart), glider = GLIDERS.findIndex((g) => g.id === c.glider);
+    return { driver, kart: kart >= 0 ? kart : null, glider: glider >= 0 ? glider : null };
+  }
+  // a controller that isn't playing presses A or Start during a race: it joins by taking over a CPU
+  // kart (see Race.addPlayer; online, the host hands one over: Online.dropIn), in the look last
+  // picked for its player slot, and stays in for the races after
   dropIn() {
-    const race = this.race;
-    if (isPhone() || this.players.length >= MAX_PLAYERS || !race.canJoin()) return;
+    const race = this.race, online = race.net ? this.online : null;
+    if (isPhone() || this.players.length >= MAX_PLAYERS) return;
+    if (online ? !race.net || race.net.ended : !race.canJoin()) return;
     const using = new Set(this.players.map((p) => p.device));
+    for (const d of online?.drops || []) using.add(d.player.device);
     for (const dev of this.input.pads()) {
       if (using.has(dev) || !(this.input.pEdge(dev, 0) || this.input.pEdge(dev, 9))) continue;
-      const ids = new Set(this.players.map((p) => p.id));
+      const ids = new Set([...this.players.map((p) => p.id), ...(online?.drops || []).map((d) => d.slot), ...(online?.local || []).map((p) => p.slot)]);
       let id = 0; while (ids.has(id)) id++;
+      if (id >= MAX_PLAYERS) return;
       const p = this.makePlayer({ id, device: dev, cursor: 0, color: PCOL[id] });
-      const k = race.addPlayer(p);
+      if (online) { online.dropIn(p, this.savedLook(id)); return; }
+      const k = race.addPlayer(p, this.savedLook(id));
       if (!k) return;
       this.players.push(p);
       this.players.sort((a, b) => a.id - b.id);
       this.audio.sfx('select');
-      this.toast(`🎮 P${id + 1} joined, driving ${k.driver?.name || DRIVERS[k.driverIndex]?.name || 'a CPU kart'}`);
+      this.toast(`🎮 P${id + 1} joined, driving ${k.driver?.name || 'a CPU kart'}`);
       return;
     }
   }
@@ -461,7 +474,7 @@ class Game {
       { id: 'pad', title: '🎮 Controller', html: rows([
         ['Steer', 'Left stick / D-pad'], ['Accelerate', 'A or RT'], ['Brake / reverse', 'B or LT'],
         ['Hop & drift', 'RB (hold while turning)'], ['Use item', 'LB, X or Y'], ['Throw back / forward', 'Hold stick ↓ / ↑ + item'],
-        ['Look behind', 'Press a stick'], ['Pause', 'Start'], ['Join mid-race', 'A or Start on a spare controller (takes over a CPU racer)']]) },
+        ['Look behind', 'Press a stick'], ['Pause', 'Start'], ['Join mid-race', 'A or Start on a spare controller: takes over a CPU kart as your saved racer']]) },
       { id: 'kb', title: '⌨️ Keyboard', html: rows([
         ['Steer', 'A / D or ← / →'], ['Accelerate', 'W or ↑'], ['Brake / reverse', 'S or ↓'],
         ['Hop & drift', 'Space (hold while turning)'], ['Use item', 'E or Shift'], ['Throw back / forward', 'Hold S + item / R'],

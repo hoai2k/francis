@@ -54,6 +54,10 @@ const ERR = {
   nohost: "Couldn't reach the host of that room.",
 };
 const dIdx = (id) => Math.max(0, DRIVERS.findIndex((d) => d.id === id));
+// drop-ins from the host's room state: [kart, uid, slot, name, driver id, kart id, glider id]
+const DROP_IDS = { d: (id) => DRIVERS.findIndex((x) => x.id === id), k: (id) => KARTS.findIndex((x) => x.id === id), g: (id) => GLIDERS.findIndex((x) => x.id === id) };
+const dropsIn = (list) => (Array.isArray(list) ? list.slice(0, RACERS) : []).filter((e) => Array.isArray(e) && Number.isInteger(e[0]) && e[0] >= 0 && e[0] < RACERS && typeof e[1] === 'string' && ID_RE.test(e[1]))
+  .map((e) => [e[0], e[1], int(e[2], 0, 7), cleanName(str(e[3], 24)) || 'Racer', str(e[4], 40), str(e[5], 40), str(e[6], 40)]);
 const kIdx = (id) => Math.max(0, KARTS.findIndex((k) => k.id === id));
 const gIdx = (id) => Math.max(0, GLIDERS.findIndex((g) => g.id === id));
 
@@ -298,6 +302,9 @@ export class Online {
     m.s = this.stage();
     m.pl = this.local.map((p) => [p.slot, p.name || '', p.pick && p.pick !== 'default' ? 1 : 0, DRIVERS[p.d]?.id || '', KARTS[p.k]?.id || '', GLIDERS[p.g]?.id || '', p.ph]);
     m.ld = this.loadedRi || 0;
+    // drop-in requests (a spare controller pressed A mid-race): [race, slot, name, driver, kart, glider]
+    const dr = this.view === 'race' ? (this.drops || []).filter((d) => d.ri === this.raceRi) : [];
+    if (dr.length) m.dr = dr.map((d) => [d.ri, d.slot, d.name, d.d, d.k, d.g]); else delete m.dr;
     if (s.isHost && this.R) {
       const R = this.roomOut();
       // the race setup and the Grand Prix table ride along every second (and straight away when
@@ -391,7 +398,7 @@ export class Online {
     const prev = this.R;
     if (R.gpr === undefined || R.gpr === null) this.gp = null;
     else if (R.gp) { const gp = this.gpIn(R.gp); if (gp) this.gp = gp; }
-    const R2 = this.R = { ph, ri, n: int(R.n, 0, 1e6), keep: R.keep ? 1 : 0, go: num(R.go, 0, 1e15, 0) || null, tk: Array.isArray(R.tk) ? R.tk.filter((i) => Number.isInteger(i) && i >= 0 && i < RACERS) : [], res: Array.isArray(R.res) ? R.res : null, o: Array.isArray(R.o) ? R.o : [] };
+    const R2 = this.R = { ph, ri, n: int(R.n, 0, 1e6), keep: R.keep ? 1 : 0, go: num(R.go, 0, 1e15, 0) || null, tk: Array.isArray(R.tk) ? R.tk.filter((i) => Number.isInteger(i) && i >= 0 && i < RACERS) : [], res: Array.isArray(R.res) ? R.res : null, o: Array.isArray(R.o) ? R.o : [], dr: dropsIn(R.dr) };
     if (ph === 'sel' || ph === 'trk') {
       const newRound = prev && prev.n !== R2.n;
       if (!['select', 'track', 'confirm'].includes(this.view) || newRound) {
@@ -408,6 +415,7 @@ export class Online {
       if (this.netRace && this.netRace.raceId === ri) {
         if (R2.go && this.netRace.goAt !== R2.go) this.netRace.goAt = R2.go;
         this.netRace.setTaken(R2.tk);
+        this.applyDrops(R2.dr);
       }
       return;
     }
@@ -762,7 +770,7 @@ export class Online {
     const raw = { ri, tr: def.id, laps: set.laps, cc: set.cc, df: set.difficulty, sp: set.simple ? 1 : 0, sd: (Math.random() * 4294967295) >>> 0, gr: gr.map((e) => [e.u, e.slot, e.n, DRIVERS[e.d]?.id || '', KARTS[e.k]?.id || '', GLIDERS[e.g]?.id || '']) };
     this.setups.clear();
     this.addSetup(raw);
-    Object.assign(this.R, { ph: 'load', ri, go: null, tk: [], res: null, loadAt: performance.now() });
+    Object.assign(this.R, { ph: 'load', ri, go: null, tk: [], dr: [], res: null, loadAt: performance.now() });
     this.publishMine(true);
     this.startLoading(this.setups.get(ri));
   }
@@ -783,6 +791,7 @@ export class Online {
     }
     const nr = this.netRace;
     if (R.ph !== 'race' && R.ph !== 'res' || !nr || !R.go) return;
+    if (R.ph === 'race') this.hostDrops();
     const live = new Set([...s.peers.values()].map((p) => p.uid).filter(Boolean));
     const counting = s.sharedNow() > R.go - COUNT * 1000;
     nr.grid.forEach((g, i) => {
@@ -822,12 +831,96 @@ export class Online {
     this.showResults(res);
   }
 
+  // ---- drop-in mid-race --------------------------------------------------------------------------------------
+  // A spare controller on this screen pressed A / Start during the race (see Game.dropIn): ask the
+  // host for a CPU kart. look: the saved { driver, kart, glider } for the player's slot, or null
+  // (then they drive the CPU's). Returns false if no one can join right now.
+  dropIn(player, look) {
+    const nr = this.netRace;
+    if (!nr || nr.ended || this.view !== 'race' || !this.session) return false;
+    this.drops ||= [];
+    if (this.drops.some((d) => d.player.device === player.device || d.slot === player.id)) return true;
+    if (!this.canJoin(this.local.length + this.drops.length + 1)) return false;
+    const pick = this.names.last[player.id];
+    const custom = typeof pick === 'string' && pick !== 'default' && this.names.saved.includes(pick) ? pick : null;
+    this.drops.push({
+      ri: this.raceRi, slot: player.id, player, pick: custom || 'default', name: custom || DRIVERS[look?.driver]?.name || '',
+      d: DRIVERS[look?.driver]?.id || '', k: KARTS[look?.kart]?.id || '', g: GLIDERS[look?.glider]?.id || '',
+    });
+    this.bubble(`🎮 P${player.id + 1} is joining…`);
+    this.publishMine(true);
+    if (this.isHost) this.hostDrops();
+    return true;
+  }
+  // host: hand a CPU kart (the one furthest back still racing) to each new drop-in request, in their
+  // saved look unless another racer already has that driver
+  hostDrops() {
+    const R = this.R, nr = this.netRace, su = this.setups.get(R.ri), s = this.session;
+    if (!nr || !su || nr.raceId !== R.ri || nr.ended) return;
+    R.dr ||= [];
+    const reqs = (this.drops || []).filter((d) => d.ri === R.ri).map((d) => [this.uid, d.ri, d.slot, d.name, d.d, d.k, d.g]);
+    for (const [uid, peer] of s.byUid) {
+      if (uid === this.uid || !Array.isArray(peer?.p?.dr)) continue;
+      for (const r of peer.p.dr.slice(0, 8)) if (Array.isArray(r)) reqs.push([uid, ...r]);
+    }
+    let changed = false;
+    for (const [u, ri, slot0, name0, d0, k0, g0] of reqs) {
+      const slot = int(slot0, 0, 7, -1);
+      if (ri !== R.ri || slot < 0 || !ID_RE.test(u)) continue;
+      if (R.dr.some((e) => e[1] === u && e[2] === slot) || su.gr.some((e) => e.u === u && e.slot === slot)) continue;
+      if (su.gr.filter((e) => e.u).length >= RACERS) continue;
+      const k = nr.race.dropInKart();
+      if (!k || su.gr[k.idx]?.u) continue;
+      const i = k.idx, cur = su.gr[i];
+      let d = str(d0, 40), kk = str(k0, 40), gg = str(g0, 40);
+      // (no saved look, an unknown one, or a driver someone else already has: they keep the CPU's)
+      if (!DRIVERS.some((x) => x.id === d) || su.gr.some((e, j) => j !== i && DRIVERS[e.d]?.id === d)) {
+        d = DRIVERS[cur.d]?.id || ''; kk = KARTS[cur.k]?.id || ''; gg = GLIDERS[cur.g]?.id || '';
+      } else {
+        if (!KARTS.some((x) => x.id === kk)) kk = KARTS[cur.k]?.id || '';
+        if (!GLIDERS.some((x) => x.id === gg)) gg = GLIDERS[cur.g]?.id || '';
+      }
+      // (no name of their own: they go by their driver's, like a "Default" name)
+      const name = str(name0, 24).trim() ? cleanName(str(name0, 24)) : cleanName(DRIVERS.find((x) => x.id === d)?.name || '');
+      const entry = [i, u, slot, name, d, kk, gg];
+      R.dr.push(entry);
+      // (late loaders build the race from the setup: it lists them too)
+      if (Array.isArray(su.raw?.gr)) su.raw.gr[i] = [u, slot, name, d, kk, gg];
+      this.applyDrops([entry]);
+      changed = true;
+    }
+    if (changed) this.publishMine(true);
+  }
+  // everyone: apply the host's drop-ins to this race (once each); ours become our players
+  applyDrops(list) {
+    const nr = this.netRace;
+    if (!nr || !Array.isArray(list) || !list.length) return;
+    for (const e of list) {
+      if (nr.dropped?.has(e[0])) continue;
+      const mine = e[1] === this.uid;
+      const pend = mine ? (this.drops || []).find((d) => d.slot === e[2]) : null;
+      if (!nr.applyDrop(e, pend?.player || null, DROP_IDS) || !pend) continue;
+      this.drops.splice(this.drops.indexOf(pend), 1);
+      this.specBar(false);   // (a screen that was only watching races now)
+      const p = pend.player, gr = nr.grid[e[0]];
+      // they stay in for the next races, with this look
+      this.local.push({ slot: p.id, device: p.device, color: p.color, d: gr.d, k: gr.k, g: gr.g, ph: 'r', pick: pend.pick, name: e[3] });
+      this.local.sort((a, b) => a.slot - b.slot);
+      const g = this.game;
+      if (!g.players.includes(p)) { g.players.push(p); g.players.sort((a, b) => a.id - b.id); }
+      g.audio.sfx('select');
+      this.bubble(`🎮 P${p.id + 1} joined, driving ${nr.race.karts[e[0]].driver?.name || e[3]}`);
+      this.publishMine(true);
+    }
+  }
+
   // ---- loading and the line-up -------------------------------------------------------------------------------
   startLoading(su) {
     const g = this.game;
     this.disposeRace();
     this.modal = null;
     this.raceRi = su.ri; this.loadedRi = 0;
+    this.drops = [];
     this.view = 'lineup';
     const people = su.gr.filter((e) => e.u).map((e) => ({ uid: e.u, name: e.n, d: e.d, k: e.k, g: e.g, tag: this.devTag(e.si, e.slot, e.multi), me: e.u === this.uid }));
     const mine = su.gr.some((e) => e.u === this.uid);

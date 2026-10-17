@@ -513,15 +513,57 @@ export class NetRace {
     sp.scale.set(4.4, 1.1, 1);
     sp.position.y = (k.model.top || 2.6) + 1.1;
     sp.renderOrder = 5;
-    // split screen: each player's own name shows on the other players' views, never their own
-    const cam = this.race.cams.find((c) => c.kart === k);
-    if (cam) {
-      const layer = 2 + this.race.cams.indexOf(cam);
-      sp.layers.set(layer);
-      for (const c of this.race.cams) if (c !== cam) c.chase.cam.layers.enable(layer);
-    }
+    sp.userData.kart = k;
     k.model.root.add(sp);
     this.plates.push(sp);
+    this.layerPlates();
+  }
+  // split screen: each player's own name shows on the other players' views, never their own
+  // (again whenever the screens change: someone dropped in)
+  layerPlates() {
+    const cams = this.race.cams;
+    cams.forEach((c, j) => { c.chase.cam.layers.set(0); cams.forEach((_, m) => { if (m !== j) c.chase.cam.layers.enable(2 + m); }); });
+    for (const sp of this.plates) {
+      const j = cams.findIndex((c) => c.kart === sp.userData.kart);
+      sp.layers.set(j >= 0 ? 2 + j : 0);
+    }
+  }
+  removePlate(k) {
+    for (const sp of this.plates.filter((p) => p.userData.kart === k)) {
+      sp.parent?.remove(sp); sp.material.map?.dispose(); sp.material.dispose();
+      this.plates.splice(this.plates.indexOf(sp), 1);
+    }
+  }
+
+  // ---- drop-in ---------------------------------------------------------------------------------
+  // The host gave CPU kart i to a person mid-race: [i, uid, slot, name, driver id, kart id, glider id].
+  // Every screen applies it the same way: the grid entry becomes theirs, the kart takes on their
+  // look and name, and whoever simulates it changes (the host lets go, their screen takes it from
+  // where it is). player: our local player when it's one of ours.
+  applyDrop(e, player, ids) {
+    const [i, u, slot, n] = e, g = this.grid[i], k = this.race.karts[i];
+    if (!g || !k || (this.dropped ||= new Set()).has(i)) return false;
+    this.dropped.add(i);
+    g.u = u; g.slot = slot; g.n = n;
+    const d = ids.d(e[4]), kk = ids.k(e[5]), gl = ids.g(e[6]);
+    if (d >= 0) { g.d = d; if (kk >= 0) g.k = kk; if (gl >= 0) g.g = gl; }
+    if (d >= 0 && d !== k.driverIndex) this.race.restyleKart(k, { driver: g.d, kart: g.k, glider: g.g });
+    k.netHuman = true; k.netName = n;
+    this.removePlate(k);
+    if (u === this.me && player) {
+      this.myIdxs.add(i);
+      if (this.spectating) { this.spectating = false; this.race.spec = null; }
+      this.race.attachPlayer(k, player);
+    }
+    this.addPlate(k);
+    this.applyRoles();
+    return true;
+  }
+  // the screens changed (a local drop-in): the HUD was rebuilt, so the standings and name layers follow
+  onPlayersChanged() {
+    this.stEl?.remove();
+    this.buildStandings();
+    this.layerPlates();
   }
   buildStandings() {
     const root = this.race.game.hudRoot;

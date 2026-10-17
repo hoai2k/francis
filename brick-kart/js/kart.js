@@ -36,23 +36,7 @@ export class Kart {
     this.idx = idx;
     this.player = player;            // local player object or null for AI
     this.human = !!player;
-    const rig = driver ? buildDriver(driver) : null;
-    const m = buildKart(ch, rig, glider);
-    if (rig) this.anim = new DriverAnim(rig);
-    this.camLift = m.top ? Math.max(0, m.top - 2.2) * 0.85 : 0;   // tall drivers: chase camera rides higher
-    this.model = m;
-    race.scene.add(m.root);
-    m.root.rotation.order = 'YXZ';
-    // only the chassis and wheels cast shadows (keeps the shadow pass cheap with 13+ karts)
-    m.root.traverse((o) => { if (o.isMesh) o.castShadow = false; });
-    for (const sh of [].concat(m.shadow || m.body.children[0])) sh?.traverse((o) => { if (o.isMesh && !o.material.transparent) o.castShadow = true; });
-    for (const w of m.wheels) w.spin.castShadow = true;
-    const s = driver ? combinedStats(ch.stats, driver) : ch.stats;
-    const cc = race.cc;
-    this.topSpeed = 37 * cc * (0.935 + s.speed * 0.026);
-    this.accel = 15.5 * (0.78 + s.accel * 0.1) * (0.85 + cc * 0.15);
-    this.turnRate = 2.05 * (0.86 + s.handling * 0.045);
-    this.weight = 0.7 + s.weight * 0.15;
+    this.dress(ch, driver, glider);
     this.speedMult = 1;               // AI rubber-banding
     this.pos = new THREE.Vector3();
     this.yaw = 0; this.moveYaw = 0;
@@ -78,6 +62,38 @@ export class Kart {
     this.startBoost = 0;
     this.wrongWay = 0;
     this.ctl = { throttle: 0, brake: 0, steer: 0, drift: false, driftPressed: false, itemPressed: false, back: false };
+    this.hidden = 0;
+    // Online play (js/online/): a `remote` kart is a puppet drawn from another browser's
+    // updates. Its owner decides everything that happens to it, so hits and shoves do nothing
+    // here, and it is never stepped by the physics below. gest / gestN record this kart's latest
+    // gesture so an owned kart can publish it.
+    this.remote = false;
+    this.gest = ''; this.gestN = 0;
+  }
+
+  // The kart's look and the stats that come with it: the vehicle with its driver and glider, the
+  // exhaust flames, the shield bubble and golden aura. (restyle swaps it mid-race.)
+  dress(ch, driver, glider) {
+    const race = this.race;
+    this.ch = ch; this.driver = driver; this.gliderDef = glider;
+    this.anim = null;
+    const rig = driver ? buildDriver(driver) : null;
+    const m = buildKart(ch, rig, glider);
+    if (rig) this.anim = new DriverAnim(rig);
+    this.camLift = m.top ? Math.max(0, m.top - 2.2) * 0.85 : 0;   // tall drivers: chase camera rides higher
+    this.model = m;
+    race.scene.add(m.root);
+    m.root.rotation.order = 'YXZ';
+    // only the chassis and wheels cast shadows (keeps the shadow pass cheap with 13+ karts)
+    m.root.traverse((o) => { if (o.isMesh) o.castShadow = false; });
+    for (const sh of [].concat(m.shadow || m.body.children[0])) sh?.traverse((o) => { if (o.isMesh && !o.material.transparent) o.castShadow = true; });
+    for (const w of m.wheels) w.spin.castShadow = true;
+    const s = driver ? combinedStats(ch.stats, driver) : ch.stats;
+    const cc = race.cc;
+    this.topSpeed = 37 * cc * (0.935 + s.speed * 0.026);
+    this.accel = 15.5 * (0.78 + s.accel * 0.1) * (0.85 + cc * 0.15);
+    this.turnRate = 2.05 * (0.86 + s.handling * 0.045);
+    this.weight = 0.7 + s.weight * 0.15;
     // exhaust flames
     this.flames = [];
     const fm = plastic(0xffa020, { trans: true, opacity: 0.9, emissive: 0xff6a00, emissiveIntensity: 3 });
@@ -99,13 +115,18 @@ export class Kart {
     this.aura = new THREE.Mesh(new THREE.SphereGeometry(2.8, 24, 16), new THREE.MeshBasicMaterial({ color: 0xffd040, transparent: true, opacity: 0.25, blending: THREE.AdditiveBlending, depthWrite: false }));
     this.aura.position.y = 1; this.aura.visible = false;
     m.root.add(this.aura);
-    this.hidden = 0;
-    // Online play (js/online/): a `remote` kart is a puppet drawn from another browser's
-    // updates. Its owner decides everything that happens to it, so hits and shoves do nothing
-    // here, and it is never stepped by the physics below. gest / gestN record this kart's latest
-    // gesture so an owned kart can publish it.
-    this.remote = false;
-    this.gest = ''; this.gestN = 0;
+  }
+
+  // A player who drops in mid-race brings their own driver, kart and glider: the kart they take
+  // over is rebuilt in their look where it is, with their stats.
+  restyle(ch, driver, glider) {
+    const old = this.model;
+    this.race.scene.remove(old.root);
+    const plates = old.root.children.filter((o) => o.isSprite);   // (online name plates move across)
+    this.dress(ch, driver, glider);
+    for (const sp of plates) { sp.position.y = (this.model.top || 2.6) + 1.1; this.model.root.add(sp); }
+    if (this.model.glider) this.model.glider.visible = !!this.gliding;
+    this.syncModel(0);
   }
 
   place(i, lat) {
