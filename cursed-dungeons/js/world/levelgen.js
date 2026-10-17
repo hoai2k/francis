@@ -156,6 +156,12 @@ export function generateLevel(mission) {
       room.waves.push(list); totalEnemies += list.length;
     }
   }
+  // safety net: every cage, altar and chest must be reachable on foot
+  {
+    const reach = reachable(world, rooms[0].center.clone().add(new THREE.Vector3(0, 0, 2)));
+    for (const it of objective.items) ensureReachable(world, reach, it, rooms);
+    for (const c of chests) ensureReachable(world, reach, c, rooms);
+  }
   if (mission.objective === 'exorcise') objective.need = Math.max(12, Math.round(totalEnemies * 0.75));
   world.collectBlockLights();
   const start = rooms[0], boss = rooms.find((q) => q.type === 'boss');
@@ -172,6 +178,65 @@ function clearDoor(k, room, d) {
       if (d.side === 'w') w.set(room.x0, yy, d.at + t, 0); if (d.side === 'e') w.set(room.x1, yy, d.at + t, 0);
     }
   }
+  // A room template can stamp a building or wall right behind the doorway,
+  // sealing off the room (a rescue cage behind it can't be reached). Walk
+  // inward from the door and clear a 3-wide, 3-high way until it opens up.
+  const inX = d.side === 'w' ? 1 : d.side === 'e' ? -1 : 0, inZ = d.side === 'n' ? 1 : d.side === 's' ? -1 : 0;
+  const x0 = d.side === 'w' ? room.x0 : d.side === 'e' ? room.x1 : d.at, z0 = d.side === 'n' ? room.z0 : d.side === 's' ? room.z1 : d.at;
+  const depthMax = Math.floor((inX ? room.x1 - room.x0 : room.z1 - room.z0) / 2);
+  let open = 0;
+  for (let dep = 1; dep <= depthMax && open < 2; dep++) {
+    let blocked = false;
+    for (let t = -1; t <= 1; t++) {
+      const x = x0 + inX * dep + (inX ? 0 : t), z = z0 + inZ * dep + (inZ ? t : 0);
+      for (let yy = room.y; yy < room.y + 3; yy++) if (w.solidAt(x + 0.5, yy + 0.5, z + 0.5)) { w.set(x, yy, z, 0); blocked = true; }
+      if (!w.solidAt(x + 0.5, room.y - 0.5, z + 0.5)) w.set(x, room.y - 1, z, w.get(x0 + inX * (dep + 1), room.y - 1, z0 + inZ * (dep + 1)) || B.stone_brick);
+    }
+    open = blocked ? 0 : open + 1;
+  }
+}
+// Walkable cells reachable from the start (stand on solid ground with two
+// free cells above, climb 2 (a held jump), drop 4). Secret walls and the boss
+// gate count as open, since they open during play.
+function reachable(w, start) {
+  const pass = new Set([B.cracked_brick, B.blue_energy]);
+  const solid = (x, y, z) => { const id = w.get(x, y, z); return !!id && !pass.has(id) && w.solidAt(x + 0.5, y + 0.5, z + 0.5); };
+  const stand = (x, y, z) => solid(x, y - 1, z) && !solid(x, y, z) && !solid(x, y + 1, z);
+  const key = (x, y, z) => (x * 4096 + z) * 256 + y;
+  const sx = Math.floor(start.x), sy = Math.floor(start.y), sz = Math.floor(start.z);
+  const seen = new Set([key(sx, sy, sz)]), q = [[sx, sy, sz]];
+  while (q.length && seen.size < 600000) {
+    const [x, y, z] = q.pop();
+    for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      for (let dy = 2; dy >= -4; dy--) {
+        const nx = x + dx, ny = y + dy, nz = z + dz;
+        if (!stand(nx, ny, nz)) continue;
+        if (dy > 0) { let ok = true; for (let k = 2; k <= dy + 1; k++) if (solid(x, y + k, z)) ok = false; if (!ok) break; }
+        const kk = key(nx, ny, nz); if (!seen.has(kk)) { seen.add(kk); q.push([nx, ny, nz]); }
+        break;
+      }
+    }
+  }
+  return { has: (x, y, z) => seen.has(key(x, y, z)), key };
+}
+// Move an objective / chest that can't be reached onto a reachable floor
+// cell: in its own room if possible (nearest to where it was), else anywhere.
+function ensureReachable(w, reach, item, rooms) {
+  const p = item.pos, fx = Math.floor(p.x), fy = Math.floor(p.y), fz = Math.floor(p.z);
+  for (let x = -2; x <= 2; x++) for (let z = -2; z <= 2; z++) for (let y = -2; y <= 2; y++) if (reach.has(fx + x, fy + y, fz + z)) return false;
+  const tryRoom = (room) => {
+    let best = null, bd = Infinity;
+    for (let x = room.x0 + 2; x <= room.x1 - 2; x++) for (let z = room.z0 + 2; z <= room.z1 - 2; z++) for (let y = room.y - 2; y <= room.y + 3; y++) {
+      if (!reach.has(x, y, z) || !reach.has(x + 1, y, z) || !reach.has(x - 1, y, z) || !reach.has(x, y, z + 1) || !reach.has(x, y, z - 1)) continue;
+      const dd = (x - fx) ** 2 + (z - fz) ** 2 + (y - fy) ** 2 * 4;
+      if (dd < bd) { bd = dd; best = new THREE.Vector3(x + 0.5, y, z + 0.5); }
+    }
+    return best;
+  };
+  let at = item.room ? tryRoom(item.room) : null;
+  for (const room of rooms) { if (at) break; if (room.type === 'combat' || room.type === 'side') at = tryRoom(room); }
+  if (at) { p.copy(at); return true; }
+  return false;
 }
 function buildCorridor(k, cor, biome, r) {
   const w = k.w;
