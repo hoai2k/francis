@@ -340,7 +340,7 @@ you drop some.
 - **Tricks**: tap drift in mid-air after a ramp to land with a boost.
 - **Rocket start**: hold accelerate just after the second start light comes on.
 - **Gliding**: steer while you fly; the glider banks into the turn like a plane. Let go and it
-  eases back towards the middle of the track. You land wherever the road is below you, and once you're past the gap you come down twice as fast. Ground obstacles like hay bales and cupcakes only stop you if you fly low enough to hit them. Fly over buildings, rocks and other scenery beside the track and you ride across their tops (pulling up in time for a taller one ahead) instead of flying through them; gates, arches and bridges over the road itself stay as they were.
+  eases back towards the middle of the track. You land wherever the road is below you, and once you're past the gap you come down twice as fast. Ground obstacles like hay bales and cupcakes only stop you if you fly low enough to hit them. Fly over buildings, rocks and other scenery beside the track and you land on their tops like on the ground (pulling up in time for a taller one ahead) instead of flying through them: the glider folds away and you drive across the roof at full speed (a taller building next to it is a wall). Drive off the edge with a real drop below and the glider opens again, like a glide ramp. Gates, arches and bridges over the road itself stay as they were.
 - **Off the road**: the grass, sand or snow beside the track is drivable but slow
   (you can't wander far from the track). Only water, lava, holes and the void of
   space drop you into a respawn.

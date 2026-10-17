@@ -133,7 +133,7 @@ export class Kart {
     const tr = this.track;
     tr.at(i, lat, 0, this.pos);
     this.yaw = this.moveYaw = tr.yawAt(i);
-    this.speed = 0; this.vy = 0; this.grounded = true; this.kvx = this.kvz = this.yawKick = 0;
+    this.speed = 0; this.vy = 0; this.grounded = true; this.kvx = this.kvz = this.yawKick = 0; this.roofed = false;
     tr.locate(this.pos.x, this.pos.y, this.pos.z, i, this.loc);
     this.lastSafe = this.loc.i;
     this.syncModel(0);
@@ -253,7 +253,7 @@ export class Kart {
 
   startRespawn() {
     if (this.respawn > 0) return;
-    this.respawn = 1.6; this.respawnPlaced = false;
+    this.respawn = 1.6; this.respawnPlaced = false; this.roofed = false;
     this.cancelDrift();
     this.speed = 0; this.kvx = this.kvz = this.yawKick = 0;
     this.setGliding(false);
@@ -396,6 +396,8 @@ export class Kart {
     const inField = !onRoad && !onShoulder && loc.edge !== 1 && this.grounded && !!this.race.world?.groundAt?.(this.pos.x, this.pos.z);
     this.surf = onRoad ? loc.surf : onShoulder || inField ? 'offroad' : 'air';
     this.offroad = (onShoulder || inField) && this.grounded;
+    // driving on a rooftop (landed there off a glider): it's as good as road
+    if (this.roofed && this.grounded) { this.surf = 'road'; this.offroad = false; }
 
     // --- speed -----------------------------------------------------------------
     let max = this.topSpeed * this.speedMult * (1 + this.studs * 0.012);
@@ -462,6 +464,7 @@ export class Kart {
     const drag = Math.abs(angleDiff(this.moveYaw, this.yaw));
     if (this.grounded && drag > 0.5 && !d.active) this.speed *= Math.exp(-0.6 * drag * dt);
 
+    const px0 = this.pos.x, pz0 = this.pos.z;
     this.pos.x += Math.sin(this.moveYaw) * this.speed * dt;
     this.pos.z += Math.cos(this.moveYaw) * this.speed * dt;
     // knocked sideways: slide, with tyre grip (much less on ice or in the air) bleeding it off
@@ -473,6 +476,16 @@ export class Kart {
     }
     if (this.yawKick) { this.yaw += this.yawKick * dt; this.yawKick *= Math.exp(-5 * dt); if (Math.abs(this.yawKick) < 0.01) this.yawKick = 0; }
 
+    // on a rooftop, a taller building next door is a wall (the roof's edge isn't: off you go)
+    const world = this.race.world;
+    if (this.roofed && this.grounded && world?.roofs && world.roofAt(this.pos.x, this.pos.z) > this.pos.y + 1.2) {
+      this.pos.x = px0; this.pos.z = pz0; this.kvx = this.kvz = 0;
+      if (this.wallCool <= 0) {
+        this.wallCool = 0.3; this.speed *= 0.45;
+        if (this.human) { this.race.audio.sfx('wall', this.pos); this.player.rumble(0.35, 120); }
+      }
+    }
+
     // --- vertical -----------------------------------------------------------------------
     tr.locate(this.pos.x, this.pos.y, this.pos.z, loc.i, loc);
     const absLat2 = Math.abs(loc.lat);
@@ -481,21 +494,39 @@ export class Kart {
     // beside the road (not a void edge): the map's ground is drivable, slowly, wherever it exists
     // (water, lava and holes still drop you into a respawn)
     const onField = !onRoad2 && !onSh2 && loc.edge !== 1 && !!this.race.world?.groundAt?.(this.pos.x, this.pos.z);
-    const gY = (onRoad2 || onSh2) ? loc.y : onField ? tr.groundY : -Infinity;
-    if (this.grounded && onField) { this.offroad = true; this.surf = 'offroad'; }
+    let gY = (onRoad2 || onSh2) ? loc.y : onField ? tr.groundY : -Infinity;
+    // rooftops beside the track are ground too, for a kart up there (or coming down onto one): land on
+    // them, drive across them, and glide off their edge
+    const roof = world?.roofs ? world.roofAt(this.pos.x, this.pos.z) : -Infinity;
+    const roofHere = roof > gY && this.pos.y >= roof - (this.grounded ? 1.2 : 3);
+    if (roofHere) gY = roof;
+    const wasRoofed = this.roofed;
+    if (this.grounded && onField && !roofHere) { this.offroad = true; this.surf = 'offroad'; }
     void groundY;
     if (this.grounded) {
       const ballistic = this.pos.y + this.vy * dt - 0.5 * G * dt * dt;
-      if (gY >= ballistic - 0.06) {
+      // (a rooftop's small steps, up or down, are just followed: no hop up, no drop off)
+      if (gY >= ballistic - 0.06 || (wasRoofed && roofHere && this.pos.y - gY < 1.3)) {
         const nvy = (gY - this.pos.y) / Math.max(dt, 1e-4);
-        this.vy = Math.max(-30, Math.min(20, nvy));
+        this.vy = roofHere ? 0 : Math.max(-30, Math.min(20, nvy));
         this.pos.y = gY;
       } else {
         this.grounded = false; this.airTime = 0; this.trick = false; this.trickDone = false;
         this.vy -= G * dt; this.pos.y = ballistic;
+        if (wasRoofed) this.offRoofT = 0.4;
       }
     } else {
       this.airTime += dt;
+      // just off a rooftop's edge with a real drop below: the glider opens again
+      if (this.offRoofT > 0) {
+        this.offRoofT -= dt;
+        if (!this.gliding && this.pos.y - gY > 2.5) {
+          this.offRoofT = 0;
+          this.vy = Math.max(this.vy, 3); this.canTrick = true;
+          this.cancelDrift(); this.setGliding(true);
+          if (this.human) this.race.audio.sfx('glide');
+        }
+      }
       if (this.gliding) {
         // gentle glide: low gravity, capped sink rate, speed held. Once the gap has been crossed
         // and there's ground below again, come down twice as fast.
@@ -511,16 +542,17 @@ export class Kart {
         this.land(gY, ctl);
       }
     }
+    this.roofed = this.grounded && roofHere;
     // tricks off ramps/jumps: tap drift while airborne
     if (!this.grounded && this.airTime > 0.1 && this.canTrick && ctl.driftPressed && !this.trickDone && on) {
       this.trickDone = true; this.trickSpin = 0.45;
       this.emote('trick');
       if (this.human) this.race.audio.sfx('trick');
     }
-    if ((this.pos.y < loc.y - 14 && !onField) || this.pos.y < tr.groundY - 1) { this.startRespawn(); this.syncModel(dt); return; }
+    if (((this.pos.y < loc.y - 14 && !onField) || this.pos.y < tr.groundY - 1) && !this.roofed) { this.startRespawn(); this.syncModel(dt); return; }
     // off in the field: a soft boundary keeps karts near the track, and anyone stranded below a
     // raised stretch of road (no way back up) gets craned back after a moment
-    if (onField && this.grounded) {
+    if (onField && this.grounded && !this.roofed) {
       const lim = loc.hw + loc.sh + 10;
       if (absLat2 > lim) {
         const sg = Math.sign(loc.lat), pen = absLat2 - lim;

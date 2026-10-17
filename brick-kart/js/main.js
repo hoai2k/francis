@@ -507,7 +507,7 @@ class Game {
         <li>Each gold stud raises your top speed, up to 10. Getting hit drops some.</li>
         <li>Hold accelerate just as the second start light comes on for a rocket start.</li>
         <li>Orange arrow pads give a boost.</li>
-        <li>Gliders: steer while you fly, and you ride across rooftops instead of crashing into them.</li></ul>` },
+        <li>Gliders: steer while you fly. Come down on a rooftop to drive across it, then drive off the edge to glide again.</li></ul>` },
       { id: 'items', title: `🎁 Power-ups (${base.length})`, html: `<p class="sub">Racers further back get stronger ones.</p><div class="items">${base.map(card).join('')}</div>` },
       { id: 'powers', title: `🎬 Movie &amp; game powers (${powers.length})`, html: `<p class="sub">They turn up on every track (in Simplified mode, only on their own map).</p><div class="items">${powers.map(card).join('')}</div>` },
     ];
