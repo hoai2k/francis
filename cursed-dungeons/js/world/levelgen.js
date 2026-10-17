@@ -12,16 +12,77 @@ import { LightShafts } from './shafts.js';
 import { TEMPLATES, BIOME_ROOMS } from './rooms.js';
 import { BIOMES } from './biomes.js';
 import { mulberry32 } from '../util.js';
+import { CURSES } from '../entities/curses.js';
 
 const CELL = 26;
 const DIRS = [[1, 0, 'e', 'w'], [-1, 0, 'w', 'e'], [0, 1, 's', 'n'], [0, -1, 'n', 's']];
 
+// Each biome has its own bestiary: `kinds` are weighted picks for filling a
+// wave, `groups` are themed packs (listed key-unit first, so a short wave
+// keeps the point of the pack) that a wave is built round about 60% of the
+// time. Higher grades are rarer, and capped per wave in generateLevel.
 export const ENEMY_TABLES = {
-  jujutsu_high: [['swarmer', 5], ['spitter', 2], ['blob', 1.5], ['tank', 1], ['teleporter', 0.8], ['summoner', 0.4]],
-  tokyo_night: [['swarmer', 4], ['spitter', 2.5], ['blob', 2], ['tank', 1.2], ['teleporter', 1], ['summoner', 0.6]],
-  cursed_forest: [['swarmer', 4], ['spitter', 3], ['blob', 1], ['tank', 0.8], ['teleporter', 0.6], ['summoner', 1]],
-  flooded_subway: [['swarmer', 4], ['spitter', 1.5], ['blob', 2.5], ['tank', 1.5], ['teleporter', 1.2], ['summoner', 0.5]],
-  shibuya: [['swarmer', 4], ['spitter', 2], ['blob', 2], ['tank', 1.5], ['teleporter', 1.5], ['summoner', 1]],
+  // the school grounds: low grades, Fly Heads and the first wombs and dolls
+  jujutsu_high: {
+    kinds: [['swarmer', 5], ['flyhead', 3], ['spitter', 2], ['transfigured', 1.2], ['blob', 1.2], ['embryo', 1], ['doll', 0.6], ['tank', 0.6], ['lantern', 0.4], ['teleporter', 0.4], ['summoner', 0.25]],
+    groups: [
+      ['flyhead', 'flyhead', 'flyhead', 'flyhead', 'swarmer'],
+      ['doll', 'spitter', 'spitter', 'swarmer', 'swarmer'],
+      ['embryo', 'swarmer', 'swarmer', 'flyhead'],
+      ['tank', 'spitter', 'flyhead', 'flyhead'],
+      ['lantern', 'swarmer', 'swarmer', 'swarmer'],
+    ],
+  },
+  // night streets: stalkers in the dark, the slit-mouth woman, lanterns, ash
+  tokyo_night: {
+    kinds: [['swarmer', 3], ['flyhead', 2], ['shadow', 1.3], ['longneck', 1.2], ['lantern', 1], ['spitter', 1.5], ['ashspirit', 1], ['blob', 1.1], ['teleporter', 0.9], ['doll', 0.7], ['tank', 0.7], ['healer', 0.3]],
+    groups: [
+      ['shadow', 'shadow', 'swarmer', 'swarmer'],
+      ['lantern', 'doll', 'swarmer', 'swarmer', 'spitter'],
+      ['longneck', 'flyhead', 'flyhead', 'flyhead'],
+      ['healer', 'tank', 'swarmer', 'swarmer'],
+      ['ashspirit', 'ashspirit', 'blob', 'swarmer'],
+      ['teleporter', 'shadow', 'flyhead', 'flyhead'],
+    ],
+  },
+  // the forest: grasshoppers, the serpent, maws rooted among the trees
+  cursed_forest: {
+    kinds: [['grasshopper', 3], ['swarmer', 2.5], ['spitter', 2], ['flyhead', 1.5], ['maw', 1.2], ['embryo', 1], ['burrower', 1], ['summoner', 0.7], ['lantern', 0.6], ['serpent', 0.5], ['healer', 0.5]],
+    groups: [
+      ['grasshopper', 'grasshopper', 'grasshopper', 'swarmer'],
+      ['maw', 'spitter', 'grasshopper', 'swarmer'],
+      ['serpent', 'grasshopper', 'grasshopper'],
+      ['healer', 'maw', 'spitter', 'swarmer'],
+      ['embryo', 'embryo', 'flyhead', 'flyhead'],
+      ['summoner', 'burrower', 'swarmer'],
+    ],
+  },
+  // the drowned subway: Mahito's victims, swarms of Fly Heads, hands in the tunnels
+  flooded_subway: {
+    kinds: [['transfigured', 4], ['flyhead', 3], ['burrower', 1.8], ['blob', 1.4], ['swarmer', 1.4], ['maw', 1], ['embryo', 1], ['gravekeeper', 0.7], ['teleporter', 0.7], ['tank', 0.7], ['longneck', 0.5]],
+    groups: [
+      ['transfigured', 'transfigured', 'transfigured', 'transfigured', 'flyhead', 'flyhead'],
+      ['burrower', 'burrower', 'transfigured', 'transfigured'],
+      ['flyhead', 'flyhead', 'flyhead', 'flyhead', 'flyhead', 'flyhead'],
+      ['gravekeeper', 'transfigured', 'transfigured', 'transfigured'],
+      ['maw', 'blob', 'transfigured', 'flyhead'],
+      ['tank', 'embryo', 'transfigured'],
+    ],
+  },
+  // Shibuya: everything, and more of the higher grades
+  shibuya: {
+    kinds: [['transfigured', 2.5], ['grasshopper', 2], ['flyhead', 2], ['swarmer', 1.4], ['shadow', 1.4], ['longneck', 1.3], ['ashspirit', 1.3], ['gravekeeper', 1.1], ['lantern', 1.1], ['doll', 1], ['burrower', 1], ['tank', 0.9], ['teleporter', 0.9], ['spitter', 0.9], ['blob', 0.9], ['maw', 0.7], ['embryo', 0.7], ['serpent', 0.7], ['healer', 0.6], ['summoner', 0.6]],
+    groups: [
+      ['gravekeeper', 'shadow', 'shadow', 'transfigured'],
+      ['serpent', 'doll', 'spitter', 'spitter'],
+      ['healer', 'ashspirit', 'ashspirit', 'grasshopper'],
+      ['lantern', 'lantern', 'doll', 'transfigured'],
+      ['transfigured', 'transfigured', 'transfigured', 'transfigured', 'transfigured', 'grasshopper'],
+      ['summoner', 'tank', 'longneck'],
+      ['grasshopper', 'grasshopper', 'flyhead', 'flyhead', 'flyhead'],
+      ['burrower', 'longneck', 'transfigured', 'transfigured'],
+    ],
+  },
 };
 
 export function generateLevel(mission) {
@@ -138,11 +199,30 @@ export function generateLevel(mission) {
     if (room.type === 'start' || room.type === 'boss') continue;
     if (room.type === 'secret' || r() < 0.45) chests.push({ pos: pickSpot(room), room, rarity: room.type === 'secret' ? 'rare' : 'common', opened: false });
   }
-  // encounters
-  const table = ENEMY_TABLES[mission.biome];
-  const tw = table.reduce((a, b) => a + b[1], 0);
-  const pickEnemy = () => { let x = r() * tw; for (const [kind, w] of table) { x -= w; if (x <= 0) return kind; } return 'swarmer'; };
+  // encounters: waves built from the biome's themed groups and weighted picks
+  const table = ENEMY_TABLES[mission.biome] ?? ENEMY_TABLES.jujutsu_high;
+  const tw = table.kinds.reduce((a, b) => a + b[1], 0);
+  const pickEnemy = () => { let x = r() * tw; for (const [kind, w] of table.kinds) { x -= w; if (x <= 0) return kind; } return table.kinds[0][0]; };
   const diff = mission.difficulty ?? 1;
+  const gradeCap = { 1: 1, 2: diff >= 3 ? 3 : 2 };   // most Grade 1 / Grade 2 curses in one wave
+  const usedGroups = new Set();
+  const buildWave = (size) => {
+    let kinds = [];
+    if (r() < 0.6) {
+      const free = table.groups.map((_, i) => i).filter((i) => !usedGroups.has(i));
+      const pool = free.length ? free : table.groups.map((_, i) => i);
+      const gi = pool[Math.floor(r() * pool.length)]; usedGroups.add(gi);
+      kinds = table.groups[gi].slice(0, size);
+    }
+    const count = (gr) => kinds.filter((k) => CURSES[k]?.grade === gr).length;
+    while (kinds.length < size) {
+      let k = pickEnemy();
+      for (let tries = 0; tries < 4 && (CURSES[k].grade === '1' || CURSES[k].grade === '2') && count(CURSES[k].grade) >= gradeCap[CURSES[k].grade]; tries++) k = pickEnemy();
+      if ((CURSES[k].grade === '1' || CURSES[k].grade === '2') && count(CURSES[k].grade) >= gradeCap[CURSES[k].grade]) k = table.kinds[0][0];
+      kinds.push(k);
+    }
+    return kinds;
+  };
   let totalEnemies = 0;
   for (const room of rooms) {
     room.waves = [];
@@ -151,8 +231,7 @@ export function generateLevel(mission) {
     const budget = Math.min(9, Math.round((3 + diff + area / 110) * (room.type === 'secret' ? 0.7 : 1)));
     const nWaves = room.type === 'combat' && diff > 1 ? 2 : 1;
     for (let w = 0; w < nWaves; w++) {
-      const list = [];
-      for (let i = 0; i < Math.round(budget / nWaves); i++) list.push({ kind: pickEnemy(), elite: r() < 0.08 + diff * 0.03 ? ['swift', 'armored', 'vampiric', 'explosive', 'shadow'][Math.floor(r() * 5)] : null });
+      const list = buildWave(Math.round(budget / nWaves)).map((kind) => ({ kind, elite: r() < 0.08 + diff * 0.03 ? ['swift', 'armored', 'vampiric', 'explosive', 'shadow'][Math.floor(r() * 5)] : null }));
       room.waves.push(list); totalEnemies += list.length;
     }
   }

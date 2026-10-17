@@ -1,4 +1,5 @@
-// Appearance of the Special Grade bosses: HD painted skins, merged box detail
+// Appearance of the Special Grade bosses (Jogo, Hanami, Mahito; the others
+// live with their moves in entities/bosses/<id>.js and share these helpers): HD painted skins, merged box detail
 // (volcano crater, branches, robes, extra arms), animated lava / rim-glow node
 // materials, a boss-sized ground shadow + aura, and per-frame idle VFX.
 // Each build returns a Rig with two optional hooks the Boss calls:
@@ -10,11 +11,11 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { Skin, Rig, makeCharMaterial, skinBox, PX } from './character.js';
 import { U } from '../gfx/materials.js';
 
-const HS = 1.12;                         // head mesh scale (headS 8)
+export const HS = 1.12;                         // head mesh scale (headS 8)
 const v1 = new THREE.Vector3(), v2 = new THREE.Vector3();
 const _e = new THREE.Euler(), _q = new THREE.Quaternion(), _s = new THREE.Vector3(1, 1, 1), _p = new THREE.Vector3();
-const rate = (perSec, dt, budget = 1) => Math.floor(perSec * dt * budget + Math.random());
-const rnd = (a = 1) => (Math.random() - 0.5) * 2 * a;
+export const rate = (perSec, dt, budget = 1) => Math.floor(perSec * dt * budget + Math.random());
+export const rnd = (a = 1) => (Math.random() - 0.5) * 2 * a;
 
 // ---------------------------------------------------------------- materials
 // Solid colour with skin-pixel-sized value noise so plain boxes read like the HD skins.
@@ -45,7 +46,7 @@ export function addRim(m, color, strength = 1, power = 2.6) {
   return u;
 }
 // Molten lava: blocky animated noise between crust, red and yellow-white.
-function lavaMat(strength = 4) {
+export function lavaMat(strength = 4) {
   const m = new THREE.MeshStandardNodeMaterial({ roughness: 0.55 });
   const amp = uniform(strength);
   const p = floor(positionLocal.div(PX * 0.5)).mul(0.5);
@@ -59,7 +60,7 @@ function lavaMat(strength = 4) {
   return m;
 }
 // Soft round ground decal: dark contact shadow, or an additive pulsing aura ring.
-function groundFX(rig, color, radius) {
+export function groundFX(rig, color, radius) {
   const s = rig.spec.scale;
   const geo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
   const d = length(uv().sub(0.5));
@@ -84,8 +85,8 @@ function groundFX(rig, color, radius) {
 // ---------------------------------------------------------------- merged parts
 // Collects boxes per (group, material) and merges them into one mesh each, so
 // a detailed boss stays at a few dozen draw calls.
-const M4 = (x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0, s = 1) => new THREE.Matrix4().compose(_p.set(x * PX, y * PX, z * PX), _q.setFromEuler(_e.set(rx, ry, rz)), _s.set(s, s, s));
-class Parts {
+export const M4 = (x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0, s = 1) => new THREE.Matrix4().compose(_p.set(x * PX, y * PX, z * PX), _q.setFromEuler(_e.set(rx, ry, rz)), _s.set(s, s, s));
+export class Parts {
   constructor(rig) { this.rig = rig; this.bins = new Map(); }
   add(group, geo, mat, M) {
     if (M) geo.applyMatrix4(M);
@@ -106,19 +107,19 @@ class Parts {
   }
 }
 // group with a transform in skin pixels
-function grp(parent, x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0) { const g = new THREE.Group(); g.position.set(x * PX, y * PX, z * PX); g.rotation.set(rx, ry, rz); parent.add(g); return g; }
+export function grp(parent, x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0) { const g = new THREE.Group(); g.position.set(x * PX, y * PX, z * PX); g.rotation.set(rx, ry, rz); parent.add(g); return g; }
 
 // ---------------------------------------------------------------- skin helpers
-const BOX = { head: [0, 0, 8, 8, 8], hat: [32, 0, 8, 8, 8], body: [16, 16, 8, 12, 4], jacket: [16, 32, 8, 12, 4],
+export const BOX = { head: [0, 0, 8, 8, 8], hat: [32, 0, 8, 8, 8], body: [16, 16, 8, 12, 4], jacket: [16, 32, 8, 12, 4],
   armR: [40, 16, 4, 12, 4], armRo: [40, 32, 4, 12, 4], armL: [32, 48, 4, 12, 4], armLo: [48, 48, 4, 12, 4],
   legR: [0, 16, 4, 12, 4], legRo: [0, 32, 4, 12, 4], legL: [16, 48, 4, 12, 4], legLo: [0, 48, 4, 12, 4] };
-const face = (k) => { const [u, v, w, h, d] = BOX[k]; return { top: [u + d, v, w, d], bottom: [u + d + w, v, w, d], right: [u, v + d, d, h], front: [u + d, v + d, w, h], left: [u + d + w, v + d, d, h], back: [u + d + w + d, v + d, w, h], ring: [u, v + d, 2 * (w + d), h] }; };
+export const face = (k) => { const [u, v, w, h, d] = BOX[k]; return { top: [u + d, v, w, d], bottom: [u + d + w, v, w, d], right: [u, v + d, d, h], front: [u + d, v + d, w, h], left: [u + d + w, v + d, d, h], back: [u + d + w + d, v + d, w, h], ring: [u, v + d, 2 * (w + d), h] }; };
 // horizontal band around a box's four sides, rows r..r+h counted from the top
-function ring(S, k, r, h, c, noise = 0.08) { const [x, y, w] = face(k).ring; S.rect(x, y + r, w, h, c, noise); }
-function paintBox(S, k, c, noise) { const [u, v, w, h, d] = BOX[k]; S.box(u, v, w, h, d, c, noise); }
-function clear(S, x, y, w = 1, h = 1) { S.ctx.clearRect(x, y, w, h); }
+export function ring(S, k, r, h, c, noise = 0.08) { const [x, y, w] = face(k).ring; S.rect(x, y + r, w, h, c, noise); }
+export function paintBox(S, k, c, noise) { const [u, v, w, h, d] = BOX[k]; S.box(u, v, w, h, d, c, noise); }
+export function clear(S, x, y, w = 1, h = 1) { S.ctx.clearRect(x, y, w, h); }
 // a glowing crack: random walk downward inside [x0,x1]
-function crack(S, x, y, len, x0, x1, c1, c2) {
+export function crack(S, x, y, len, x0, x1, c1, c2) {
   const m = S.mat; S.mat = 'glow';
   for (let i = 0; i < len; i++) {
     S.px(x, y, i % 3 === 1 ? c2 : c1);
@@ -128,10 +129,10 @@ function crack(S, x, y, len, x0, x1, c1, c2) {
   S.mat = m;
 }
 // a stitched seam (sub-pixel line with cross ticks)
-function stitchH(S, x, y, w, c, tick) { S.fineRect(x, y, w, 0.5, c, 'skin'); for (let i = 0.5; i < w; i += 1) S.fineRect(x + i, y - 0.5, 0.5, 0.5, tick ?? c, 'skin'); }
-function stitchV(S, x, y, h, c, tick) { S.fineRect(x, y, 0.5, h, c, 'skin'); for (let i = 0.5; i < h; i += 1) S.fineRect(x + 0.5, y + i, 0.5, 0.5, tick ?? c, 'skin'); }
+export function stitchH(S, x, y, w, c, tick) { S.fineRect(x, y, w, 0.5, c, 'skin'); for (let i = 0.5; i < w; i += 1) S.fineRect(x + i, y - 0.5, 0.5, 0.5, tick ?? c, 'skin'); }
+export function stitchV(S, x, y, h, c, tick) { S.fineRect(x, y, 0.5, h, c, 'skin'); for (let i = 0.5; i < h; i += 1) S.fineRect(x + 0.5, y + i, 0.5, 0.5, tick ?? c, 'skin'); }
 
-function finishMaterial(S, o) {
+export function finishMaterial(S, o) {
   const m = makeCharMaterial(S.texture(), { emitStrength: o.emit, fill: o.fill ?? 0.12, roughness: o.rough ?? 0.8 });
   m.alphaTest = 0.5;
   if (o.rim) addRim(m, o.rim, o.rimStrength ?? 0.6, o.rimPower ?? 2.6);
@@ -139,7 +140,7 @@ function finishMaterial(S, o) {
 }
 
 // =====================================================================
-// JOGO — Volcano Curse
+// JOGO — Disaster Flames
 // =====================================================================
 export function buildJogo() {
   const S = new Skin(501);
@@ -268,7 +269,7 @@ export function buildJogo() {
 }
 
 // =====================================================================
-// HANAMI — Grove Curse
+// HANAMI — Disaster Plants
 // =====================================================================
 export function buildHanami() {
   const S = new Skin(777);
@@ -394,9 +395,20 @@ export function buildHanami() {
     if (l > 7) blossom(trail, M.clone().multiply(M4(0.8, 0.6, l * 0.6, 0, a, 0)), 0.9);
   }
   for (const [a, r] of [[0.6, 3.6], [1.9, 4.2], [-1.0, 4.0], [3.0, 5.2], [4.0, 4.6]]) { const M = M4(Math.sin(a) * r, 0.5, Math.cos(a) * r, 0, a, 0); blossom(trail, M, 1.1); P.box(trail, 1.4, 0.6, 1.4, leafA, M.clone().multiply(M4(0.8, -0.2, 0.4, 0, 0.7, 0))); }
+  // ---- the left arm unveiled (phase 3): the cloth falls away, a great flower opens on the shoulder
+  const unveil = grp(rig.armL, 0.6, 1.4, 0); unveil.visible = false; unveil.scale.setScalar(0.01);
+  const core = glowMat(0xd8ffb0, 3.2, { pulse: 9 });
+  P.box(unveil, 3.4, 3.4, 3.4, woodD, M4(1.6, 0.6, 0));
+  for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2; P.box(unveil, 1.6, 0.6, 3.8, i % 2 ? bloom : bloomW, M4(1.8 + Math.cos(a) * 2.2, 0.8, Math.sin(a) * 2.2, 0, -a + Math.PI / 2, 0.35)); }
+  for (let i = 0; i < 5; i++) { const a = i / 5 * Math.PI * 2 + 0.3; P.box(unveil, 1.0, 0.5, 2.2, leafB, M4(1.8 + Math.cos(a) * 3.4, 0.2, Math.sin(a) * 3.4, 0, -a + Math.PI / 2, 0.2)); }
+  P.box(unveil, 1.8, 1.8, 1.8, core, M4(2.9, 0.9, 0));
+  for (const [y, z] of [[-3, 1.2], [-6, -1.0], [-9, 0.6]]) P.box(unveil, 1.0, 1.0, 1.0, bloom, M4(2.3, y, z));
   P.flush();
   const fx = groundFX(rig, 0x7aff5a, 1.6);
   const tips = branches.map((b) => b.g);
+  let unveilK = 0, unveilOn = false;
+  rig.extras.unveil = (on) => { unveilOn = on; if (on) unveil.visible = true; };
+  rig.extras.shoulder = unveil;
   rig.idle = (dt, b) => {
     const g = b.game, t = rig.t, Pt = g.particles, bud = Pt.budget ?? 1;
     const run = Math.min(1, b.vel.length() / 3);
@@ -411,13 +423,17 @@ export function buildHanami() {
     }
     for (let i = rate(7, dt, bud); i > 0; i--) Pt.glow.emit(b.pos.x + rnd(1.6), b.pos.y + Math.random() * 4.5, b.pos.z + rnd(1.6), rnd(0.2), 0.3 + Math.random() * 0.4, rnd(0.2), 1.8, 0.35, 1.0, 0.25, 0.09, -0.1, 1, 0.4, 0);
     if (b.lightH) { b.lightH.intensity = 3.6 + Math.sin(t * 1.5) * 0.6; b.lightH.offsetY = 6.8; }   // above the canopy, not on the head
+    unveilK = Math.max(0, Math.min(1, unveilK + (unveilOn ? dt * 2 : -dt * 2)));
+    unveil.scale.setScalar(0.01 + unveilK * 0.99); if (unveilK <= 0) unveil.visible = false;
+    for (const d of drape) d.visible = unveilK < 0.5;
+    if (unveilK > 0.5) for (let i = rate(10, dt, bud); i > 0; i--) { unveil.localToWorld(v1.set(2.9 * PX, 0.9 * PX, 0)); Pt.glow.emit(v1.x + rnd(0.4), v1.y + rnd(0.4), v1.z + rnd(0.4), rnd(1), rnd(1), rnd(1), 0.6, 1.2, 2.6, 0.8, 0.14, 0, 2, 0.1, 0); }
   };
   rig.fx = fx;
   return rig;
 }
 
 // =====================================================================
-// MAHITO — Patchwork Curse
+// MAHITO — Idle Transfiguration
 // =====================================================================
 export function buildMahito() {
   const S = new Skin(313);
@@ -527,7 +543,7 @@ export function buildMahito() {
   const fx = groundFX(rig, 0x8ad0ff, 1.3);
   let distorted = 0;
   rig.onPhase = (n, b) => {
-    if (n >= 2 && !dist.visible) { dist.visible = true; distorted = 0.001; rig.spec.scale = 1.9 * 1.35; fx.amp.value = 1.6; m.userData.rim.value = 0.8; if (b.lightH) b.lightH.offsetY = 8; }
+    if (n >= 2 && !dist.visible) { dist.visible = true; distorted = 0.001; rig.spec.scale = 1.9 * 1.35; rig.root.scale.setScalar(rig.spec.scale); fx.amp.value = 1.6; m.userData.rim.value = 0.8; if (b.lightH) b.lightH.offsetY = 8; }
   };
   rig.idle = (dt, b) => {
     const g = b.game, t = rig.t, Pt = g.particles, bud = Pt.budget ?? 1;
@@ -550,4 +566,43 @@ export function buildMahito() {
   };
   rig.fx = fx;
   return rig;
+}
+
+// =====================================================================
+// shared extras for the boss models in entities/bosses/*.js
+// =====================================================================
+// Unlit glow (eyes, cores, energy blades); amp is a uniform for pulses.
+export function glowMat(hex, strength = 2.5, o = {}) {
+  const m = new THREE.MeshBasicNodeMaterial({ transparent: !!o.transparent, depthWrite: !o.transparent, blending: o.additive ? THREE.AdditiveBlending : THREE.NormalBlending });
+  const c = new THREE.Color(hex), amp = uniform(strength);
+  m.colorNode = vec3(c.r, c.g, c.b).mul(amp).mul(o.pulse ? sin(U.time.mul(o.pulse)).mul(0.18).add(1) : float(1));
+  if (o.opacity != null) m.opacity = o.opacity;
+  m.userData.amp = amp;
+  return m;
+}
+// Wet, slowly crawling blood / rot: blocky noise between near-black and red.
+export function bloodMat(hex = 0x9a0a12, o = {}) {
+  const m = new THREE.MeshStandardNodeMaterial({ roughness: o.rough ?? 0.28, metalness: 0.05 });
+  const c = new THREE.Color(hex), dark = new THREE.Color(o.dark ?? 0x1a0204);
+  const p = floor(positionLocal.div(PX * (o.cell ?? 0.75)));
+  const t = U.time;
+  const n = mx_noise_float(vec3(p.x.mul(0.35), p.y.mul(0.35).sub(t.mul(o.flow ?? 0.6)), p.z.mul(0.35))).mul(0.5).add(0.5);
+  const col = mix(vec3(dark.r, dark.g, dark.b), vec3(c.r, c.g, c.b), smoothstep(0.25, 0.7, n));
+  const amp = uniform(o.emissive ?? 0.35);
+  m.colorNode = col;
+  m.emissiveNode = col.mul(amp).mul(smoothstep(0.55, 0.9, n).add(0.25));
+  m.userData.amp = amp;
+  return m;
+}
+// Sea water: blocky waves between deep and foam, slightly glowing.
+export function waterMat(deep = 0x0a3a6a, light = 0x5ad8ff, o = {}) {
+  const m = new THREE.MeshStandardNodeMaterial({ roughness: 0.15, metalness: 0.1, transparent: !!o.opacity, opacity: o.opacity ?? 1 });
+  const a = new THREE.Color(deep), b = new THREE.Color(light);
+  const p = floor(positionLocal.div(PX * 0.6));
+  const t = U.time;
+  const n = mx_noise_float(vec3(p.x.mul(0.25).add(t.mul(0.8)), p.y.mul(0.25), p.z.mul(0.25).sub(t.mul(0.5)))).mul(0.5).add(0.5);
+  const col = mix(vec3(a.r, a.g, a.b), vec3(b.r, b.g, b.b), smoothstep(0.45, 0.85, n));
+  m.colorNode = col;
+  m.emissiveNode = col.mul(o.emissive ?? 0.4).add(vec3(0.9, 1, 1).mul(smoothstep(0.82, 0.9, n)).mul(0.8));
+  return m;
 }

@@ -96,6 +96,14 @@ const CHARGES = {
   jogo: ['burning sorcerers alive in Shibuya', 'the incineration of a Grade 1 sorcerer'],
   hanami: ['the attack on Jujutsu High during the Goodwill Event', 'draining a forest and the people in it'],
   mahito: ['transfiguring dozens of people in Shibuya', 'murdering Kento Nanami'],
+  sugisawa_curse: ['breaking into Sugisawa Third High', 'devouring two students in the school building'],
+  finger_bearer: ['the deaths of four inmates at Eishu Juvenile Detention Center', 'tearing off a sorcerer\'s hand'],
+  eso_kechizu: ['the rotting of a man at Yasohachi Bridge', 'stealing Sukuna\'s fingers from Jujutsu High'],
+  kechizu: ['the rotting of a man at Yasohachi Bridge', 'stealing Sukuna\'s fingers from Jujutsu High'],
+  dagon: ['drowning sorcerers in Shibuya Station', 'the death of Naobito Zen\'in\'s escort'],
+  choso: ['assaulting sorcerers on the Fukutoshin Line', 'aiding the sealing of Satoru Gojo'],
+  mahoraga: ['rampaging through Shibuya', 'the destruction of Dogenzaka'],
+  sukuna: ['the destruction of Shibuya', 'the massacre of thousands in a single Malevolent Shrine'],
   default: ['murdering 3 people in Shibuya', 'the massacre at Shibuya Station'],
 };
 const PLEAS = [

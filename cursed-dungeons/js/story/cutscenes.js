@@ -4,7 +4,7 @@
 //                    recruits you to Jujutsu High (then the hub loads)
 //   arrive_hub       an establishing shot of Jujutsu High, the first time you enter
 //   mission_<id>     a short briefing over the level (Ijichi / Nitta), first time per mission
-//   boss_<bossId>    the Special Grade reveal with its name card (jogo, hanami, mahito)
+//   boss_<bossId>    the Special Grade reveal with its name card (BOSS table below)
 //   boss_down_<id>   the boss exorcised
 // Each builds its set in the engine (world/cutsceneSets.js, or the level that
 // is loaded) and returns its shots for story/cutscene.js.
@@ -78,6 +78,13 @@ const BOSS = {
   jogo: { name: 'JOGO', kanji: '漏瑚', sub: 'Special Grade Cursed Spirit · Disaster Flames', line: 'Humans are fakes. We curses are the real thing!', down: 'A hundred years from now... we will be the humans.', color: '#ff6a1a' },
   hanami: { name: 'HANAMI', kanji: '花御', sub: 'Special Grade Cursed Spirit · Disaster Plants', line: 'I only wish to protect this planet. From you.', down: 'The earth... will remember...', color: '#7aff5a' },
   mahito: { name: 'MAHITO', kanji: '真人', sub: 'Special Grade Cursed Spirit · Idle Transfiguration', line: 'The soul comes before the body. Let me show you.', down: 'Heh... Curses never really die, you know.', color: '#7ad8ff' },
+  sugisawa_curse: { name: 'THE SUGISAWA CURSE', kanji: '呪霊', sub: 'Grade 1 Cursed Spirit · Drawn by the Finger', line: 'Fi... n... ger. FINGERRR!', down: '(It comes apart in black smoke. The finger is still out there.)', color: '#9a6aff' },
+  finger_bearer: { name: 'THE FINGER BEARER', kanji: '特級呪胎', sub: 'Special Grade Cursed Womb · Eishu Detention Center', line: '(It grins with a mouthful of human teeth. Sukuna\'s finger pulses in its chest.)', down: '(It tears apart, and a rotting finger rolls out of the remains.)', color: '#b04aff' },
+  eso_kechizu: { name: 'ESO & KECHIZU', kanji: '壊相 · 血塗', sub: 'Death Painting Wombs No. 2 & 3 · Rot Technique', line: 'Kechizu, our elder brother is watching. Let us not disappoint him.', down: 'Kechizu... wait for me... brother...', color: '#d0304a' },
+  dagon: { name: 'DAGON', kanji: '陀艮', sub: 'Special Grade Cursed Spirit · Disaster Tides', line: 'Hanami is gone. The sea will swallow every one of you.', down: 'Jogo... Mahito... the sea... is so far away...', color: '#3ab8ff' },
+  choso: { name: 'CHOSO', kanji: '脹相', sub: 'Death Painting Womb No. 1 · Blood Manipulation', line: 'You killed my little brothers. I will never forgive you.', down: 'These memories... we were... brothers? What is this?', color: '#d0102a' },
+  mahoraga: { name: 'MAHORAGA', kanji: '魔虚羅', sub: 'Eight-Handled Sword Divergent Sila Divine General', line: '(The wheel above its head turns once. It is already adapting.)', down: '(The wheel stops turning. The Divine General sinks into the shadows.)', color: '#fff0b0' },
+  sukuna: { name: 'RYOMEN SUKUNA', kanji: '両面宿儺', sub: 'The King of Curses · Shrine', line: 'Know your place, fool.', down: 'Heh. Enjoy your little victory while it lasts, brat.', color: '#ff2a3a' },
 };
 
 // ------------------------------------------------------------------ definitions
@@ -369,7 +376,7 @@ function bossDef(bossId) {
       const d = V(pc.x - pos.x, 0, pc.z - pos.z); if (d.lengthSq() < 1 || d.length() > 30) d.set(0, 0, 1); d.normalize();
       const sd = V(d.z, 0, -d.x);
       boss.facing = Math.atan2(d.x, d.z); boss.object.rotation.y = boss.facing;
-      const H = 3.3 * scl;
+      const H = (boss.height ?? 4.2) * 0.8 * scl;   // framed on the boss's own height
       const end = gameplayPose(game);
       let rise = cs.opts.short ? 0 : 1;
       const at = (along, up, across) => clear(game, pos.clone().addScaledVector(d, along).addScaledVector(sd, across).setY(pos.y + up));

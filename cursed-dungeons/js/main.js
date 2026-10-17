@@ -31,7 +31,7 @@ import { generateLevel } from './world/levelgen.js';
 import { Mission } from './mission.js';
 import { Pickups } from './pickups.js';
 import { Minimap } from './ui/minimap.js';
-import { BOSS_IDS } from './entities/bosses.js';
+import { BOSS_IDS, BOSSES } from './entities/bosses.js';
 import { Player } from './entities/player.js';
 import { Enemy } from './entities/enemy.js';
 import { TrainingDummy } from './entities/dummy.js';
@@ -106,7 +106,7 @@ class Game {
     this.fx = new Effects(this);
     this.debris = new Debris(this);
     this.bolts = new Bolts(this.scene);
-    this.markers = new Markers(this.scene);
+    this.markers = new Markers(this.scene, 64);   // boss patterns telegraph many spots at once
     this.combat = new Combat(this);
     this.projectiles = new Projectiles(this);
     this.hazards = new Hazards(this);
@@ -341,7 +341,7 @@ class Game {
       el.appendChild(h('div', { class: 'panel', style: 'width:min(520px,94vw)' }, h('h2', {}, 'Mission Board'),
         opt('biome', biomes.map((b) => [b, BIOMES[b].name]), 'Location'),
         opt('objective', [['exorcise', 'Exorcise the curses'], ['rescue', 'Rescue students'], ['seal', 'Seal cursed objects']], 'Objective'),
-        opt('boss', [['jogo', 'Volcano Curse'], ['hanami', 'Grove Curse'], ['mahito', 'Patchwork Curse']], 'Special Grade'),
+        opt('boss', BOSS_IDS.map((id) => [id, BOSSES[id].name]), 'Special Grade'),
         opt('difficulty', [[1, 'Grade 3'], [2, 'Grade 2'], [3, 'Grade 1'], [4, 'Special Grade']], 'Threat'),
         h('div', { class: 'row', style: 'justify-content:flex-end;margin-top:12px' },
           h('button', { class: 'btn', onclick: () => { this.ui.close('missions'); this.paused = false; } }, 'Back'),
@@ -378,7 +378,17 @@ class Game {
   }
   spawnWave() {
     this.wave++;
-    const kinds = [['swarmer', 'swarmer', 'swarmer', 'swarmer'], ['swarmer', 'swarmer', 'spitter', 'blob', 'swarmer'], ['tank', 'swarmer', 'swarmer', 'spitter', 'teleporter'], ['summoner', 'tank', 'teleporter', 'blob', 'spitter', 'swarmer', 'swarmer']][(this.wave - 1) % 4];
+    const kinds = [
+      ['swarmer', 'swarmer', 'flyhead', 'flyhead', 'flyhead'],
+      ['transfigured', 'transfigured', 'spitter', 'blob', 'swarmer'],
+      ['grasshopper', 'embryo', 'swarmer', 'flyhead', 'flyhead'],
+      ['doll', 'spitter', 'spitter', 'burrower', 'swarmer'],
+      ['lantern', 'maw', 'ashspirit', 'transfigured', 'transfigured'],
+      ['tank', 'longneck', 'shadow', 'swarmer', 'swarmer'],
+      ['gravekeeper', 'teleporter', 'grasshopper', 'flyhead', 'flyhead'],
+      ['serpent', 'healer', 'doll', 'swarmer', 'swarmer'],
+      ['summoner', 'tank', 'teleporter', 'blob', 'spitter', 'swarmer', 'swarmer'],
+    ][(this.wave - 1) % 9];
     const c = this.level.dummy;
     kinds.forEach((k, i) => {
       const a = (i / kinds.length) * Math.PI * 2 + Math.random();

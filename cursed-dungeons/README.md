@@ -45,14 +45,64 @@ Play: <https://hoai2k.github.io/francis/cursed-dungeons/>
 
 ### Story
 
-Three arcs, ten chapters, played in order: **Cursed Womb** (The Finger,
+Three arcs, twelve chapters, played in order: **Cursed Womb** (The Finger,
 Fearsome Womb, Transfigured), **Kyoto Goodwill Event** (Curse Hunt, Black
 Flash, Stolen Fingers) and **Shibuya Incident** (The Curtain Falls,
-Fukutoshin Line, Disaster Flames, Idle Transfiguration). Each chapter has a
+Fukutoshin Line, Disaster Flames, Eight-Handled Sword, Idle
+Transfiguration, King of Curses). Each chapter has a
 briefing cutscene the first time, a chapter card, a boss reveal cutscene
 and an "EXORCISED" cutscene when the Special Grade falls. Threat:
 Standard, Hard or Nightmare. **How to Play** (title and pause menu) explains
 everything.
+
+### Bosses
+
+Every chapter ends with a canon boss. Each one has its own model, canon
+moves (the move name flashes on screen as it starts) and three phases, and
+every big hit is telegraphed on the ground first.
+
+| Chapter | Boss | Moves |
+| --- | --- | --- |
+| The Finger | The Sugisawa Curse (Grade 1) | Crushing Slam, Double Slam, Devour, Bile Spit, Drawn by the Finger, Frenzy |
+| Fearsome Womb | The Finger Bearer (Special Grade cursed womb) | Rend, Limb Tear, Womb Blast, Innate Domain: Twisted Corridors, Womb Spawn, Sukuna's finger pulses |
+| Transfigured, Idle Transfiguration | Mahito | Idle Transfiguration (warps your body), Blade Arms, Body Repel, Transfigured Humans, Polymorphic Soul Isomer, Instant Spirit Body of Distorted Killing |
+| Curse Hunt, Black Flash | Hanami | Root Spikes, Wooden Balls, Cursed Buds (drain Cursed Energy; dodge-roll to tear them off), Flower Field, Wood Ram, Left Arm Unveiled beam, Domain: Ceremonial Sea of Light |
+| Stolen Fingers | Eso & Kechizu (two bodies) | Wing King, Rot Spray, Rot Claw, Decay Rain; Kechizu's Blood Spit, Belly Flop, Vomit Stream. Both brothers' blood on you triggers Rot Technique: Decay |
+| The Curtain Falls | Dagon | Death Swarm (fish shikigami), Tidal Wave (find the gap), Water Spout, Tentacle Lash, Domain: Horizon of the Captivating Skandha |
+| Fukutoshin Line | Choso | Piercing Blood (the line tracks you, then locks), Convergence, Supernova, Slicing Exorcism, Blood Edge, Flowing Red Scale |
+| Disaster Flames | Jogo | Ember Insects, Volcano, Disaster Flames, Flame Burst, Maximum: Meteor, Domain: Coffin of the Iron Mountain (then he burns out: hit him hard) |
+| Eight-Handled Sword | Mahoraga | The wheel adapts: a source of damage that keeps hitting it turns the wheel and is resisted (see the boss bar), and an adaptation loosens after a while. Sword of Extermination, Extermination Cleave, Divine Leap, Rush, Adaptive Guard (don't hit it while the wheel spins) |
+| King of Curses | Ryomen Sukuna | Dismantle, Cleave (scales with your max HP), Black Flash, Fuga "Open", Domain: Malevolent Shrine (no barrier; keep moving) |
+
+### Curses
+
+Every biome has its own mix of curses, and the waves in a level are built
+from themed groups (a Fly Head swarm, a corpse doll guarding spitters, a pack
+of grasshoppers...), so no two rooms play the same. Every attack is marked
+on the ground before it lands. Kill the priority targets first:
+
+| Curse | Grade | What it does |
+| --- | --- | --- |
+| Swarmer, Summoned Imp | 4 | Rush in and bite |
+| Fly Head | 4 | Tiny flying swarm; hovers round you, then dives onto a marked circle |
+| Transfigured Human | 4 | Mahito's victims: lurch forward in surges; half of them split into two crawling remnants |
+| Spitter | 3 | Lobs acid that leaves a puddle |
+| Bloater | 3 | Swells up and explodes |
+| Cursed Womb | 3 | Crawls up and bursts into three imps, unless you kill it first |
+| Grasshopper Curse | 3 | Keeps its distance, then pounces on a marked circle |
+| Crawling Hand | 3 | Burrows (can't be hit), tunnels under you and bursts up through a marked circle |
+| Maw Pillar | 3 | Rooted turret: spits volleys of acid, bites anyone who gets close |
+| Disaster Ash | 3 | Leaves patches of burning ground; flares up when close |
+| Bulwark | 2 | Shield in front, heavy slam |
+| Phantom | 2 | Teleports next to you and slashes |
+| Grave Deity | 2 | Stand in its purple circle and you're sealed in a coffin for a second |
+| Lantern Eye | 2 | Sniper beam: the line tracks you, then locks; step off it |
+| Slit-Mouth | 2 | Her neck shoots her head down a marked line |
+| Cursed Corpse | 2 | Shield-bearer; curses near it take half damage (a cyan thread links them) |
+| Shadow Stalker | 2 | Nearly invisible until it strikes from close; hitting it reveals it |
+| Brood Mother | 1 | Summons imps |
+| Rainbow Serpent | 1 | Charges down a marked line |
+| Fester Bodhisattva | 1 | Heals and empowers the curses around it (they glow red); hides behind them |
 
 ### Technique rolls
 
@@ -233,10 +283,13 @@ canvas), converging to 512 samples. **Save PNG** downloads the result.
   player at once; the rest circle and wait their turn.
 - **Levels**: a grid layout with a main path, side rooms and a secret
   room, stamped from hand-designed room templates per biome.
-- **Bosses**: detailed models (Jogo's smoking volcano head, Hanami's
-  branches and cloth, Mahito's patchwork with a phase-3 distorted form)
-  with idle effects. Attack patterns are generator coroutines with
-  telegraphed ground markers.
+- **Bosses**: one file per boss in `js/entities/bosses/` (stats, model,
+  moves); the shared runtime is `js/entities/bosses.js` and the model
+  helpers are in `js/entities/boss-looks.js`. Detailed models with idle
+  effects (Jogo's smoking volcano head, Mahoraga's ratcheting wheel,
+  Dagon's swinging tentacles, Choso's orbiting blood). Moves are generator
+  coroutines with telegraphed ground markers; boss domains use the same
+  domain system as the players' (only one domain can be open at a time).
 - **Cutscenes**: in-engine cinematics with letterbox bars, keyframed
   cameras, subtitles and title cards (`js/story/`).
 - **Music**: two recorded tracks in `assets/music/`: `background.mp3`

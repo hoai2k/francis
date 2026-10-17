@@ -5,7 +5,7 @@ import { uniform, uv, vec3, vec4, float, smoothstep, length, abs, max, atan, sin
 import { U } from './materials.js';
 
 export class Markers {
-  constructor(scene, n = 24) {
+  constructor(scene, n = 40) {
     this.items = [];
     for (let i = 0; i < n; i++) {
       const prog = uniform(0), col = uniform(new THREE.Color(1, 0.1, 0.1)), shape = uniform(0), arc = uniform(1), alpha = uniform(1);
