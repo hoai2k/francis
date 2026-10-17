@@ -18,7 +18,7 @@ const rnd = (a = 1) => (Math.random() - 0.5) * 2 * a;
 
 // ---------------------------------------------------------------- materials
 // Solid colour with skin-pixel-sized value noise so plain boxes read like the HD skins.
-function pixMat(hex, o = {}) {
+export function pixMat(hex, o = {}) {
   const m = new THREE.MeshStandardNodeMaterial({ roughness: o.rough ?? 0.85, metalness: o.metal ?? 0 });
   const c = new THREE.Color(hex);
   const cell = floor(positionLocal.div(PX * (o.cell ?? 1)));
@@ -34,7 +34,7 @@ function pixMat(hex, o = {}) {
   return m;
 }
 // Fresnel rim light added to a material's emissive (boss aura silhouette).
-function addRim(m, color, strength = 1, power = 2.6) {
+export function addRim(m, color, strength = 1, power = 2.6) {
   const c = new THREE.Color(color);
   // silhouette only: tops and bottoms of the boxes stay unlit so heads don't flare
   const f = pow(float(1).sub(abs(dot(normalView, positionViewDirection))), power).mul(float(1).sub(abs(normalWorld.y)));

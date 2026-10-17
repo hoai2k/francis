@@ -37,7 +37,7 @@ export class Enemy {
     }
     this.hp = this.maxHp;
     this.rig = buildCurseModel(d.model);
-    if (elite) addEliteShell(this.rig, ELITE_AFFIX[elite].color);
+    if (elite) addEliteShell(this.rig, ELITE_AFFIX[elite].color, elite, d.radius);
     this.object = this.rig.root;
     this.object.position.copy(this.pos);
     this.facing = Math.random() * Math.PI * 2;
@@ -289,6 +289,7 @@ export class Enemy {
     }
     this.rig.animate({ dt, speed: Math.min(1, speed), vel: this.vel, action: act });
     if (this.rig.hunch) this.rig.torso.rotation.x += this.rig.hunch;
+    this.rig.idle?.(dt, this);   // per-kind flavour: jaws, eyes, sacs, tails, particles
   }
 
   // ---------------------------------------------------------------- attacks
