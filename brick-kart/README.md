@@ -381,6 +381,12 @@ grid. Browsers expose a limited number of controllers (Chrome lists up to
 four), so eight players may need a mix of controllers and the two keyboard
 setups.
 
+**Joining mid-race**: a controller that isn't playing can press **A** or **Start** during a local
+race (Quick Race or Grand Prix, not Time Trial) to drop in. The new player takes over the CPU racer
+furthest back that's still racing, the screen splits again, and they keep that racer (and its
+Grand Prix points) for the races after. It works the way online play hands a CPU's kart to a person.
+Phones stay single-player.
+
 ## Online
 
 > **Status.** Online play is on. `?online=0` in the address (or `ONLINE_ENABLED = false` at

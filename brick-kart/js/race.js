@@ -246,6 +246,35 @@ export class Race {
 
   humanKarts() { return this.cams.map((c) => c.kart); }
 
+  // Local drop-in: a new player joins a race already under way by taking over a CPU kart (the one
+  // furthest back that's still racing), much like online play hands a CPU's kart to a person.
+  // The screen splits again and the HUD is rebuilt. Returns the kart, or null if no one can join now.
+  canJoin() {
+    return !this.net && this.mode !== 'tt' && this.mode !== 'attract' && this.doneTimer < 0 && !this.finishedCalled;
+  }
+  addPlayer(p) {
+    if (!this.canJoin()) return null;
+    const k = [...this.order].reverse().find((o) => !o.human && !o.remote && !o.finished && o.respawn <= 0);
+    if (!k) return null;
+    this.drivers.delete(k);
+    k.player = p; k.human = true; k.speedMult = 1; p.joining = true;
+    p.kart = k;
+    // the player keeps this racer for the next race (and its Grand Prix points)
+    p.driverIndex = k.driverIndex; p.kartIndex = KARTS.indexOf(k.ch); p.charIndex = CHARACTERS.indexOf(k.ch);
+    p.gliderIndex = k.gliderDef ? GLIDERS.indexOf(k.gliderDef) : null;
+    const cc = new ChaseCam();
+    cc.update(0, k);
+    this.cams.push({ chase: cc, kart: k, player: p });
+    this.cams.sort((a, b) => a.player.id - b.player.id);
+    k.engine = this.audio.engine();
+    // the HUD is laid out per screen: build it again for the new split
+    this.hud?.dispose();
+    this.hud = new HUD(this, this.game.hudRoot);
+    if (this.state !== 'intro') this.hud.hideTitle();
+    for (const c of this.cams) if (c.kart.finished) this.hud.finish(c.kart);
+    return k;
+  }
+
   update(dt) {
     if (!(dt > 0)) return;   // never step backwards (see Kart.update)
     dt = Math.min(dt, 0.1);
@@ -292,6 +321,8 @@ export class Race {
       let ctl;
       if (k.human && !k.finished) {
         ctl = this.input.race(k.player.device, k.player.autoGas);
+        // (the Start press that dropped a player in isn't also their pause)
+        if (k.player.joining) { ctl.pause = false; k.player.joining = false; }
         if (ctl.pause && this.state !== 'intro') { this.game.pause(k.player); }
         if (this.inputBlocked) ctl = { ...ctl, throttle: k.player.autoGas ? 1 : 0, brake: 0, steer: 0, drift: false, driftPressed: false, itemPressed: false, look: false };
         k.lookBack = ctl.look;

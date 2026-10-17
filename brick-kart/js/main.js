@@ -249,12 +249,34 @@ class Game {
     this.screen?.update?.(dt);
     // online play (loaded only once the player opens Online): connection upkeep between frames
     if (this.online) { try { this.online.tick(dt); } catch (e) { console.error('online', e); } }
+    if (this.race && !this.paused && !this.screen) this.dropIn();
     const race = this.race || this.attract;
     if (race && !this.paused && dt > 0) {
       const steps = dt > 1 / 45 ? 2 : 1;
       for (let i = 0; i < steps; i++) race.update(dt / steps);
     }
     if (race && !window.__bkNoRender) race.render(this.renderer);
+  }
+
+  // a controller that isn't playing presses A or Start during a local race: it joins by taking over
+  // a CPU kart (see Race.addPlayer), and stays in for the races after
+  dropIn() {
+    const race = this.race;
+    if (isPhone() || this.players.length >= MAX_PLAYERS || !race.canJoin()) return;
+    const using = new Set(this.players.map((p) => p.device));
+    for (const dev of this.input.pads()) {
+      if (using.has(dev) || !(this.input.pEdge(dev, 0) || this.input.pEdge(dev, 9))) continue;
+      const ids = new Set(this.players.map((p) => p.id));
+      let id = 0; while (ids.has(id)) id++;
+      const p = this.makePlayer({ id, device: dev, cursor: 0, color: PCOL[id] });
+      const k = race.addPlayer(p);
+      if (!k) return;
+      this.players.push(p);
+      this.players.sort((a, b) => a.id - b.id);
+      this.audio.sfx('select');
+      this.toast(`🎮 P${id + 1} joined, driving ${k.driver?.name || DRIVERS[k.driverIndex]?.name || 'a CPU kart'}`);
+      return;
+    }
   }
 
   startAttract() {
@@ -423,32 +445,104 @@ class Game {
     });
   }
 
+  // How to Play: short sections that open and close (the basics and the controls for the device in
+  // use start open). Controller / keyboard: ↑ ↓ move between sections and scroll through a long open
+  // one, A / Enter opens or closes, the right stick scrolls, B / Esc goes back.
   showHelp(back) {
-    const items = Object.keys(ITEMS).map((k) => `<div class="it"><span class="ic">${ICONS[k]}</span><b>${ITEMS[k].name}</b><span>${ITEM_HELP[k] ?? ABILITY[k]?.help ?? ''}</span></div>`).join('');
+    const card = (k) => `<div class="it"><span class="ic">${ICONS[k]}</span><b>${ITEMS[k].name}</b><span>${ITEM_HELP[k] ?? ABILITY[k]?.help ?? ''}</span></div>`;
+    const base = Object.keys(ITEMS).filter((k) => !ABILITY[k]), powers = Object.keys(ITEMS).filter((k) => ABILITY[k]);
+    const rows = (r) => `<table>${r.map(([a, b]) => `<tr><td>${a}</td><td>${b}</td></tr>`).join('')}</table>`;
+    const sections = [
+      { id: 'basics', title: '🏁 The basics', html: `<ul>
+        <li>Race the laps and cross the line first.</li>
+        <li>Drive through <b>? boxes</b> for power-ups, then use them on your rivals.</li>
+        <li><b>Drift</b> through corners for a speed boost.</li>
+        <li>Pick up <b>gold studs</b> to go faster.</li></ul>` },
+      { id: 'pad', title: '🎮 Controller', html: rows([
+        ['Steer', 'Left stick / D-pad'], ['Accelerate', 'A or RT'], ['Brake / reverse', 'B or LT'],
+        ['Hop & drift', 'RB (hold while turning)'], ['Use item', 'LB, X or Y'], ['Throw back / forward', 'Hold stick ↓ / ↑ + item'],
+        ['Look behind', 'Press a stick'], ['Pause', 'Start'], ['Join mid-race', 'A or Start on a spare controller (takes over a CPU racer)']]) },
+      { id: 'kb', title: '⌨️ Keyboard', html: rows([
+        ['Steer', 'A / D or ← / →'], ['Accelerate', 'W or ↑'], ['Brake / reverse', 'S or ↓'],
+        ['Hop & drift', 'Space (hold while turning)'], ['Use item', 'E or Shift'], ['Throw back / forward', 'Hold S + item / R'],
+        ['Look behind', 'Q'], ['Pause', 'Esc / P'],
+        ['2nd keyboard player', 'Join with Right Shift. Arrows steer, Right Shift drifts, Enter uses an item, \' throws it forward']]) },
+      { id: 'touch', title: '📱 Touch', html: `<ul>
+        <li>Drag a finger left / right anywhere to steer; drag it down to brake.</li>
+        <li>While steering, touch with a second finger to hop and drift.</li>
+        <li>ITEM (bottom right) shows what you hold: tap to use it, flick up to throw it forward, flick down to fire it behind.</li>
+        <li>Gas is automatic.</li></ul>` },
+      { id: 'tips', title: '💡 Racing tips', html: `<ul>
+        <li>Hold drift through a corner until the sparks turn <b style="color:#7fd4ff">blue</b>, <b style="color:#ff9a1a">orange</b>, then <b style="color:#d05aff">purple</b>, then let go for a mini-turbo.</li>
+        <li>Press drift in mid-air off a ramp to do a trick and land with a boost.</li>
+        <li>Each gold stud raises your top speed, up to 10. Getting hit drops some.</li>
+        <li>Hold accelerate just as the second start light comes on for a rocket start.</li>
+        <li>Orange arrow pads give a boost.</li>
+        <li>Gliders: steer while you fly, and you ride across rooftops instead of crashing into them.</li></ul>` },
+      { id: 'items', title: `🎁 Power-ups (${base.length})`, html: `<p class="sub">Racers further back get stronger ones.</p><div class="items">${base.map(card).join('')}</div>` },
+      { id: 'powers', title: `🎬 Movie &amp; game powers (${powers.length})`, html: `<p class="sub">They turn up on every track (in Simplified mode, only on their own map).</p><div class="items">${powers.map(card).join('')}</div>` },
+    ];
+    const dev = this.lastDevice || this.input.lastDevice || 'kb';
+    const open = new Set(['basics', dev.startsWith('pad') ? 'pad' : dev === 'touch' ? 'touch' : 'kb']);
+    let focus = 0;
     this.setScreen(`<div class="screen help"><div class="panel wide"><h2>How to Play</h2>
-      <div class="cols">
-        <div><h3>🎮 Controller</h3><table>
-          <tr><td>Steer</td><td>Left stick / D-pad</td></tr><tr><td>Accelerate</td><td>A or RT</td></tr><tr><td>Brake / reverse</td><td>B or LT</td></tr>
-          <tr><td>Hop & drift</td><td>RB (hold while turning)</td></tr><tr><td>Use item</td><td>LB, X or Y</td></tr><tr><td>Throw back / forward</td><td>Hold stick ↓ / ↑ + item</td></tr>
-          <tr><td>Look behind</td><td>Press a stick</td></tr><tr><td>Pause</td><td>Start</td></tr></table></div>
-        <div><h3>⌨️ Keyboard</h3><table>
-          <tr><td>Steer</td><td>A / D or ← / →</td></tr><tr><td>Accelerate</td><td>W or ↑</td></tr><tr><td>Brake / reverse</td><td>S or ↓</td></tr>
-          <tr><td>Hop & drift</td><td>Space</td></tr><tr><td>Use item</td><td>E or Shift</td></tr><tr><td>Throw back / forward</td><td>Hold S + item / R</td></tr><tr><td>Look behind</td><td>Q</td></tr><tr><td>Pause</td><td>Esc / P</td></tr>
-          <tr><td>2nd keyboard player</td><td>Arrows, Right Shift = drift, Enter = item, ' = throw forward (join with Right Shift)</td></tr></table>
-          <h3>📱 Touch</h3><p>Drag a finger left / right anywhere to steer; drag it down to brake. While steering, touch with a second finger to drift. ITEM (bottom right) shows what you hold: tap it to use it, flick it up to throw forward or down to fire behind. Gas is automatic.</p></div>
-        <div><h3>🏁 Tips</h3><ul>
-          <li>Hold drift through corners until the sparks turn <b style="color:#7fd4ff">blue</b>, <b style="color:#ff9a1a">orange</b>, then <b style="color:#d05aff">purple</b>, then let go for a mini-turbo.</li>
-          <li>Press drift in mid-air off a ramp to do a trick and land with a boost.</li>
-          <li>Collect gold studs: each one raises your top speed, up to 10. Getting hit drops some.</li>
-          <li>Hold accelerate right as the second light comes on for a rocket start.</li>
-          <li>Orange arrow pads give a boost.</li></ul></div>
-      </div>
-      <h3>Power-ups (${Object.keys(ITEMS).length}) · racers further back get stronger ones · movie &amp; game powers turn up on every track (in Simplified mode, only on their own)</h3><div class="items">${items}</div>
-      <div class="hint">${hintHTML('Back')}</div></div></div>`, {
-      update: () => { for (const [, m] of this.menuEvents) if (m.back || m.ok || m.start) { this.audio.sfx('back'); back(); return; } },
+      <div class="acc">${sections.map((sc, i) => `<section class="sec${open.has(sc.id) ? ' open' : ''}">
+        <button class="mbtn shead${i === focus ? ' focus' : ''}" data-i="${i}" aria-expanded="${open.has(sc.id)}"><span>${sc.title}</span><span class="chev">▾</span></button>
+        <div class="sbody">${sc.html}</div></section>`).join('')}</div>
+      <div class="hint"><span><b>↑</b><b>↓</b> move &amp; scroll</span><span><b>A</b>/<b>Enter</b> open / close</span><span><b>B</b>/<b>Esc</b> Back</span><span>Right stick scrolls</span></div></div></div>`, {
+      update: (dt) => {
+        const box = this.ui.querySelector('.help .acc');
+        if (!box) return;
+        const heads = [...box.querySelectorAll('.shead')];
+        const view = box.getBoundingClientRect(), step = Math.max(80, view.height * 0.45);
+        const show = () => {
+          heads.forEach((h, i) => h.classList.toggle('focus', i === focus));
+          const r = heads[focus].getBoundingClientRect();
+          if (r.top < view.top) box.scrollTop -= view.top - r.top + 8;
+          else if (r.bottom > view.bottom) box.scrollTop += r.bottom - view.bottom + 8;
+        };
+        for (const [, m] of this.menuEvents) {
+          if (m.back) { this.audio.sfx('back'); back(); return; }
+          if (m.ok || m.start) { toggle(focus); return; }
+          if (m.down) {
+            // read on through a long open section before moving to the next heading
+            const next = heads[focus + 1];
+            const end = next ? next.getBoundingClientRect().top : box.scrollHeight - box.scrollTop + view.top;
+            if (end > view.bottom + 4) box.scrollTop += step;
+            else if (next) { focus++; this.audio.sfx('click'); show(); }
+          }
+          if (m.up) {
+            const prev = heads[focus - 1];
+            if (prev && prev.getBoundingClientRect().top < view.top - step) box.scrollTop -= step;
+            else if (prev) { focus--; this.audio.sfx('click'); show(); }
+            else if (box.scrollTop > 0) box.scrollTop -= step;
+          }
+        }
+        // the right stick scrolls freely
+        for (const d of this.input.pads()) {
+          const ay = this.input.padNow.get(d)?.ax[3] || 0;
+          if (Math.abs(ay) > 0.2) box.scrollTop += ay * 900 * dt;
+        }
+      },
+      hover: (i) => { if (i !== focus) { focus = i; this.ui.querySelectorAll('.help .shead').forEach((h, j) => h.classList.toggle('focus', j === focus)); } },
+      click: (i) => toggle(i),
       act: (a) => { if (a === 'back') back(); },
       dismiss: back,
     });
+    const toggle = (i) => {
+      const sec = this.ui.querySelectorAll('.help .sec')[i];
+      if (!sec) return;
+      focus = i;
+      const on = sec.classList.toggle('open');
+      const head = sec.querySelector('.shead');
+      head.setAttribute('aria-expanded', on);
+      this.ui.querySelectorAll('.help .shead').forEach((h, j) => h.classList.toggle('focus', j === focus));
+      this.audio.sfx(on ? 'select' : 'back');
+      // an opened section scrolls up to the top of the list so its contents show; a closed one stays in view
+      const box = this.ui.querySelector('.help .acc'), hr = head.getBoundingClientRect(), br = box.getBoundingClientRect();
+      if (on) box.scrollTop += hr.top - br.top - 4;
+      else if (hr.top < br.top || hr.bottom > br.bottom) box.scrollTop += hr.top - br.top - 4;
+    };
   }
 
   // ---- racer select with drop-in players -----------------------------------------------------------
@@ -1076,6 +1170,12 @@ class Game {
     this.lastRaceOpts = opts;
     setTimeout(() => {
       if (isPhone()) this.players = this.players.slice(0, 1);   // no split screen on a phone
+      // a Grand Prix grid: anyone who dropped in mid-race drives the racer they took over
+      if (opts.grid) for (const p of this.players) {
+        if (opts.grid.some((g) => g.player === p)) continue;
+        const g = opts.grid.find((g) => !g.player && g.driverIndex === p.driverIndex);
+        if (g) g.player = p;
+      }
       const s = this.settings;
       this.buildRace({ ...opts, players: this.players, simple: !!s.simple, cc: CC[s.cc] || 0.92, difficulty: s.difficulty, racers: 12, laps: opts.mode === 'tt' ? 3 : s.laps, ttKey: this.bestKey(opts.def.id), bestTime: opts.mode === 'tt' ? this.best[this.bestKey(opts.def.id)] : 0 });
       this.race.onDone = (res) => this.onRaceDone(res);
@@ -1255,7 +1355,7 @@ const ITEM_HELP = {
   boost3: 'Three turbo boosts in a row.',
   rocket: 'Homes in on the racer ahead of you.',
   cannon: 'Fires straight and bounces off walls. Hold back to fire behind.',
-  trap: 'Drop a pile of loose bricks. Ouch! Stick ↑ throws it forward.',
+  trap: 'Drop a pile of loose bricks. Ouch! Throw it forward with stick ↑, R or a flick up.',
   shield: 'A bubble that blocks the next hit.',
   golden: 'Invincible and extra fast. Bowl other karts over!',
   bullet: 'Turn into a giant brick bullet that drives itself at huge speed, blasting karts aside and spinning them out.',

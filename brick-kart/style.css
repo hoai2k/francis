@@ -134,7 +134,17 @@ h2, h3, .logo, .mbtn, .bbtn, .h-pos, .h-lap, .h-msg, .h-count, .h-title h2, .pre
 .tcard.rnd .q { aspect-ratio: 16/9; display: grid; place-items: center; font-family: 'Lilita One'; font-size: 80px; background: repeating-linear-gradient(45deg, #c91a09 0 30px, #f2cd37 30px 60px, #0055bf 60px 90px, #237841 90px 120px); text-shadow: 0 4px 0 var(--ink); }
 
 /* help */
-.help .cols { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; font-size: 14px; font-weight: 700; }
+/* How to Play: sections that open and close; the list scrolls inside the panel (title and hints stay put) */
+.help .panel { max-height: calc(100vh - 32px); max-height: calc(100dvh - 32px); display: flex; flex-direction: column; }
+.help .acc { flex: 1; min-height: 0; overflow-y: auto; padding: 4px 8px 8px; margin: 0 -8px; font-size: 15px; font-weight: 700; }
+.help .sec + .sec { margin-top: 8px; }
+.help .shead { font-size: 20px; }
+.help .shead.focus { transform: none; }   /* no grow: it would clip at the sides of the scrolling list */
+.help .shead .chev { transition: transform .15s; }
+.help .sec:not(.open) .shead .chev { transform: rotate(-90deg); }
+.help .sec:not(.open) .sbody { display: none; }
+.help .sbody { padding: 10px 6px 4px; }
+.help .sbody .sub { margin: 0 0 10px; opacity: .8; }
 .help table { width: 100%; border-collapse: collapse; }
 .help td { padding: 3px 4px; border-bottom: 1px solid rgba(255,255,255,.08); vertical-align: top; }
 .help td:first-child { opacity: .8; white-space: nowrap; padding-right: 10px; }
