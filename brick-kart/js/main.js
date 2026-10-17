@@ -271,25 +271,41 @@ class Game {
   // picked for its player slot, and stays in for the races after
   dropIn() {
     const race = this.race, online = race.net ? this.online : null;
-    if (isPhone() || this.players.length >= MAX_PLAYERS) return;
-    if (online ? !race.net || race.net.ended : !race.canJoin()) return;
+    const pending = online?.drops || [];
     const using = new Set(this.players.map((p) => p.device));
-    for (const d of online?.drops || []) using.add(d.player.device);
     for (const dev of this.input.pads()) {
       if (using.has(dev) || !(this.input.pEdge(dev, 0) || this.input.pEdge(dev, 9))) continue;
-      const ids = new Set([...this.players.map((p) => p.id), ...(online?.drops || []).map((d) => d.slot), ...(online?.local || []).map((p) => p.slot)]);
+      // a press always gets an answer: joining, or why not
+      const wait = pending.find((d) => d.player.device === dev);
+      if (wait) { this.toast(`🎮 P${wait.slot + 1} is joining…`); return; }
+      const ids = new Set([...this.players.map((p) => p.id), ...pending.map((d) => d.slot), ...(online?.local || []).map((p) => p.slot)]);
       let id = 0; while (ids.has(id)) id++;
-      if (id >= MAX_PLAYERS) return;
+      const why = this.dropInBlock(race, online, id);
+      if (why) { this.audio.sfx('back'); this.toast(`🎮 Can't join: ${why}`); return; }
       const p = this.makePlayer({ id, device: dev, cursor: 0, color: PCOL[id] });
-      if (online) { online.dropIn(p, this.savedLook(id)); return; }
+      if (online) {
+        const r = online.dropIn(p, this.savedLook(id));
+        if (r !== true) { this.audio.sfx('back'); this.toast(`🎮 Can't join: ${r}`); }
+        return;
+      }
       const k = race.addPlayer(p, this.savedLook(id));
-      if (!k) return;
+      if (!k) { this.audio.sfx('back'); this.toast("🎮 Can't join: no CPU kart is free to take over right now"); return; }
       this.players.push(p);
       this.players.sort((a, b) => a.id - b.id);
       this.audio.sfx('select');
       this.toast(`🎮 P${id + 1} joined, driving ${k.driver?.name || 'a CPU kart'}`);
       return;
     }
+  }
+  // why a spare controller can't drop in right now (null: it can)
+  dropInBlock(race, online, id) {
+    if (isPhone()) return 'split screen isn\'t available on a phone';
+    if (race.mode === 'tt') return 'Time Trial is a solo race';
+    if (id >= MAX_PLAYERS || this.players.length >= MAX_PLAYERS) return `${MAX_PLAYERS} players on one screen is the most`;
+    if (online) return !race.net || race.net.ended || online.view !== 'race' ? 'this race is finishing, so join the next one' : null;
+    if (race.doneTimer >= 0 || race.finishedCalled) return 'this race is finishing, so join the next one';
+    if (!race.dropInKart()) return 'no CPU kart is free to take over right now (try again in a moment)';
+    return null;
   }
 
   startAttract() {

@@ -56,6 +56,10 @@ const ERR = {
 const dIdx = (id) => Math.max(0, DRIVERS.findIndex((d) => d.id === id));
 // drop-ins from the host's room state: [kart, uid, slot, name, driver id, kart id, glider id]
 const DROP_IDS = { d: (id) => DRIVERS.findIndex((x) => x.id === id), k: (id) => KARTS.findIndex((x) => x.id === id), g: (id) => GLIDERS.findIndex((x) => x.id === id) };
+// why the host turned a drop-in down: [uid, slot, request number, reason]
+const DROP_WHY = { full: `the room is full (${RACERS} players at most)`, kart: 'no CPU kart is free to take over right now (try again in a moment)' };
+const deniedIn = (list) => (Array.isArray(list) ? list.slice(0, 16) : []).filter((e) => Array.isArray(e) && typeof e[0] === 'string' && ID_RE.test(e[0]) && Object.hasOwn(DROP_WHY, e[3]))
+  .map((e) => [e[0], int(e[1], 0, 7), int(e[2], 0, 1e9), e[3]]);
 const dropsIn = (list) => (Array.isArray(list) ? list.slice(0, RACERS) : []).filter((e) => Array.isArray(e) && Number.isInteger(e[0]) && e[0] >= 0 && e[0] < RACERS && typeof e[1] === 'string' && ID_RE.test(e[1]))
   .map((e) => [e[0], e[1], int(e[2], 0, 7), cleanName(str(e[3], 24)) || 'Racer', str(e[4], 40), str(e[5], 40), str(e[6], 40)]);
 const kIdx = (id) => Math.max(0, KARTS.findIndex((k) => k.id === id));
@@ -304,7 +308,7 @@ export class Online {
     m.ld = this.loadedRi || 0;
     // drop-in requests (a spare controller pressed A mid-race): [race, slot, name, driver, kart, glider]
     const dr = this.view === 'race' ? (this.drops || []).filter((d) => d.ri === this.raceRi) : [];
-    if (dr.length) m.dr = dr.map((d) => [d.ri, d.slot, d.name, d.d, d.k, d.g]); else delete m.dr;
+    if (dr.length) m.dr = dr.map((d) => [d.ri, d.slot, d.name, d.d, d.k, d.g, d.n]); else delete m.dr;
     if (s.isHost && this.R) {
       const R = this.roomOut();
       // the race setup and the Grand Prix table ride along every second (and straight away when
@@ -398,7 +402,7 @@ export class Online {
     const prev = this.R;
     if (R.gpr === undefined || R.gpr === null) this.gp = null;
     else if (R.gp) { const gp = this.gpIn(R.gp); if (gp) this.gp = gp; }
-    const R2 = this.R = { ph, ri, n: int(R.n, 0, 1e6), keep: R.keep ? 1 : 0, go: num(R.go, 0, 1e15, 0) || null, tk: Array.isArray(R.tk) ? R.tk.filter((i) => Number.isInteger(i) && i >= 0 && i < RACERS) : [], res: Array.isArray(R.res) ? R.res : null, o: Array.isArray(R.o) ? R.o : [], dr: dropsIn(R.dr) };
+    const R2 = this.R = { ph, ri, n: int(R.n, 0, 1e6), keep: R.keep ? 1 : 0, go: num(R.go, 0, 1e15, 0) || null, tk: Array.isArray(R.tk) ? R.tk.filter((i) => Number.isInteger(i) && i >= 0 && i < RACERS) : [], res: Array.isArray(R.res) ? R.res : null, o: Array.isArray(R.o) ? R.o : [], dr: dropsIn(R.dr), dn: deniedIn(R.dn) };
     if (ph === 'sel' || ph === 'trk') {
       const newRound = prev && prev.n !== R2.n;
       if (!['select', 'track', 'confirm'].includes(this.view) || newRound) {
@@ -416,6 +420,7 @@ export class Online {
         if (R2.go && this.netRace.goAt !== R2.go) this.netRace.goAt = R2.go;
         this.netRace.setTaken(R2.tk);
         this.applyDrops(R2.dr);
+        this.applyDenials(R2.dn);
       }
       return;
     }
@@ -770,7 +775,7 @@ export class Online {
     const raw = { ri, tr: def.id, laps: set.laps, cc: set.cc, df: set.difficulty, sp: set.simple ? 1 : 0, sd: (Math.random() * 4294967295) >>> 0, gr: gr.map((e) => [e.u, e.slot, e.n, DRIVERS[e.d]?.id || '', KARTS[e.k]?.id || '', GLIDERS[e.g]?.id || '']) };
     this.setups.clear();
     this.addSetup(raw);
-    Object.assign(this.R, { ph: 'load', ri, go: null, tk: [], dr: [], res: null, loadAt: performance.now() });
+    Object.assign(this.R, { ph: 'load', ri, go: null, tk: [], dr: [], dn: [], res: null, loadAt: performance.now() });
     this.publishMine(true);
     this.startLoading(this.setups.get(ri));
   }
@@ -834,20 +839,21 @@ export class Online {
   // ---- drop-in mid-race --------------------------------------------------------------------------------------
   // A spare controller on this screen pressed A / Start during the race (see Game.dropIn): ask the
   // host for a CPU kart. look: the saved { driver, kart, glider } for the player's slot, or null
-  // (then they drive the CPU's). Returns false if no one can join right now.
+  // (then they drive the CPU's). Returns true, or why they can't join (Game.dropIn shows it).
   dropIn(player, look) {
     const nr = this.netRace;
-    if (!nr || nr.ended || this.view !== 'race' || !this.session) return false;
+    if (!nr || nr.ended || this.view !== 'race' || !this.session) return 'this race is finishing, so join the next one';
     this.drops ||= [];
     if (this.drops.some((d) => d.player.device === player.device || d.slot === player.id)) return true;
-    if (!this.canJoin(this.local.length + this.drops.length + 1)) return false;
+    if (this.humans().filter((h) => !h.me).length + this.local.length + this.drops.length + 1 > RACERS) return DROP_WHY.full;
     const pick = this.names.last[player.id];
     const custom = typeof pick === 'string' && pick !== 'default' && this.names.saved.includes(pick) ? pick : null;
     this.drops.push({
       ri: this.raceRi, slot: player.id, player, pick: custom || 'default', name: custom || DRIVERS[look?.driver]?.name || '',
       d: DRIVERS[look?.driver]?.id || '', k: KARTS[look?.kart]?.id || '', g: GLIDERS[look?.glider]?.id || '',
+      n: (this.dropN = (this.dropN || 0) + 1),   // (tells this request from an earlier one the host turned down)
     });
-    this.bubble(`🎮 P${player.id + 1} is joining…`);
+    this.game.toast(`🎮 P${player.id + 1} is joining…`);
     this.publishMine(true);
     if (this.isHost) this.hostDrops();
     return true;
@@ -857,20 +863,28 @@ export class Online {
   hostDrops() {
     const R = this.R, nr = this.netRace, su = this.setups.get(R.ri), s = this.session;
     if (!nr || !su || nr.raceId !== R.ri || nr.ended) return;
-    R.dr ||= [];
-    const reqs = (this.drops || []).filter((d) => d.ri === R.ri).map((d) => [this.uid, d.ri, d.slot, d.name, d.d, d.k, d.g]);
+    R.dr ||= []; R.dn ||= [];
+    const reqs = (this.drops || []).filter((d) => d.ri === R.ri).map((d) => [this.uid, d.ri, d.slot, d.name, d.d, d.k, d.g, d.n]);
     for (const [uid, peer] of s.byUid) {
       if (uid === this.uid || !Array.isArray(peer?.p?.dr)) continue;
       for (const r of peer.p.dr.slice(0, 8)) if (Array.isArray(r)) reqs.push([uid, ...r]);
     }
     let changed = false;
-    for (const [u, ri, slot0, name0, d0, k0, g0] of reqs) {
-      const slot = int(slot0, 0, 7, -1);
+    // a request that can't be met is turned down with the reason, so that screen can say why
+    const deny = (u, slot, n, why) => {
+      R.dn.push([u, slot, n, why]);
+      if (R.dn.length > 16) R.dn.shift();
+      this.applyDenials([[u, slot, n, why]]);
+      changed = true;
+    };
+    for (const [u, ri, slot0, name0, d0, k0, g0, n0] of reqs) {
+      const slot = int(slot0, 0, 7, -1), n = int(n0, 0, 1e9);
       if (ri !== R.ri || slot < 0 || !ID_RE.test(u)) continue;
       if (R.dr.some((e) => e[1] === u && e[2] === slot) || su.gr.some((e) => e.u === u && e.slot === slot)) continue;
-      if (su.gr.filter((e) => e.u).length >= RACERS) continue;
+      if (R.dn.some((e) => e[0] === u && e[1] === slot && e[2] === n)) continue;
+      if (su.gr.filter((e) => e.u).length >= RACERS) { deny(u, slot, n, 'full'); continue; }
       const k = nr.race.dropInKart();
-      if (!k || su.gr[k.idx]?.u) continue;
+      if (!k || su.gr[k.idx]?.u) { deny(u, slot, n, 'kart'); continue; }
       const i = k.idx, cur = su.gr[i];
       let d = str(d0, 40), kk = str(k0, 40), gg = str(g0, 40);
       // (no saved look, an unknown one, or a driver someone else already has: they keep the CPU's)
@@ -890,6 +904,19 @@ export class Online {
       changed = true;
     }
     if (changed) this.publishMine(true);
+  }
+  // our requests the host turned down: say why, and forget them (pressing again asks again)
+  applyDenials(list) {
+    if (!Array.isArray(list) || !this.drops?.length) return;
+    for (const [u, slot, n, why] of list) {
+      if (u !== this.uid) continue;
+      const d = this.drops.find((x) => x.slot === slot && x.n === n);
+      if (!d) continue;
+      this.drops.splice(this.drops.indexOf(d), 1);
+      this.game.audio.sfx('back');
+      this.game.toast(`🎮 P${slot + 1} can't join: ${DROP_WHY[why] || DROP_WHY.kart}`);
+      this.publishMine(true);
+    }
   }
   // everyone: apply the host's drop-ins to this race (once each); ours become our players
   applyDrops(list) {
@@ -920,6 +947,7 @@ export class Online {
     this.disposeRace();
     this.modal = null;
     this.raceRi = su.ri; this.loadedRi = 0;
+    for (const d of this.drops || []) this.game.toast(`🎮 P${d.slot + 1} didn't get in before that race ended: press A again to join this one`);
     this.drops = [];
     this.view = 'lineup';
     const people = su.gr.filter((e) => e.u).map((e) => ({ uid: e.u, name: e.n, d: e.d, k: e.k, g: e.g, tag: this.devTag(e.si, e.slot, e.multi), me: e.u === this.uid }));

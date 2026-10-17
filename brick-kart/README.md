@@ -391,7 +391,9 @@ all cup long) or if a person drives it, the new player keeps the CPU's racer ins
 in that look, for the races after (also on Restart race). Online, the host hands the kart over: it
 changes look and name on every screen, the joining screen drives it from where it is, and the player
 is in the room's next races too (with their saved name for that slot, else their driver's).
-Phones stay single-player.
+Phones stay single-player. Every press gets an answer: a message says the player joined (or is
+joining, online), or why they can't (Time Trial is solo, the race is finishing, no CPU kart is free
+to take over just then, 8 players on one screen or a full online room, a phone).
 
 ## Online
 
