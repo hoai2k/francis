@@ -31,8 +31,12 @@ export class ChaseCam {
   update(dt, k) {
     this.yaw = lerpAngle(this.yaw, k.yaw + k.driftVis * 0.45, 1 - Math.exp(-(this.init ? 5 : 100) * dt));
     const yaw = this.yaw + (k.lookBack ? Math.PI : 0);
-    const dist = 7.4 + (k.boosting ? 1.2 : 0) + k.camLift * 0.6, h = 3.1 + k.camLift;
-    const tgt = V.set(k.pos.x - Math.sin(yaw) * dist, k.pos.y + h, k.pos.z - Math.cos(yaw) * dist);
+    // eased so the view doesn't jiggle: the boost pull-back (it used to jump 1.2 the moment a boost
+    // started or ended) and the kart's height (every bump and seam in the road)
+    this.boostD = this.init ? this.boostD + ((k.boosting ? 1.2 : 0) - this.boostD) * (1 - Math.exp(-4 * dt)) : 0;
+    this.ky = this.init && Math.abs(k.pos.y - this.ky) < 6 ? this.ky + (k.pos.y - this.ky) * (1 - Math.exp(-12 * dt)) : k.pos.y;
+    const dist = 7.4 + this.boostD + k.camLift * 0.6, h = 3.1 + k.camLift;
+    const tgt = V.set(k.pos.x - Math.sin(yaw) * dist, this.ky + h, k.pos.z - Math.cos(yaw) * dist);
     const frozen = k.respawn > 0 && !k.respawnPlaced;
     if (!frozen) {
       // don't dive under the road when the kart falls
@@ -41,7 +45,7 @@ export class ChaseCam {
       else this.pos.lerp(tgt, 1 - Math.exp(-11 * dt));
     }
     this.lastLook = k.lookBack;
-    this.look.set(k.pos.x + Math.sin(yaw) * 4, k.pos.y + 1.3 + k.camLift * 0.5, k.pos.z + Math.cos(yaw) * 4);
+    this.look.set(k.pos.x + Math.sin(yaw) * 4, this.ky + 1.3 + k.camLift * 0.5, k.pos.z + Math.cos(yaw) * 4);
     this.cam.position.copy(this.pos);
     if (this.shake > 0) {
       this.shake = Math.max(0, this.shake - dt * 2.5);
@@ -63,25 +67,38 @@ class TVCam {
   }
   update(dt, race) {
     this.t += dt;
-    if (this.t > 7) { this.t = 0; this.mode = (this.mode + 1) % 3; this.pick = Math.floor(Math.random() * Math.min(4, race.karts.length)); }
-    const k = race.order[this.pick] || race.karts[0];
+    // each shot follows one kart (picked by place when it starts, kept through overtakes), and the
+    // camera eases after it rather than copying every wobble of its heading and bounce of the road
+    let cut = !this.kart || !race.karts.includes(this.kart);
+    if (this.t > 7) { this.t = 0; this.mode = (this.mode + 1) % 3; this.pick = Math.floor(Math.random() * Math.min(4, race.karts.length)); cut = true; }
+    if (cut) { this.kart = race.order[this.pick] || race.karts[0]; this.yaw = this.kart.yaw; this.pos = null; }
+    const k = this.kart;
     const c = this.cam;
+    this.yaw = lerpAngle(this.yaw, k.yaw, 1 - Math.exp(-3 * dt));
+    const tgt = this._tgt ||= new THREE.Vector3(), look = this._look ||= new THREE.Vector3();
     if (this.mode === 0) {
-      const a = this.t * 0.25 + k.yaw;
-      c.position.set(k.pos.x + Math.sin(a) * 12, k.pos.y + 4.5, k.pos.z + Math.cos(a) * 12);
-      c.lookAt(k.pos.x, k.pos.y + 1.2, k.pos.z);
+      const a = this.t * 0.25 + this.yaw;
+      tgt.set(k.pos.x + Math.sin(a) * 12, k.pos.y + 4.5, k.pos.z + Math.cos(a) * 12);
+      look.set(k.pos.x, k.pos.y + 1.2, k.pos.z);
     } else if (this.mode === 1) {
       if (!this.side || this.t < dt * 2) {
         const tr = race.track, i = tr.wrap((k.loc.i ?? 0) + 45);
         this.side = tr.at(i, (tr.HW[i] + tr.SH[i] + 2) * (Math.random() < 0.5 ? -1 : 1), 2.5);
       }
-      c.position.copy(this.side);
-      c.lookAt(k.pos.x, k.pos.y + 1, k.pos.z);
-      c.fov = 40; c.updateProjectionMatrix();
+      tgt.copy(this.side);
+      look.set(k.pos.x, k.pos.y + 1, k.pos.z);
+      if (c.fov !== 40) { c.fov = 40; c.updateProjectionMatrix(); }
     } else {
-      c.position.set(k.pos.x - Math.sin(k.yaw) * 18, k.pos.y + 12, k.pos.z - Math.cos(k.yaw) * 18);
-      c.lookAt(k.pos.x + Math.sin(k.yaw) * 8, k.pos.y, k.pos.z + Math.cos(k.yaw) * 8);
+      tgt.set(k.pos.x - Math.sin(this.yaw) * 18, k.pos.y + 12, k.pos.z - Math.cos(this.yaw) * 18);
+      look.set(k.pos.x + Math.sin(this.yaw) * 8, k.pos.y, k.pos.z + Math.cos(this.yaw) * 8);
     }
+    // a fixed trackside camera (mode 1) holds still; the others glide after their spot
+    if (!this.pos || this.mode === 1) this.pos = (this.pos || new THREE.Vector3()).copy(tgt);
+    else this.pos.lerp(tgt, 1 - Math.exp(-6 * dt));
+    if (!this.look || cut) this.look = (this.look || new THREE.Vector3()).copy(look);
+    else this.look.lerp(look, 1 - Math.exp(-10 * dt));
+    c.position.copy(this.pos);
+    c.lookAt(this.look);
     if (this.mode !== 1 && c.fov !== 55) { c.fov = 55; c.updateProjectionMatrix(); }
     this.focus = k.pos;
   }
@@ -525,8 +542,10 @@ export class Race {
 
   updateIntroCam() {
     const tr = this.track, t = this.introT;
-    const i = tr.wrap(-30 + t * 8);
-    const p = tr.at(i, 0, 0);
+    // follow the track smoothly between its samples (track.at snaps to the nearest one, which made the
+    // flyover jiggle as it stepped from sample to sample)
+    const f = -30 + t * 8, i0 = Math.floor(f);
+    const p = tr.at(i0, 0, 0, this._introA ||= new THREE.Vector3()).lerp(tr.at(i0 + 1, 0, 0, this._introB ||= new THREE.Vector3()), f - i0);
     const a = t * 0.35 + 0.6;
     this.introCam.position.set(p.x + Math.sin(a) * 40, p.y + 18 - t * 2, p.z + Math.cos(a) * 40);
     const s = tr.at(-12, 0, 1);

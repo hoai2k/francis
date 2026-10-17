@@ -168,6 +168,7 @@ export class World {
     def.decor?.(ctx);
     group.add(ctx.b.build({ name: 'decor' }));
     group.add(ctx.bNoShadow.build({ name: 'decor-ns', shadows: false }));
+    this.buildRoofs();
     this.ambient = th.particles ? new Ambient(th.particles, scene) : null;
     this.time = 0;
   }
@@ -263,6 +264,113 @@ export class World {
     // keep scenery off the road
     for (let i = 0; i < tr.N; i += 3) claims.push([tr.px(i), tr.pz(i), tr.HW[i] + tr.SH[i] + 1]);
     return ctx;
+  }
+
+  // Rooftops for gliders: a height grid of the tops of the scenery beside the track (buildings,
+  // walls, rocks, trees), so a glider rides across them instead of flying through. Only surfaces
+  // standing above the ground count, and the road corridor is left out, so arches, gates, tunnels
+  // and bridges over the road change nothing. Built once per map from the scenery's up-facing faces.
+  buildRoofs() {
+    const tr = this.track, b = this.bounds, CELL = 2, pad = 260;
+    const x0 = b.minX - pad, z0 = b.minZ - pad;
+    const W = Math.ceil((b.maxX - b.minX + pad * 2) / CELL), H = Math.ceil((b.maxZ - b.minZ + pad * 2) / CELL);
+    const top = new Float32Array(W * H).fill(-Infinity);
+    const floor = tr.groundY + 1.5;
+    const M = new THREE.Matrix4(), IM = new THREE.Matrix4(), v = new THREE.Vector3(), sph = new THREE.Sphere();
+    let P = new Float32Array(0);
+    const raster = (pos, idx) => {
+      const tris = idx ? idx.length / 3 : pos.count / 3;
+      for (let t = 0; t < tris; t++) {
+        const ia = (idx ? idx[t * 3] : t * 3) * 3, ib = (idx ? idx[t * 3 + 1] : t * 3 + 1) * 3, ic = (idx ? idx[t * 3 + 2] : t * 3 + 2) * 3;
+        const ax = P[ia], ay = P[ia + 1], az = P[ia + 2], bx = P[ib], by = P[ib + 1], bz = P[ib + 2], cx = P[ic], cy = P[ic + 1], cz = P[ic + 2];
+        if (Math.max(ay, by, cy) < floor) continue;
+        // facing up (or down: a face's underside is always below its top, so it never wins)
+        const ux = bx - ax, uy = by - ay, uz = bz - az, wx = cx - ax, wy = cy - ay, wz = cz - az;
+        const nx = uy * wz - uz * wy, ny = uz * wx - ux * wz, nz = ux * wy - uy * wx;
+        const nl = Math.hypot(nx, ny, nz);
+        if (!nl || Math.abs(ny) < 0.35 * nl) continue;
+        const i0 = Math.max(0, Math.floor((Math.min(ax, bx, cx) - x0) / CELL)), i1 = Math.min(W - 1, Math.floor((Math.max(ax, bx, cx) - x0) / CELL));
+        const j0 = Math.max(0, Math.floor((Math.min(az, bz, cz) - z0) / CELL)), j1 = Math.min(H - 1, Math.floor((Math.max(az, bz, cz) - z0) / CELL));
+        if (i0 > i1 || j0 > j1) continue;
+        const det = ux * wz - uz * wx;
+        let hit = false;
+        if (Math.abs(det) > 1e-9) {
+          for (let j = j0; j <= j1; j++) {
+            const pz = z0 + (j + 0.5) * CELL - az;
+            for (let i = i0; i <= i1; i++) {
+              const px = x0 + (i + 0.5) * CELL - ax;
+              const s1 = (px * wz - pz * wx) / det, s2 = (ux * pz - uz * px) / det;
+              if (s1 < -0.01 || s2 < -0.01 || s1 + s2 > 1.01) continue;
+              const y = ay + s1 * uy + s2 * wy, k = j * W + i;
+              if (y > top[k]) top[k] = y;
+              hit = true;
+            }
+          }
+        }
+        // smaller than a cell: it still marks the cell it sits in
+        if (!hit) {
+          const k = Math.floor(((az + bz + cz) / 3 - z0) / CELL) * W + Math.floor(((ax + bx + cx) / 3 - x0) / CELL), y = (ay + by + cy) / 3;
+          if (k >= 0 && k < top.length && y > top[k]) top[k] = y;
+        }
+      }
+    };
+    this.group.updateMatrixWorld(true);
+    this.group.traverseVisible((o) => {
+      if (!o.isMesh || o.isSkinnedMesh || !o.geometry?.attributes.position) return;
+      const m = Array.isArray(o.material) ? o.material[0] : o.material;
+      // see-through things (water, glass domes, glows), the insides of sky domes and anything huge
+      if (!m || m.transparent || m.side === THREE.BackSide || m.fog === false) return;
+      const g = o.geometry, pos = g.attributes.position, idx = g.index ? g.index.array : null;
+      if (!g.boundingSphere) g.computeBoundingSphere();
+      if (sph.copy(g.boundingSphere).applyMatrix4(o.matrixWorld).radius > 500) return;
+      if (P.length < pos.count * 3) P = new Float32Array(pos.count * 3);
+      const n = o.isInstancedMesh ? o.count : 1;
+      for (let c = 0; c < n; c++) {
+        if (o.isInstancedMesh) { o.getMatrixAt(c, IM); M.multiplyMatrices(o.matrixWorld, IM); } else M.copy(o.matrixWorld);
+        for (let i = 0; i < pos.count; i++) { v.fromBufferAttribute(pos, i).applyMatrix4(M); P[i * 3] = v.x; P[i * 3 + 1] = v.y; P[i * 3 + 2] = v.z; }
+        raster(pos, idx);
+      }
+    });
+    // only things a glider could sit on: thin ones (lamp posts, antennas, fences, flagpoles) are taken
+    // out by a 3x3 opening (min, then max), which leaves anything about 6 units across or more as it was
+    const open = (src, pick) => {
+      const out = new Float32Array(W * H);
+      for (let j = 0; j < H; j++) {
+        for (let i = 0; i < W; i++) {
+          let m = src[j * W + i];
+          for (let dj = -1; dj <= 1; dj++) {
+            const jj = j + dj;
+            if (jj < 0 || jj >= H) { m = pick(m, -Infinity); continue; }
+            for (let di = -1; di <= 1; di++) {
+              const ii = i + di;
+              m = pick(m, ii < 0 || ii >= W ? -Infinity : src[jj * W + ii]);
+            }
+          }
+          out[j * W + i] = m;
+        }
+      }
+      return out;
+    };
+    top.set(open(open(top, Math.min), Math.max));
+    // the road corridor (road, shoulders and a kart's width more) stays clear
+    for (let i = 0; i < tr.N; i++) {
+      const r = tr.HW[i] + tr.SH[i] + 2.5, px = tr.px(i), pz = tr.pz(i);
+      const i0 = Math.max(0, Math.floor((px - r - x0) / CELL)), i1 = Math.min(W - 1, Math.floor((px + r - x0) / CELL));
+      const j0 = Math.max(0, Math.floor((pz - r - z0) / CELL)), j1 = Math.min(H - 1, Math.floor((pz + r - z0) / CELL));
+      for (let j = j0; j <= j1; j++) {
+        const dz = z0 + (j + 0.5) * CELL - pz;
+        for (let a = i0; a <= i1; a++) { const dx = x0 + (a + 0.5) * CELL - px; if (dx * dx + dz * dz < r * r) top[j * W + a] = -Infinity; }
+      }
+    }
+    this.roofs = { top, x0, z0, W, H, CELL };
+  }
+
+  // the top of the scenery under (x, z), or -Infinity where there is none (see buildRoofs)
+  roofAt(x, z) {
+    const r = this.roofs;
+    if (!r) return -Infinity;
+    const i = Math.floor((x - r.x0) / r.CELL), j = Math.floor((z - r.z0) / r.CELL);
+    return i < 0 || j < 0 || i >= r.W || j >= r.H ? -Infinity : r.top[j * r.W + i];
   }
 
   update(dt, focus) {

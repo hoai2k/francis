@@ -485,6 +485,7 @@ export class Kart {
         if (this.speed < this.topSpeed * 0.85) this.speed += 10 * dt;
       } else this.vy -= G * dt;
       this.pos.y += this.vy * dt;
+      if (this.gliding) this.rideRoofs();
       if (gY > -Infinity && this.pos.y <= gY && this.pos.y > gY - 3) {
         this.land(gY, ctl);
       }
@@ -595,10 +596,33 @@ export class Kart {
 
   setGliding(on) {
     this.gliding = on;
-    this.glideGap = false;
+    this.glideGap = false; this.roofLift = false;
     if (this.model.glider) this.model.glider.visible = on;
     this.gliderT = 0;
     if (this._gfx) this._gfx.t = 0;   // the glider's fx clock restarts with every glide
+  }
+
+  // Gliding beside the track: ride across the tops of buildings and other scenery instead of
+  // flying through them. Pull up in time for anything taller just ahead, and skim along a roof
+  // (glider still open) until it ends. (world.roofAt leaves the road corridor out.)
+  rideRoofs() {
+    const w = this.race.world;
+    if (!w?.roofs) return;
+    const sx = Math.sin(this.moveYaw) * this.speed, sz = Math.cos(this.moveYaw) * this.speed;
+    let need = -Infinity;
+    for (const t of [0.25, 0.5, 0.8]) {
+      const h = w.roofAt(this.pos.x + sx * t, this.pos.z + sz * t);
+      if (h > this.pos.y + 0.05) { need = Math.max(need, h); this.vy = Math.max(this.vy, Math.min(28, (h - this.pos.y) / t)); this.roofLift = true; }
+    }
+    // high enough for what's ahead: stop climbing (but keep a ramp's own lift)
+    if (this.roofLift && need === -Infinity) { this.vy = Math.min(this.vy, 1.5); this.roofLift = false; }
+    const roof = w.roofAt(this.pos.x, this.pos.z);
+    if (roof > this.pos.y) {
+      // on a roof (or caught low against a tall one): its top carries the kart
+      const up = roof - this.pos.y;
+      this.pos.y = up < 6 ? roof : this.pos.y + Math.min(up, 0.7);
+      this.vy = Math.max(this.vy, 0);
+    }
   }
 
   land(gY, ctl) {
