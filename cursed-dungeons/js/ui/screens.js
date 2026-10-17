@@ -2,12 +2,16 @@
 // enchanting, skill tree, shop, mission map table, and loot summary.
 import * as THREE from 'three/webgpu';
 import { h, toast } from './ui.js';
+import { toggleFullscreen } from './fullscreen.js';
 import { openSettings } from './settingsScreen.js';
 import { SORCERERS, SORCERER_IDS, SKILL_TREES, RARITIES, RARITY_ORDER, rollTechnique, techniqueOdds, UNLOCK_IDS } from '../sorcerers/index.js';
 import { ITEM_BY_ID, RARITY, ENCHANTS, itemInfo, salvageValue, itemPrice, rollItem } from '../loot.js';
 import { BIOMES } from '../world/biomes.js';
 import { PLAYER_COLORS } from '../entities/player.js';
 import { isMobile } from '../util.js';
+import { CHAPTERS, nextChapter, arc } from '../story/chapters.js';
+import { openChapterMap } from './chapterMap.js';
+import { openInstructions } from './instructions.js';
 
 // ------------------------------------------------------------------ title
 export function openTitle(game) {
@@ -17,9 +21,12 @@ export function openTitle(game) {
     el.appendChild(h('div', { class: 'title-wrap' },
       h('div', { class: 'logo' }, 'CURSED', h('span', {}, 'DUNGEONS')),
       h('div', { class: 'tag' }, 'A Jujutsu Kaisen dungeon crawler · Level ' + save.level + ' · ◆ ' + save.coins),
+      (() => { const n = nextChapter(save), A = n && arc(n.arc); return h('div', { class: 'title-story' }, n ? `Next · Arc ${A.num}: ${A.title} · Chapter ${n.num}: ${n.title}` : 'Story complete · replay any chapter on a higher threat'); })(),
       h('div', { class: 'title-menu' },
         h('button', { class: 'btn primary', 'data-autofocus': true, onclick: () => { ui.close('title'); openSelect(game); } }, save.stats.missions || save.technique ? 'Continue' : 'Play'),
+        h('button', { class: 'btn', onclick: () => openInstructions(game) }, 'How to Play'),
         h('button', { class: 'btn', onclick: () => openSettings(game) }, 'Settings'),
+        h('button', { class: 'btn', onclick: () => toggleFullscreen() }, '⛶ Fullscreen'),
         h('button', { class: 'btn', onclick: () => openSaveCode(game) }, 'Save Code'),
         h('button', { class: 'btn', onclick: () => { if (confirm('Erase all progress?')) { game.save.reset(); ui.refresh('title'); toast('Progress reset'); } } }, 'Reset Save'))),
       h('div', { class: 'footer-note' }, isMobile ? 'Tap to begin · landscape recommended' : 'Keyboard + mouse or up to 4 controllers · Press A / Start on a controller to join'));
@@ -284,35 +291,10 @@ export function openShop(game, player) {
 }
 
 // ------------------------------------------------------------------ mission map table
-export const MISSIONS = [
-  { id: 'm1', name: 'Night Patrol', biome: 'jujutsu_high', objective: 'exorcise', boss: 'hanami', difficulty: 1, icon: '⛩️', desc: 'Curses have breached the school grounds.' },
-  { id: 'm2', name: 'Stranded Students', biome: 'tokyo_night', objective: 'rescue', boss: 'mahito', difficulty: 1, icon: '🌃', desc: 'First-years are trapped in talisman cages downtown.', req: 'm1' },
-  { id: 'm3', name: 'Rotten Grove', biome: 'cursed_forest', objective: 'seal', boss: 'hanami', difficulty: 2, icon: '🌲', desc: 'Seal the cursed objects feeding the forest.', req: 'm2' },
-  { id: 'm4', name: 'Drowned Line', biome: 'flooded_subway', objective: 'exorcise', boss: 'jogo', difficulty: 2, icon: '🚇', desc: 'Something boils beneath the flooded tunnels.', req: 'm3' },
-  { id: 'm5', name: 'Shibuya Incident', biome: 'shibuya', objective: 'rescue', boss: 'mahito', difficulty: 3, icon: '🎃', desc: 'Halloween. A curtain falls over Shibuya.', req: 'm4' },
-  { id: 'm6', name: 'Volcanic Descent', biome: 'shibuya', objective: 'seal', boss: 'jogo', difficulty: 4, icon: '🌋', desc: 'Special Grade threat. Bring friends.', req: 'm5' },
-];
-export function openMapTable(game) {
-  const ui = game.ui, d = game.save.data;
-  let threat = 0;
-  game.paused = true;
-  const close = () => { ui.close('maptable'); game.paused = false; };
-  ui.open('maptable', (el) => {
-    const rows = MISSIONS.map((m) => {
-      const locked = m.req && !d.completed[m.req];
-      const best = d.completed[m.id];
-      const diff = m.difficulty + threat;
-      return h('button', { class: 'mission' + (locked ? ' locked' : ''), style: 'width:100%;text-align:left;color:inherit', onclick: () => {
-        if (locked) { toast('Complete the previous mission first'); return; }
-        close(); game.startMission({ ...m, difficulty: diff, seed: (Math.random() * 1e9) | 0 });
-      } }, h('div', { class: 'mi' }, m.icon), h('div', {}, h('div', { class: 'mt' }, m.name + (best ? ' ✔' : '')), h('div', { class: 'md' }, `${BIOMES[m.biome].name} · ${m.desc}`)), h('div', { class: 'diff' }, locked ? '🔒' : ['', 'Grade 3', 'Grade 2', 'Grade 1', 'Special', 'Special+', 'Special++'][Math.min(6, diff)]));
-    });
-    el.appendChild(h('div', { class: 'panel', style: 'width:min(640px,96vw)' }, h('h2', {}, 'Mission Map'),
-      h('div', { class: 'setting' }, h('label', {}, 'Threat level'), (() => { const s = h('select', {}, ...[['0', 'Normal'], ['1', 'Hard (+1 grade)'], ['2', 'Nightmare (+2 grades)']].map(([v, t]) => { const o = h('option', { value: v }, t); if (+v === threat) o.selected = true; return o; })); s.addEventListener('change', () => { threat = +s.value; ui.refresh('maptable'); }); return s; })()),
-      ...rows,
-      h('div', { class: 'row', style: 'justify-content:flex-end;margin-top:10px' }, h('button', { class: 'btn', 'data-autofocus': true, onclick: close }, 'Close'))));
-  }, { dim: true, onBack: close });
-}
+// The story chapters (story/chapters.js) are the missions; the map table
+// opens the chapter map (ui/chapterMap.js). MISSIONS keeps the old shape.
+export const MISSIONS = CHAPTERS.map((c, i) => ({ id: c.id, name: c.title, biome: c.biome, objective: c.objective, boss: c.boss, difficulty: c.difficulty, icon: c.icon, desc: c.intro[0], req: i ? CHAPTERS[i - 1].id : undefined }));
+export function openMapTable(game) { openChapterMap(game); }
 
 // ------------------------------------------------------------------ save code
 // Progress lives in this browser's localStorage. A save code backs it up or

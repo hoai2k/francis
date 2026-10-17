@@ -3,13 +3,14 @@
 // (mouse point, right stick or auto-aim) and edge-triggered buttons.
 import { isMobile } from './util.js';
 
-const ACTIONS = ['attack', 'ranged', 'dodge', 't1', 't2', 't3', 'domain', 'interact', 'heal', 'map', 'pause', 'rotL', 'rotR', 'art1', 'art2', 'inv'];
+const ACTIONS = ['attack', 'ranged', 'dodge', 't1', 't2', 't3', 'domain', 'interact', 'heal', 'map', 'pause', 'rotL', 'rotR', 'art1', 'art2', 'inv', 'jump'];
 const KEYMAP = {
-  Space: 'dodge', Digit1: 't1', Digit2: 't2', Digit3: 't3', KeyF: 'domain', KeyE: 'interact', KeyQ: 'heal',
+  Space: 'jump', ShiftRight: 'dodge', Digit1: 't1', Digit2: 't2', Digit3: 't3', KeyF: 'domain', KeyE: 'interact', KeyQ: 'heal',
   Tab: 'map', Escape: 'pause', KeyP: 'pause', KeyZ: 'rotL', KeyC: 'rotR', ShiftLeft: 'dodge', KeyR: 'art1', KeyT: 'art2', KeyI: 'inv',
 };
 // Standard gamepad mapping
-const PADMAP = { 0: 'attack', 1: 'dodge', 2: 'interact', 3: 't3', 4: 't1', 5: 't2', 6: 'domain', 7: 'ranged', 8: 'map', 9: 'pause', 12: 'heal', 13: 'inv', 14: 'art1', 15: 'art2' };
+// A jumps (and interacts while a prompt shows, see main.updateInteract), X attacks.
+const PADMAP = { 0: 'jump', 1: 'dodge', 2: 'attack', 3: 't3', 4: 't1', 5: 't2', 6: 'domain', 7: 'ranged', 8: 'map', 9: 'pause', 12: 'heal', 13: 'inv', 14: 'art1', 15: 'art2' };
 
 function blank() { const o = {}; for (const a of ACTIONS) o[a] = false; return o; }
 
@@ -89,6 +90,7 @@ export class Input {
       const id = 'pad' + p.index;
       const held = blank();
       p.buttons.forEach((b, i) => { const a = PADMAP[i]; if (a && (b.pressed || b.value > 0.5)) held[a] = true; });
+      held.interact = held.jump;
       const dz = (x, y) => { const l = Math.hypot(x, y); if (l < 0.2) return { x: 0, y: 0 }; const s = Math.min(1, (l - 0.2) / 0.75) / l; return { x: x * s, y: y * s }; };
       const move = dz(p.axes[0] || 0, -(p.axes[1] || 0));
       const aim = dz(p.axes[2] || 0, -(p.axes[3] || 0));

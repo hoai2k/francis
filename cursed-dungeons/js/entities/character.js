@@ -364,6 +364,12 @@ export class Rig {
       legRX: sw * 1.0, legLX: -sw * 1.0, legRZ: 0, legLZ: 0,
       rootX: 0, rootZ: 0, lift: 0,
     };
+    // airborne (jumping / falling): arms up and out, knees tucked on the way up
+    if (p.air != null && !p.action) {
+      const up = clamp(p.air / 9, -1, 1);
+      T.armRX = -0.9 - up * 0.5; T.armLX = -0.9 - up * 0.5; T.armRZ = 0.45; T.armLZ = -0.45;
+      T.legRX = -0.6 * Math.max(0, up) + 0.15; T.legLX = 0.35 * Math.max(0, up) - 0.25; T.torsoX = -0.08 * up;
+    }
     // breathing
     const breath = 1 + Math.sin(t * 2.2) * 0.012 * (1 - run);
     this.torso.scale.set(breath, 1 + (breath - 1) * 0.5, breath);

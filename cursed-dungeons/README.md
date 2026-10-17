@@ -16,22 +16,43 @@ Play: <https://hoai2k.github.io/francis/cursed-dungeons/>
 1. On the title screen, choose **Play**. Your **cursed technique is rolled
    at random**. Extra players join by pressing **A** or **Start** on a
    controller, and each of them rolls a technique too.
-2. At **Jujutsu High** (the hub):
-   - **Map table**: choose a mission.
-   - **Merchant**: buy gear.
-   - **Purple chest**: your inventory and enchanting.
-   - **Shrine steps**: the technique tree.
-   - **Talisman by the dummy**: summons training waves.
-3. In a mission, complete the objective (exorcise the curses, rescue the
+2. A new save opens with a **cutscene**: a night at Sugisawa Third High,
+   a cursed finger, your technique awakening, and Gojo arriving to recruit
+   you. Hold Esc / A / a finger on the screen to skip any cutscene.
+3. **Jujutsu High** is the hub: a hilltop campus at dusk with long torii
+   stairs, the main hall, dormitories, a koi pond, the training ground and
+   Yaga's shrine. Talk to people (E / A / tap):
+   - **Ijichi** (briefing pavilion): the **mission map**, the story's arcs
+     and chapters.
+   - **Megumi** (vending machines): the shop.
+   - **Your locker** (dormitory): inventory and enchanting.
+   - **Principal Yaga** (shrine): the technique tree.
+   - **Gojo**, **Nitta**, **Panda**, **Maki** and **Inumaki** chat, give
+     tips and spar. There's a cat to pet.
+   - The **talisman post** on the training ground summons training waves.
+   - Gold **quest markers** start the next chapter, and the **tracker** (a
+     gold arrow, beam and footprints) always shows where to go.
+4. In a mission, complete the objective (exorcise the curses, rescue the
    students, or seal the cursed objects). That opens the boss arena. Beat
    the Special Grade boss, loot its chest, and leave through the torii.
-4. The game **saves automatically** (every 15 seconds, on every purchase,
+5. The game **saves automatically** (every 15 seconds, on every purchase,
    level-up and chest, and when you leave the page). **Pause → 💾 Save
    Game** saves right away. **Save Code** (pause menu or title screen)
    gives you a code that backs up your progress or moves it to another
    device. Progress is saved in `localStorage`: coins, level, rerolls, your rolled
    technique, enchantment and technique points, inventory, loadouts,
    technique-tree ranks and finished missions.
+
+### Story
+
+Three arcs, ten chapters, played in order: **Cursed Womb** (The Finger,
+Fearsome Womb, Transfigured), **Kyoto Goodwill Event** (Curse Hunt, Black
+Flash, Stolen Fingers) and **Shibuya Incident** (The Curtain Falls,
+Fukutoshin Line, Disaster Flames, Idle Transfiguration). Each chapter has a
+briefing cutscene the first time, a chapter card, a boss reveal cutscene
+and an "EXORCISED" cutscene when the Special Grade falls. Threat:
+Standard, Hard or Nightmare. **How to Play** (title and pause menu) explains
+everything.
 
 ### Technique rolls
 
@@ -130,17 +151,20 @@ item.
 | --- | --- | --- | --- |
 | Move | WASD / arrows | Left stick | Left virtual joystick |
 | Aim | Mouse | Right stick | Auto-aim at the nearest curse |
-| Melee combo | Left click | A | ⚔ |
+| Melee combo | Left click | X | ⚔ |
+| Jump (hold for a higher, 2-block jump) | Space | A | ⤒ |
+| Jump slam | Attack in the air | X in the air | ⚔ in the air |
 | Ranged / technique | Right click | RT | ✦ |
-| Dodge roll (i-frames) | Space / Shift | B | ⤳ |
+| Dodge roll (i-frames) | Shift | B | ⤳ |
 | Techniques 1 / 2 / 3 | 1 / 2 / 3 | LB / RB / Y | 1 / 2 / 3 |
 | Domain Expansion | F | LT | 領域 |
 | Reverse Cursed Technique (heal) | Q | D-pad ↑ | ✚ |
 | Artifacts | R / T | D-pad ← / → | — |
-| Interact | E | X | Tap the prompt |
+| Interact | E | A (while a prompt shows) | Tap the prompt |
 | Inventory | I | D-pad ↓ | Pause menu |
 | Map | Tab | View | — |
 | Pause | Esc | Menu | ❚❚ |
+| Fullscreen | Alt+Enter / F11 / ⛶ button | — | ⛶ button |
 | Zoom | Mouse wheel | — | Pinch |
 | Rotate camera 90° (turn on in settings) | Z / C | — | — |
 
@@ -209,8 +233,12 @@ canvas), converging to 512 samples. **Save PNG** downloads the result.
   player at once; the rest circle and wait their turn.
 - **Levels**: a grid layout with a main path, side rooms and a secret
   room, stamped from hand-designed room templates per biome.
-- **Bosses**: attack patterns are generator coroutines with telegraphed
-  ground markers.
+- **Bosses**: detailed models (Jogo's smoking volcano head, Hanami's
+  branches and cloth, Mahito's patchwork with a phase-3 distorted form)
+  with idle effects. Attack patterns are generator coroutines with
+  telegraphed ground markers.
+- **Cutscenes**: in-engine cinematics with letterbox bars, keyframed
+  cameras, subtitles and title cards (`js/story/`).
 - **Audio**: every sound is synthesised with the Web Audio API. That
   covers impacts, charges, domains, footsteps that change with the
   surface, ambience per biome and a small generative soundtrack.
@@ -221,7 +249,8 @@ canvas), converging to 512 samples. **Save PNG** downloads the result.
 - `style.css`: UI
 - `js/main.js`: boot, game states and the main loop
 - `js/gfx/`: renderer and quality tiers, materials, textures, particles, effects, lights, debris
-- `js/world/`: voxel world, blocks, biomes, building kit, room templates, level generator, the hub
+- `js/story/`: cutscene engine and cutscenes, story chapters, quest markers
+- `js/world/`: Jujutsu High (`jujutsuHigh.js`), voxel world, blocks, biomes, building kit, room templates, level generator, the hub
 - `js/entities/`: characters, player, curses, bosses, allies
 - `js/sorcerers/`: the technique registry (`index.js`, rarities and the unlock tree) and one file per technique; `all.js` imports them all
 - `js/ui/`: menus, HUD, minimap, touch controls, settings

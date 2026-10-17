@@ -11,6 +11,11 @@ import { createKit } from '../sorcerers/index.js';
 import { applyGear } from '../loot.js';
 import { useArtifact } from '../artifacts.js';
 
+// tap: ~1.3 blocks · hold: ~2.6 blocks (gravity 32, see physics.js)
+const JUMP = { v: 9.2, hold: 0.32, holdGravity: 0.42 };
+// jump slam: attack in the air after a jump dives down and hits around the landing
+const SLAM = { dmg: 22, radius: 3, knock: 8, cd: 1.2 };
+
 export const PLAYER_COLORS = ['#4fc8ff', '#ff5a6a', '#7aff7a', '#ffc94a'];
 
 export class Player {
@@ -134,6 +139,10 @@ export class Player {
       if (inp.pressed['art' + (i + 1)] && art.cdLeft <= 0 && this.dodgeT <= 0 && !(this.action && this.action.lock)) { art.cdLeft = art.cd * (1 - this.stats.cdr); useArtifact(g, this, art); }
     });
     if (this.barrierT > 0 && Math.random() < 0.4) g.particles.glow.emit(this.pos.x + (Math.random() - 0.5) * 1.2, this.pos.y + Math.random() * 2, this.pos.z + (Math.random() - 0.5) * 1.2, 0, 0.5, 0, 0.6, 2, 1.8, 0.8, 0.1, 0, 1, 1, 1);
+    // attack in the air after a jump: a jump slam
+    this.slamCd = Math.max(0, (this.slamCd ?? 0) - dt);
+    if (this.attackBuffer > 0 && this.canSlam()) { this.attackBuffer = 0; this.startSlam(); }
+    if (this.slam && (this.grounded || this.inLiquid)) this.landSlam();
     const a = this.action;
     // chain / start melee
     const canChain = !a || a.type === 'hit' || (a.type === 'attack' && a.t >= (a.step.chainAt ?? 0.62)) || a.type === 'sign';
@@ -160,6 +169,28 @@ export class Player {
       this.action.root = new THREE.Vector3(Math.sin(this.facing), 0, Math.cos(this.facing)).multiplyScalar(lunge).addScaledVector(this.moveIntent || new THREE.Vector3(), 1.4);
     }
     this.kit.update?.(dt, inp);
+  }
+  // ---------------------------------------------------------------- jump slam
+  canSlam() { return !this.slam && this.slamCd <= 0 && !this.grounded && !this.inLiquid && this.jumpedT > 0.15 && this.dodgeT <= 0 && !(this.action && this.action.lock) && !this.kit.blocksMelee?.(); }
+  startSlam() {
+    this.slam = { t: 0 }; this.jumpHold = false;
+    this.vel.y = Math.min(this.vel.y, -16);
+    this.action = { type: 'attack', step: { style: 'slam', strike: 0.99, windup: 0.2, custom: true, dur: 1, chainAt: 1, range: 0, arc: 0 }, style: 'slam', dur: 0.5, elapsed: 0, t: 0.25, struck: true, moveScale: 0.3, faceAim: false };
+    this.game.audio?.whoosh?.(0.9);
+  }
+  landSlam() {
+    const g = this.game; this.slam = null; this.action = null; this.jumpedT = 0;
+    this.slamCd = SLAM.cd * (1 - (this.stats.cdr ?? 0) * 0.5);
+    if (this.inLiquid) return;
+    const at = this.pos.clone(); at.y += 0.3;
+    const dmg = SLAM.dmg * (this.stats.meleeMult ?? 1);
+    g.combat.aoe(at, SLAM.radius, dmg, this, { knock: SLAM.knock, stagger: 0.45, melee: true, blocks: true });
+    g.fx.rings?.spawn(at.clone().setY(this.pos.y + 0.08), { color: this.rig.look?.accent ?? 0xffe0a0, r0: 0.3, r1: SLAM.radius, dur: 0.35, thick: 0.3 });
+    g.fx.shockwave?.(this.pos, this.rig.look?.accent ?? 0xffe0a0, SLAM.radius + 0.5);
+    g.fx.landDust?.(this.pos, 18);
+    g.shake(0.3); g.hitStop?.(0.05);
+    g.audio?.impact?.(1.2);
+    this.iframes = Math.max(this.iframes, 0.15);
   }
   startAttack(step, idx) {
     // snap facing to aim; melee "magnetises" toward a curse in front of you
@@ -221,6 +252,25 @@ export class Player {
     this.moveIntent = mv;
     this.iframes = Math.max(0, this.iframes - dt);
     this.dodgeCd = Math.max(0, this.dodgeCd - dt);
+    // jump: a tap clears one block; holding it through the rise floats higher
+    // (about 2.6 blocks), enough to clear a two-block wall. Works just after
+    // stepping off a ledge (coyote time). Gamepads interact with A instead
+    // while a prompt is showing.
+    const jumpPress = inp.pressed.jump && !(this.nearInteract && this.device.startsWith('pad'));
+    if (jumpPress) this.jumpBuffer = 0.14; else this.jumpBuffer = Math.max(0, (this.jumpBuffer ?? 0) - dt);
+    if (this.jumpBuffer > 0 && (this.grounded || this.coyote > 0) && this.dodgeT <= 0 && !this.downed && (!this.action || (this.action.type !== 'cast' && !this.action.lock))) {
+      this.jumpBuffer = 0;
+      this.vel.y = this.inLiquid ? 10.5 : JUMP.v; this.grounded = false; this.coyote = 0; this.jumpedT = 0.001; this.jumpHold = true;
+      if (this.action?.type === 'attack' || this.action?.type === 'hit') this.action = null;
+      g.particles?.burst?.(this.pos.clone().setY(this.pos.y + 0.1), { count: 6, color: 0xd8c8a8, additive: false, speed: 1.5, up: 0.8, life: 0.35, size: 0.12, drag: 4 });
+      g.audio?.whoosh?.(0.35);
+    }
+    if (this.jumpedT > 0) {
+      this.jumpedT += dt;
+      if (!inp.held.jump || this.vel.y <= 0 || this.jumpedT > JUMP.hold) this.jumpHold = false;
+      if (this.grounded && this.jumpedT > 0.08) { this.jumpedT = 0; this.jumpHold = false; }
+    }
+    this.gravityScale = this.jumpHold ? JUMP.holdGravity : this.slam ? 1.6 : 1;
     // dodge roll
     if (inp.pressed.dodge && this.dodgeCd <= 0 && !this.downed && (!this.action || this.action.cancelable !== false) && !this.kit.blocksDodge?.()) this.startDodge(mv);
     if (!this.downed) this.updateCombat(dt, inp);
@@ -295,7 +345,7 @@ export class Player {
     if (Math.abs(this.visY - this.pos.y) < 0.01) this.stepped = 0;
     this.object.position.set(this.pos.x, this.visY, this.pos.z);
     this.object.rotation.y = this.facing;
-    this.rig.animate({ dt, speed: this.dodgeT > 0 ? 0 : clamp(speed, 0, 1), vel: this.vel, action: this.dead ? { type: 'death', t: Math.min(1, (this.deadT = (this.deadT ?? 0) + dt)) } : this.downed ? { type: 'down', t: 1 } : a });
+    this.rig.animate({ dt, speed: this.dodgeT > 0 ? 0 : clamp(speed, 0, 1), vel: this.vel, air: !this.grounded && !this.inLiquid && this.dodgeT <= 0 ? this.vel.y : null, action: this.dead ? { type: 'death', t: Math.min(1, (this.deadT = (this.deadT ?? 0) + dt)) } : this.downed ? { type: 'down', t: 1 } : a });
     if (a && a.t >= 1 && a.type !== 'dodge' && !a.hold) this.action = null;
   }
 }

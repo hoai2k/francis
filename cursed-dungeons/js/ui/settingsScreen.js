@@ -1,5 +1,6 @@
 // Settings screen: Graphics, Audio, Camera & Controls tabs.
 import { h } from './ui.js';
+import { toggleFullscreen, isFullscreen } from './fullscreen.js';
 import { settings, saveSettings } from '../settings.js';
 import { QUALITY_LABEL } from '../gfx/renderer.js';
 
@@ -24,6 +25,7 @@ export function openSettings(game, onClose) {
       body.append(
         h('div', { class: 'hint', style: 'margin:0 0 8px' }, `GPU: ${info.name} · Backend: ${gr.backend} · Detected tier: ${QUALITY_LABEL[info.tier]}`),
         row('Quality', select('quality', [['auto', `Auto (${QUALITY_LABEL[info.tier]})`], ['low', QUALITY_LABEL.low], ['medium', QUALITY_LABEL.medium], ['high', QUALITY_LABEL.high], ['ultra', QUALITY_LABEL.ultra + (gr.backend === 'WebGPU' ? '' : ' (WebGL2)')]], (v) => game.applyQuality(v))),
+        row('Fullscreen (Alt+Enter)', (() => { const i = h('input', { type: 'checkbox' }); i.checked = isFullscreen(); i.addEventListener('change', async () => { await toggleFullscreen(); setTimeout(() => { i.checked = isFullscreen(); }, 300); }); return i; })()),
         row('Dynamic resolution', check('dynRes', (v) => { gr.dynRes = v; if (!v) { gr.scale = 1; gr.applyPixelRatio(); } })),
         row('Motion blur (Ultra)', check('motionBlur', (v) => { gr.motionBlur = v; gr.buildPipeline(); })),
         row('Show FPS / mode', check('showFps', (v) => game.hud?.setReadout(v))),
@@ -50,14 +52,14 @@ export function openSettings(game, onClose) {
       body.append(h('div', { class: 'hint', style: 'font-size:14px;color:#ddd', html:
         `<h3>Keyboard + Mouse</h3>
         <span class="kbd">WASD</span> move · <span class="kbd">Mouse</span> aim · <span class="kbd">LMB</span> attack · <span class="kbd">RMB</span> ranged / technique ·
-        <span class="kbd">Space</span> dodge · <span class="kbd">1</span><span class="kbd">2</span><span class="kbd">3</span> techniques · <span class="kbd">F</span> Domain Expansion ·
-        <span class="kbd">Q</span> Reverse Cursed Technique (heal) · <span class="kbd">R</span><span class="kbd">T</span> cursed-tool artifacts · <span class="kbd">E</span> interact · <span class="kbd">Tab</span> map · <span class="kbd">I</span> inventory · <span class="kbd">Esc</span> pause · <span class="kbd">Wheel</span> zoom · <span class="kbd">F3</span> FPS readout
+        <span class="kbd">Space</span> jump (hold for a 2-block jump; attack in the air to jump-slam) · <span class="kbd">Shift</span> dodge · <span class="kbd">1</span><span class="kbd">2</span><span class="kbd">3</span> techniques · <span class="kbd">F</span> Domain Expansion ·
+        <span class="kbd">Q</span> Reverse Cursed Technique (heal) · <span class="kbd">R</span><span class="kbd">T</span> cursed-tool artifacts · <span class="kbd">E</span> interact · <span class="kbd">Tab</span> map · <span class="kbd">I</span> inventory · <span class="kbd">Esc</span> pause · <span class="kbd">Wheel</span> zoom · <span class="kbd">F3</span> FPS readout · <span class="kbd">Alt</span>+<span class="kbd">Enter</span> fullscreen
         <h3>Gamepad</h3>
-        Left stick move · Right stick aim · <b>A</b> attack · <b>RT</b> ranged · <b>B</b> dodge · <b>LB / RB / Y</b> techniques · <b>LT</b> Domain · <b>X</b> interact · <b>D-pad ↑</b> heal · <b>D-pad ← →</b> artifacts · <b>D-pad ↓</b> inventory · <b>View</b> map · <b>Menu</b> pause
+        Left stick move · Right stick aim · <b>A</b> jump (hold: higher) / interact · <b>X</b> attack · <b>RT</b> ranged · <b>B</b> dodge · <b>LB / RB / Y</b> techniques · <b>LT</b> Domain · <b>D-pad ↑</b> heal · <b>D-pad ← →</b> artifacts · <b>D-pad ↓</b> inventory · <b>View</b> map · <b>Menu</b> pause
         <h3>Local co-op</h3>
         Up to 4 players on one screen: keyboard+mouse plus gamepads. Press <b>A</b> or <b>Start</b> on a controller at character select (or <b>Start</b> during a mission) to drop in.
         <h3>Touch</h3>
-        Left thumb: virtual joystick · Right: attack, dodge, techniques, domain · Auto-aim targets the nearest curse · Pinch to zoom. Play in landscape.` }));
+        Left thumb: virtual joystick · Right: attack, jump (⤒, hold for higher), dodge, techniques, domain · Auto-aim targets the nearest curse · Pinch to zoom. Play in landscape.` }));
     }
     el.appendChild(h('div', { class: 'panel', style: 'width:min(640px,96vw)' }, h('h2', {}, 'Settings'), tabs, body,
       h('div', { class: 'row', style: 'margin-top:12px;justify-content:flex-end' }, h('button', { class: 'btn', 'data-autofocus': true, onclick: () => { ui.close('settings'); onClose?.(); } }, 'Back'))));

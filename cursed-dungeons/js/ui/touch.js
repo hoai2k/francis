@@ -6,6 +6,7 @@ const BUTTONS = [
   // id, label, right(px), bottom(px), size
   ['attack', '⚔', 34, 40, 86],
   ['dodge', '⤳', 136, 22, 58],
+  ['jump', '⤒', 252, 96, 54],
   ['ranged', '✦', 24, 140, 58],
   ['t1', '1', 150, 96, 52],
   ['t2', '2', 104, 160, 52],

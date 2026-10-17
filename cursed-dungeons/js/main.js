@@ -22,7 +22,11 @@ import { settings, saveSettings } from './settings.js';
 import { Environment, BIOMES } from './world/biomes.js';
 import { makePropMaterials } from './world/deco.js';
 import { BLOCKS } from './world/blocks.js';
-import { buildTestRoom } from './world/testroom.js';
+import { buildJujutsuHigh } from './world/jujutsuHigh.js';
+import { HubNpcs } from './entities/npcs.js';
+import { Dialogue } from './ui/dialogue.js';
+import { Roaming } from './world/roaming.js';
+import { installQuestMarkers } from './story/questMarkers.js';
 import { generateLevel } from './world/levelgen.js';
 import { Mission } from './mission.js';
 import { Pickups } from './pickups.js';
@@ -36,7 +40,11 @@ import { SORCERER_IDS, rollTechnique } from './sorcerers/index.js';
 import './sorcerers/all.js';
 import { Save } from './save.js';
 import { rollChest, itemInfo, RARITY } from './loot.js';
+import { installFullscreen, toggleFullscreen } from './ui/fullscreen.js';
 import { openTitle, openSelect, openInventory, openSkills, openShop, openMapTable, openSaveCode } from './ui/screens.js';
+import { Tracker } from './ui/tracker.js';
+import { Cutscenes } from './story/cutscenes.js';
+import { openInstructions } from './ui/instructions.js';
 import { buildSorcererModel } from './entities/models.js';
 import { openPhotoMode } from './photo.js';
 import { DomainSystem } from './domain.js';
@@ -103,6 +111,8 @@ class Game {
     this.projectiles = new Projectiles(this);
     this.hazards = new Hazards(this);
     this.hud = new HUD(this);
+    this.tracker = new Tracker(this);   // "where do I go": game.tracker.setGoal / clear
+    this.cutscenes = new Cutscenes(this);   // in-engine cinematics: play(id, { onEnd }) (story/cutscenes.js)
     this.pickups = new Pickups(this);
     this.minimap = new Minimap(this);
     this.coins = 0;
@@ -125,6 +135,7 @@ class Game {
     setInterval(() => { if (this.state === 'playing') this.save.write(); }, 15000);
     if (!this.save.write()) setTimeout(() => toast('⚠ Your browser is blocking saves — use Pause → Save Code to keep progress', 'big'), 4000);
     document.addEventListener('visibilitychange', () => { if (document.hidden) { persist(); if (this.state === 'playing' && !this.paused && !this.ui.stack.length) this.pause(); } });
+    installFullscreen();
     window.addEventListener('keydown', (e) => { if (e.code === 'F3') { settings.showFps = !settings.showFps; saveSettings(); this.setReadout(settings.showFps); } });
     if (isMobile) { document.body.classList.add('is-touch'); this.touch = new TouchControls(this); this.touch.show(true); }
     this.setReadout(settings.showFps);
@@ -142,7 +153,8 @@ class Game {
     for (const p of this.players) this.removePlayer(p);
     this.players = [];
     if (this.mode !== 'hub') this.loadHub();
-    this.rig.cinematic({ center: new THREE.Vector3(19, 8, 22), dur: 1e9, dist: 34, pitch: 34 * Math.PI / 180, orbit: 0.05 });
+    const tc = this.level?.titleCam;
+    this.rig.cinematic({ center: tc?.center?.clone() ?? new THREE.Vector3(19, 8, 22), dur: 1e9, dist: tc?.dist ?? 34, pitch: tc?.pitch ?? 34 * Math.PI / 180, orbit: 0.05 });
     this.audio.setMusic('title');
     openTitle(this);
   }
@@ -172,8 +184,9 @@ class Game {
     this.rig.cine = null;
     this.state = 'playing';
     this.hud.show(true); this.touch?.show(true);
-    this.loadHub();
-    toast('Jujutsu High', 'big');
+    // a new save sees the opening first (story/cutscenes.js), then Jujutsu High
+    const enterHub = () => { this.loadHub(); toast('Jujutsu High', 'big'); this.cutscenes?.playOnce('arrive_hub'); };
+    if (!this.cutscenes?.playOnce('opening', { onEnd: enterHub })) enterHub();
   }
   openPhotoMode() { return openPhotoMode(this); }
   removePlayer(p) { this.scene.remove(p.object); p.kit.dispose?.(); this.lights.remove(p.heroLight); }
@@ -214,6 +227,8 @@ class Game {
     this.shafts = level.shafts; this.scene.add(level.shafts.group);
     this.shafts.group.visible = !!this.gr.preset.shafts;
     this.lights.setStatic(this.world.staticLights);
+    this.sunOffset0 ??= this.lights.sunOffset.clone();
+    this.lights.sunOffset.copy(level.sunOffset ?? this.sunOffset0);   // the hub has a low dusk sun
     this.env.set(biome);
     this.env.buildProbe(this.gr.renderer, biome);
     U.bakeStrength.value = this.gr.preset.bake;
@@ -233,26 +248,34 @@ class Game {
   }
   loadHub() {
     this.clearLevel();
-    const L = buildTestRoom();
-    this.loadWorld(L, BIOMES.jujutsu_high);
+    this.dialogue ??= new Dialogue(this);   // game.dialogue.say(speaker, lines, { onEnd }) (ui/dialogue.js)
+    this.hubNpcs?.dispose(); this.hubNpcs = null;
+    const L = buildJujutsuHigh();
+    this.loadWorld(L, L.biome ?? BIOMES.jujutsu_high);
     if (this.state === 'playing') this.audio.setMusic('hub');
     this.placePlayers(L.spawn);
     const dummy = new TrainingDummy(this, L.dummy);
     this.scene.add(dummy.object); this.enemies.push(dummy);
     const who = (p) => p ?? this.players[0];
-    this.interactables.push({ id: 'summon', pos: L.dummy.clone().add(new THREE.Vector3(1.6, 0, 0)), radius: 2.2, label: 'Summon training curses', action: () => this.spawnWave() });
-    this.interactables.push({ id: 'map', pos: L.mapTable, radius: 2.6, label: 'Mission map', action: () => openMapTable(this) });
-    this.interactables.push({ id: 'shop', pos: L.shop, radius: 2.8, label: 'Merchant', action: (p) => openShop(this, who(p)) });
-    this.interactables.push({ id: 'stash', pos: L.stash, radius: 2.2, label: 'Inventory', action: (p) => openInventory(this, who(p)) });
-    this.interactables.push({ id: 'skills', pos: L.skills, radius: 2.6, label: 'Skill tree', action: (p) => openSkills(this, who(p)) });
-    // merchant NPC + stash chest props
-    const npc = buildSorcererModel('megumi'); npc.root.position.set(L.shop.x, L.shop.y, L.shop.z + 1.2); npc.root.rotation.y = Math.PI; this.scene.add(npc.root); this.hubProps = [npc.root];
-    const chest = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.8, 0.8), new THREE.MeshStandardNodeMaterial({ color: 0x5a3a8a, roughness: 0.6 })); chest.position.set(L.stash.x, L.stash.y + 0.4, L.stash.z); chest.castShadow = true; this.scene.add(chest); this.hubProps.push(chest);
+    this.hubProps = [];
+    // Jujutsu High's residents (entities/npcs.js); the station NPCs open their menus after any new lines
+    let npcs = null;
+    try { npcs = this.hubNpcs = new HubNpcs(this, L); } catch (e) { console.warn('hub NPCs', e); }
+    const station = (id, open) => (npcs ? npcs.station(id, open) : open());
+    this.interactables.push({ id: 'summon', pos: L.dummy.clone().add(new THREE.Vector3(1.6, 0, 0)), radius: 2.0, label: 'Talisman: summon training curses', action: () => this.spawnWave() });
+    this.interactables.push({ id: 'map', pos: L.mapTable, radius: 2.6, label: npcs?.label('ijichi', 'Missions') ?? 'Mission map', action: () => station('ijichi', () => openMapTable(this)) });
+    this.interactables.push({ id: 'shop', pos: L.shop, radius: 2.4, label: npcs?.label('merchant', 'Shop') ?? 'Merchant', action: (p) => station('merchant', () => openShop(this, who(p))) });
+    this.interactables.push({ id: 'stash', pos: L.stash, radius: 2.0, label: 'Your locker: inventory', action: (p) => openInventory(this, who(p)) });
+    this.interactables.push({ id: 'skills', pos: L.skills, radius: 2.4, label: npcs?.label('yaga', 'Technique tree') ?? 'Technique tree', action: (p) => station('yaga', () => openSkills(this, who(p))) });
+    if (npcs) this.addUpdater((dt) => { npcs.update(dt); });
+    // low-grade curses at the forest edges, never inside the barrier (world/roaming.js)
+    if (L.roam) { const roam = this.roaming = new Roaming(this, L); this.addUpdater((dt) => { roam.update(dt); }); }
     this.wave = 0;
     this.minimap.level = null;
     this.hud.mini.classList.add('hidden');
-    this.hud.setObjective('Jujutsu High', 'Map table: missions · Merchant · Inventory chest · Shrine: skill tree · Talisman: training curses');
+    this.hud.setObjective('Jujutsu High', 'Ijichi: missions · Megumi: shop · Locker: inventory · Yaga\'s shrine: technique tree · Talisman: training');
     this.mode = 'hub';
+    try { this.questMarkers = installQuestMarkers(this, L); } catch (e) { console.warn('quest markers', e); }
   }
   startMission(def) {
     this.ui.closeAll(); this.paused = false;
@@ -267,6 +290,7 @@ class Game {
     this.mission.setup();
     this.mode = 'mission';
     toast(`${L.biome.name} · ${L.biome.sub}`, 'big');
+    if (def.id) this.cutscenes?.playOnce('mission_' + def.id);   // a short briefing the first time
   }
   completeMission() {
     const m = this.mission; if (!m || m.complete) return;
@@ -293,6 +317,7 @@ class Game {
         h('div', { class: 'stat-line' }, 'Coins collected', h('b', {}, String(st.coins ?? 0))),
         h('div', { class: 'stat-line' }, 'Secrets found', h('b', {}, String(st.secrets ?? 0))),
         victory ? h('div', { class: 'stat-line' }, 'Technique rerolls earned', h('b', {}, '🎲 +2')) : null,
+        victory && m?.def?.outro ? h('p', { class: 'results-outro' }, m.def.outro) : null,
         h('div', { class: 'loot-list', id: 'results-loot' }),
         h('div', { class: 'row', style: 'justify-content:center;margin-top:10px' },
           !victory ? h('button', { class: 'btn primary', 'data-autofocus': true, onclick: () => { const d = m.def; this.ui.close('results'); this.startMission(d); } }, 'Retry') : null,
@@ -445,9 +470,11 @@ class Game {
         h('button', { class: 'btn primary', 'data-autofocus': true, onclick: () => this.resume() }, 'Resume'),
         h('button', { class: 'btn', onclick: () => { this.ui.close('pause'); openInventory(this, player); } }, 'Inventory'),
         h('button', { class: 'btn', onclick: () => { this.ui.close('pause'); openSkills(this, player); } }, 'Technique Tree'),
+        h('button', { class: 'btn', onclick: () => openInstructions(this) }, 'How to Play'),
         h('button', { class: 'btn', onclick: () => { toast(this.save.write() ? '💾 Game saved' : '⚠ Browser blocked saving — use Save Code'); this.audio.ui('buy'); } }, '💾 Save Game'),
         h('button', { class: 'btn', onclick: () => openSaveCode(this) }, 'Save Code'),
         h('button', { class: 'btn', onclick: () => openSettings(this) }, 'Settings'),
+        h('button', { class: 'btn', onclick: () => toggleFullscreen() }, '⛶ Fullscreen'),
         h('button', { class: 'btn', onclick: () => { this.ui.close('pause'); this.openPhotoMode(); } }, '📷 Photo Mode'),
         h('button', { class: 'btn', onclick: () => { this.ui.close('pause'); this.paused = false; this.save.write(); this.toTitle(); } }, 'Quit to Title'),
         this.mode === 'mission' ? h('button', { class: 'btn danger', onclick: () => { this.ui.close('pause'); this.paused = false; this.returnToHub(); } }, 'Abandon mission') : null,
@@ -478,12 +505,14 @@ class Game {
     }
   }
   updateInteract(dt) {
+    for (const p of this.players) p.nearInteract = false;
     for (const it of this.interactables) {
       if (it.enabled && !it.enabled()) continue;
       let near = null;
       for (const p of this.players) if (!p.dead && !p.downed && p.pos.distanceTo(it.pos) < it.radius) near = p;
       if (!near) { it.progress = 0; it.touchHold = false; continue; }
-      const key = near.device === 'kbm' ? 'E' : near.device === 'touch' ? '👆' : 'X';
+      near.nearInteract = true;   // a gamepad's A interacts here instead of jumping
+      const key = near.device === 'kbm' ? 'E' : near.device === 'touch' ? '👆' : 'A';
       const inp = this.input.get(near.device);
       if (it.hold) {
         const holding = inp.held.interact || it.touchHold;
@@ -507,11 +536,12 @@ class Game {
     const gr = this.gr;
     gr.trackFps(realDt, now / 1000);
     const playing = this.state === 'playing';
-    const pausePlayer = playing && this.players.find((p) => this.input.get(p.device).pressed.pause);
-    const invP = playing && !this.ui.stack.length && this.players.find((p) => this.input.get(p.device).pressed.inv);
+    const cs = this.cutscenes?.active;
+    const pausePlayer = playing && !cs && this.players.find((p) => this.input.get(p.device).pressed.pause);
+    const invP = playing && !cs && !this.ui.stack.length && this.players.find((p) => this.input.get(p.device).pressed.inv);
     if (invP) openInventory(this, invP);
-    const anyMap = playing && this.players.some((p) => this.input.get(p.device).pressed.map);
-    if (this.ui.stack.length) { this.ui.update(); if (anyMap && this.ui.isOpen('map')) { this.ui.close('map'); this.paused = false; } }
+    const anyMap = playing && !cs && this.players.some((p) => this.input.get(p.device).pressed.map);
+    if (this.ui.stack.length) { if (!cs) this.ui.update(); if (anyMap && this.ui.isOpen('map')) { this.ui.close('map'); this.paused = false; } }
     else if (pausePlayer) this.pause(pausePlayer);
     else if (anyMap) this.openMap();
     let dt = realDt;
@@ -521,7 +551,8 @@ class Game {
     this.updateWipe(realDt);
     this.time += dt;
     U.time.value = this.time;
-    if (!this.paused) {
+    if (cs) this.cutscenes.update(realDt);   // a cutscene drives its figures and the camera (on real time, even under a menu); gameplay waits
+    else if (!this.paused) {
       if (playing) this.checkJoin();
       const z = this.input.takeZoom(); if (z) this.rig.zoom(z * 1.6);
       const p0 = this.players[0];
@@ -547,11 +578,12 @@ class Game {
     this.debris.update(dt);
     this.bolts.update(realDt);
     // camera + world
-    this.rig.update(dt, this.players.length ? this.players : [this.idleFocus ?? (this.idleFocus = { pos: new THREE.Vector3(19, 6, 24), vel: new THREE.Vector3(), aimDir: new THREE.Vector3(), dead: false })], realDt);
+    this.rig.update(dt, this.players.length ? this.players : [this.idleFocus ?? (this.idleFocus = { pos: (this.level?.titleCam?.center ?? new THREE.Vector3(19, 6, 24)).clone(), vel: new THREE.Vector3(), aimDir: new THREE.Vector3(), dead: false })], realDt);
+    if (cs) this.cutscenes.applyCamera();
     U.camPos.value.copy(this.rig.camera.position);
     for (let i = 0; i < 4; i++) {
       const pl = this.players[i];
-      if (pl && !pl.dead) U.players.array[i].set(pl.pos.x, pl.pos.y, pl.pos.z, 1); else U.players.array[i].set(0, -999, 0, 0);
+      if (pl && !pl.dead && !cs) U.players.array[i].set(pl.pos.x, pl.pos.y, pl.pos.z, 1); else U.players.array[i].set(0, -999, 0, 0);
     }
     this.lights.update(dt, this.rig.focus);
     this.world.updateRoofs(this.players, realDt);
@@ -561,6 +593,7 @@ class Game {
     this.fx.update(dt, realDt);
     this.particles.upload();
     this.hud.update(realDt);
+    this.tracker?.update(realDt);
     if (this.minimap.level && (this.frameN = (this.frameN ?? 0) + 1) % 3 === 0) this.minimap.draw(this.hud.mini);
     gr.render();
     if (this.readoutOn) this.updateReadout();

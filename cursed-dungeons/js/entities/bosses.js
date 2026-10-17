@@ -5,7 +5,8 @@
 //   • Grove Curse (Hanami-style): root lines, seed bombs, flower fields, charges, buds.
 //   • Patchwork Curse (Mahito-style): blade arms, dashes, transfigured minions, distorted form.
 import * as THREE from 'three/webgpu';
-import { Skin, Rig, makeCharMaterial, PX, FLASH_MATERIAL } from './character.js';
+import { FLASH_MATERIAL } from './character.js';
+import { buildJogo, buildHanami, buildMahito } from './boss-looks.js';
 import { moveEntity } from '../physics.js';
 import { damp, dampAngle, angleDiff } from '../util.js';
 import { toast } from '../ui/ui.js';
@@ -13,59 +14,20 @@ import { toast } from '../ui/ui.js';
 const tmp = new THREE.Vector3(), tmp2 = new THREE.Vector3();
 const solid = (hex, e = 0) => new THREE.MeshStandardNodeMaterial({ color: hex, roughness: 0.6, emissive: e ? hex : 0, emissiveIntensity: e });
 
-function paintBoss(S, o) {
-  S.box(0, 0, 8, 8, 8, o.skin, 0.15); S.box(32, 0, 8, 8, 8, o.skin, 0.1);
-  S.box(16, 16, 8, 12, 4, o.body, 0.15); S.box(16, 32, 8, 12, 4, o.body2 ?? o.body, 0.2);
-  S.box(40, 16, 4, 12, 4, o.arm ?? o.skin, 0.15); S.box(32, 48, 4, 12, 4, o.arm ?? o.skin, 0.15);
-  S.box(40, 32, 4, 12, 4, o.body2 ?? o.body, 0.2); S.box(48, 48, 4, 12, 4, o.body2 ?? o.body, 0.2);
-  S.box(0, 16, 4, 12, 4, o.legs, 0.15); S.box(16, 48, 4, 12, 4, o.legs, 0.15);
-  o.face?.(S);
-}
-
 const BOSSES = {
   jogo: {
     name: 'Volcano Curse', title: 'SPECIAL GRADE · VOLCANO CURSE', hp: 2400, speed: 2.4, dmg: 22, color: 0xff6a1a, domainKey: 'coffin_iron_mountain',
-    build() {
-      const S = new Skin(501);
-      paintBoss(S, { skin: 0xd8d0c0, body: 0x2a2020, body2: 0x3a2a2a, legs: 0x2a2020, arm: 0xd8d0c0, face: (s) => { s.rect(9, 11, 6, 3, 0x111111); s.rect(11, 11, 2, 2, 0xffe04a); s.px(12, 12, 0xffffff); s.rect(10, 15, 4, 1, 0x3a1a0a); } });
-      const m = makeCharMaterial(S.texture(), { emitStrength: 3, fill: 0.2 }); m.alphaTest = 0.5;
-      const rig = new Rig({ material: m, scale: 2.1, bodyW: 10, bodyD: 6, headS: 9 });
-      // volcano head: stacked narrowing blocks with a glowing crater
-      const rock = solid(0xc8bca8), lava = solid(0xff6a1a, 4);
-      for (let i = 0; i < 3; i++) { const b = rig.mesh(new THREE.BoxGeometry((8 - i * 2) * PX * 1.12, 2 * PX, (8 - i * 2) * PX * 1.12), rock); b.position.y = (9 + i * 2) * PX * 1.12; rig.head.add(b); }
-      const crater = rig.mesh(new THREE.BoxGeometry(2.4 * PX, 1 * PX, 2.4 * PX), lava); crater.position.y = 15.2 * PX * 1.12; rig.head.add(crater);
-      rig.extras.crater = crater;
-      return rig;
-    },
+    build: buildJogo,  // boss-looks.js
     phases: [['meteors', 'flame_cone', 'flame_cone'], ['meteors', 'flame_cone', 'lava_ring', 'insects'], ['maximum_meteor', 'lava_ring', 'meteors', 'flame_cone', 'insects']],
   },
   hanami: {
     name: 'Grove Curse', title: 'SPECIAL GRADE · GROVE CURSE', hp: 2600, speed: 2.8, dmg: 20, color: 0x7aff5a, domainKey: 'resonance',
-    build() {
-      const S = new Skin(777);
-      paintBoss(S, { skin: 0xe8e4d8, body: 0x6a4a2a, body2: 0x3a2a1a, legs: 0x5a3a20, arm: 0x8a6a4a, face: (s) => { s.rect(9, 11, 2, 2, 0x2a1a0a); s.rect(13, 11, 2, 2, 0x2a1a0a); s.px(9, 11, 0x9aff6a); s.px(14, 11, 0x9aff6a); s.rect(8, 8, 8, 2, 0x2a1a0a); } });
-      const m = makeCharMaterial(S.texture(), { emitStrength: 2.5, fill: 0.2 }); m.alphaTest = 0.5;
-      const rig = new Rig({ material: m, scale: 2.2, bodyW: 8, bodyD: 5, headS: 8, bodyH: 14 });
-      const wood = solid(0x5a3a1a), leaf = solid(0x4a9a3a), flower = solid(0xff7ab0, 1.5);
-      // branches from the eyes and a shoulder flower
-      for (const sx of [-1, 1]) { const br = rig.mesh(new THREE.BoxGeometry(1.2 * PX, 7 * PX, 1.2 * PX).translate(0, 3.5 * PX, 0), wood); br.position.set(sx * 2.5 * PX * 1.12, 5.5 * PX * 1.12, 4 * PX * 1.12); br.rotation.set(-0.6, 0, -sx * 0.5); rig.head.add(br); const lf = rig.mesh(new THREE.BoxGeometry(3 * PX, 2 * PX, 3 * PX), leaf); lf.position.y = 7 * PX; br.add(lf); }
-      const fl = rig.mesh(new THREE.BoxGeometry(4 * PX, 4 * PX, 4 * PX), flower); fl.position.set(5 * PX, 12 * PX, 0); rig.torso.add(fl);
-      return rig;
-    },
+    build: buildHanami,  // boss-looks.js
     phases: [['roots', 'seeds', 'roots'], ['roots', 'seeds', 'flowers', 'charge'], ['roots', 'charge', 'flowers', 'buds', 'seeds']],
   },
   mahito: {
     name: 'Patchwork Curse', title: 'SPECIAL GRADE · PATCHWORK CURSE', hp: 2300, speed: 4, dmg: 20, color: 0x7ad8ff, domainKey: 'malevolent_shrine',
-    build() {
-      const S = new Skin(313);
-      paintBoss(S, { skin: 0xc8d4dc, body: 0x2a2a3a, body2: 0x9aa8b8, legs: 0x2a2a3a, arm: 0xb8c4cc, face: (s) => { s.rect(8, 8, 8, 3, 0x6a7a9a); s.px(9, 12, 0x88ccff); s.px(10, 12, 0x223344); s.px(13, 12, 0x223344); s.px(14, 12, 0x88ccff); for (let y = 8; y < 16; y++) s.px(11 + (y % 2), y, 0x3a3a4a); s.rect(10, 14, 4, 1, 0x3a2a3a); } });
-      const m = makeCharMaterial(S.texture(), { emitStrength: 2, fill: 0.2 }); m.alphaTest = 0.5;
-      const hair = solid(0x6a8aa8);
-      const rig = new Rig({ material: m, scale: 1.9, hair: [{ x: 0, y: 6, z: -3.5, w: 7, h: 8, d: 2, hang: true, material: hair, stiff: 30 }, { x: -3.5, y: 6, z: 0, w: 2, h: 7, d: 6, hang: true, material: hair, stiff: 30 }, { x: 3.5, y: 6, z: 0, w: 2, h: 7, d: 6, hang: true, material: hair, stiff: 30 }] });
-      const blade = solid(0xd8e8f8, 0.6);
-      for (const [hand, s] of [[rig.handR, 1], [rig.handL, -1]]) { const b = rig.mesh(new THREE.BoxGeometry(1.5 * PX, 14 * PX, 5 * PX).translate(0, -7 * PX, 0), blade); b.visible = false; hand.add(b); rig.extras[s > 0 ? 'bladeR' : 'bladeL'] = b; }
-      return rig;
-    },
+    build: buildMahito,  // boss-looks.js
     phases: [['blades', 'dash', 'blades'], ['blades', 'dash', 'transfigured', 'repel'], ['distort', 'dash', 'repel', 'blades', 'transfigured']],
   },
 };
@@ -113,6 +75,7 @@ export class Boss {
     g.fx.flash(this.B.color, 0.4, 0.3);
     g.shake(0.7);
     if (this.id === 'mahito' && n === 2) this.rig.root.scale.setScalar(1.9 * 1.35);
+    this.rig.onPhase?.(n, this);
   }
   die() {
     const g = this.game;
@@ -415,8 +378,7 @@ export class Boss {
     this.rig.swap(this.flashT > 0 ? FLASH_MATERIAL : null);
     const sp = Math.hypot(this.vel.x, this.vel.z) / this.B.speed;
     this.rig.animate({ dt, speed: Math.min(1, sp), vel: this.vel, action: this.anim ?? (this.intro > 0 ? { type: 'raise', t: 0 } : null) });
-    if (this.id === 'jogo' && Math.random() < 0.6) { const c = this.rig.extras.crater.getWorldPosition(tmp); g.particles.glow.emit(c.x, c.y, c.z, (Math.random() - 0.5), 3 + Math.random() * 2, (Math.random() - 0.5), 0.8, 3, 1.1, 0.3, 0.35, 2, 1, 0.3, 0); }
-    if (Math.random() < 0.3) g.fx.curseSmoke(this, null);
+    this.rig.idle?.(dt, this);   // per-boss idle animation and VFX (boss-looks.js)
     return true;
   }
 }

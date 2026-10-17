@@ -7,6 +7,7 @@ import { Boss } from './entities/bosses.js';
 import { buildSorcererModel } from './entities/models.js';
 import { B } from './world/blocks.js';
 import { toast } from './ui/ui.js';
+import { showChapterCard } from './ui/chapterMap.js';
 
 const OBJ_TEXT = {
   exorcise: (o) => ['Exorcise the Curses', `${o.done} / ${o.need} curses exorcised`],
@@ -31,10 +32,14 @@ export class Mission {
     for (const c of L.chests) this.makeChest(c);
     this.updateText();
     g.minimap.reveal(L.rooms[0]);
+    if (this.def.chapter) showChapterCard(g, this.def);
+    this.guideKey = null; this.guideT = 0;
   }
   updateText() {
-    const [t, d] = OBJ_TEXT[this.obj.type](this.obj);
-    this.game.hud.setObjective(this.objDone ? 'Defeat the Boss' : t, this.objDone ? (this.boss && this.boss.dead ? 'Reach the exit torii' : 'The arena gate is open') : d);
+    let [t, d] = OBJ_TEXT[this.obj.type](this.obj);
+    if (this.def.objText) t = this.def.objText;
+    const bossName = this.boss?.B?.name ?? 'the Special Grade';
+    this.game.hud.setObjective(this.objDone ? (this.boss && this.boss.dead ? 'Leave through the torii' : `Defeat ${bossName}`) : t, this.objDone ? (this.boss && this.boss.dead ? 'Loot the chest, then reach the exit' : this.bossSpawned ? 'Exorcise the Special Grade curse' : 'The arena gate is open: follow the gold beam') : d);
   }
   // ---------------------------------------------------------------- props
   addProp(obj) { this.game.scene.add(obj); this.props.push(obj); return obj; }
@@ -155,6 +160,47 @@ export class Mission {
     }
     // spin altars, bob cages
     for (const it of this.obj.items) if (!it.done && it.finger) it.finger.rotation.y += dt * 2;
+    this.guideT = (this.guideT ?? 0) - dt;
+    if (this.guideT <= 0) { this.guideT = 0.5; this.updateGuide(); }
+  }
+  // Where to go next, for the tracker (ui/tracker.js): the nearest thing left
+  // to free or seal, the next room on the main path while curses remain, the
+  // arena once its gate is open, then the exit torii after the boss.
+  guideTarget() {
+    const g = this.game, L = this.L;
+    if (this.complete) return null;
+    if (this.bossSpawned) return this.boss?.dead && g.exitPortal ? g.exitPortal.pos : null;
+    if (this.objDone) return L.bossRoom ? L.bossRoom.center : null;
+    const lead = g.tracker?.leader?.()?.pos ?? L.spawn;
+    if (this.obj.items.length) {
+      let best = null, bd = Infinity;
+      for (const it of this.obj.items) { if (it.done) continue; const d = Math.hypot(it.pos.x - lead.x, it.pos.z - lead.z); if (d < bd) { bd = d; best = it.pos; } }
+      return best;
+    }
+    // curses still to exorcise: the next room on the main path not yet entered, then the nearest other one
+    const next = L.rooms.find((r) => !r.activated && (r.type === 'combat'));
+    if (next) return next.center;
+    let best = null, bd = Infinity;
+    for (const r of L.rooms) {
+      if (r.type === 'boss' || r.type === 'secret' || r.type === 'start') continue;
+      if (r.activated && !(r.enemies ?? []).some((e) => !e.dead) && r.waveIdx >= r.waves.length) continue;
+      const d = Math.hypot(r.center.x - lead.x, r.center.z - lead.z); if (d < bd) { bd = d; best = r.center; }
+    }
+    if (best) return best;
+    const e = g.enemies.find((q) => !q.dead && !q.isBoss && !q.isDummy);
+    return e ? e.pos : null;
+  }
+  updateGuide() {
+    const g = this.game;
+    if (!g.tracker || (this.L.world && g.world !== this.L.world)) return;
+    const pos = this.guideTarget();
+    const key = pos ? `${Math.round(pos.x / 3)},${Math.round(pos.z / 3)}` : '';
+    if (key === this.guideKey && g.tracker.goal && g.tracker.fieldWorld === g.world) return;
+    this.guideKey = key;
+    if (!pos) { g.tracker.clear(); return; }
+    const at = pos.clone();
+    const gy = g.world.standY(at.x, at.z, at.y, 4); if (isFinite(gy)) at.y = gy;
+    g.tracker.setGoal({ pos: at, radius: 2, quiet: true });
   }
   activate(room) {
     const g = this.game;
@@ -189,9 +235,13 @@ export class Mission {
     const boss = new Boss(g, this.def.boss, pos, this.def.difficulty);
     g.scene.add(boss.object); g.enemies.push(boss);
     this.boss = boss;
-    g.rig.cinematic({ center: pos.clone().setY(pos.y + 2), dur: 3, dist: 14, pitch: 32 * Math.PI / 180, orbit: 0.12 });
-    g.targetDof = 0.25; setTimeout(() => { g.targetDof = 0; }, 2800);
-    toast(boss.B.title, 'domain');
+    // its entrance (story/cutscenes.js): the full reveal the first time, a short one after; else the old camera move
+    const csId = 'boss_' + this.def.boss;
+    if (!g.cutscenes?.play(csId, { opts: { boss, short: g.cutscenes.seen(csId) } })) {
+      g.rig.cinematic({ center: pos.clone().setY(pos.y + 2), dur: 3, dist: 14, pitch: 32 * Math.PI / 180, orbit: 0.12 });
+      g.targetDof = 0.25; setTimeout(() => { g.targetDof = 0; }, 2800);
+      toast(boss.B.title, 'domain');
+    }
     g.audio?.boss(); g.audio?.setMusic('boss');
     g.hud.setBoss(boss);
     g.shake(0.4);
@@ -199,6 +249,7 @@ export class Mission {
   }
   onBossKilled(boss) {
     const g = this.game;
+    g.cutscenes?.playOnce('boss_down_' + boss.id, { opts: { boss } });   // the first time this Special Grade falls
     g.pickups.drop('coin', boss.pos, 40, 1);
     g.pickups.drop('heal', boss.pos, 3);
     setTimeout(() => {
