@@ -632,13 +632,22 @@ class Game {
   pause(player = this.players[0]) {
     if (this.paused) return;
     this.paused = true;
+    // Pause is a game menu: anyone can navigate it. Its character menus
+    // (inventory, tree, loadout) and Drop out act for the player who pressed
+    // the button, never for whoever opened the pause menu.
+    const mine = (e, fn) => {
+      const dev = e?.detail > 0 ? 'kbm' : this.ui.lastConfirmDevice;
+      const p = this.players.find((q) => q.device === dev) ?? (this.players.length === 1 ? this.players[0] : null);
+      if (!p) { toast('Only a player can do that: join first'); return; }
+      this.ui.close('pause'); fn(p);
+    };
     this.ui.open('pause', (el) => {
       el.appendChild(h('div', { class: 'panel menu-col', style: 'min-width:280px;text-align:center' },
         h('h2', {}, 'Paused'),
         h('button', { class: 'btn primary', 'data-autofocus': true, onclick: () => this.resume() }, 'Resume'),
-        h('button', { class: 'btn', onclick: () => { this.ui.close('pause'); openInventory(this, player); } }, 'Inventory'),
-        h('button', { class: 'btn', onclick: () => { this.ui.close('pause'); openSkills(this, player); } }, 'Technique Tree'),
-        h('button', { class: 'btn', onclick: () => { this.ui.close('pause'); openLoadout(this, player); } }, 'Loadout'),
+        h('button', { class: 'btn', onclick: (e) => mine(e, (p) => openInventory(this, p)) }, 'Inventory'),
+        h('button', { class: 'btn', onclick: (e) => mine(e, (p) => openSkills(this, p)) }, 'Technique Tree'),
+        h('button', { class: 'btn', onclick: (e) => mine(e, (p) => openLoadout(this, p)) }, 'Loadout'),
         this.mode === 'world' ? h('button', { class: 'btn', onclick: () => { this.ui.close('pause'); openWorldMap(this); } }, '🗾 World Map') : null,
         h('button', { class: 'btn', onclick: () => { this.ui.close('pause'); openQuestLog(this); } }, '📜 Quest Log'),
         h('button', { class: 'btn', onclick: () => openInstructions(this) }, 'How to Play'),
@@ -647,12 +656,12 @@ class Game {
         h('button', { class: 'btn', onclick: () => openSettings(this) }, 'Settings'),
         h('button', { class: 'btn', onclick: () => toggleFullscreen() }, '⛶ Fullscreen'),
         h('button', { class: 'btn', onclick: () => { this.ui.close('pause'); this.openPhotoMode(); } }, '📷 Photo Mode'),
-        this.players.length > 1 ? h('button', { class: 'btn', onclick: () => { this.ui.close('pause'); this.paused = false; this.last = performance.now(); this.dropOut(player); } }, `Drop out (Player ${player.index + 1})`) : null,
+        this.players.length > 1 ? h('button', { class: 'btn', title: 'Leaves the game for the player who presses it', onclick: (e) => mine(e, (p) => { this.paused = false; this.last = performance.now(); this.dropOut(p); }) }, 'Drop out') : null,
         h('button', { class: 'btn', onclick: () => { this.ui.close('pause'); this.paused = false; this.save.write(); this.toTitle(); } }, 'Quit to Title'),
         this.mode === 'mission' ? h('button', { class: 'btn danger', onclick: () => { this.ui.close('pause'); this.paused = false; this.returnToWorld(); } }, 'Abandon mission') : null,
         this.worldMission ? h('button', { class: 'btn danger', onclick: () => { this.ui.close('pause'); this.paused = false; this.last = performance.now(); this.worldMission?.abandon(); } }, 'Abandon mission (lift the curtain)') : null,
       ));
-    }, { dim: true, onBack: () => this.resume(), owner: player?.device });
+    }, { dim: true, onBack: () => this.resume() });
   }
   resume() { this.save.write(); this.ui.close('pause'); this.paused = false; this.last = performance.now(); }
 

@@ -422,6 +422,15 @@ to drop in. A player who goes down can be revived by a teammate standing
 next to them. If the whole party goes down, everyone respawns together at
 the current board's starting point after a short delay.
 
+**Menus in co-op:** game menus (pause, world map, quest log, settings) can be
+navigated by anyone. Character menus (inventory, shop, technique tree,
+loadout) belong to the player who opened them, and only that player's
+controller (or the keyboard and mouse, for the keyboard player) can use them.
+Picking Inventory, Technique Tree or Loadout from the pause menu opens the
+menu of whoever pressed the button. **Drop out** in the pause menu (with two
+or more players) takes out whoever pressed it; that controller, or the
+keyboard with **Enter**, can join again later.
+
 Press **F3** to show the corner readout (quality mode, backend, FPS and
 render scale).
 

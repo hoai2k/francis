@@ -105,9 +105,9 @@ export class UI {
     } else if (m.left) this.move(-1, 0);
     else if (m.right) this.move(1, 0);
     if (m.confirm && el) {
+      this.lastConfirmDevice = m.device;   // set before the click so a handler can tell which device pressed it
       if (el.tagName === 'INPUT' && el.type === 'checkbox') { el.checked = !el.checked; el.dispatchEvent(new Event('change', { bubbles: true })); }
       else if (!isRange && !isSelect) { el.click(); }
-      this.lastConfirmDevice = m.device;
     }
     if (m.back && s.opts.onBack) { this.game.audio?.ui('back'); s.opts.onBack(); }
   }

@@ -121,7 +121,7 @@ export function openInstructions(game, onClose) {
         h('li', {}, h('b', {}, 'Gear. '), 'Equip weapons, armour and cursed tools in the inventory, and spend enchantment points on them. Salvage the rest for coins.'),
         h('li', {}, h('b', {}, 'Saving. '), 'The game saves by itself. Pause → Save Code backs up your progress or moves it to another device.'))),
       sec('Playing together',
-        h('p', {}, 'Up to four players share one screen: keyboard + mouse plus controllers. Press ', h('b', {}, 'Start'), ' or ', h('b', {}, 'A'), ' on a controller to join, on the select screen or any time in play. Each player rolls their own technique.'),
+        h('p', {}, 'Up to four players share one screen: keyboard + mouse plus controllers. Press ', h('b', {}, 'Start'), ' or ', h('b', {}, 'A'), ' on a controller to join, on the select screen or any time in play. Each player rolls their own technique. Anyone can use the pause menu, but your inventory, shop, technique tree and loadout answer only to you. Pause → Drop out leaves the game for whoever presses it.'),
         h('p', {}, h('b', {}, 'Touch. '), 'On a phone or tablet, drag on the left to move; the buttons on the right attack, jump, dodge and cast. Landscape works best.')));
     el.appendChild(h('div', { class: 'panel ins-panel', role: 'dialog', 'aria-label': 'How to play', 'aria-modal': 'true' },
       h('h2', {}, 'How to Play'), body,
