@@ -25,6 +25,8 @@
 //   rescue    { anchor, npc: { name, look }, escort?: { anchor, radius = 6 } }   free a captive (hold E), then escort
 //   lair      { chapter } (a story chapter) or { mission: { biome, objective, boss, difficulty }, anchor, label }
 //             enter a curtain/cave: starts the generated dungeon; done when it is cleared
+//   mission   { chapter }   a story chapter in the open world: walking into its district drops
+//             the curtain (world/worldMission.js); done when the chapter is cleared there
 //   enter     {}                                                     reach the region
 //
 // ------------------------------------------------------------------ runtime (game.quests)
@@ -44,6 +46,7 @@ import { rollChest, itemInfo, RARITY } from '../loot.js';
 import { CHAPTERS, chapter, chapterUnlocked, chapterDone, missionDef, arc } from '../story/chapters.js';
 import { REGIONS, routeTo, gateSide, floorAt } from '../world/regions/index.js';
 import { toast, h } from '../ui/ui.js';
+import { maybeStartWorldMission, zoneCenter } from '../world/worldMission.js';
 
 export const QUESTS = {};
 export const QUEST_ORDER = [];
@@ -344,7 +347,7 @@ export class QuestSystem {
   }
   onMissionComplete(def) {
     for (const id of this.active()) {
-      const s = this.current(id); if (s?.type !== 'lair') continue;
+      const s = this.current(id); if (s?.type !== 'lair' && s?.type !== 'mission') continue;
       if ((s.chapter && (def.chapter === s.chapter || def.id === s.chapter)) || (def.quest === id)) this.advance(id);
     }
   }
@@ -357,6 +360,7 @@ export class QuestSystem {
       const q = QUESTS[id], s = this.current(id); if (!s || s.region !== L.regionId) continue;
       // a talk step for a resident who is absent because a player has their technique: their message reaches you anyway
       if (s.type === 'talk' && g.hubNpcs?.hiddenByPlayer?.(s.npc)) { toast(`${q.title}: a message from ${s.npc[0].toUpperCase() + s.npc.slice(1)} reaches you`); this.advance(id); return; }
+      if (s.type === 'mission' && !g.worldMission && maybeStartWorldMission(g, s.chapter)) return;
       if (s.type === 'goto') {
         const a = anchorPos(L, s.anchor ?? s.pos, `${id}:g${s.index}`);
         if (a && Math.hypot(a.x - lead.pos.x, a.z - lead.pos.z) < (s.radius ?? 4)) { this.advance(id); return; }
@@ -420,6 +424,7 @@ export class QuestSystem {
       case 'defeat': { const e = this.spawned.find((o) => o.kind === 'named' && o.quest === id && !o.enemy.dead)?.enemy; return e ? e.pos.clone() : anchorPos(L, s.anchor, `${id}:d`); }
       case 'collect': { const left = this.spawned.filter((o) => o.kind === 'collect' && o.quest === id && !o.done); const lead = this.game.players[0]?.pos; if (!left.length) return null; left.sort((a, b) => (lead ? a.pos.distanceTo(lead) - b.pos.distanceTo(lead) : 0)); return left[0].pos.clone(); }
       case 'rescue': return r?.freed && s.escort ? anchorPos(L, s.escort.anchor, `${id}:e`) : anchorPos(L, s.anchor, `${id}:r`);
+      case 'mission': { const ch = chapter(s.chapter); return ch ? zoneCenter(L, ch) : null; }
       case 'lair': return s.chapter ? anchorPos(L, 'lair_' + s.chapter, `lair:${s.chapter}`) : anchorPos(L, s.anchor ?? ('lair_' + id), `lair:${id}`);
       default: return null;
     }
@@ -427,7 +432,7 @@ export class QuestSystem {
   // Point the tracker at the tracked quest: here, or the gate / station on the way to its region.
   guide(force = false) {
     const g = this.game; if (!g.tracker) return;
-    if (g.mode !== 'world') return;
+    if (g.mode !== 'world' || g.worldMission) return;   // a running world mission drives the tracker itself
     const L = this.L; if (!L) return;
     const id = this.tracked();
     if (!id) { if (force) { g.tracker.clear(); g.hud?.setObjective?.(REGIONS[L.regionId]?.name ?? 'Explore', 'No quest tracked · J: quest log · Tab: map'); } return; }
@@ -446,7 +451,7 @@ export class QuestSystem {
     this.guideKey = key;
     const title = q.kind === 'main' ? `${q.title}` : `◆ ${q.title}`;
     if (!pos) { g.tracker.clear(); g.hud?.setObjective?.(title, where); return; }
-    g.tracker.setGoal({ pos, title, where, radius: 2, beam: s.type !== 'lair', pinY: 4, feet: s.type !== 'defeat' });
+    g.tracker.setGoal({ pos, title, where, radius: 2, beam: s.type !== 'lair' && s.type !== 'mission', pinY: 4, feet: s.type !== 'defeat' });
   }
   // ---------------------------------------------------------------- lairs and map marks
   lairs(regionId) {
@@ -454,7 +459,7 @@ export class QuestSystem {
     for (const id of QUEST_ORDER) {
       const q = QUESTS[id];
       for (const s of q.steps) {
-        if (s.type !== 'lair' || s.region !== regionId) continue;
+        if ((s.type !== 'lair' && s.type !== 'mission') || s.region !== regionId) continue;
         const st = this.state(id);
         if (q.kind === 'main') { if (st === 'locked') continue; }
         else if (st !== 'active' || this.stepIndex(id) !== s.index) continue;
@@ -503,9 +508,10 @@ export class QuestSystem {
       const s = this.current(id); if (!s || s.region !== regionId) continue;
       let p = null;
       if (L) { const v = this.targetIn(id, L); if (v) p = norm(v); }
+      else if (s.type === 'mission') { const c = chapter(s.chapter)?.world?.center; p = c && meta?.size ? [c[0] / meta.size[0], c[1] / meta.size[1]] : anchorNorm('lair_' + s.chapter); }
       else if (s.type === 'lair') p = anchorNorm(s.chapter ? 'lair_' + s.chapter : (s.anchor ?? 'lair_' + id));
       else if (s.anchor) p = anchorNorm(s.anchor);
-      out.push({ kind: s.type === 'lair' ? 'lair' : 'target', quest: id, icon: q.kind === 'main' ? '◆' : '◇', label: `${q.title}: ${this.stepText(id)}`, pos: p, main: q.kind === 'main', tracked: this.tracked() === id });
+      out.push({ kind: s.type === 'lair' || s.type === 'mission' ? 'lair' : 'target', quest: id, icon: q.kind === 'main' ? '◆' : '◇', label: `${q.title}: ${this.stepText(id)}`, pos: p, main: q.kind === 'main', tracked: this.tracked() === id });
     }
     return out;
   }

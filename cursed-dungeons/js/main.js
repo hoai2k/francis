@@ -28,7 +28,7 @@ import { QuestSystem } from './quests/all.js';
 import { openWorldMap } from './ui/worldMap.js';
 import { openQuestLog } from './ui/questLog.js';
 import { Dialogue } from './ui/dialogue.js';
-import { Roaming } from './world/roaming.js';
+import { SpawnDirector } from './world/spawnDirector.js';
 import { installQuestMarkers } from './story/questMarkers.js';
 import { generateLevel } from './world/levelgen.js';
 import { Mission } from './mission.js';
@@ -162,6 +162,7 @@ class Game {
     this.state = 'title';
     this.wipeLeft = 0;
     this.hud.show(false); this.touch?.show(false);
+    this.worldMission?.end();   // a curtain still down (world/worldMission.js) lifts at once
     for (const p of this.players) this.removePlayer(p);
     this.players = [];
     if (this.mode !== 'world' || this.level?.regionId !== START_REGION) this.loadHub();
@@ -338,9 +339,9 @@ class Game {
     });
     // people (and the NPCs quests need here)
     try { this.regionNpcs = new RegionNpcs(this, L, this.quests.npcPosts(L)); const rn = this.regionNpcs; this.addUpdater((dt) => { rn.update(dt); }); } catch (e) { console.warn('region NPCs', e); }
-    // roaming curses in the wild (world/roaming.js)
-    this.roaming = null;
-    if (L.roam?.length) { const roam = this.roaming = new Roaming(this, L); this.addUpdater((dt) => { roam.update(dt); }); }
+    // natural curse spawning: roaming packs, curse nests, world events (world/spawnDirector.js) -> game.spawns
+    this.spawns?.dispose?.(); this.spawns = this.roaming = null;
+    try { const sp = this.spawns = this.roaming = new SpawnDirector(this, L); this.addUpdater((dt) => sp.update(dt)); } catch (e) { console.warn('spawn director', e); }
     // region systems (city crowds, building interiors…): L.onLoad(game, L) from the region build
     try { L.onLoad?.(this, L); } catch (e) { console.warn('region onLoad', e); }
     this.minimap.buildRegion(L);
@@ -375,6 +376,7 @@ class Game {
     this.save.write();
   }
   fastTravel(stationId) {
+    if (this.worldMission) { toast('The curtain is down — finish the mission (or Pause → Abandon mission) first'); return; }
     const region = String(stationId).split(':')[0];
     if (!REGIONS[region]) return;
     if (this.mode === 'world' && this.level?.regionId === region) {
@@ -387,6 +389,7 @@ class Game {
   // Fade out, load a region, fade in (gates, Window stations, leaving a dungeon).
   async travelTo(id, opts = {}) {
     if (this.traveling) return;
+    if (this.worldMission && this.state === 'playing') { toast('The curtain is down — finish the mission (or Pause → Abandon mission) first'); return; }
     this.traveling = true;
     if (this.cutscenes?.active) this.cutscenes.abort();
     this.ui.closeAll();
@@ -646,6 +649,7 @@ class Game {
         h('button', { class: 'btn', onclick: () => { this.ui.close('pause'); this.openPhotoMode(); } }, '📷 Photo Mode'),
         h('button', { class: 'btn', onclick: () => { this.ui.close('pause'); this.paused = false; this.save.write(); this.toTitle(); } }, 'Quit to Title'),
         this.mode === 'mission' ? h('button', { class: 'btn danger', onclick: () => { this.ui.close('pause'); this.paused = false; this.returnToWorld(); } }, 'Abandon mission') : null,
+        this.worldMission ? h('button', { class: 'btn danger', onclick: () => { this.ui.close('pause'); this.paused = false; this.last = performance.now(); this.worldMission?.abandon(); } }, 'Abandon mission (lift the curtain)') : null,
       ));
     }, { dim: true, onBack: () => this.resume() });
   }

@@ -8,6 +8,7 @@
 import { h, toast } from './ui.js';
 import { REGIONS, REGION_IDS, neighbours, regionMeta } from '../world/regions/index.js';
 import { QUESTS } from '../quests/index.js';
+import { openChapterMap } from './chapterMap.js';
 
 const hashN = (s) => { let x = 0; for (let i = 0; i < s.length; i++) x = (x * 31 + s.charCodeAt(i)) >>> 0; return x; };
 
@@ -97,6 +98,7 @@ export function openWorldMap(game, opts = {}) {
         h('span', { class: 'hint', style: 'margin:0' }, 'Tab / View: close · J: quest log'),
         h('div', { class: 'row', style: 'gap:8px' },
           h('button', { class: 'btn', onclick: () => { ui.close('worldmap'); game.openQuestLog?.(); } }, '📜 Quest Log'),
+          game.mode === 'world' && !game.worldMission ? h('button', { class: 'btn', title: 'Story chapters: play the next one or replay a cleared one at a higher threat', onclick: () => { ui.close('worldmap'); openChapterMap(game); } }, '📖 Chapters') : null,
           h('button', { class: 'btn primary', 'data-autofocus': true, onclick: close }, 'Close')))));
     // station focus text
     const infoEl = el.querySelector('.wm-info');

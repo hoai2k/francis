@@ -5,6 +5,7 @@
 import { h, toast } from './ui.js';
 import { QUESTS, QUEST_ORDER } from '../quests/index.js';
 import { REGIONS } from '../world/regions/index.js';
+import { openChapterStart } from './chapterMap.js';
 
 const STATE_LABEL = { active: 'Active', available: 'Available', complete: 'Completed', locked: 'Locked' };
 
@@ -50,9 +51,10 @@ export function openQuestLog(game, opts = {}) {
         h('p', { class: 'cintro' }, q.summary ?? ''),
         st === 'available' && q.giver ? h('p', { class: 'hint' }, `Talk to them in ${REGIONS[q.giver.region]?.name ?? q.giver.region} (look for the gold !).`) : null,
         steps.length ? h('ol', { class: 'ql-steps' }, ...steps) : null,
-        q.kind === 'main' ? h('p', { class: 'hint' }, 'Clearing the chapter\'s dungeon completes this quest. Rewards: coins, XP, 🎲 +2 and loot.') : rewards.length ? h('div', { class: 'ql-rewards' }, h('b', {}, 'Rewards: '), rewards.join(' · ')) : null,
+        q.kind === 'main' ? h('p', { class: 'hint' }, 'A curtain falls over the chapter\'s district when you get there: clear it in the open world to complete this quest. Rewards: coins, XP, 🎲 +2 and loot. Cleared chapters can be replayed at a higher threat.') : rewards.length ? h('div', { class: 'ql-rewards' }, h('b', {}, 'Rewards: '), rewards.join(' · ')) : null,
         h('div', { class: 'row', style: 'gap:8px;margin-top:8px' },
           st === 'active' ? h('button', { class: 'btn primary', 'data-track': true, disabled: tracked === sel, onclick: () => { Q.track(sel); toast(`Tracking: ${q.title}`); ui.refresh('questlog'); } }, tracked === sel ? '◆ Tracked' : '📍 Track') : null,
+          q.kind === 'main' && q.chapter && (st === 'complete' || st === 'active') && game.mode === 'world' && !game.worldMission ? h('button', { class: 'btn', onclick: () => { ui.close('questlog'); openChapterStart(game, q.chapter); } }, st === 'complete' ? '↻ Replay chapter' : '▶ Go now') : null,
           h('button', { class: 'btn', onclick: () => { ui.close('questlog'); game.openWorldMap?.(); } }, '🗾 World Map'))].filter(Boolean));
     };
     for (const id of ids) {

@@ -38,11 +38,23 @@ Play: <https://hoai2k.github.io/francis/cursed-dungeons/>
    next region, or touch a blue **Window station** (窓) to fast travel to
    any station you have found. **Tab / View** opens the **World Map**,
    **J / hold View** the **Quest Log**.
-4. Story chapters are **main quests**: talk to the chapter's briefer in
-   the right region, then walk into its **curtain** (a black dome with
-   the chapter's card over it) to start the dungeon. In a dungeon, complete the objective (exorcise the curses, rescue the
-   students, or seal the cursed objects). That opens the boss arena. Beat
-   the Special Grade boss, loot its chest, and leave through the torii.
+4. Story chapters are **main quests**, and they play out **in the open
+   world**: talk to the chapter's briefer in the right region, then walk
+   into the district the tracker points at (the chapter's card floats
+   over it). A **curtain** (帳, a black barrier dome) pours down over the
+   real streets, woods or station around you, and it is night inside.
+   Complete the objective on the spot — exorcise the curses that swarm
+   the landmarks, free the people caged near them, or seal the cursed
+   objects at their altars (each one wakes a pack of curses) — and the
+   Special Grade rises at the district's arena. Beat it for its chest,
+   the chapter's rewards and a results panel; then the curtain cracks and
+   lifts. Nobody crosses the curtain while it is down (gates and Window
+   stations are shut); dying puts you back at its edge with the mission
+   kept, and **Pause → Abandon mission** lifts it (walk back in to retry).
+   Cleared chapters can be replayed at a higher threat (quest log, the
+   World Map's 📖 Chapters, Ijichi's mission map), and each leaves a
+   **Cursed Lair** at its spot: the chapter's old generated dungeon,
+   optional, for loot.
 5. The game **saves automatically** (every 15 seconds, on every purchase,
    level-up and chest, and when you leave the page). **Pause → 💾 Save
    Game** saves right away. **Save Code** (pause menu or title screen)
@@ -130,6 +142,19 @@ Nine regions, each a big streamed voxel map, joined by gates on the roads
   travel. Health carries over through gates.
 - Towns, camps and the school are behind barriers: roaming curses burn
   away at the line.
+- **Curses in the wild**: packs of curses roam every region outside the
+  safe zones — patrolling between points, lurking in alleys and woods,
+  gathering at landmarks — themed by region, and there are more of them,
+  in bigger packs and of higher grades, at night. They rise out of the
+  ground out of sight and fade away once you are far off.
+- **Curse nests** (☠ on the map): a pack guarding a cursed object. Defeat
+  the guardians (the object is shielded while they live), break the object
+  for loot; the nest festers again after a while.
+- **World events**, announced with a toast, a red beam and a ping:
+  *A curse is attacking civilians!* (Shibuya, Shinjuku), *A curtain has
+  descended* (step inside and survive three waves), *Special Grade
+  sighting* (a named elite roams the region), *A cursed womb is hatching*
+  (break it before it hatches) and, in the colonies, *rival players raid*.
 
 ### The cities
 
@@ -490,7 +515,7 @@ canvas), converging to 512 samples. **Save PNG** downloads the result.
 - `js/main.js`: boot, game states and the main loop
 - `js/gfx/`: renderer and quality tiers, materials, textures, particles, effects, lights, debris
 - `js/story/`: cutscene engine and cutscenes, story chapters, quest markers
-- `js/world/`: Jujutsu High (`jujutsuHigh.js`), voxel world (chunk streaming), blocks, biomes, building kit, room templates, level generator, roaming curses
+- `js/world/`: Jujutsu High (`jujutsuHigh.js`), voxel world (chunk streaming), blocks, biomes, building kit, room templates, level generator, natural curse spawning (`spawnDirector.js`: packs and nests; `worldEvents.js`; `cursedObject.js`)
 - `js/world/regions/`: the open-world regions: the registry (`index.js`), the region builder toolkit (`common.js`), one file per region, `all.js`
 - `js/quests/`: the quest system (`index.js`), main quests from the chapters (`main.js`), side quests (`side.js`)
 - `js/world/cullingGame.js`: the Culling Game (colony barriers, Kogane, points, hostile players, rules, colony events); `js/world/regionRuntime.js`: region load hooks and world loot chests; `js/quests/colonies.js`: the colonies' side quests

@@ -68,7 +68,8 @@ export class Minimap {
     const disc = new Set(Object.keys(g.save.data.world?.stations ?? {}));
     for (const s of L.stations ?? []) { if (!s.pos) continue; const [px, py] = P(s.pos); upright(px, py, () => { ctx.fillStyle = disc.has(s.id) ? '#6ad8ff' : '#456'; ctx.strokeStyle = '#0a1420'; ctx.lineWidth = 2; ctx.fillRect(-5, -5, 10, 10); ctx.strokeRect(-5, -5, 10, 10); }); }
     for (const gt of L.gates ?? []) if (gt.pos) glyph(gt.pos, '⇧', '#ffd27a', full ? 16 : 13);
-    if (full) for (const p of L.pois ?? []) glyph(p.pos, p.icon ?? '◆', '#fff', 14);
+    if (full) for (const p of L.pois ?? []) if (p.kind !== 'nest') glyph(p.pos, p.icon ?? '◆', '#fff', 14);
+    for (const m of g.spawns?.L === L ? g.spawns.mapMarks() : []) glyph(m.pos, m.icon, m.color, full ? 15 : 12);   // live curse nests and world events (spawnDirector.js)
     for (const e of g.enemies) if (!e.dead && !e.isDummy) { const [px, py] = P(e.pos); if (!full && Math.hypot(px - cw / 2, py - ch / 2) > cw / 2) continue; ctx.fillStyle = e.questTag ? '#ff3a3a' : '#d8406a'; ctx.beginPath(); ctx.arc(px, py, e.questTag ? 3.5 : 2, 0, Math.PI * 2); ctx.fill(); }
     const marks = g.quests?.mapMarks(L.regionId, { size: [w.sx, w.sz] }) ?? [];
     for (const m of marks) { if (!m.pos) continue; const v = { x: m.pos[0] * w.sx, z: m.pos[1] * w.sz }; glyph(v, m.kind === 'giver' ? '!' : '◆', m.kind === 'giver' ? '#ffd84a' : m.tracked ? '#ffd84a' : m.main ? '#ffb84a' : '#b8a0ff', m.kind === 'giver' ? 16 : 14); }

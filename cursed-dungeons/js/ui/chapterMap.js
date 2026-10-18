@@ -7,6 +7,7 @@ import { h, toast } from './ui.js';
 import { ARCS, CHAPTERS, BOSS_NAMES, OBJECTIVES, chaptersOf, chapter, arc, chapterUnlocked, chapterDone, chapterPrev, nextChapter, missionDef, gradeName } from '../story/chapters.js';
 import { BIOMES } from '../world/biomes.js';
 import { REGIONS } from '../world/regions/index.js';
+import { startWorldMission, lairDef } from '../world/worldMission.js';
 
 export const THREATS = [['Standard', 'The grade the chapter was written for.'], ['Hard', 'One grade tougher: +1 grade.'], ['Nightmare', 'Two grades tougher: +2 grades.']];
 // card backdrops per biome: [top, bottom, accent]
@@ -35,7 +36,14 @@ function startChapter(game, ch, threat) {
   if (!chapterUnlocked(d, ch)) { toast(`Finish "${chapterPrev(ch)?.title}" first`); game.audio?.ui('back'); return; }
   d.lastThreat = threat; game.save.write();
   game.ui.closeAll(); game.paused = false;
-  game.startMission(missionDef(ch, threat));
+  // the chapter plays out in the open world, under a curtain over its district (world/worldMission.js)
+  startWorldMission(game, ch, threat);
+}
+// A cleared chapter's optional Cursed Lair: its old generated dungeon, for loot.
+function enterCursedLair(game, ch, threat) {
+  if (game.worldMission) { toast('Finish (or abandon) the mission you are in first'); return; }
+  game.ui.closeAll(); game.paused = false;
+  game.startMission(lairDef(ch, threat));
 }
 
 // facts list for a chapter (goal, boss, place, threat)
@@ -46,7 +54,7 @@ function facts(ch, threat) {
     h('dt', {}, 'Boss'), h('dd', { style: `color:${BOSS_NAMES[ch.boss]?.color ?? '#fff'}` }, bossLabel(ch.boss)),
     h('dt', {}, 'Area'), h('dd', {}, `${BIOMES[ch.biome]?.name ?? ch.biome} · ${ch.place}`),
     h('dt', {}, 'Threat'), h('dd', {}, gradeName(ch.difficulty + threat)),
-    h('dt', {}, 'Curtain'), h('dd', {}, `In ${REGIONS[ch.region]?.name ?? 'Jujutsu High'}${ch.giver?.name || ch.giver?.npc ? ` · briefing: ${ch.giver.name ?? ch.giver.npc[0].toUpperCase() + ch.giver.npc.slice(1)}` : ''}`));
+    h('dt', {}, 'Curtain'), h('dd', {}, `Falls over ${ch.place} in ${REGIONS[ch.region]?.name ?? 'Jujutsu High'}${ch.giver?.name || ch.giver?.npc ? ` · briefing: ${ch.giver.name ?? ch.giver.npc[0].toUpperCase() + ch.giver.npc.slice(1)}` : ''}`));
 }
 function threatPicker(cur, onPick) {
   return h('div', { class: 'diffs', role: 'radiogroup', 'aria-label': 'Threat' }, ...THREATS.map(([n, tip], i) =>
@@ -136,7 +144,8 @@ export function openChapterStart(game, id) {
       threatPicker(threat, (i) => { threat = i; game.ui.refresh('quest'); }),
       h('div', { class: 'row', style: 'justify-content:center;margin-top:12px' },
         h('button', { class: 'btn', onclick: close }, 'Not yet'),
-        h('button', { class: 'btn primary', 'data-autofocus': true, onclick: () => startChapter(game, ch, threat) }, done ? '↻ Play again' : '▶ Begin'))));
+        done ? h('button', { class: 'btn', title: 'The chapter\'s old dungeon, for loot', onclick: () => enterCursedLair(game, ch, threat) }, '🕳 Cursed Lair') : null,
+        h('button', { class: 'btn primary', 'data-autofocus': true, onclick: () => startChapter(game, ch, threat) }, done ? '↻ Replay chapter' : '▶ Begin'))));
   }, { dim: true, onBack: close });
 }
 

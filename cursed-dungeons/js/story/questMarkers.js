@@ -1,16 +1,20 @@
-// Quest markers in the open world: every main-quest chapter whose curtain
-// (lair) is in the loaded region gets a dark curtain dome at its
-// 'lair_<id>' anchor with the chapter's card floating over it (gold and lit
-// for the next chapter, blue for cleared ones you can replay); side quests
-// with an active lair step get a cave mouth / curtain too. Walk up and
+// Quest markers in the open world: every open main-quest chapter in the
+// loaded region gets a small curtain dome at the centre of its mission
+// district (world/worldMission.js zoneCenter) with the chapter's card over it
+// (gold and lit for the next chapter); walking into the district drops the
+// real curtain. A cleared chapter leaves a Cursed Lair at its 'lair_<id>'
+// anchor instead (a cave mouth with a blue card): its panel replays the
+// chapter in the world or enters the old generated dungeon for loot. Side
+// quests with an active lair step get a cave mouth / curtain too. Walk up and
 // interact: a chapter opens its start panel (ui/chapterMap.js), a side lair
-// its own (quests/index.js). game.quests drives what is shown; the tracker
+// its own (quests/index.js). Hidden while a world mission's curtain is down. game.quests drives what is shown; the tracker
 // is pointed by game.quests.guide().
 //   installQuestMarkers(game, L) -> { markers, refresh(), guide() }
 import * as THREE from 'three/webgpu';
 import { CHAPTERS, chapter, arc, chapterUnlocked, chapterDone, nextChapter } from './chapters.js';
 import { openChapterStart } from '../ui/chapterMap.js';
 import { anchorPos, QUESTS } from '../quests/index.js';
+import { zoneCenter } from '../world/worldMission.js';
 
 // nearest floor with 3 blocks of clear air over a 3x3 footprint
 function findSpot(world, want) {
@@ -51,7 +55,7 @@ function cardTexture(ch, state) {
   lines.push(line.trim());
   for (const l of lines.slice(0, 2)) { c.fillText(l, 84, y); y += 26; }
   c.fillStyle = col; c.font = 'bold 15px "Pixelify Sans", sans-serif';
-  c.fillText(state === 'done' ? '✔ CLEARED · REPLAY' : state === 'next' ? '▶ NEXT CHAPTER' : 'OPEN', 16, 128);
+  c.fillText(state === 'done' ? '✔ CURSED LAIR · REPLAY' : state === 'next' ? '▶ NEXT CHAPTER' : 'OPEN', 16, 128);
   const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
   return t;
 }
@@ -80,12 +84,14 @@ export function installQuestMarkers(game, L) {
   const build = () => {
     clear();
     const d = game.save.data;
-    const lairs = game.quests?.lairs(L.regionId) ?? [];
+    const lairs = game.worldMission ? [] : (game.quests?.lairs(L.regionId) ?? []);
     const used = [];
-    for (const lair of lairs) {
+    for (let lair of lairs) {
       const ch = lair.chapter ? chapter(lair.chapter) : null;
       if (ch && !chapterUnlocked(d, ch)) continue;
-      let want = anchorPos(L, lair.anchor, lair.salt); if (!want) continue;
+      const cleared = ch ? chapterDone(d, ch) : false;
+      if (ch) lair = { ...lair, kind: cleared ? 'cave' : 'curtain' };
+      let want = ch && !cleared ? zoneCenter(L, ch) : anchorPos(L, lair.anchor, lair.salt); if (!want) continue;
       for (let k = 0; k < 6 && used.some((u) => Math.hypot(u.x - want.x, u.z - want.z) < 4); k++) want = want.clone().add(new THREE.Vector3(Math.cos(k * 2.1) * 4, 0, Math.sin(k * 2.1) * 4));
       const pos = findSpot(world, want) ?? want;
       used.push(pos);
@@ -120,7 +126,7 @@ export function installQuestMarkers(game, L) {
         rim.scale.setScalar(1 + Math.sin(t * 3) * 0.03);
         return grp.parent != null && game.world === world;
       });
-      const label = ch ? `Chapter ${ch.num}: ${ch.title}${done ? ' ✔ (replay)' : ''}` : `Enter: ${lair.label ?? QUESTS[lair.quest]?.title}`;
+      const label = ch ? (done ? `Cursed Lair · ${ch.place} (dungeon / replay chapter ${ch.num})` : `Chapter ${ch.num}: ${ch.title}`) : `Enter: ${lair.label ?? QUESTS[lair.quest]?.title}`;
       game.interactables.push({ id: 'lair-' + (ch?.id ?? lair.quest), pos: pos.clone(), radius: R + 1.2, label,
         action: () => { game.returnPoint = { region: L.regionId, pos: pos.clone().add(new THREE.Vector3(0, 0, R + 1.6)) }; if (ch) openChapterStart(game, ch.id); else game.quests?.openLairPanel(lair); } });
       markers.push({ ch, lair, pos, group: grp, state, light });

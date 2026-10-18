@@ -16,6 +16,7 @@
 //   R.anchor('lair_m5', 128, 140);  R.poi('crossing', 'Scramble Crossing', '🚦', 128, 128);
 //   R.person({ id: 'old_man', name: 'Old Man', look: 'npc_civ_2', x: 120, z: 126, lines: [['Hello!']] });
 //   R.roamZone(0, 0, 80, 255, { kinds: ['swarmer', 'spitter'] });  R.safeZone(100, 100, 150, 150);
+//   R.nest(60, 200, { kinds: ['swarmer', 'spitter'], size: 4 });       a curse nest (spawnDirector.js)
 //   // 4. finish: builds the gates/stations, edges, lights -> the level object L
 //   return R.finish({ spawn: [128, 130] });
 //
@@ -179,6 +180,9 @@ export class RegionBuilder {
   person(p) { this.people.push({ pose: 'idle', yaw: 0, ...p }); return this; }
   roamZone(x0, z0, x1, z1, o = {}) { this.roam.push({ x0, z0, x1, z1, ...o }); return this; }
   safeZone(x0, z0, x1, z1) { this.safe.push({ x0, z0, x1, z1 }); return this; }
+  // A curse nest (world/spawnDirector.js): a guardian pack round a cursed object to break.
+  // o: { kinds: [...], size: 4, level, name, id }. Regions without any get a few auto-placed.
+  nest(x, z, o = {}) { (this.nests ??= []).push({ id: o.id ?? 'n' + this.nests.length, x, z, kinds: o.kinds ?? null, size: o.size ?? 4, level: o.level ?? null, name: o.name ?? null }); return this; }
 
   // ---------------------------------------------------------------- terrain
   // o.fn(x, z) natural height (default: rolling fbm hills around base, amp/scale);
@@ -601,7 +605,7 @@ export class RegionBuilder {
       world: this.world, deco: this.deco, shafts: this.shafts, kit: this.kit,
       biome: o.biome ?? this.def.biome, sunOffset: o.sunOffset ?? null,
       spawn, gates: this.gates, stations: this.stations, pois, anchors, people, lairs: this.lairs,
-      roam: this.roam, safe: this.safe,
+      roam: this.roam, safe: this.safe, nests: this.nests ?? [],
       roads: this.plan.roads.map((r) => r.pts),
       rivers: this.plan.rivers.map((r) => r.pts),
       groundAt: (x, z) => Math.round(H[Math.max(0, Math.min(sz - 1, Math.floor(z))) * sx + Math.max(0, Math.min(sx - 1, Math.floor(x)))]),

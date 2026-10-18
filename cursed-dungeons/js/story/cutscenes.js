@@ -322,18 +322,20 @@ function missionDef(id) {
     id: 'mission_' + id, title: M?.name ?? 'Mission',
     build(game) {
       const L = game.level, mis = game.mission;
-      if (!L?.rooms?.length) return { shots: [] };
+      // an in-world mission (world/worldMission.js): the curtain falls over its district
+      const WZ = mis?.isWorld ? mis.Z : null;
+      if (!WZ && !L?.rooms?.length) return { shots: [] };
       const def = mis?.def ?? M ?? {};
       const B = BRIEF[id] ?? { who: 'Ijichi', color: IJICHI, a: def.desc ?? 'Curses reported in the area.', b: OBJ_LINE[def.objective] ?? 'Exorcise them.' };
-      const r0 = L.rooms[0], r1 = L.rooms[1] ?? r0, boss = L.bossRoom ?? L.rooms[L.rooms.length - 1];
-      const c0 = r0.center.clone(), c1 = r1.center.clone(), cb = boss.center.clone();
+      const r0 = WZ ? null : L.rooms[0], r1 = WZ ? null : (L.rooms[1] ?? r0), boss = WZ ? null : (L.bossRoom ?? L.rooms[L.rooms.length - 1]);
+      const c0 = WZ ? WZ.center.clone() : r0.center.clone(), c1 = WZ ? (WZ.spots[0]?.pos ?? WZ.arena.pos).clone() : r1.center.clone(), cb = WZ ? WZ.arena.pos.clone() : boss.center.clone();
       const d = V(c1.x - c0.x, 0, c1.z - c0.z); if (d.lengthSq() < 1) d.set(0, 0, -1); d.normalize();
       const sd = V(d.z, 0, -d.x);
       const end = gameplayPose(game);
       const idx = MISSIONS.findIndex((m) => m.id === id);
-      const biome = L.biome ?? {};
+      const biome = WZ ? { name: def.place ?? '', sub: '' } : (L.biome ?? {});
       // the curtain (veil): a dark dome that falls over the area
-      const R = 46;
+      const R = WZ ? WZ.r : 46;
       const veil = new THREE.Mesh(new THREE.SphereGeometry(R, 40, 20, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshBasicNodeMaterial({ color: 0x05030a, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false }));
       veil.material.fog = false; veil.position.copy(c0).setY(c0.y + R * 1.4); veil.renderOrder = 5; game.scene.add(veil);
       const rim = new THREE.Mesh(new THREE.TorusGeometry(R, 0.25, 6, 96), new THREE.MeshBasicNodeMaterial({ color: new THREE.Color(0x9a6aff).multiplyScalar(3), transparent: true, opacity: 0.8, depthWrite: false }));
