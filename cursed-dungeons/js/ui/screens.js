@@ -4,7 +4,7 @@ import * as THREE from 'three/webgpu';
 import { h, toast } from './ui.js';
 import { toggleFullscreen } from './fullscreen.js';
 import { openSettings } from './settingsScreen.js';
-import { SORCERERS, SORCERER_IDS, SKILL_TREES, RARITIES, RARITY_ORDER, rollTechnique, techniqueOdds, UNLOCK_IDS } from '../sorcerers/index.js';
+import { SORCERERS, SORCERER_IDS, RARITIES, RARITY_ORDER, rollTechnique, techniqueOdds } from '../sorcerers/index.js';
 import { ITEM_BY_ID, RARITY, ENCHANTS, itemInfo, salvageValue, itemPrice, rollItem } from '../loot.js';
 import { BIOMES } from '../world/biomes.js';
 import { PLAYER_COLORS } from '../entities/player.js';
@@ -12,6 +12,9 @@ import { isMobile } from '../util.js';
 import { CHAPTERS, nextChapter, arc } from '../story/chapters.js';
 import { openChapterMap } from './chapterMap.js';
 import { openInstructions } from './instructions.js';
+import { REGIONS } from '../world/regions/index.js';
+import { openTechniqueTree } from './techniqueTree.js';
+import { openLoadout } from './loadout.js';
 
 // ------------------------------------------------------------------ title
 export function openTitle(game) {
@@ -21,9 +24,9 @@ export function openTitle(game) {
     el.appendChild(h('div', { class: 'title-wrap' },
       h('div', { class: 'logo' }, 'CURSED', h('span', {}, 'DUNGEONS')),
       h('div', { class: 'tag' }, 'A Jujutsu Kaisen dungeon crawler · Level ' + save.level + ' · ◆ ' + save.coins),
-      (() => { const n = nextChapter(save), A = n && arc(n.arc); return h('div', { class: 'title-story' }, n ? `Next · Arc ${A.num}: ${A.title} · Chapter ${n.num}: ${n.title}` : 'Story complete · replay any chapter on a higher threat'); })(),
+      (() => { const n = nextChapter(save), A = n && arc(n.arc), R = REGIONS[save.world?.returnTo?.region ?? save.world?.region]; return h('div', { class: 'title-story' }, (R ? `${R.icon} ${save.world?.returnTo ? 'In a dungeon in' : 'In'} ${R.name} · ` : '') + (n ? `Next · Arc ${A.num}: ${A.title} · Chapter ${n.num}: ${n.title}` : 'Story complete · replay any chapter on a higher threat')); })(),
       h('div', { class: 'title-menu' },
-        h('button', { class: 'btn primary', 'data-autofocus': true, onclick: () => { ui.close('title'); openSelect(game); } }, save.stats.missions || save.technique ? 'Continue' : 'Play'),
+        h('button', { class: 'btn primary', 'data-autofocus': true, onclick: () => { ui.close('title'); openSelect(game); } }, save.stats.missions || save.technique || save.world?.region ? 'Continue' : 'Play'),
         h('button', { class: 'btn', onclick: () => openInstructions(game) }, 'How to Play'),
         h('button', { class: 'btn', onclick: () => openSettings(game) }, 'Settings'),
         h('button', { class: 'btn', onclick: () => toggleFullscreen() }, '⛶ Fullscreen'),
@@ -242,31 +245,11 @@ export function openInventory(game, player) {
   }, { dim: true, onBack: close });
 }
 
-// ------------------------------------------------------------------ skill tree
-export function openSkills(game, player) {
-  const ui = game.ui, save = game.save;
-  const sid = player.sorcerer, tree = SKILL_TREES[sid] ?? [];
-  game.paused = true;
-  const close = () => { ui.close('skills'); game.paused = false; };
-  ui.open('skills', (el) => {
-    const S = save.sorc(sid);
-    const cards = tree.map((sk) => {
-      const r = S.skills[sk.id] ?? 0;
-      const locked = sk.req && !(S.skills[sk.req] > 0);
-      const slotName = sk.slot ? player.kit.slots[sk.slot]?.name : sk.id === 'unlock_domain' ? (player.kit.domain?.name ?? player.kit.ultimate?.name) : null;
-      const unlock = UNLOCK_IDS.has(sk.id) && sk.id.startsWith('unlock_');
-      return h('button', { class: 'skill' + (locked ? ' locked' : '') + (unlock ? ' unlock' + (r ? '' : ' todo') : ''), style: 'text-align:left', onclick: () => {
-        if (locked || r >= sk.max || S.skillPoints <= 0) { game.audio?.ui('back'); return; }
-        S.skills[sk.id] = r + 1; S.skillPoints--; save.write(); player.refreshLoadout(); game.audio?.levelUp(); ui.refresh('skills');
-      } }, h('div', { class: 'sn' }, sk.name + (slotName ? ` · ${slotName}` : '')), h('div', { class: 'sd' }, sk.desc + (locked ? ` (requires ${tree.find((t) => t.id === sk.req)?.name})` : '')), h('div', { class: 'pips' }, '◆'.repeat(r) + '◇'.repeat(sk.max - r)));
-    });
-    el.appendChild(h('div', { class: 'panel', style: 'width:min(820px,97vw)' },
-      h('h2', {}, `Technique Tree · ${SORCERERS[sid].technique ?? SORCERERS[sid].name}`),
-      h('div', { class: 'hint', style: 'margin:0 0 8px' }, `Technique points: ${S.skillPoints} · +2 per level · start with your first technique and unlock the rest, RCT and your Domain here`),
-      h('div', { class: 'tree' }, ...cards),
-      h('div', { class: 'row', style: 'justify-content:flex-end;margin-top:10px' }, h('button', { class: 'btn', 'data-autofocus': true, onclick: close }, 'Close'))));
-  }, { dim: true, onBack: close });
-}
+// ------------------------------------------------------------------ technique tree / loadout
+// The branching technique tree lives in ui/techniqueTree.js and the
+// ability loadout in ui/loadout.js.
+export function openSkills(game, player) { openTechniqueTree(game, player); }
+export { openLoadout };
 
 // ------------------------------------------------------------------ shop
 export function openShop(game, player) {

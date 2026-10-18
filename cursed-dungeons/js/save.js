@@ -20,6 +20,10 @@ function fresh() {
     treeV2: true,
     stats: { kills: 0, missions: 0, deaths: 0, domains: 0 },
     shop: null,
+    // the open world: current region and position, discovered regions and Window
+    // stations, what the world map knows of each region, the dungeon to return from
+    world: { region: null, pos: null, discovered: {}, stations: {}, meta: {}, returnTo: null },
+    quests: { st: {}, tracked: null },   // quests/index.js (main quests read `completed`)
   };
 }
 
@@ -34,6 +38,13 @@ function migrate(d) {
     d.treeV2 = true;
     if (d.spins == null) d.spins = 10;
   }
+  // Open world (Cursed Dungeons II): old saves start at Jujutsu High with every
+  // cleared chapter still cleared (main quests read `completed`).
+  d.world ??= {};
+  d.world.discovered ??= {}; d.world.stations ??= {}; d.world.meta ??= {};
+  if (d.world.region === undefined) d.world.region = null;
+  d.quests ??= { st: {}, tracked: null };
+  d.quests.st ??= {};
   return d;
 }
 
@@ -49,6 +60,7 @@ export class Save {
   // Returns false when the browser blocks storage (private mode, full disk);
   // the pause menu then offers a save code instead.
   write() {
+    try { this.beforeWrite?.(); } catch (e) { /* never block a save */ }
     this.data.savedAt = Date.now();
     try { localStorage.setItem(KEY, JSON.stringify(this.data)); this.ok = true; } catch (e) { this.ok = false; }
     return this.ok;

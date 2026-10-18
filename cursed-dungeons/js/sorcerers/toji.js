@@ -17,7 +17,7 @@
 //        Inverted Spear of Heaven: its technique is nullified, a normal curse
 //        dies outright and a boss takes a massive wound. A short rampage follows.
 import * as THREE from 'three/webgpu';
-import { Kit } from './kit.js';
+import { Kit, ability, passive } from './kit.js';
 import { registerKit, registerSorcerer } from './index.js';
 import { registerLook } from '../entities/models.js';
 import { B } from '../world/blocks.js';
@@ -81,12 +81,12 @@ registerLook('toji', {
 });
 
 export const TOJI_SKILLS = [
-  { id: 'spear', name: 'Inverted Spear', desc: 'The spear dash reaches further and stabs harder.', max: 3 },
-  { id: 'chain', name: 'Thousand Miles', desc: 'Wider chain sweep and a stronger pull.', max: 2 },
-  { id: 'cloud', name: 'Playful Cloud', desc: 'Every staff blow hits harder.', max: 3 },
-  { id: 'katana', name: 'Split Soul', desc: 'The katana cuts deeper into tough curses.', max: 3, req: 'spear' },
-  { id: 'physique', name: 'Heavenly Body', desc: '+20 max HP and +5% speed per rank.', max: 3 },
-  { id: 'instinct', name: 'Hunter\'s Instinct', desc: 'Kills fill the meter faster; Sorcerer Killer cuts down more curses and its rampage lasts longer.', max: 2 },
+  { id: 'spear', name: 'Inverted Spear', icon: '🗡️', desc: 'The spear dash reaches further and stabs harder; Spear Throw and Run Through hit harder.', max: 3, branch: 'Spear', tier: 1, req: 'ab:spear' },
+  { id: 'chain', name: 'Thousand Miles', icon: '⛓️', desc: 'Wider chain sweeps and a stronger pull.', max: 2, branch: 'Chain', tier: 3, req: 'ab:chain' },
+  { id: 'cloud', name: 'Playful Cloud', icon: '🥢', desc: 'Every staff blow hits harder.', max: 3, branch: 'Arsenal', tier: 3, req: 'ab:cloud' },
+  { id: 'katana', name: 'Split Soul', icon: '⚔️', desc: 'The katana cuts deeper into tough curses.', max: 3, branch: 'Arsenal', tier: 4, req: 'ab:katana' },
+  { id: 'physique', name: 'Heavenly Body', icon: '🫀', desc: '+20 max HP and +5% speed per rank.', max: 3, branch: 'Body', tier: 0 },
+  { id: 'instinct', name: 'Hunter\'s Instinct', icon: '🐆', desc: 'Kills fill the meter faster; Sorcerer Killer cuts down more curses and its rampage lasts longer.', max: 2, branch: 'Hunter', tier: 0 },
 ];
 
 class TojiKit extends Kit {
@@ -108,11 +108,47 @@ class TojiKit extends Kit {
       { style: 'uppercut', dur: 0.34, windup: 0.3, strike: 0.5, dmg: 19, range: 2.7, arc: 1.0, lunge: 6, knock: 5, stop: 0.07, shake: 0.24, trail: GREEN, launch: true, chainAt: 0.6 },
       { style: 'slam', dur: 0.5, windup: 0.4, strike: 0.6, dmg: 34, range: 3.5, arc: Math.PI, lunge: 5, knock: 13, stop: 0.1, shake: 0.5, ring: true, ringColor: GREEN, stagger: 0.7, trail: SILVER },
     ];
-    this.slots = {
-      ranged: this.ability({ name: 'Inverted Spear', icon: '🗡️', cd: 1.4, ce: 0, use: () => this.spear() }),
-      t1: this.ability({ name: 'Thousand Miles', icon: '⛓️', cd: 5, ce: 0, use: () => this.chain() }),
-      t2: this.ability({ name: 'Playful Cloud', icon: '🥢', cd: 8, ce: 0, use: () => this.cloud() }),
-      t3: this.ability({ name: 'Split Soul', icon: '⚔️', cd: 12, ce: 0, use: () => this.katana() }),
+    // Every one of Toji's abilities is a cursed tool or a physical feat: none
+    // of them costs anything (he has no cursed energy to spend). The CE bar is
+    // the Hunter's Instinct meter, filled only by hits and kills.
+    this.branches = ['Spear', 'Chain', 'Arsenal', 'Body', 'Hunter'];
+    this.library = {
+      // ---- Inverted Spear of Heaven
+      spear: ability({ name: 'Inverted Spear of Heaven', icon: '🗡️', kind: 'basic', desc: 'Dash-stab through a line of curses. The spear nullifies techniques: shields and guards don\'t matter.', cd: 1.4, ce: 0, branch: 'Spear', tier: 0, start: true, legacy: 'ranged', use: () => this.spear() }),
+      spear_throw: ability({ name: 'Spear Throw', icon: '🎯', kind: 'technique', desc: 'Hurl the Inverted Spear on its chain through a long line of curses, cancelling their attacks, then yank it back and drag them in.', cd: 5, ce: 0, branch: 'Spear', tier: 1, req: 'spear', use: () => this.spearThrow() }),
+      nullify: ability({ name: 'Nullifying Thrust', icon: '🚫', kind: 'technique', desc: 'Close in and drive the spear into a curse: its technique is forcibly cancelled and it is pinned in place.', cd: 9, ce: 0, branch: 'Spear', tier: 2, req: 'spear_throw', use: () => this.nullify() }),
+      run_through: ability({ name: 'Run Through', icon: '☄️', kind: 'technique', desc: 'The thrust that pierced Infinity: a line is marked, then Toji charges down it, running every curse on it through.', cd: 18, ce: 0, branch: 'Spear', tier: 4, req: 'nullify', use: () => this.runThrough() }),
+      // ---- Chain of a Thousand Miles
+      chain: ability({ name: 'Chain of a Thousand Miles', icon: '⛓️', kind: 'technique', desc: 'The spear whirls on its endless chain, sweeping a huge circle and dragging curses in.', cd: 5, ce: 0, branch: 'Chain', tier: 1, legacy: 't1', use: () => this.chain() }),
+      chain_snare: ability({ name: 'Chain Snare', icon: '🪝', kind: 'technique', desc: 'Lash the chain around a curse and yank it to your feet, stunned. Against something too big to move, the chain pulls you to it instead.', cd: 6, ce: 0, branch: 'Chain', tier: 2, req: 'chain', use: () => this.chainSnare() }),
+      chain_swing: ability({ name: 'Chain Swing', icon: '🧗', kind: 'movement', desc: 'Hook the chain ahead and haul yourself along it, bowling over anything in the way.', cd: 5, ce: 0, branch: 'Chain', tier: 2, req: 'chain', use: () => this.chainSwing() }),
+      endless_chain: ability({ name: 'Endless Chain', icon: '🌀', kind: 'technique', desc: 'Keep the chain spinning for 3s: a wide ring of steel around you that shreds every curse it passes. You can move while it spins.', cd: 14, ce: 0, branch: 'Chain', tier: 3, req: 'chain_snare', use: () => this.endlessChain() }),
+      // ---- the arsenal in the Inventory Curse
+      pistol: ability({ name: 'Handgun', icon: '🔫', kind: 'basic', desc: 'A plain pistol from the Inventory Curse — fast, precise shots with a high critical chance.', cd: 0.55, ce: 0, branch: 'Arsenal', tier: 1, req: 'spear', use: () => this.pistol() }),
+      knives: ability({ name: 'Throwing Knives', icon: '🔪', kind: 'basic', desc: 'A fan of five knives that cut through curses.', cd: 1.3, ce: 0, branch: 'Arsenal', tier: 2, req: 'pistol', use: () => this.knives() }),
+      cloud: ability({ name: 'Playful Cloud', icon: '🥢', kind: 'technique', desc: 'A six-blow three-section-staff flurry ending in a crushing smash. Its power is the wielder\'s strength.', cd: 8, ce: 0, branch: 'Arsenal', tier: 2, legacy: 't2', req: 'pistol', use: () => this.cloud() }),
+      cloud_smash: ability({ name: 'Skull Breaker', icon: '🔨', kind: 'technique', desc: 'Leap and bring Playful Cloud down where you aim (the spot is marked): a crater that stuns everything in it.', cd: 10, ce: 0, branch: 'Arsenal', tier: 3, req: 'cloud', use: () => this.cloudSmash() }),
+      katana: ability({ name: 'Split Soul Katana', icon: '⚔️', kind: 'technique', desc: 'Blink to a curse and cut its soul — ignores armor, scales with the target\'s toughness.', cd: 12, ce: 0, branch: 'Arsenal', tier: 3, legacy: 't3', req: 'cloud', use: () => this.katana() }),
+      arsenal: ability({ name: 'Arsenal Spill', icon: '🐛', kind: 'technique', desc: 'The Inventory Curse disgorges its whole hoard: three volleys of blades in a cone, then the spear itself.', cd: 16, ce: 0, branch: 'Arsenal', tier: 4, req: 'katana', use: () => this.arsenalSpill() }),
+      // ---- the Heavenly Restriction body
+      speed_dash: ability({ name: 'Heavenly Speed', icon: '💨', kind: 'movement', desc: 'Move faster than the eye can follow: a long, invulnerable dash that leaves afterimages.', cd: 3.5, ce: 0, branch: 'Body', tier: 1, use: () => this.speedDash() }),
+      kick: ability({ name: 'Flying Kick', icon: '🦶', kind: 'technique', desc: 'A leaping kick that blasts the first curse across the battlefield, through anything behind it.', cd: 6, ce: 0, branch: 'Body', tier: 2, req: 'speed_dash', use: () => this.flyingKick() }),
+      senses: ability({ name: 'Heightened Senses', icon: '👂', kind: 'buff', desc: 'For 6s your senses are absolute: the next three attacks that would hit you miss, and you counter each one.', cd: 18, ce: 0, branch: 'Body', tier: 2, req: 'speed_dash', use: () => this.senses() }),
+      iron_body: ability({ name: 'Iron Physique', icon: '🛡️', kind: 'defence', desc: 'Tense a body built beyond human limits: 4s of 55% less damage, and anything that strikes you in melee is knocked away.', cd: 15, ce: 0, branch: 'Body', tier: 3, req: 'kick', use: () => this.ironBody() }),
+      afterimage: ability({ name: 'Afterimage', icon: '👥', kind: 'movement', desc: 'Leave an afterimage the curses attack while you vanish for a moment and reappear behind your target.', cd: 9, ce: 0, branch: 'Body', tier: 3, req: 'senses', use: () => this.afterimage() }),
+      // ---- the hunt
+      ambush: ability({ name: 'Ambush', icon: '🐆', kind: 'technique', desc: 'Vanish (curses lose track of you), then strike the nearest curse from behind with a guaranteed critical.', cd: 9, ce: 0, branch: 'Hunter', tier: 1, use: () => this.ambush() }),
+      fly_heads: ability({ name: 'Fly Head Swarm', icon: '🪰', kind: 'summon', desc: 'Release a cloud of Grade 4 fly heads where you aim. Curses in it are swarmed — slowed, chewed on, and wide open to your criticals.', cd: 16, ce: 0, branch: 'Hunter', tier: 2, req: 'ambush', use: () => this.flyHeads() }),
+      prey_mark: ability({ name: 'Mark the Prey', icon: '🩸', kind: 'buff', desc: 'Pick your prey: for 8s it takes 40% more damage from you and every hit on it fills the Hunter\'s Instinct meter twice as fast.', cd: 14, ce: 0, branch: 'Hunter', tier: 2, req: 'ambush', use: () => this.markPrey() }),
+      rampage: ability({ name: 'Rampage', icon: '🔥', kind: 'buff', desc: 'Let the beast out for 6s: 45% faster and 25% quicker attacks.', cd: 24, ce: 0, branch: 'Hunter', tier: 3, req: 'prey_mark', use: () => this.startRampage(6) }),
+      execute: ability({ name: 'Coup de Grâce', icon: '💀', kind: 'technique', desc: 'Blink to the most wounded curse nearby and finish it: a weakened curse (below 35%) dies outright; anything else takes a cut that grows with its wounds.', cd: 12, ce: 0, branch: 'Hunter', tier: 4, req: 'rampage', use: () => this.execute() }),
+    };
+    this.passives = {
+      tool_master: passive({ name: 'Tool Master', icon: '🧰', desc: 'Every cursed tool comes out faster: ability cooldowns -15%.', branch: 'Arsenal', tier: 2, req: 'pistol', apply: (pl, k) => { k.cdMul *= 0.85; } }),
+      heavenly_physique: passive({ name: 'Heavenly Physique', icon: '💪', desc: '+40 max health and 10% damage reduction.', branch: 'Body', tier: 2, req: 'speed_dash', apply: (pl) => { pl.maxHp += 40; pl.hp += 40; pl.stats.armor += 0.1; } }),
+      reflexes: passive({ name: 'Restricted Reflexes', icon: '🌪️', desc: '12% chance to evade any hit completely.', branch: 'Body', tier: 3, req: 'senses', apply: (pl, k) => { k.evade = 0.12; } }),
+      unseen: passive({ name: 'Zero Cursed Energy', icon: '👻', desc: 'Curses can\'t feel you coming: after 3s without taking damage, your next hit deals double damage.', branch: 'Hunter', tier: 2, req: 'ambush', apply: (pl, k) => { k.unseen = true; } }),
+      hunger: passive({ name: 'Hunter\'s Hunger', icon: '🍖', desc: 'Kills fill the meter 50% faster and heal 4% of your health.', branch: 'Hunter', tier: 3, req: 'prey_mark', apply: (pl, k) => { k.hunger = true; } }),
     };
     // no domain: the meter is spent on one perfect kill
     this.ultimate = { name: 'Sorcerer Killer', icon: '🐆', use: () => this.sorcererKiller() };
@@ -146,24 +182,52 @@ class TojiKit extends Kit {
     for (let i = 0; i < 6; i++) { const k = i / 6; g.particles.burst(tmp.lerpVectors(p.pos, to, k).setY(p.pos.y + 1), { count: 3, color: GREEN, speed: 0.6, life: 0.3, size: 0.35, sizeEnd: 0.05, intensity: 1.2 }); }
     p.pos.copy(to); p.visY = to.y; p.vel.set(0, 0, 0);
   }
-  hit(e, dmg, o = {}) {
-    const dealt = this.game.combat.damageEnemy(e, dmg, this.p, o);
-    if (dealt > 0 && e.dead) this.onKill(e);
-    return dealt;
-  }
+  // (kills are credited once by the framework: player.onHitEnemy -> onKill)
   onKill(e) {
     if (e.isDummy) return;
-    this.p.gainCE(6 + this.rank('instinct') * 4 + (e.isBoss ? 30 : 0));
+    const p = this.p;
+    p.gainCE((6 + this.rank('instinct') * 4 + (e.isBoss ? 30 : 0)) * (this.hunger ? 1.5 : 1));
+    if (this.hunger) p.heal?.(p.maxHp * 0.04, true);
+    if (e === this.prey) this.prey = null;
   }
-  onMeleeHit(e, step) {
+  onHitEnemy(e, dealt, o) {
+    // Mark the Prey: hits on it fill the meter twice as fast
+    if (e === this.prey && this.preyT > 0 && !o.preyBonus) this.p.gainCE(o.ceGain ?? dealt * 0.08);
+  }
+  // every hit Toji deals goes through here: prey bonus, swarmed crits, the unseen first strike
+  hit(e, dmg, o = {}) {
+    if (!e || e.dead) return 0;
+    let m = 1;
+    if (e === this.prey && this.preyT > 0) m *= 1.4;
+    if (this.unseen && this.game.time - (this.lastHurtT ?? -9) > 3 && !this.unseenUsed) { m *= 2; this.unseenUsed = true; this.game.fx.hitSpark(e.pos.clone().setY(e.pos.y + e.height * 0.6), null, { color: GREEN, big: true }); }
+    if ((e.swarmedT ?? 0) > 0 && o.crit == null) o = { ...o, crit: true };
+    return this.game.combat.damageEnemy(e, dmg * m, this.p, o);
+  }
+  blackFlashReady() { return false; }
+  onMeleeHit(e, step, dealt) {
     if (step.launch && !e.isBoss) e.vel.y = Math.max(e.vel.y, 9);
-    if (e.dead) this.onKill(e);
+    // the combo benefits from the hunt too (bonus dealt as a follow-up)
+    let m = 0;
+    if (e === this.prey && this.preyT > 0) m += 0.4;
+    if (this.unseen && this.game.time - (this.lastHurtT ?? -9) > 3 && !this.unseenUsed) { m += 1; this.unseenUsed = true; }
+    if (m && !e.dead) this.game.combat.damageEnemy(e, dealt * m, this.p, { melee: true, stagger: 0, crit: false, ceGain: 0, preyBonus: true });
+  }
+  incoming(amount, src) {
+    if (this.evade && Math.random() < this.evade) { this.dodgeFx(); return 0; }
+    this.lastHurtT = this.game.time; this.unseenUsed = false;
+    return amount;
   }
   tick(dt) {
     const p = this.p, g = this.game;
     if (!this.domainLocked && !this.readyPinged && p.ce >= p.maxCe) { this.readyPinged = true; g.toast?.('🐆 Hunter\'s Instinct is full — Sorcerer Killer is ready (F)'); }
     if (p.ce < p.maxCe) this.readyPinged = false;
     this.rampageT = Math.max(0, this.rampageT - dt);
+    this.preyT = Math.max(0, (this.preyT ?? 0) - dt);
+    if (this.prey && (this.prey.dead || this.preyT <= 0)) this.prey = null;
+    if (this.prey && Math.random() < 0.5) { const e = this.prey; g.particles.glow.emit(e.pos.x + (Math.random() - 0.5) * e.radius, e.pos.y + e.height + 0.3, e.pos.z + (Math.random() - 0.5) * e.radius, 0, 0.8, 0, 0.4, 2.4, 0.3, 0.3, 0.16, 0, 1, 0.3, 1); }
+    // the unseen strike is ready again: a faint green glint in the hand
+    if (this.unseen && !this.unseenUsed && g.time - (this.lastHurtT ?? -9) > 3 && Math.random() < 0.2) g.particles.burst(this.handPos(), { count: 1, color: GREEN, speed: 1, life: 0.3, size: 0.1, shape: 1 });
+    for (const e of g.enemies) if (e.swarmedT > 0) e.swarmedT -= dt;
     if (this.rampage && Math.random() < 0.5) g.particles.glow.emit(p.pos.x + (Math.random() - 0.5) * 0.8, p.pos.y + Math.random() * 1.8, p.pos.z + (Math.random() - 0.5) * 0.8, 0, 1.2, 0, 0.4, 1.4, 2.2, 0.8, 0.12, 0, 1, 0.2, 1);
   }
   // ---------------------------------------------------------- techniques
@@ -217,7 +281,7 @@ class TojiKit extends Kit {
       g.particles.burst(tmp2.set(hand.x + Math.sin(a) * R, hand.y - 0.4, hand.z + Math.cos(a) * R), { count: 2, color: GREEN, speed: 1, life: 0.25, size: 0.2, shape: 1 });
       return t < 0.4;
     });
-    setTimeout(() => {
+    this.after(0.2, () => {
       const hits = g.combat.query(p.pos, tmp.set(0, 0, 1), R, Math.PI);
       for (const e of hits) {
         const toward = tmp.subVectors(p.pos, e.pos).setY(0); const d = toward.length(); toward.normalize();
@@ -228,14 +292,14 @@ class TojiKit extends Kit {
       g.fx.slashArc(p.pos, p.facing, GREEN, R, 1, 0.3);
       g.combat.hitBlocks(p.pos, tmp.set(0, 0, 1), R, Math.PI, 18, p);
       if (hits.length) { g.hitStop(0.07); g.shake(0.3); g.audio?.impact(1.4); }
-    }, 200);
+    });
   }
   cloud() {
     const g = this.game, p = this.p, rk = this.rank('cloud');
     this.showTool('cloud', 1.3);
     p.facing = Math.atan2(p.aimDir.x, p.aimDir.z);
     const styles = ['swingR', 'swingL', 'swingR', 'swingL', 'spin', 'slam'];
-    styles.forEach((style, i) => setTimeout(() => {
+    styles.forEach((style, i) => this.after(i * 0.08, () => {
       if (p.dead || this.disposed) return;
       const last = i === styles.length - 1;
       p.action = { type: 'attack', step: { style, strike: 0.4, windup: 0.2 }, style, dur: last ? 0.4 : 0.16, elapsed: 0, t: 0, windup: 0.2, strike: 0.4, struck: true, moveScale: 0.3 };
@@ -255,7 +319,7 @@ class TojiKit extends Kit {
         g.combat.hitBlocks(c, fwd, R, Math.PI, 60, p);
         g.shake(0.5); g.hitStop(0.09); g.audio?.impact(1.9); g.fx.screenWave(c, 0.6, 0.35);
       } else if (hits.length) { g.hitStop(0.025); g.shake(0.1); g.audio?.impact(0.8); }
-    }, i * 80));
+    }));
   }
   katana() {
     const g = this.game, p = this.p, rk = this.rank('katana');
@@ -272,7 +336,7 @@ class TojiKit extends Kit {
     p.iframes = Math.max(p.iframes, 0.4);
     const at = t.pos.clone().setY(t.pos.y + t.height * 0.55);
     g.fx.slashX(at, 2.6 + t.height * 0.4, 0xffffff);
-    setTimeout(() => {
+    this.after(0.14, () => {
       if (t.dead) return;
       const soul = Math.min(t.maxHp * (0.14 + rk * 0.04), 240);
       // the blade strikes the soul itself: armor is irrelevant
@@ -286,7 +350,7 @@ class TojiKit extends Kit {
       g.fx.flash(0x102008, 0.3, 0.15); g.fx.chroma(0.9); g.slowMo(0.25, 0.25);
       g.hitStop(0.1); g.shake(0.4);
       g.audio?.energy('slash'); g.audio?.impact(1.8, 'crit');
-    }, 140);
+    });
   }
   // ---------------------------------------------------------- ultimate
   // Sorcerer Killer: the prey is the toughest curse in reach. Its escorts are
@@ -371,6 +435,389 @@ class TojiKit extends Kit {
     });
     return true;
   }
+  // ============================================================== tree abilities
+  dodgeFx() {
+    const g = this.game, p = this.p;
+    g.fx.damageNumber(p.pos.clone().setY(p.pos.y + 1.6), 0, { text: 'EVADE', color: '#b8f070' });
+    for (let i = 0; i < 6; i++) g.particles.burst(tmp.set(p.pos.x + (Math.random() - 0.5) * 1.6, p.pos.y + 0.4 + Math.random() * 1.4, p.pos.z + (Math.random() - 0.5) * 1.6), { count: 1, color: GREEN, speed: 0.5, life: 0.3, size: 0.4, sizeEnd: 0.05 });
+    p.iframes = Math.max(p.iframes, 0.25);
+    g.audio?.whoosh(0.8);
+  }
+  // a chain drawn from a to b out of glowing links
+  chainFx(a, b, life = 0.25) {
+    const g = this.game, n = Math.max(4, Math.round(a.distanceTo(b) * 2.5));
+    for (let i = 0; i <= n; i++) { const k = i / n; g.particles.glow.emit(a.x + (b.x - a.x) * k, a.y + (b.y - a.y) * k - Math.sin(k * Math.PI) * 0.3, a.z + (b.z - a.z) * k, 0, 0, 0, life, 1.6, 1.7, 1.8, 0.09, 0, 0, 1, 1); }
+  }
+  spearThrow() {
+    const g = this.game, p = this.p, rk = this.rank('spear');
+    this.showTool('spear', 1.2);
+    p.facing = this.aimAngle();
+    this.pose('throw', 0.35);
+    const f = this.fwd(), from = this.handPos(), L = 16;
+    const hits = [];
+    this.after(0.1, () => {
+      g.fx.slashLine(from, f, L, 0xffffff, 0.35, 0.25); g.fx.slashLine(from.clone().setY(from.y - 0.05), f, L, GREEN, 0.18, 0.4);
+      this.chainFx(from, from.clone().addScaledVector(f, L), 0.4);
+      this.line(p.pos, f, L, 0.8, (e) => {
+        hits.push(e);
+        this.hit(e, 26 + rk * 7, { unblockable: true, stagger: 0.6, knock: f.clone().multiplyScalar(2), color: '#e8fff0' });
+        e.cancelAttack?.(); if (!e.isBoss) e.sealT = Math.max(e.sealT ?? 0, 0.6);
+        g.fx.hitSpark(e.pos.clone().setY(e.pos.y + e.height * 0.55), f, { color: SILVER, big: true });
+      });
+      for (let s = 2; s < L; s += 2) g.combat.hitBlocks(from.clone().addScaledVector(f, s).setY(p.pos.y), f, 0.6, Math.PI, 24, p);
+      g.audio?.whoosh(1.4); g.audio?.energy('slash');
+      if (hits.length) { g.hitStop(0.05); g.shake(0.25); }
+    });
+    // the chain yanks everything back toward Toji
+    this.after(0.45, () => {
+      for (const e of hits) {
+        if (e.dead || e.isBoss) continue;
+        const d = tmp.subVectors(p.pos, e.pos).setY(0); const len = d.length();
+        e.knock.add(d.normalize().multiplyScalar(Math.min(16, len * 1.6)));
+        this.chainFx(this.handPos(), e.pos.clone().setY(e.pos.y + 1), 0.2);
+      }
+      if (hits.length) g.audio?.impact(1);
+    });
+  }
+  nullify() {
+    const g = this.game, p = this.p, t = this.target(8);
+    if (!t) { g.toast?.('No curse in reach'); g.audio?.ui('back'); return false; }
+    this.closeIn(t, GREEN);
+    this.showTool('spear', 1);
+    this.pose('punch', 0.4);
+    this.after(0.12, () => {
+      if (t.dead) return;
+      const at = t.pos.clone().setY(t.pos.y + t.height * 0.55), dir = tmp.subVectors(t.pos, p.pos).setY(0).normalize();
+      this.hit(t, 44 + this.rank('spear') * 10, { melee: true, unblockable: true, stagger: 1, knock: new THREE.Vector3(), color: '#e8fff0' });
+      // its technique is cancelled outright
+      t.cancelAttack?.(); t.cd = Math.max(t.cd ?? 0, t.isBoss ? 3 : 4); t.guarding = false;
+      this.stun(t, 2.2);
+      g.fx.rings.spawn(tmp2.set(t.pos.x, t.pos.y + t.height * 0.55, t.pos.z), { color: SILVER, r0: t.radius + 2.2, r1: 0.2, dur: 0.35, thick: 0.14 });
+      g.fx.slashLine(p.pos.clone().setY(p.pos.y + 1.1), dir, 4, 0xffffff, 0.4, 0.25);
+      g.fx.hitSpark(at, dir, { color: SILVER, big: true, crit: true });
+      g.fx.chroma(0.5); g.hitStop(0.08); g.shake(0.35);
+      g.audio?.energy('infinity'); g.audio?.impact(1.5, 'crit');
+    });
+  }
+  runThrough() {
+    const g = this.game, p = this.p, rk = this.rank('spear');
+    const f = this.fwd(), L = 13, start = p.pos.clone();
+    this.showTool('spear', 1.6);
+    // telegraph: the line of the charge glows on the ground first
+    const ground = start.clone().setY(start.y + 0.12);
+    g.fx.slashLine(ground, f, L, GREEN, 0.9, 0.5);
+    g.fx.slashLine(ground, f, L, 0xffffff, 0.25, 0.5);
+    p.action = { type: 'cast', both: true, dur: 0.45, elapsed: 0, t: 0, moveScale: 0, lock: true, hold: true, cancelable: false };
+    p.iframes = Math.max(p.iframes, 1.1);
+    g.audio?.charge?.(0.4, 0.45);
+    this.during(0.4, () => { const h = this.handPos(); g.particles.burst(h, { count: 2, color: GREEN, speed: 2, life: 0.25, size: 0.12, shape: 1 }); }, () => {
+      if (p.action?.lock) p.action = null;
+      this.pose('punch', 0.3);
+      g.audio?.whoosh(1.8);
+      this.dash(f, L, 0.22, { color: GREEN, hitR: 1.8, onHit: (e) => {
+        const dmg = (90 + rk * 20) * (e.isBoss ? 1.5 : 1);
+        this.hit(e, dmg, { melee: true, unblockable: true, stagger: 1.2, knock: f.clone().multiplyScalar(e.isBoss ? 2 : 10), color: '#e8fff0' });
+        e.cancelAttack?.();
+        const at = e.pos.clone().setY(e.pos.y + e.height * 0.55);
+        g.fx.hitSpark(at, f, { color: SILVER, big: true, crit: true });
+        g.particles.burst(at, { count: 24, color: BLOOD, additive: false, speed: 6, dir: f.clone().multiplyScalar(5), life: 0.6, size: 0.14, gravity: 14, shape: 1 });
+        g.hitStop(0.06); g.audio?.impact(1.8, 'crit');
+      }, onEnd: () => {
+        g.fx.slashLine(start.clone().setY(start.y + 1.1), f, L + 1, 0xffffff, 0.7, 0.3);
+        g.fx.slashLine(start.clone().setY(start.y + 1.0), f, L + 2, GREEN, 0.35, 0.5);
+        g.fx.screenWave(p.pos.clone().setY(p.pos.y + 1), 0.9, 0.4); g.fx.flash(0xe8fff0, 0.3, 0.1);
+        g.shake(0.6);
+      } });
+    });
+  }
+  chainSnare() {
+    const g = this.game, p = this.p, t = this.target(14, 0.3);
+    if (!t) { g.toast?.('No curse in reach'); g.audio?.ui('back'); return false; }
+    this.showTool('spear', 0.8);
+    this.pose('throw', 0.35);
+    p.facing = Math.atan2(t.pos.x - p.pos.x, t.pos.z - p.pos.z);
+    this.chainFx(this.handPos(), t.pos.clone().setY(t.pos.y + t.height * 0.5), 0.35);
+    g.audio?.whoosh(1.2);
+    this.after(0.15, () => {
+      if (t.dead) return;
+      this.hit(t, 16 + this.rank('chain') * 6, { stagger: 0.8, knock: new THREE.Vector3(), color: '#e8fff0' });
+      if (t.isBoss || t.def?.rooted) {
+        // too heavy to move: the chain hauls Toji in instead
+        this.closeIn(t, GREEN); t.cancelAttack?.();
+      } else {
+        const to = this.safeSpot(p.pos.x + Math.sin(p.facing) * 1.6, p.pos.z + Math.cos(p.facing) * 1.6, p.pos.y);
+        if (to) { g.fx.blinkPuff(t.pos, SILVER); t.pos.copy(to); t.vel?.set(0, 0, 0); t.knock?.set(0, 0, 0); }
+        this.stun(t, 1.2);
+      }
+      g.fx.hitSpark(t.pos.clone().setY(t.pos.y + t.height * 0.5), null, { color: SILVER, big: true });
+      g.shake(0.25); g.audio?.impact(1.2);
+    });
+  }
+  chainSwing() {
+    const g = this.game, p = this.p, f = this.fwd();
+    this.showTool('spear', 0.6);
+    const from = this.handPos();
+    this.chainFx(from, from.clone().addScaledVector(f, 11), 0.3);
+    g.audio?.whoosh(1.3);
+    this.dash(f, 10, 0.26, { color: SILVER, hitR: 1.5, dmg: 18 + this.rank('chain') * 5, hitOpts: { melee: true, stagger: 0.6 } });
+  }
+  endlessChain() {
+    const g = this.game, p = this.p, rk = this.rank('chain'), R = 5 + rk;
+    this.showTool('spear', 3.2);
+    g.toast?.('⛓️ Endless Chain');
+    let a = p.facing, tick = 0;
+    p.action = { type: 'attack', step: { style: 'spin', strike: 0.45, windup: 0.2 }, style: 'spin', dur: 0.45, elapsed: 0, t: 0, windup: 0.2, strike: 0.45, struck: true, moveScale: 0.7 };
+    g.audio?.whoosh(1.4);
+    this.during(3, (t, dt) => {
+      a += dt * Math.PI * 4;
+      const hand = tmp.set(p.pos.x, p.pos.y + 1.2, p.pos.z);
+      for (let i = 1; i <= 8; i++) { const k = i / 8 * R; g.particles.glow.emit(hand.x + Math.sin(a) * k, hand.y - i * 0.03, hand.z + Math.cos(a) * k, 0, 0, 0, 0.1, 1.6, 1.7, 1.8, 0.09, 0, 0, 1, 1); }
+      g.particles.burst(tmp2.set(hand.x + Math.sin(a) * R, hand.y - 0.3, hand.z + Math.cos(a) * R), { count: 1, color: GREEN, speed: 1, life: 0.2, size: 0.2, shape: 1 });
+      tick -= dt;
+      if (tick <= 0) {
+        tick = 0.25;
+        g.fx.rings.spawn(tmp.set(p.pos.x, p.pos.y + 0.08, p.pos.z), { color: SILVER, r0: R * 0.92, r1: R, dur: 0.25, thick: 0.06 });
+        for (const e of this.foes(p.pos, R)) this.hit(e, 8 + rk * 3, { melee: true, stagger: 0.25, knock: tmp2.subVectors(e.pos, p.pos).setY(0).normalize().multiplyScalar(2) });
+        g.audio?.swing(Math.floor(Math.random() * 4));
+      }
+    });
+  }
+  pistol() {
+    const g = this.game, p = this.p;
+    this.cast(0.18);
+    const f = this.p.aimDir.clone(), from = this.handPos();
+    const pr = g.projectiles.fire({ pos: from, vel: f.clone().multiplyScalar(48), team: 'player', shape: 'nail', color: 0xfff0c0, emissive: 2, scale: 1.3, life: 0.5, radius: 0.3,
+      onHit: (e, q) => { this.hit(e, 12, { stagger: 0.25, knock: q.vel.clone().setLength(1.5), crit: Math.random() < 0.35 || undefined }); g.fx.hitSpark(q.pos, null, { color: 0xfff0c0 }); } });
+    if (!pr) return false;
+    g.particles.burst(from, { count: 6, color: 0xffd080, speed: 3, life: 0.12, size: 0.12, shape: 1, dir: f, spread: 0.3 });
+    g.lights.flash(from, 0xffd080, 4, 4, 0.06);
+    g.audio?.noise?.({ dur: 0.08, gain: 0.5, type: 'highpass', freq: 900, q: 0.7 });
+  }
+  knives() {
+    const g = this.game, p = this.p;
+    this.cast(0.25);
+    const base = this.aimAngle();
+    for (let i = 0; i < 5; i++) {
+      const a = base + (i - 2) * 0.13, dir = new THREE.Vector3(Math.sin(a), 0, Math.cos(a));
+      g.projectiles.fire({ pos: this.handPos(), vel: dir.multiplyScalar(30), team: 'player', shape: 'nail', color: SILVER, emissive: 1.2, scale: 1.6, life: 0.55, radius: 0.35, pierce: true,
+        onHit: (e, q) => { this.hit(e, 9, { stagger: 0.2, knock: q.vel.clone().setLength(1.5) }); g.fx.hitSpark(q.pos, null, { color: SILVER }); } });
+    }
+    g.audio?.whoosh(0.9);
+  }
+  cloudSmash() {
+    const g = this.game, p = this.p, rk = this.rank('cloud');
+    const to = this.aimGround(8), R = 3.8;
+    this.showTool('cloud', 1.2);
+    // the landing spot is marked before the staff comes down
+    g.fx.rings.spawn(tmp.set(to.x, to.y + 0.08, to.z), { color: BLOOD, r0: R, r1: R * 0.95, dur: 0.5, thick: 0.1 });
+    g.fx.rings.spawn(tmp.set(to.x, to.y + 0.08, to.z), { color: 0xd8a830, r0: 0.3, r1: R, dur: 0.45, thick: 0.08 });
+    p.vel.y = 9; p.grounded = false; p.iframes = Math.max(p.iframes, 0.6);
+    this.pose('slam', 0.55);
+    const from = p.pos.clone();
+    this.during(0.42, (t, dt, k) => {
+      const x = from.x + (to.x - from.x) * k, z = from.z + (to.z - from.z) * k;
+      if (!g.world.solidAt(x, p.pos.y + 0.5, z) && !g.world.solidAt(x, p.pos.y + 1.5, z)) { p.pos.x = x; p.pos.z = z; }
+      p.facing = Math.atan2(to.x - from.x, to.z - from.z) || p.facing;
+    }, () => {
+      p.vel.y = -20;
+      const c = p.pos.clone().setY(this.groundAt(p.pos.x, p.pos.z, p.pos.y) + 0.3);
+      const n = g.combat.aoe(c, R, 55 + rk * 14, p, { melee: true, knock: 9, stagger: 1, falloff: true, color: '#ff6a5a' });
+      for (const e of this.foes(c, R)) this.stun(e, 1.2);
+      g.fx.slashArc(p.pos, p.facing, BLOOD, R, 1, 0.25);
+      g.fx.shockwave(c, BLOOD, R + 1.5); g.fx.landDust(c, 30); g.debris.burst(c, B.concrete, 10, 1.1);
+      g.fx.screenWave(c, 0.7, 0.4); g.shake(0.7); g.hitStop(n ? 0.1 : 0.04); g.audio?.impact(2);
+    });
+  }
+  arsenalSpill() {
+    const g = this.game, p = this.p;
+    this.cast(1.1, true, { lock: true, hold: true, cancelable: false, moveScale: 0.1 });
+    g.toast?.('🐛 The Inventory Curse spills its hoard');
+    const shapes = ['nail', 'arrow', 'nail', 'slash'];
+    for (let w = 0; w < 3; w++) this.after(w * 0.22, () => {
+      const base = this.aimAngle();
+      const mouth = tmp2.set(p.pos.x + Math.sin(p.facing + 0.8) * 0.6, p.pos.y + 1.6, p.pos.z + Math.cos(p.facing + 0.8) * 0.6).clone();
+      g.particles.burst(mouth, { count: 10, color: 0x6a5a78, additive: false, speed: 3, life: 0.4, size: 0.3, sizeEnd: 0.05 });
+      for (let i = 0; i < 8; i++) {
+        const a = base + (i - 3.5) * 0.1 + (Math.random() - 0.5) * 0.05, dir = new THREE.Vector3(Math.sin(a), (Math.random() - 0.5) * 0.08, Math.cos(a));
+        g.projectiles.fire({ pos: mouth.clone(), vel: dir.multiplyScalar(26 + Math.random() * 6), team: 'player', shape: shapes[(i + w) % 4], color: (i + w) % 3 ? SILVER : 0xd8a830, emissive: 1.2, scale: 1.2, life: 0.6, radius: 0.4,
+          onHit: (e, q) => { this.hit(e, 11, { stagger: 0.3, knock: q.vel.clone().setLength(1.5) }); g.fx.hitSpark(q.pos, null, { color: SILVER }); } });
+      }
+      g.audio?.whoosh(1); g.audio?.energy('spit');
+    });
+    // last out: the spear itself, on its chain
+    this.after(0.75, () => { if (p.action?.lock) p.action = null; this.spearThrow(); });
+  }
+  speedDash() {
+    const g = this.game, p = this.p;
+    const d = Math.hypot(p.vel.x, p.vel.z) > 2 ? new THREE.Vector3(p.vel.x, 0, p.vel.z) : this.fwd();
+    const from = p.pos.clone();
+    g.audio?.whoosh(1.5);
+    this.dash(d, 8.5, 0.18, { color: GREEN, iframes: 0.35, onEnd: () => {
+      // afterimages along the path
+      for (let i = 0; i < 5; i++) { const k = i / 5; g.particles.burst(tmp.lerpVectors(from, p.pos, k).setY(from.y + 1), { count: 4, color: 0x141418, additive: false, speed: 0.3, life: 0.35, size: 0.7, sizeEnd: 0.2 }); }
+    } });
+  }
+  flyingKick() {
+    const g = this.game, p = this.p, f = this.fwd();
+    this.pose('uppercut', 0.3);
+    g.audio?.whoosh(1.4);
+    let done = false;
+    this.dash(f, 6, 0.2, { color: SILVER, hitR: 1.6, onHit: (e) => {
+      if (done) return; done = true;
+      this.hit(e, 34, { melee: true, stagger: 1, knock: new THREE.Vector3() });
+      g.fx.hitSpark(e.pos.clone().setY(e.pos.y + 1), f, { color: 0xffffff, big: true });
+      g.hitStop(0.08); g.shake(0.45); g.audio?.impact(1.7);
+      if (e.isBoss) return;
+      // the curse flies, ploughing through whatever stands behind it
+      const hitSet = new Set([e]);
+      this.during(0.45, () => {
+        if (e.dead) return false;
+        e.knock.copy(f).multiplyScalar(22);
+        for (const o of this.foes(e.pos, 1.6)) if (!hitSet.has(o)) { hitSet.add(o); this.hit(o, 22, { stagger: 0.7, knock: f.clone().multiplyScalar(8) }); this.hit(e, 10, { stagger: 0.3 }); g.fx.hitSpark(o.pos.clone().setY(o.pos.y + 1), f, { color: 0xffffff }); g.audio?.impact(1.1); }
+        g.particles.burst(tmp.set(e.pos.x, e.pos.y + 0.3, e.pos.z), { count: 1, color: 0x8a7a6a, additive: false, speed: 1, life: 0.4, size: 0.4, sizeEnd: 1 });
+        g.combat.hitBlocks(e.pos.clone().setY(e.pos.y + 0.5), f, 1.2, Math.PI, 30, p);
+      });
+    } });
+  }
+  senses() {
+    const g = this.game, p = this.p;
+    let left = 3;
+    g.toast?.('👂 Heightened Senses');
+    g.fx.rings.spawn(tmp.set(p.pos.x, p.pos.y + 0.08, p.pos.z), { color: GREEN, r0: 4, r1: 0.4, dur: 0.4, thick: 0.15 });
+    g.audio?.charge?.(0.3, 0.4);
+    this.statBuff('senses', 6, { crit: 0.1 }, {
+      incoming: (a, src) => {
+        if (left <= 0) return a;
+        left--;
+        this.dodgeFx();
+        if (src && src.pos && !src.dead && !src.isPlayer && src.takeDamage) {
+          // slip aside and counter
+          p.facing = Math.atan2(src.pos.x - p.pos.x, src.pos.z - p.pos.z);
+          this.pose('swingR', 0.22);
+          this.hit(src, 24, { melee: true, stagger: 0.6, knock: tmp.subVectors(src.pos, p.pos).setY(0).normalize().multiplyScalar(5) });
+          g.fx.slashArc(p.pos, p.facing, SILVER, 2.6, 0.4, 0.15);
+        }
+        if (left <= 0) this.buffs.get('senses') && (this.buffs.get('senses').left = Math.min(this.buffs.get('senses').left, 0.01));
+        return 0;
+      },
+      onTick: () => { if (Math.random() < 0.3) g.particles.glow.emit(p.pos.x + (Math.random() - 0.5), p.pos.y + 1.6 + Math.random() * 0.3, p.pos.z + (Math.random() - 0.5), 0, 0.4, 0, 0.4, 1.4, 2.2, 0.8, 0.1, 0, 1, 0.2, 1); },
+    });
+  }
+  ironBody() {
+    const g = this.game, p = this.p;
+    this.cast(0.3, true);
+    g.toast?.('🛡️ Iron Physique'); g.audio?.charge?.(0.3, 0.4);
+    let lastT = -9;
+    this.buff('iron_body', 4, {
+      incoming: (a, src) => {
+        if (src && src.pos && !src.dead && !src.isPlayer && g.time - lastT > 0.25 && src.pos.distanceTo(p.pos) < 4 && src.knock) {
+          lastT = g.time;
+          if (!src.isBoss) src.knock.add(tmp.subVectors(src.pos, p.pos).setY(0).normalize().multiplyScalar(14));
+          if (src.takeDamage) this.hit(src, 10, { melee: true, stagger: 0.6 });
+          g.fx.hitSpark(src.pos.clone().setY(src.pos.y + 1), null, { color: 0xffffff, big: true });
+        }
+        return a * 0.45;
+      },
+      onTick: () => { if (Math.random() < 0.4) g.particles.glow.emit(p.pos.x + (Math.random() - 0.5) * 0.9, p.pos.y + Math.random() * 1.8, p.pos.z + (Math.random() - 0.5) * 0.9, 0, 0.6, 0, 0.4, 2, 2, 1.6, 0.1, 0, 1, 0.1, 1); },
+    });
+  }
+  afterimage() {
+    const g = this.game, p = this.p;
+    const t = this.target(14);
+    const decoy = new Afterimage(g, p, p.pos);
+    g.allies.push(decoy);
+    for (const e of g.enemies) if (!e.dead && e.target === p && e.pos.distanceTo(p.pos) < 20) e.target = decoy;
+    this.vanish(1.2);
+    if (t) this.after(0.25, () => { if (!t.dead) { const a = Math.atan2(t.pos.x - p.pos.x, t.pos.z - p.pos.z); const spot = this.safeSpot(t.pos.x + Math.sin(a) * (t.radius + 1), t.pos.z + Math.cos(a) * (t.radius + 1), t.pos.y); if (spot) this.blinkTo(spot); p.facing = Math.atan2(t.pos.x - p.pos.x, t.pos.z - p.pos.z); } });
+    else this.speedDash();
+    g.audio?.whoosh(1.2);
+  }
+  // curses lose track of Toji for `dur` seconds
+  vanish(dur) {
+    const g = this.game, p = this.p;
+    p.untargetable = true;
+    for (const e of g.enemies) if (e.target === p) e.target = null;
+    g.particles.burst(p.pos.clone().setY(p.pos.y + 1), { count: 16, color: 0x141418, additive: false, speed: 2, life: 0.5, size: 0.6, sizeEnd: 0.1 });
+    this.buff('vanish', dur, { onTick: () => { for (const e of g.enemies) if (e.target === p) e.target = null; }, onEnd: () => { p.untargetable = false; } });
+  }
+  ambush() {
+    const g = this.game, p = this.p;
+    const t = this.target(12) ?? g.nearestEnemy(p.pos, 12);
+    if (!t) { g.toast?.('No prey in reach'); g.audio?.ui('back'); return false; }
+    this.vanish(0.9);
+    this.cast(0.2, true);
+    this.after(0.35, () => {
+      if (t.dead) return;
+      // reappear behind it
+      const back = tmp.subVectors(t.pos, p.pos).setY(0).normalize();
+      const spot = this.safeSpot(t.pos.x + back.x * (t.radius + 1), t.pos.z + back.z * (t.radius + 1), t.pos.y);
+      if (spot) this.blinkTo(spot);
+      p.facing = Math.atan2(t.pos.x - p.pos.x, t.pos.z - p.pos.z);
+      this.showTool('katana', 0.6);
+      this.pose('swingL', 0.3);
+      const at = t.pos.clone().setY(t.pos.y + t.height * 0.55);
+      this.hit(t, 30, { melee: true, crit: true, critMult: 2.5, unblockable: true, stagger: 0.9, knock: new THREE.Vector3() });
+      g.fx.slashX(at, 2.2 + t.height * 0.3, GREEN); g.fx.hitSpark(at, null, { color: GREEN, big: true, crit: true });
+      g.hitStop(0.08); g.shake(0.35); g.audio?.energy('slash'); g.audio?.impact(1.6, 'crit');
+    });
+  }
+  flyHeads() {
+    const g = this.game, p = this.p;
+    const c = this.aimGround(11), R = 4;
+    this.cast(0.35, true);
+    g.particles.burst(p.pos.clone().setY(p.pos.y + 1.5), { count: 16, color: 0x3a3a2a, additive: false, speed: 3, life: 0.5, size: 0.25, sizeEnd: 0.1 });
+    g.audio?.noise?.({ dur: 0.6, gain: 0.2, type: 'bandpass', freq: 500, q: 2 });
+    const flies = [];
+    for (let i = 0; i < 14; i++) flies.push({ a: Math.random() * Math.PI * 2, r: Math.random() * R, h: 0.5 + Math.random() * 1.8, s: 2 + Math.random() * 3 });
+    this.during(5, (t, dt) => {
+      for (const f of flies) {
+        f.a += dt * f.s;
+        if (Math.random() < 0.7) g.particles.burst(tmp.set(c.x + Math.cos(f.a) * f.r, c.y + f.h + Math.sin(t * 9 + f.a) * 0.2, c.z + Math.sin(f.a) * f.r), { count: 1, color: 0x2a2a1a, additive: false, speed: 0.1, life: 0.12, size: 0.25, sizeEnd: 0.2 });
+      }
+    });
+    this.zone(c, R, 5, 0.5, (foes) => {
+      for (const e of foes) { e.swarmedT = 0.7; this.slow(e, 0.7); this.hit(e, 4, { stagger: 0.15, crit: false, ceGain: 1 }); }
+    }, { color: 0x6a6a40, particles: 0.3 });
+  }
+  markPrey() {
+    const g = this.game, p = this.p;
+    let t = this.target(16);
+    if (!t) { g.toast?.('No prey in sight'); g.audio?.ui('back'); return false; }
+    this.prey = t; this.preyT = 8;
+    this.cast(0.25);
+    g.fx.rings.spawn(tmp.set(t.pos.x, t.pos.y + 0.08, t.pos.z), { color: BLOOD, r0: t.radius + 2.5, r1: t.radius + 0.4, dur: 0.4, thick: 0.15 });
+    g.fx.damageNumber(t.pos.clone().setY(t.pos.y + t.height + 0.4), 0, { text: 'PREY', color: '#ff5a5a' });
+    g.audio?.tone?.({ freq: 180, to: 120, dur: 0.4, gain: 0.12, type: 'sawtooth', filter: 800 });
+  }
+  startRampage(dur) {
+    const g = this.game, p = this.p;
+    this.rampageT = Math.max(this.rampageT, dur);
+    this.statBuff('rampage', dur, { attackSpeed: 0.25 });
+    g.toast?.('🔥 Rampage'); g.fx.flash(0x102008, 0.3, 0.15);
+    g.fx.rings.spawn(tmp.set(p.pos.x, p.pos.y + 0.08, p.pos.z), { color: GREEN, r0: 0.4, r1: 4, dur: 0.4, thick: 0.15 });
+    g.audio?.charge?.(0.4, 0.5);
+  }
+  execute() {
+    const g = this.game, p = this.p;
+    let t = null, best = 2;
+    for (const e of g.enemies) { if (e.dead || e.untargetable || e.isDummy) continue; if (e.pos.distanceTo(p.pos) > 12) continue; const f = e.hp / e.maxHp; if (f < best) { best = f; t = e; } }
+    t ??= this.target(12);
+    if (!t) { g.toast?.('No curse in reach'); g.audio?.ui('back'); return false; }
+    this.closeIn(t, GREEN);
+    this.showTool('katana', 0.7);
+    this.pose('swingR', 0.35);
+    this.after(0.12, () => {
+      if (t.dead) return;
+      const at = t.pos.clone().setY(t.pos.y + t.height * 0.55);
+      const kill = !t.isBoss && t.hp / t.maxHp < 0.35;
+      const dmg = kill ? (t.hp + 1) / Math.max(0.2, 1 - (t.armor ?? 0)) : 60 + (t.maxHp - t.hp) * (t.isBoss ? 0.08 : 0.2);
+      this.hit(t, dmg, { melee: true, unblockable: true, crit: kill ? false : undefined, stagger: 1, knock: new THREE.Vector3(), color: '#b8f070' });
+      g.fx.slashX(at, 2.8 + t.height * 0.4, kill ? 0xffffff : GREEN);
+      g.fx.hitSpark(at, null, { color: GREEN, big: true, crit: true });
+      if (kill) g.particles.burst(at, { count: 30, color: BLOOD, additive: false, speed: 5, life: 0.6, size: 0.16, gravity: 14, shape: 1 });
+      g.hitStop(0.1); g.shake(0.4); g.audio?.energy('slash'); g.audio?.impact(1.8, 'crit');
+    });
+  }
   // rampage: blink to a curse and cut it down
 
   assassinate(e, dmg) {
@@ -389,6 +836,35 @@ class TojiKit extends Kit {
     g.fx.hitSpark(at, null, { color: GREEN, big: true });
     g.hitStop(0.03); g.shake(0.15);
     g.audio?.energy('slash');
+  }
+}
+// A decoy left by Afterimage: a dark, fading silhouette the curses attack.
+// Same contract as an ally (pos, radius, height, takeDamage, update, dispose).
+class Afterimage {
+  constructor(game, owner, pos) {
+    this.game = game; this.owner = owner; this.kind = 'afterimage';
+    this.pos = pos.clone(); this.vel = new THREE.Vector3(); this.knock = new THREE.Vector3();
+    this.radius = 0.4; this.height = 1.9; this.hp = this.maxHp = 60; this.life = 2.5; this.dead = false; this.isAlly = true;
+    const mat = new THREE.MeshBasicNodeMaterial({ color: 0x1a2a14, transparent: true, opacity: 0.6, depthWrite: false });
+    this.mat = mat;
+    const grp = new THREE.Group();
+    for (const [w, h, d, y] of [[0.5, 0.75, 0.3, 1.15], [0.4, 0.4, 0.4, 1.75], [0.45, 0.8, 0.28, 0.4]]) { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.y = y; grp.add(m); }
+    grp.position.copy(this.pos); grp.rotation.y = owner.facing;
+    this.object = grp; game.scene.add(grp);
+  }
+  takeDamage(a) { if (this.dead) return 0; this.hp -= a; if (this.hp <= 0) this.despawn(); return a; }
+  despawn(quiet = false) {
+    if (this.dead) return; this.dead = true;
+    this.game.scene.remove(this.object); for (const m of this.object.children) m.geometry.dispose(); this.mat.dispose();
+    if (!quiet) this.game.particles.burst(this.pos.clone().setY(this.pos.y + 1), { count: 14, color: GREEN, speed: 2, life: 0.4, size: 0.3, sizeEnd: 0.05 });
+  }
+  dispose() { this.despawn(true); }
+  update(dt) {
+    if (this.dead) return false;
+    this.life -= dt;
+    this.mat.opacity = Math.min(0.6, this.life * 0.5);
+    if (this.life <= 0) { this.despawn(); return false; }
+    return true;
   }
 }
 registerKit('toji', TojiKit, TOJI_SKILLS);

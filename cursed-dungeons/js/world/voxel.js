@@ -2,6 +2,14 @@
 // Chunks are 16³ and meshed into a single merged BufferGeometry each
 // (only faces touching non-opaque neighbours are emitted) with per-vertex
 // ambient occlusion, baked coloured light and per-block material params.
+//
+// Streaming (big open-world regions): init(materials, { streaming, focus })
+// meshes only the chunk columns within `viewRadius` blocks of the focus;
+// stream(focusList) then loads columns coming into range (nearest first,
+// within a per-frame time budget) and unloads the ones far behind. Collision,
+// ground queries and the tracker always use the full voxel data, so an
+// unmeshed chunk is still solid. Worlds bigger than 200×200 stream by default.
+// Writes before init() skip the dirty bookkeeping (fast generation).
 import * as THREE from 'three/webgpu';
 import { BLOCKS, B } from './blocks.js';
 import { tileUV } from '../gfx/textures.js';
@@ -33,6 +41,11 @@ export class World {
     this.group = new THREE.Group(); this.group.name = 'world';
     this.bake = 1;
     this.surfaceCache = null;
+    this.meshed = false;              // set() before init() is a plain write (generators)
+    this.streaming = false;
+    this.viewRadius = 84;             // blocks around each focus that are meshed when streaming
+    this.loaded = new Set();          // streamed chunk columns 'kx,kz'
+    this.roofIndex = null;            // chunk column -> roofs touching it
   }
   inBounds(x, y, z) { return x >= 0 && y >= 0 && z >= 0 && x < this.sx && y < this.sy && z < this.sz; }
   idx(x, y, z) { return (y * this.sz + z) * this.sx + x; }
@@ -45,6 +58,7 @@ export class World {
     const i = this.idx(x, y, z);
     if (this.data[i] === id) return;
     this.data[i] = id;
+    if (!this.meshed) return;
     const kx = Math.floor(x / CS), ky = Math.floor(y / CS), kz = Math.floor(z / CS);
     this.markDirty(kx, ky, kz);
     // neighbours share faces / AO
@@ -53,7 +67,11 @@ export class World {
     if (ly === 0) this.markDirty(kx, ky - 1, kz); if (ly === CS - 1) this.markDirty(kx, ky + 1, kz);
     if (lz === 0) this.markDirty(kx, ky, kz - 1); if (lz === CS - 1) this.markDirty(kx, ky, kz + 1);
   }
-  markDirty(kx, ky, kz) { if (kx >= 0 && ky >= 0 && kz >= 0 && kx < this.cx && ky < this.cy && kz < this.cz) this.dirty.add(kx + ',' + ky + ',' + kz); }
+  // Raw write with no bookkeeping (terrain generation; call before init()).
+  setRaw(x, y, z, id) { if (x >= 0 && y >= 0 && z >= 0 && x < this.sx && y < this.sy && z < this.sz) this.data[(y * this.sz + z) * this.sx + x] = id; }
+  // Fill a column from y0 to y1 inclusive (generation helper).
+  column(x, z, y0, y1, id) { if (x < 0 || z < 0 || x >= this.sx || z >= this.sz) return; for (let y = Math.max(0, y0); y <= Math.min(this.sy - 1, y1); y++) this.data[(y * this.sz + z) * this.sx + x] = id; }
+  markDirty(kx, ky, kz) { if (this.streaming && !this.loaded.has(kx + ',' + kz)) return; if (kx >= 0 && ky >= 0 && kz >= 0 && kx < this.cx && ky < this.cy && kz < this.cz) this.dirty.add(kx + ',' + ky + ',' + kz); }
   fill(x0, y0, z0, x1, y1, z1, id) {
     for (let y = Math.min(y0, y1); y <= Math.max(y0, y1); y++)
       for (let z = Math.min(z0, z1); z <= Math.max(z0, z1); z++)
@@ -90,9 +108,21 @@ export class World {
   addLight(x, y, z, color, intensity, distance) {
     this.staticLights.push({ x, y, z, color: new THREE.Color(color), intensity, distance });
   }
-  addRoof(min, max, interior) { this.roofs.push({ min, max, interior, mesh: null, fade: 0 }); }
+  addRoof(min, max, interior) { this.roofs.push({ min, max, interior, mesh: null, fade: 0 }); this.roofIndex = null; }
+  // roofs indexed by chunk column, so meshing a city with hundreds of roofs stays fast
+  buildRoofIndex() {
+    const idx = new Map();
+    for (const r of this.roofs) for (let kx = Math.floor(r.min[0] / CS); kx <= Math.floor(r.max[0] / CS); kx++) for (let kz = Math.floor(r.min[2] / CS); kz <= Math.floor(r.max[2] / CS); kz++) {
+      const k = kx + ',' + kz; if (!idx.has(k)) idx.set(k, []); idx.get(k).push(r);
+    }
+    this.roofIndex = idx;
+    return idx;
+  }
   inRoof(x, y, z) {
-    for (const r of this.roofs) if (x >= r.min[0] && x <= r.max[0] && y >= r.min[1] && y <= r.max[1] && z >= r.min[2] && z <= r.max[2]) return r;
+    if (!this.roofs.length) return null;
+    const list = (this.roofIndex ?? this.buildRoofIndex()).get(Math.floor(x / CS) + ',' + Math.floor(z / CS));
+    if (!list) return null;
+    for (const r of list) if (x >= r.min[0] && x <= r.max[0] && y >= r.min[1] && y <= r.max[1] && z >= r.min[2] && z <= r.max[2]) return r;
     return null;
   }
   // Collect static lights from emissive blocks (lanterns, pools) — sparse.
@@ -135,20 +165,87 @@ export class World {
   }
 
   // ---------------------------------------------------------------- meshing
-  init(materials) {
+  // opts.streaming: mesh only around opts.focus (default: worlds over 200×200);
+  // opts.viewRadius overrides the meshed radius.
+  init(materials, opts = {}) {
     this.materials = materials;
     this.buildLightGrid();
-    for (let ky = 0; ky < this.cy; ky++) for (let kz = 0; kz < this.cz; kz++) for (let kx = 0; kx < this.cx; kx++) this.dirty.add(kx + ',' + ky + ',' + kz);
-    this.flush(Infinity);
+    this.buildRoofIndex();
+    this.meshed = true;
+    this.streaming = opts.streaming ?? (this.sx * this.sz > 200 * 200);
+    if (opts.viewRadius) this.viewRadius = opts.viewRadius;
+    this.dirty.clear(); this.loaded.clear();
+    if (!this.streaming) {
+      for (let ky = 0; ky < this.cy; ky++) for (let kz = 0; kz < this.cz; kz++) for (let kx = 0; kx < this.cx; kx++) this.dirty.add(kx + ',' + ky + ',' + kz);
+      this.flush(Infinity);
+    } else {
+      // mesh a smaller disc right away (behind the loading fade); the rest streams in over the next frames
+      const f = opts.focus ?? { x: this.sx / 2, z: this.sz / 2 };
+      const R = this.viewRadius; this.viewRadius = Math.min(R, opts.initialRadius ?? 56);
+      this.stream([f], Infinity);
+      this.viewRadius = R;
+    }
     for (const r of this.roofs) this.buildRoof(r);
+  }
+  // Drop every mesh (the voxel data stays): before re-adding a cached world.
+  unload() {
+    for (const c of [...this.group.children]) { this.group.remove(c); c.geometry?.dispose?.(); }
+    this.chunks.clear(); this.dirty.clear(); this.loaded.clear();
+    for (const r of this.roofs) r.mesh = null;
+    this.meshed = false;
+  }
+  isLoaded(x, z) { return !this.streaming || this.loaded.has(Math.floor(x / CS) + ',' + Math.floor(z / CS)); }
+  // Streaming: mesh the chunk columns within viewRadius of any focus
+  // ({x, z} points: players, the camera focus), nearest first, spending at
+  // most `ms` milliseconds (at least one column); unload columns more than
+  // viewRadius + 32 blocks from every focus. budget = Infinity loads all now.
+  stream(focusList, budget = 1, ms = 3) {
+    if (!this.streaming || !this.meshed || !focusList?.length) return 0;
+    const R = this.viewRadius, Rout = R + 32, half = CS / 2;
+    const far = (kx, kz, r) => { const cx = kx * CS + half, cz = kz * CS + half; for (const f of focusList) { const dx = cx - f.x, dz = cz - f.z; if (dx * dx + dz * dz <= r * r) return false; } return true; };
+    for (const key of [...this.loaded]) { const [kx, kz] = key.split(',').map(Number); if (far(kx, kz, Rout)) this.unloadColumn(kx, kz); }
+    const want = [];
+    for (const f of focusList) {
+      const k0x = Math.max(0, Math.floor((f.x - R) / CS)), k1x = Math.min(this.cx - 1, Math.floor((f.x + R) / CS));
+      const k0z = Math.max(0, Math.floor((f.z - R) / CS)), k1z = Math.min(this.cz - 1, Math.floor((f.z + R) / CS));
+      for (let kz = k0z; kz <= k1z; kz++) for (let kx = k0x; kx <= k1x; kx++) {
+        const key = kx + ',' + kz; if (this.loaded.has(key)) continue;
+        const dx = kx * CS + half - f.x, dz = kz * CS + half - f.z, d2 = dx * dx + dz * dz;
+        if (d2 > (R + half) * (R + half)) continue;
+        want.push([d2, kx, kz, key]);
+      }
+    }
+    if (!want.length) return 0;
+    want.sort((a, b) => a[0] - b[0]);
+    const t0 = performance.now(); let n = 0;
+    for (const [, kx, kz, key] of want) {
+      if (this.loaded.has(key)) continue;
+      if (n >= budget || (n > 0 && budget !== Infinity && performance.now() - t0 > ms)) break;
+      this.loaded.add(key);
+      for (let ky = 0; ky < this.cy; ky++) { this.dirty.delete(kx + ',' + ky + ',' + kz); this.buildChunk(kx, ky, kz); }
+      n++;
+    }
+    return n;
+  }
+  unloadColumn(kx, kz) {
+    this.loaded.delete(kx + ',' + kz);
+    for (let ky = 0; ky < this.cy; ky++) {
+      const key = kx + ',' + ky + ',' + kz, ch = this.chunks.get(key);
+      this.dirty.delete(key);
+      if (!ch) continue;
+      for (const m of [ch.mesh, ch.water, ...ch.glow]) if (m) { this.group.remove(m); m.geometry.dispose(); }
+      this.chunks.delete(key);
+    }
   }
   // Rebuild up to `budget` dirty chunks (streaming / destruction).
   flush(budget = 4) {
     let n = 0;
     for (const key of this.dirty) {
-      if (n++ >= budget) break;
+      if (n >= budget) break;
       this.dirty.delete(key);
       const [kx, ky, kz] = key.split(',').map(Number);
+      if (this.streaming && !this.loaded.has(kx + ',' + kz)) continue;
+      n++;
       this.buildChunk(kx, ky, kz);
     }
   }

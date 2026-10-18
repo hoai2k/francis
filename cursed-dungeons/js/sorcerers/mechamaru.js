@@ -1,18 +1,22 @@
-// Kokichi Muta (Ultimate Mechamaru)-style kit — Puppet Manipulation.
-//   LMB  armoured puppet combo with a rotary spin.
-//   RMB  Ultra Cannon: a short charge, then a cursed-energy beam from the palm.
-//   1    Sword Drill: the arm becomes a spinning drill-blade and he rockets
-//        forward, grinding through curses.
-//   2    Bastion: a barrier dome that eats projectiles and blunts damage.
-//   3    Absolute Mode (Mechamaru Mode: Absolute): the puppet goes all-out —
-//        auxiliary mini puppets deploy and fire on curses, and the Ultra
-//        Cannon fires a heavier, wider beam.
+// Kokichi Muta (Ultimate Mechamaru)-style kit — Puppet Manipulation. 21
+// abilities on the technique tree; four are equipped (RMB takes a basic one)
+// plus F.
+//   LMB       armoured puppet combo with a rotary spin.
+//   Cannon    Ultra Cannon (start, RMB: palm beam), Rapid Fire, Sweep, Shoulder
+//             Missiles, Full Burst
+//   Arsenal   Sword Drill (drill-blade charge), Blade Arm, Rocket Punch, Thruster
+//             Boost, Jet Slam
+//   Bastion   Bastion (barrier dome), Barrier Wall, Self-Repair, Cursed Pulse
+//   Puppets   Mini Mechamaru, Puppet Bomb, Absolute Mode (Mechamaru Mode: Absolute
+//             — mini puppets deploy and the cannon fires heavier), Puppet Legion
+//   Muta      Stored Energy (his Heavenly Restriction), Remote Reserves, Overclock
+//   Talismans Alloy Plating, Heavenly Restriction, Overclocked Cannon, Drone Uplink
 //   F    Ultimate — Ultra Cannon: Maximum Output. Mechamaru has no Domain
 //        Expansion; his trump card is dumping the cursed energy Muta stored
 //        up for years (his Heavenly Restriction) into one colossal beam that
 //        punches through walls and everything in its path.
 import * as THREE from 'three/webgpu';
-import { Kit } from './kit.js';
+import { Kit, ability, passive } from './kit.js';
 import { registerKit, registerSorcerer } from './index.js';
 import { registerLook } from '../entities/models.js';
 import { beamMaterial, orbMaterial } from '../gfx/orbs.js';
@@ -54,12 +58,12 @@ registerLook('mechamaru', {
 });
 
 export const MECHAMARU_SKILLS = [
-  { id: 'cannon', name: 'Ultra Cannon', desc: 'Cannon beams (and Maximum Output) hit harder and reach further.', max: 3 },
-  { id: 'overcharge', name: 'Overcharge', desc: 'Ultra Cannon recharges faster.', max: 2, req: 'cannon' },
-  { id: 'drill', name: 'Sword Drill', desc: 'Longer drilling charge and a harder final thrust.', max: 3 },
-  { id: 'bastion', name: 'Bastion', desc: 'Bastion lasts longer; at rank 2 it fires projectiles back.', max: 2 },
-  { id: 'drones', name: 'Absolute Mode', desc: '+1 drone per rank and longer Absolute Mode.', max: 2 },
-  { id: 'alloy', name: 'Puppet Alloy', desc: '+4% damage reduction per rank.', max: 3 },
+  { id: 'cannon', name: 'Ultra Cannon', icon: '🔆', desc: 'Cannon beams (and Maximum Output) hit harder and reach further.', max: 3, req: 'ab:cannon', branch: 'Cannon', tier: 1 },
+  { id: 'overcharge', name: 'Overcharge', icon: '⚡', desc: 'Ultra Cannon recharges faster.', max: 2, req: 'cannon', branch: 'Cannon', tier: 2 },
+  { id: 'drill', name: 'Sword Drill', icon: '🌀', desc: 'Longer drilling charge and a harder final thrust.', max: 3, req: 'ab:sword_drill', branch: 'Arsenal', tier: 2 },
+  { id: 'bastion', name: 'Bastion', icon: '🛡️', desc: 'Bastion lasts longer; at rank 2 it fires projectiles back.', max: 2, req: 'ab:bastion', branch: 'Bastion', tier: 2 },
+  { id: 'drones', name: 'Absolute Mode', icon: '🤖', desc: '+1 drone per rank and longer Absolute Mode.', max: 2, req: 'ab:absolute', branch: 'Puppets', tier: 4 },
+  { id: 'alloy', name: 'Puppet Alloy', icon: '🔩', desc: '+4% damage reduction per rank.', max: 3, branch: 'Bastion', tier: 0 },
 ];
 
 class MechamaruKit extends Kit {
@@ -73,11 +77,41 @@ class MechamaruKit extends Kit {
       { style: 'slam', dur: 0.6, windup: 0.45, strike: 0.62, dmg: 28, range: 3.4, arc: Math.PI, lunge: 3, knock: 11, stop: 0.1, shake: 0.45, ring: true, ringColor: CYAN, stagger: 0.6, trail: CYAN },
     ];
     this.p.stats.armor = (this.p.stats.armor ?? 0) + r('alloy') * 0.04;
-    this.slots = {
-      ranged: this.ability({ name: 'Ultra Cannon', icon: '🔆', cd: 1.8 - r('overcharge') * 0.35, ce: 0, use: () => this.cannon() }),
-      t1: this.ability({ name: 'Sword Drill', icon: '🌀', cd: 7, ce: 12, use: () => this.swordDrill() }),
-      t2: this.ability({ name: 'Bastion', icon: '🛡️', cd: 13, ce: 14, use: () => this.bastion() }),
-      t3: this.ability({ name: 'Absolute Mode', icon: '🤖', cd: 28, ce: 40, use: () => this.absolute() }),
+    this.cannonMul = 1; this.puppetMul = 1; this.puppetLife = 1;
+    this.branches = ['Cannon', 'Arsenal', 'Bastion', 'Puppets', 'Muta'];
+    this.library = {
+      // ---- Cannon
+      cannon: ability({ name: 'Ultra Cannon', icon: '🔆', kind: 'basic', desc: 'A short charge, then a cursed-energy beam from the palm.', cd: 1.8 - r('overcharge') * 0.35, ce: 0, branch: 'Cannon', tier: 0, start: true, legacy: 'ranged', use: () => this.cannon() }),
+      rapid_cannon: ability({ name: 'Ultra Cannon: Rapid Fire', icon: '📡', kind: 'basic', desc: 'Three thin beams in quick succession.', cd: 2, ce: 2, branch: 'Cannon', tier: 1, req: 'cannon', use: () => this.rapidCannon() }),
+      sweep_beam: ability({ name: 'Ultra Cannon: Sweep', icon: '〰️', kind: 'technique', desc: 'Hold the beam and sweep it across the field in front of you.', cd: 9, ce: 16, branch: 'Cannon', tier: 2, req: 'rapid_cannon', use: () => this.sweepBeam() }),
+      missiles: ability({ name: 'Shoulder Missiles', icon: '🚀', kind: 'technique', desc: 'Panels open and six homing cursed missiles arc out at the nearest curses.', cd: 10, ce: 16, branch: 'Cannon', tier: 3, req: 'cannon', use: () => this.missiles() }),
+      full_burst: ability({ name: 'Ultra Cannon: Full Burst', icon: '☀️', kind: 'technique', desc: 'Plant your feet and pour out a wide, continuous beam for over a second.', cd: 20, ce: 38, branch: 'Cannon', tier: 4, req: 'sweep_beam', use: () => this.fullBurst() }),
+      // ---- Arsenal
+      sword_drill: ability({ name: 'Sword Drill', icon: '🌀', kind: 'movement', desc: 'The arm becomes a spinning drill-blade and you rocket forward, grinding through curses.', cd: 7, ce: 12, branch: 'Arsenal', tier: 1, legacy: 't1', use: () => this.swordDrill() }),
+      blade_arm: ability({ name: 'Blade Arm', icon: '🗡️', kind: 'basic', desc: 'A blade snaps out of the forearm for one wide slash.', cd: 1.4, ce: 0, branch: 'Arsenal', tier: 1, use: () => this.bladeArm() }),
+      rocket_punch: ability({ name: 'Rocket Punch', icon: '🤜', kind: 'basic', desc: 'Fire the fist on its thruster; it hits on the way out and on the way back.', cd: 2.4, ce: 3, branch: 'Arsenal', tier: 2, req: 'blade_arm', use: () => this.rocketPunch() }),
+      thruster: ability({ name: 'Thruster Boost', icon: '💨', kind: 'movement', desc: 'Back thrusters fire for a quick boost. Two charges.', cd: 4, ce: 3, branch: 'Arsenal', tier: 2, req: 'sword_drill', maxCharges: 2, chargesLeft: 2, gateTime: 0.3, use: () => this.thruster() }),
+      jet_slam: ability({ name: 'Jet Slam', icon: '🛬', kind: 'movement', desc: 'Jet up and slam down on the aim point.', cd: 9, ce: 12, branch: 'Arsenal', tier: 3, req: 'thruster', use: () => this.jetSlam() }),
+      // ---- Bastion
+      bastion: ability({ name: 'Bastion', icon: '🛡️', kind: 'defence', desc: 'A barrier dome that eats projectiles and blunts damage.', cd: 13, ce: 14, branch: 'Bastion', tier: 1, legacy: 't2', use: () => this.bastion() }),
+      bastion_wall: ability({ name: 'Bastion: Barrier Wall', icon: '🧱', kind: 'defence', desc: 'Project a barrier wall in front of you for 6s: it stops curse projectiles and holds curses back.', cd: 14, ce: 12, branch: 'Bastion', tier: 2, req: 'bastion', use: () => this.barrierWall() }),
+      self_repair: ability({ name: 'Self-Repair', icon: '🔧', kind: 'heal', desc: 'Muta reroutes power to repairs: heal 25% health over 2.5s.', cd: 28, ce: 22, branch: 'Bastion', tier: 3, req: 'bastion', use: () => this.rctHeal(0.25, 2.5, CYAN) }),
+      cursed_pulse: ability({ name: 'Cursed Pulse', icon: '📳', kind: 'technique', desc: 'Charge the core (its reach is marked) and release a pulse that stuns every curse around you.', cd: 14, ce: 18, branch: 'Bastion', tier: 3, req: 'bastion_wall', use: () => this.cursedPulse() }),
+      // ---- Puppets
+      mini_mecha: ability({ name: 'Mini Mechamaru', icon: '🤖', kind: 'summon', desc: 'Deploy a small auxiliary puppet that flies beside you and shoots curses for 15s.', cd: 18, ce: 14, branch: 'Puppets', tier: 1, use: () => this.miniMecha() }),
+      puppet_bomb: ability({ name: 'Puppet Bomb', icon: '💣', kind: 'summon', desc: 'A disposable puppet runs at the nearest curse, flashes and self-destructs.', cd: 9, ce: 12, branch: 'Puppets', tier: 2, req: 'mini_mecha', use: () => this.puppetBomb() }),
+      absolute: ability({ name: 'Absolute Mode', icon: '🦾', kind: 'buff', desc: 'Mechamaru Mode: Absolute — mini puppets deploy and fire on curses, and the Ultra Cannon fires a heavier, wider beam.', cd: 28, ce: 40, branch: 'Puppets', tier: 3, legacy: 't3', req: 'mini_mecha', use: () => this.absolute() }),
+      puppet_legion: ability({ name: 'Puppet Legion', icon: '🛸', kind: 'summon', desc: 'Every spare puppet Muta has: six drones ring you for 10s firing beams, then dive in a final volley.', cd: 34, ce: 55, branch: 'Puppets', tier: 5, req: 'absolute', use: () => this.puppetLegion() }),
+      // ---- Muta
+      stored_energy: ability({ name: 'Stored Energy', icon: '🔋', kind: 'buff', desc: 'Tap the cursed energy Muta\'s Heavenly Restriction stored up: for 8s techniques cost half and cannon beams hit 40% harder.', cd: 26, ce: 0, branch: 'Muta', tier: 2, use: () => this.storedEnergy() }),
+      reserves: ability({ name: 'Remote Reserves', icon: '🩸', kind: 'buff', desc: 'Push Muta\'s fragile body (15% health) to send 40 Cursed Energy to the puppet.', cd: 20, ce: 0, branch: 'Muta', tier: 3, req: 'stored_energy', use: () => this.reserves() }),
+      overclock: ability({ name: 'Overclock', icon: '⏩', kind: 'buff', desc: 'For 6s every cooldown recovers twice as fast.', cd: 30, ce: 20, branch: 'Muta', tier: 4, req: 'reserves', use: () => this.overclock() }),
+    };
+    this.passives = {
+      plating: passive({ name: 'Alloy Plating', icon: '🔩', desc: '+10% damage reduction.', branch: 'Bastion', tier: 2, req: 'bastion', apply: (pl) => { pl.stats.armor = Math.min(0.7, pl.stats.armor + 0.1); } }),
+      restriction: passive({ name: 'Heavenly Restriction', icon: '📿', desc: '+30 max Cursed Energy and +10% Cursed Energy gain (paid for by Muta\'s body).', branch: 'Muta', tier: 2, req: 'stored_energy', apply: (pl) => { pl.maxCe += 30; pl.stats.ceGain += 0.1; } }),
+      overclocked: passive({ name: 'Overclocked Cannon', icon: '🔆', desc: 'Every cannon beam deals 25% more damage.', branch: 'Cannon', tier: 2, req: 'rapid_cannon', apply: (pl, k) => { k.cannonMul *= 1.25; } }),
+      uplink: passive({ name: 'Drone Uplink', icon: '📶', desc: 'Puppets and drones hit 30% harder and last 50% longer.', branch: 'Puppets', tier: 2, req: 'mini_mecha', apply: (pl, k) => { k.puppetMul *= 1.3; k.puppetLife = 1.5; } }),
     };
     this.ultimate = { name: 'Ultra Cannon: Maximum Output', icon: '🔆', use: () => this.maximumOutput() };
     this.beamMats = [beamMaterial(CYAN), beamMaterial(WHITE, true)];
@@ -91,10 +125,12 @@ class MechamaruKit extends Kit {
     for (const d of this.drones) this.game.scene.remove(d.mesh);
     if (this.drill) this.p.rig.handR.remove(this.drill);
     this.drones = []; this.maxOut = null; this.game.fx.dimTarget = 0;
+    for (const o of this.temps ?? []) this.game.scene.remove(o); this.temps?.clear(); this.mini = null;
   }
   // ------------------------------------------------------------- Ultra Cannon
   beam(from, dir, L, W, dmg, { pierceWalls = false, knock = 6 } = {}) {
     const g = this.game, p = this.p;
+    dmg *= this.cannonMul;
     if (!pierceWalls) for (let s = 0.6; s < L; s += 0.4) if (g.world.solidAt(from.x + dir.x * s, from.y + dir.y * s, from.z + dir.z * s)) { L = s; break; }
     const grp = new THREE.Group();
     const outer = new THREE.Mesh(UNIT_CYL, this.beamMats[0]), inner = new THREE.Mesh(UNIT_CYL, this.beamMats[1]);
@@ -212,7 +248,7 @@ class MechamaruKit extends Kit {
     g.fx.flash(0x80e8ff, 0.12, 0.12);
     g.audio?.energy('infinity');
   }
-  onIncoming(amount) {
+  incoming(amount) {
     if (this.bastionT <= 0) return amount;
     this.dome.material.userData.inten.value = 4;
     return amount * 0.25;
@@ -222,16 +258,10 @@ class MechamaruKit extends Kit {
     const g = this.game, p = this.p, rk = this.rank('drones');
     for (const d of this.drones) g.scene.remove(d.mesh);
     this.drones = [];
-    this.absT = 12 + rk * 3;
+    this.absT = (12 + rk * 3) * this.puppetLife;
     const n = 3 + rk;
-    const body = new THREE.MeshStandardNodeMaterial({ color: 0xb8c0ca, metalness: 0.8, roughness: 0.3 });
-    const eye = new THREE.MeshStandardNodeMaterial({ color: CYAN, emissive: CYAN, emissiveIntensity: 3 });
     for (let i = 0; i < n; i++) {
-      const m = new THREE.Group();
-      const b = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.18, 0.34), body); b.castShadow = true;
-      const e = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.08, 0.06), eye); e.position.z = 0.18;
-      const wl = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.04, 0.1), body), wr = wl.clone(); wl.position.x = -0.3; wr.position.x = 0.3;
-      m.add(b, e, wl, wr);
+      const m = this.makeDrone();
       m.position.copy(p.pos).setY(p.pos.y + 1.2);
       g.scene.add(m);
       this.drones.push({ mesh: m, a: (i / n) * Math.PI * 2, cd: 0.3 + i * 0.15 });
@@ -280,7 +310,7 @@ class MechamaruKit extends Kit {
           const to = tmp2.copy(e.pos).setY(e.pos.y + e.height * 0.5);
           const dir = to.clone().sub(m.position); const L = dir.length(); dir.normalize();
           g.fx.slashLine(m.position.clone(), dir, L, CYAN, 0.12, 0.12);
-          g.combat.damageEnemy(e, 7 + this.rank('drones') * 2, p, { stagger: 0.15, ceGain: 0.5 });
+          g.combat.damageEnemy(e, (7 + this.rank('drones') * 2) * this.puppetMul, p, { stagger: 0.15, ceGain: 0.5 });
           g.particles.burst(to, { count: 5, color: CYAN, speed: 4, life: 0.2, size: 0.08, shape: 1 });
           g.audio?.tone({ freq: 1800, to: 900, dur: 0.06, gain: 0.03, type: 'square', filter: 5000 });
         }
@@ -349,6 +379,285 @@ class MechamaruKit extends Kit {
       this.maxOut = null; p.action = null;
       g.fx.poof(p.pos);
       return false;
+    });
+  }
+  // ============================================================== library abilities
+  temp(o) { (this.temps || (this.temps = new Set())).add(o); this.game.scene.add(o); return o; }
+  untemp(o) { this.temps?.delete(o); this.game.scene.remove(o); }
+  warn(c, R, dur, col = CYAN) {
+    const g = this.game, y = this.groundAt(c.x, c.z, c.y) + 0.07;
+    g.fx.rings.spawn(tmp.set(c.x, y, c.z), { color: col, r0: R, r1: R, dur, thick: 0.1 });
+    g.fx.rings.spawn(tmp.set(c.x, y + 0.01, c.z), { color: col, r0: R, r1: 0.3, dur, thick: 0.3 });
+  }
+  makeDrone(scale = 1) {
+    this.droneMats ??= { body: new THREE.MeshStandardNodeMaterial({ color: 0xb8c0ca, metalness: 0.8, roughness: 0.3 }), eye: new THREE.MeshStandardNodeMaterial({ color: CYAN, emissive: CYAN, emissiveIntensity: 3 }) };
+    const { body, eye } = this.droneMats;
+    const m = new THREE.Group();
+    const b = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.18, 0.34), body); b.castShadow = true;
+    const e = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.08, 0.06), eye); e.position.z = 0.18;
+    const wl = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.04, 0.1), body), wr = wl.clone(); wl.position.x = -0.3; wr.position.x = 0.3;
+    m.add(b, e, wl, wr); m.scale.setScalar(scale);
+    return m;
+  }
+  zap(from, e, dmg) {
+    const g = this.game;
+    const to = tmp2.copy(e.pos).setY(e.pos.y + e.height * 0.5);
+    const dir = to.clone().sub(from); const L = dir.length(); dir.normalize();
+    g.fx.slashLine(from.clone(), dir, L, CYAN, 0.14, 0.12);
+    this.hit(e, dmg * this.puppetMul, { stagger: 0.15, ceGain: 0.5 });
+    g.particles.burst(to, { count: 5, color: CYAN, speed: 4, life: 0.2, size: 0.08, shape: 1 });
+    g.audio?.tone({ freq: 1800, to: 900, dur: 0.06, gain: 0.03, type: 'square', filter: 5000 });
+  }
+  leapTo(to, dur, height, onLand) {
+    const g = this.game, p = this.p, from = p.pos.clone();
+    p.invulnerable = true;
+    p.action = { type: 'attack', step: { style: 'slam', strike: 0.9, windup: 0.3 }, style: 'slam', dur: dur + 0.1, elapsed: 0, t: 0, windup: 0.3, strike: 0.9, struck: true, moveScale: 0, lock: true, hold: true, cancelable: false, faceAim: false };
+    p.facing = Math.atan2(to.x - from.x, to.z - from.z);
+    this.during(dur, (t, dt, k) => {
+      const x = from.x + (to.x - from.x) * k, z = from.z + (to.z - from.z) * k, y = from.y + (to.y - from.y) * k + Math.sin(k * Math.PI) * height;
+      if (!g.world.solidAt(x, y + 0.5, z) && !g.world.solidAt(x, y + 1.5, z)) { p.pos.set(x, y, z); p.visY = y; }
+      p.vel.set(0, 0, 0);
+      g.particles.glow.emit(p.pos.x, p.pos.y + 1, p.pos.z, 0, -4, 0, 0.3, 0.4, 1.6, 2.2, 0.2, 0, 1, 0.05, 0);
+    }, () => { p.invulnerable = false; if (p.action?.lock) p.action = null; if (!this.disposed) onLand?.(p.pos.clone()); });
+  }
+  // ---- Cannon
+  rapidCannon() {
+    const g = this.game, p = this.p, rk = this.rank('cannon');
+    p.action = { type: 'cast', dur: 0.4, elapsed: 0, t: 0, moveScale: 0.3, faceAim: true };
+    for (let i = 0; i < 3; i++) this.after(0.05 + i * 0.1, () => {
+      this.beam(this.handPos(), p.aimDir.clone(), 12 + rk * 2, 0.22, 8 + rk * 2, { knock: 2 });
+      g.audio?.tone({ freq: 1600, to: 500, dur: 0.1, gain: 0.08, type: 'sawtooth', filter: 4000 });
+    });
+  }
+  sweepBeam() {
+    const g = this.game, p = this.p, rk = this.rank('cannon'), base = this.aimAngle(), half = 0.75;
+    p.action = { type: 'cast', dur: 0.95, elapsed: 0, t: 0, moveScale: 0, lock: true, hold: true, cancelable: false, faceAim: false };
+    g.audio?.charge(0.2, 1.2);
+    let tick = 0;
+    this.after(0.2, () => this.during(0.65, (t, dt, k) => {
+      tick -= dt; if (tick > 0) return;
+      tick = 0.06;
+      const a = base - half + k * half * 2;
+      p.facing = a;
+      this.beam(this.handPos(), tmp.set(Math.sin(a), 0, Math.cos(a)).clone(), 14 + rk * 2, 0.4, 7 + rk * 2, { knock: 3 });
+      g.audio?.noise({ dur: 0.08, gain: 0.15, type: 'bandpass', freq: 2200, sweep: 300, q: 2 });
+    }, () => { if (p.action?.lock) p.action = null; }));
+  }
+  missiles() {
+    const g = this.game, p = this.p, rk = this.rank('cannon');
+    this.cast(0.4, true);
+    const list = g.enemies.filter((e) => !e.dead && e.pos.distanceTo(p.pos) < 18).sort((a, b) => a.pos.distanceTo(p.pos) - b.pos.distanceTo(p.pos));
+    for (let i = 0; i < 6; i++) this.after(i * 0.07, () => {
+      const side = i % 2 ? 1 : -1, f = this.fwd();
+      const from = p.pos.clone().add(tmp.set(f.z * side * 0.5, 2.2, -f.x * side * 0.5));
+      const target = list.length ? list[i % list.length] : null;
+      const vel = f.clone().multiplyScalar(8).add(tmp.set(f.z * side * 5, 9, -f.x * side * 5));
+      g.projectiles.fire({ pos: from, vel, team: 'player', shape: 'arrow', color: 0xe0e8f0, emissive: 1.5, scale: 0.35, life: 1.6, radius: 0.4, homing: target ? 6 : 0, target, gravity: target ? 0 : 6,
+        trail: (q) => { q.vel.setLength(Math.min(28, q.vel.length() + 0.6)); g.particles.burst(q.pos, { count: 1, color: 0xffa040, speed: 0.4, life: 0.3, size: 0.25, sizeEnd: 0.05, intensity: 3 }); },
+        onExpire: (q) => { g.combat.aoe(q.pos, 2, 18 + rk * 5, p, { knock: 5, stagger: 0.4 }); g.fx.explosion(q.pos, 0xffa040, 1.4); } });
+      g.audio?.whoosh(0.7);
+    });
+  }
+  fullBurst() {
+    const g = this.game, p = this.p, rk = this.rank('cannon');
+    p.action = { type: 'cast', both: true, dur: 1.75, elapsed: 0, t: 0, moveScale: 0, faceAim: true, lock: true, hold: true, cancelable: false };
+    this.buff('full_burst_brace', 1.75, { incoming: (a) => a * 0.6 });
+    g.audio?.charge(0.35, 0.8);
+    let tick = 0;
+    this.after(0.35, () => this.during(1.3, (t, dt) => {
+      tick -= dt; if (tick > 0) return;
+      tick = 0.12;
+      this.beam(this.handPos(), p.aimDir.clone(), 18 + rk * 2, 0.9, 14 + rk * 4, { knock: 4 });
+      g.shake(0.15);
+      g.audio?.noise({ dur: 0.14, gain: 0.3, type: 'bandpass', freq: 1800, sweep: 300, q: 2 });
+    }, () => { if (p.action?.lock) p.action = null; g.fx.poof(p.pos); }));
+  }
+  // ---- Arsenal
+  bladeArm() {
+    const g = this.game, p = this.p, f = this.fwd();
+    this.pose('swingR', 0.3);
+    this.after(0.1, () => {
+      for (const e of this.foes(p.pos, 3.3, f, 0.9)) { this.hit(e, 18 + this.rank('drill') * 4, { melee: true, stagger: 0.4, knock: f.clone().multiplyScalar(4) }); g.fx.hitSpark(e.pos.clone().setY(e.pos.y + e.height * 0.55), f, { color: CYAN }); }
+      g.fx.slashArc(p.pos, p.facing, WHITE, 3.3, 0.4, 0.18); g.fx.slashArc(p.pos, p.facing, CYAN, 3, 0.4, 0.22);
+      g.audio?.energy('slash');
+    });
+  }
+  rocketPunch() {
+    const g = this.game, p = this.p, f = this.fwd();
+    this.cast(0.3);
+    const fist = this.temp(new THREE.Group());
+    const steel = new THREE.MeshStandardNodeMaterial({ color: STEEL, metalness: 0.85, roughness: 0.3 }), glow = new THREE.MeshStandardNodeMaterial({ color: CYAN, emissive: CYAN, emissiveIntensity: 3 });
+    const k = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.42, 0.5), steel), j = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 0.1), glow); j.position.z = -0.3;
+    fist.add(k, j); fist.position.copy(this.handPos()); fist.lookAt(tmp.copy(fist.position).add(f));
+    const out = new Set(), back = new Set(), pos = fist.position;
+    g.audio?.whoosh(1.1);
+    this.during(1.2, (t, dt) => {
+      const going = t < 0.4;
+      if (going) pos.addScaledVector(f, 26 * dt * (1 - t / 0.45));
+      else { const b = tmp.copy(this.handPos()).sub(pos); const d = b.length(); if (d < 0.8) return false; pos.addScaledVector(b.normalize(), Math.min(d, 28 * dt)); }
+      g.particles.glow.emit(pos.x, pos.y, pos.z, -f.x * 2, 0, -f.z * 2, 0.25, 0.4, 1.6, 2.2, 0.15, 0, 1, 0.05, 0);
+      for (const e of this.foes(pos, 1.3)) {
+        const set = going ? out : back; if (set.has(e)) continue; set.add(e);
+        this.hit(e, 22 + this.rank('drill') * 4, { stagger: 0.5, knock: f.clone().multiplyScalar(going ? 6 : -4) });
+        g.fx.hitSpark(pos, null, { color: CYAN }); g.audio?.impact(1.1);
+      }
+    }, () => { this.untemp(fist); k.geometry.dispose(); j.geometry.dispose(); });
+  }
+  thruster() {
+    const g = this.game, p = this.p;
+    const v = tmp.set(p.vel.x, 0, p.vel.z);
+    this.dash(v.lengthSq() > 1 ? v.clone().normalize() : this.fwd(), 6, 0.18, { color: CYAN });
+    g.particles.burst(p.pos.clone().setY(p.pos.y + 1.2), { count: 14, color: CYAN, speed: 5, life: 0.3, size: 0.15, shape: 1, intensity: 3 });
+    g.audio?.whoosh(1.2);
+  }
+  jetSlam() {
+    const g = this.game, to = this.aimGround(10);
+    this.warn(to, 3.5, 0.6);
+    g.audio?.charge(0.3, 0.8);
+    this.leapTo(to, 0.6, 4.5, (c) => {
+      this.blast(c, 3.5, 40 + this.rank('drill') * 8, { color: CYAN, knock: 10, stagger: 0.8 });
+      g.fx.landDust(c, 30); g.hitStop(0.05);
+    });
+  }
+  // ---- Bastion
+  barrierWall() {
+    const g = this.game, p = this.p, f = this.fwd();
+    this.cast(0.4, true);
+    const c = p.pos.clone().addScaledVector(f, 2.6); c.y = this.groundAt(c.x, c.z, p.pos.y);
+    const W = 5, side = new THREE.Vector3(f.z, 0, -f.x);
+    const wall = this.temp(new THREE.Mesh(new THREE.BoxGeometry(W, 2.6, 0.2), orbMaterial(CYAN, { power: 1.6, intensity: 1.4 })));
+    wall.position.copy(c).setY(c.y + 1.3); wall.rotation.y = Math.atan2(f.x, f.z); wall.renderOrder = 22;
+    g.fx.flash(0x80e8ff, 0.1, 0.1); g.audio?.energy('infinity');
+    const near = (pos) => { tmp.subVectors(pos, c); return { lat: tmp.x * side.x + tmp.z * side.z, dep: tmp.x * f.x + tmp.z * f.z }; };
+    this.during(6, (t, dt) => {
+      wall.scale.y = Math.min(1, t * 6);
+      for (const pr of [...g.projectiles.list]) {
+        if (pr.team !== 'enemy') continue;
+        const n = near(pr.pos); if (Math.abs(n.lat) < W / 2 + 0.2 && Math.abs(n.dep) < 0.6 && pr.pos.y < c.y + 3) { g.fx.hitSpark(pr.pos, null, { color: CYAN }); g.projectiles.kill(pr, 'blocked'); }
+      }
+      for (const e of g.enemies) {
+        if (e.dead) continue;
+        const n = near(e.pos), r = (e.radius ?? 0.5) + 0.3;
+        if (Math.abs(n.lat) < W / 2 + 0.2 && n.dep > 0 && n.dep < r) e.knock.addScaledVector(f, (r - n.dep) * 40 * dt);
+      }
+    }, () => { this.untemp(wall); wall.geometry.dispose(); g.particles.burst(c.clone().setY(c.y + 1.2), { count: 20, color: CYAN, speed: 3, life: 0.4, size: 0.12, shape: 1 }); });
+  }
+  cursedPulse() {
+    const g = this.game, p = this.p, R = 5.5, ch = 0.5;
+    p.action = { type: 'raise', dur: ch + 0.2, elapsed: 0, t: 0, moveScale: 0, lock: true, hold: true, cancelable: false };
+    this.warn(p.pos, R, ch);
+    g.audio?.charge(ch, 1.2);
+    this.after(ch, () => {
+      if (p.action?.lock) p.action = null;
+      for (const e of this.foes(p.pos, R)) { this.hit(e, 20, { stagger: 0.8 }); this.stun(e, 1.6); g.fx.slashLine(p.pos.clone().setY(p.pos.y + 1.2), tmp2.subVectors(e.pos, p.pos).setY(0).normalize().clone(), e.pos.distanceTo(p.pos), CYAN, 0.1, 0.2); }
+      g.fx.rings.spawn(tmp.set(p.pos.x, p.pos.y + 0.08, p.pos.z), { color: CYAN, r0: 0.4, r1: R, dur: 0.3, thick: 0.3 });
+      g.fx.shockwave(p.pos, WHITE, R + 1); g.fx.screenWave(p.pos.clone().setY(p.pos.y + 1), 0.8, 0.4); g.fx.flash(0x80e8ff, 0.2, 0.1);
+      g.shake(0.4); g.audio?.energy('infinity'); g.audio?.impact(1.4);
+    });
+  }
+  // ---- Puppets
+  miniMecha() {
+    const g = this.game, p = this.p;
+    this.cast(0.35, true);
+    if (this.mini) this.untemp(this.mini);
+    const m = this.mini = this.temp(this.makeDrone(1.6));
+    m.position.copy(p.pos).setY(p.pos.y + 1.5);
+    g.fx.summonCircle(p.pos, CYAN); g.audio?.energy('summon');
+    let cd = 0.4, a = 0;
+    this.during(15 * this.puppetLife, (t, dt) => {
+      if (this.mini !== m) return false;
+      cd -= dt; a += dt * 1.5;
+      m.position.lerp(tmp.set(p.pos.x + Math.cos(a) * 1.5, p.pos.y + 2.2 + Math.sin(t * 3) * 0.15, p.pos.z + Math.sin(a) * 1.5), Math.min(1, dt * 8));
+      const e = g.domainSys?.sureHit(p) ? g.nearestEnemy(m.position, 30) : g.nearestEnemy(m.position, 13);
+      if (e) m.lookAt(tmp2.copy(e.pos).setY(e.pos.y + 1));
+      if (e && cd <= 0) { cd = 0.7; this.zap(m.position, e, 10); }
+    }, () => { if (this.mini === m) { this.mini = null; g.fx.poof(m.position.clone().setY(m.position.y - 0.8)); this.untemp(m); } });
+  }
+  puppetBomb() {
+    const g = this.game, p = this.p;
+    this.cast(0.3);
+    const m = this.temp(this.makeDrone(1.8));
+    m.position.copy(p.pos).addScaledVector(this.fwd(), 1); m.position.y = p.pos.y + 0.3;
+    g.audio?.energy('summon');
+    let fuse = -1;
+    const f = this.fwd();
+    const boom = () => {
+      const c = m.position.clone(); this.untemp(m);
+      this.blast(c, 2.8, (55 + this.rank('drones') * 10) * this.puppetMul, { color: CYAN, knock: 10, stagger: 0.8 });
+    };
+    this.during(4, (t, dt) => {
+      if (fuse >= 0) { fuse -= dt; m.visible = Math.sin(t * 50) > 0; if (fuse <= 0) return false; return; }
+      const e = g.nearestEnemy(m.position, 16);
+      const goal = e ? e.pos : tmp.copy(m.position).addScaledVector(f, 1);
+      tmp2.subVectors(goal, m.position).setY(0); const d = tmp2.length();
+      if (e && d < 1 + (e.radius ?? 0.5)) { fuse = 0.35; this.warn(m.position, 2.8, 0.35); g.audio?.tone({ freq: 1200, dur: 0.3, gain: 0.06, type: 'square', filter: 4000 }); return; }
+      m.position.addScaledVector(tmp2.normalize(), Math.min(d, 8 * dt));
+      m.position.y = this.groundAt(m.position.x, m.position.z, m.position.y) + 0.3 + Math.abs(Math.sin(t * 14)) * 0.15;
+      m.rotation.y = Math.atan2(tmp2.x, tmp2.z);
+    }, () => { if (this.temps?.has(m)) boom(); });
+  }
+  puppetLegion() {
+    const g = this.game, p = this.p, n = 6;
+    p.action = { type: 'raise', dur: 0.6, elapsed: 0, t: 0, moveScale: 0.2 };
+    g.toast?.('Puppet Legion'); g.audio?.energy('summon'); g.audio?.charge(0.6, 1.2);
+    g.fx.shockwave(p.pos, CYAN, 5);
+    const ds = [];
+    for (let i = 0; i < n; i++) { const m = this.temp(this.makeDrone(1.2)); m.position.copy(p.pos).setY(p.pos.y + 1); ds.push({ m, a: i / n * Math.PI * 2, cd: 0.3 + i * 0.1 }); }
+    this.during(10 * this.puppetLife, (t, dt) => {
+      for (const d of ds) {
+        d.a += dt * 1.4; d.cd -= dt;
+        d.m.position.lerp(tmp.set(p.pos.x + Math.cos(d.a) * 3, p.pos.y + 3 + Math.sin(d.a * 2) * 0.3, p.pos.z + Math.sin(d.a) * 3), Math.min(1, dt * 6));
+        const e = g.nearestEnemy(d.m.position, 16);
+        if (e) d.m.lookAt(tmp2.copy(e.pos).setY(e.pos.y + 1));
+        if (e && d.cd <= 0) { d.cd = 0.6; this.zap(d.m.position, e, 12 + this.rank('drones') * 3); }
+      }
+    }, () => {
+      if (this.disposed) return;
+      // final volley: every drone dives onto a curse and bursts
+      for (const d of ds) {
+        const e = g.nearestEnemy(d.m.position, 16), at = (e ? e.pos : d.m.position).clone();
+        at.y = this.groundAt(at.x, at.z, at.y);
+        const from = d.m.position.clone();
+        this.warn(at, 2, 0.3);
+        this.during(0.3, (t, dt, k) => { d.m.position.lerpVectors(from, at, k); }, () => { this.untemp(d.m); this.blast(at, 2, 30 * this.puppetMul, { color: CYAN, knock: 6, stagger: 0.5, sound: false }); });
+      }
+      this.after(0.3, () => g.audio?.energy('explode'));
+    });
+  }
+  // ---- Muta
+  storedEnergy() {
+    const g = this.game, p = this.p;
+    this.cast(0.4, true);
+    g.toast?.('Stored Energy'); g.audio?.charge(0.4, 0.8); g.fx.shockwave(p.pos, CYAN, 4);
+    this.buff('stored_energy', 8, {
+      onStart: () => { this.ceMul *= 0.5; this.cannonMul *= 1.4; },
+      onEnd: () => { this.ceMul /= 0.5; this.cannonMul /= 1.4; },
+      onTick: () => { if (Math.random() < 0.4) g.particles.glow.emit(p.pos.x + (Math.random() - 0.5), p.pos.y + Math.random() * 2, p.pos.z + (Math.random() - 0.5), 0, 0.8, 0, 0.5, 0.4, 1.6, 2.2, 0.12, 0, 1, 0.1, 0); },
+    });
+  }
+  reserves() {
+    const g = this.game, p = this.p;
+    if (p.ce >= p.maxCe) { g.toast?.('Cursed Energy is already full'); g.audio?.ui('back'); return false; }
+    const cost = Math.min(Math.max(0, p.hp - 1), p.maxHp * 0.15);
+    if (cost > 0) { p.hp -= cost; g.fx.damageNumber(p.pos, cost, { color: '#ff6a6a' }); g.fx.hurtVignette(); }
+    p.ce = Math.min(p.maxCe, p.ce + 40);
+    this.cast(0.4, true);
+    g.fx.rings.spawn(tmp.set(p.pos.x, p.pos.y + 0.07, p.pos.z), { color: CYAN, r0: 3, r1: 0.4, dur: 0.5, thick: 0.2 });
+    g.particles.burst(p.pos.clone().setY(p.pos.y + 1), { count: 30, color: CYAN, speed: 3, up: 2, life: 0.7, size: 0.15, shape: 1, intensity: 3 });
+    g.audio?.energy('heal');
+  }
+  overclock() {
+    const g = this.game, p = this.p;
+    this.cast(0.3, true);
+    g.toast?.('Overclock'); g.audio?.tone({ freq: 400, to: 1600, dur: 0.4, gain: 0.08, type: 'sawtooth', filter: 3000 });
+    this.buff('overclock', 6, {
+      onTick: (dt) => {
+        for (const a of Object.values(this.library)) {
+          if (a.maxCharges) { if (a.chargesLeft < a.maxCharges) a.recharge = (a.recharge ?? 0) + dt; }
+          else if (a.cdLeft > 0) a.cdLeft = Math.max(0, a.cdLeft - dt);
+        }
+        if (Math.random() < 0.3) g.particles.burst(p.pos.clone().setY(p.pos.y + 1.2), { count: 1, color: 0xffe080, speed: 2, life: 0.3, size: 0.08, shape: 1 });
+      },
     });
   }
 }

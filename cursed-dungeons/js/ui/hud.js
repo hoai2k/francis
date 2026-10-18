@@ -1,5 +1,5 @@
-// In-game HUD: per-player health / Cursed Energy cards, ability bar with
-// cooldowns, objective tracker, minimap, interaction prompts, boss bar,
+// In-game HUD: per-player health / Cursed Energy cards, ability bar (the
+// equipped loadout: RMB / 1 / 2 / 3, RCT, tools, F) with cooldowns, objective tracker, minimap, interaction prompts, boss bar,
 // coins, and the co-op join hint.
 import * as THREE from 'three/webgpu';
 import { h } from './ui.js';
@@ -54,11 +54,13 @@ export class HUD {
     const mk = (slot, ab, ult = false) => {
       const cd = h('div', { class: 'cd' });
       const cnt = h('div', { class: 'cnt' });
-      const el = h('div', { class: 'ab' + (ult ? ' ult' : ''), title: ab?.name ?? '' }, h('div', { class: 'key' }, keys[slot] ?? ''), h('span', {}, ab?.icon ?? '·'), cnt, cd, h('div', { class: 'lbl' }, ab?.name ?? ''));
+      const el = h('div', { class: 'ab' + (ult ? ' ult' : '') + (ab?.empty ? ' empty' : '') + (ab?.kind ? ' k-' + ab.kind : ''), title: ab ? ab.name + (ab.desc ? ' — ' + ab.desc : '') : '' }, h('div', { class: 'key' }, keys[slot] ?? ''), h('span', {}, ab?.icon ?? '·'), cnt, cd, h('div', { class: 'lbl' }, ab?.empty ? 'Empty' : ab?.name ?? ''));
       icons.appendChild(el); els[slot] = { el, cd, cnt, ab };
     };
     const k = p.kit;
+    // the four EQUIPPED abilities (loadout), then RCT, tools and F
     for (const slot of ['ranged', 't1', 't2', 't3']) if (k.slots[slot]) mk(slot, k.slots[slot]);
+    if (p.device === 'touch') this.game.touch?.setIcons?.(k);
     mk('heal', { name: 'Reverse CT', icon: '✚' });
     p.artifacts.forEach((a, i) => mk('art' + (i + 1), { name: a.base.name.split(' ').slice(-1)[0], icon: a.base.icon }));
     const ult = k.domain ?? k.ultimate;
@@ -113,14 +115,14 @@ export class HUD {
         if (slot === 'heal') { frac = p.healCharges > 0 ? p.healCd / 1.2 : 1; ready = p.healCharges > 0; cnt = String(p.healCharges); }
         else if (slot.startsWith('art')) { const a = p.artifacts[+slot[3] - 1]; if (!a) continue; frac = a.cdLeft / (a.cd * (1 - p.stats.cdr)); ready = a.cdLeft <= 0; }
         else if (slot === 'domain') { frac = 1 - p.ce / p.maxCe; ready = p.ce >= p.maxCe && (!g.domain || !p.kit.domain); }
-        else { const ab = p.kit.slots[slot]; frac = ab.cdLeft / Math.max(0.01, ab.cd * p.kit.cdr); ready = ab.cdLeft <= 0 && p.ce >= (ab.ce ?? 0); if (ab.maxCharges > 1) cnt = String(ab.chargesLeft ?? ''); }
+        else { const ab = p.kit.slots[slot]; frac = ab.cdLeft / Math.max(0.01, ab.cd * p.kit.cdr); ready = ab.cdLeft <= 0 && p.ce >= (ab.ce ?? 0) * (p.kit.ceMul ?? 1); if (ab.maxCharges > 1) cnt = String(ab.chargesLeft ?? ''); }
         const locked = slot === 'heal' ? !p.rctUnlocked : slot === 'domain' ? p.kit.domainLocked : p.kit.locked?.(slot);
         if (locked) { ready = false; frac = 0; }
         e.el.classList.toggle('locked', !!locked);
         e.cd.style.height = (Math.min(1, frac) * 100).toFixed(0) + '%';
         e.el.classList.toggle('ready', ready);
         if (e.cnt.textContent !== cnt) e.cnt.textContent = cnt;
-        if (p.device === 'touch') g.touch?.setCooldown(slot, Math.min(1, frac), ready);
+        if (p.device === 'touch') g.touch?.setCooldown(slot, Math.min(1, frac), ready, !!locked);
       }
     }
     // boss

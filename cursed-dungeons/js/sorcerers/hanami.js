@@ -1,24 +1,26 @@
-// Hanami-style kit — Disaster Plants.
-//   LMB  heavy wooden-armed blows; the slam drives roots up around you.
-//   RMB  Wooden Ball Barrage: a burst of hard wooden balls.
-//   1    Root Spikes: a line of sharpened roots tears out of the ground.
-//   2    Cursed Buds: seeds latch onto curses and drain their life and Cursed
-//        Energy into you.
-//   3    Flower Field: a field of flowers blooms around you; curses inside are
-//        calmed (slowed, attacks interrupted) while you regenerate.
-//   F    Domain: Ceremonial Sea of Light — a sunlit sea of flowers under
-//        great trees. The flowers sap every curse's Cursed Energy (slower,
-//        faltering attacks; Hanami drinks it in as healing) and the sure-hit is wood: roots
-//        spear up under every curse inside.
+// Hanami-style kit — Disaster Plants. 22 abilities on the technique tree;
+// four are equipped (RMB takes a basic one) plus F.
+//   LMB        heavy wooden-armed blows; the slam drives roots up around you.
+//   Wood       Wooden Ball Barrage (start, RMB), Seed Bullet, Branch Lash,
+//              Wooden Shield, Great Seed
+//   Roots      Root Spikes, Root Bind, Root Upheaval, Root Surge, Root Cage
+//   Buds       Cursed Buds, Burst Bloom, Draining Vine, Pollen Cloud, Seed Rain
+//   Flowers    Bloom of Life, Flower Field, Petal Storm, Flower of the Eye
+//   Forest     Verdant Step, Sacred Tree, Disaster Plants: Overgrowth
+//   F          Domain: Ceremonial Sea of Light — a sunlit sea of flowers under
+//              great trees. The flowers sap every curse's Cursed Energy (slower,
+//              faltering attacks; Hanami drinks it in as healing) and the sure-hit is wood: roots
+//              spear up under every curse inside.
 import * as THREE from 'three/webgpu';
-import { Kit } from './kit.js';
+import { Kit, ability, passive } from './kit.js';
 import { registerKit, registerSorcerer } from './index.js';
 import { registerLook } from '../entities/models.js';
 import { registerDomainEnv } from '../world/biomes.js';
 import { B } from '../world/blocks.js';
+import { beamMaterial } from '../gfx/orbs.js';
 
 const LEAF = 0x6adf6a, BLOOM = 0xff9ad8, WOOD = 0x8a5a2a, SAP = 0xb8ff6a;
-const tmp = new THREE.Vector3();
+const tmp = new THREE.Vector3(), tmp2 = new THREE.Vector3();
 
 registerSorcerer('hanami', { name: 'Hanami', technique: 'Disaster Plants', rarity: 'rare', title: 'Disaster Curse', desc: 'Wooden ball barrages, root spikes, life-draining cursed buds and a calming Flower Field.', domain: 'Ceremonial Sea of Light', color: '#6adf6a' });
 
@@ -55,12 +57,12 @@ registerDomainEnv('ceremonial_sea_of_light', {
 });
 
 export const HANAMI_SKILLS = [
-  { id: 'heartwood', name: 'Heartwood', desc: '+8% melee damage and +10 max HP per rank.', max: 3 },
-  { id: 'balls', name: 'Wooden Balls', desc: 'More, harder wooden balls.', max: 3 },
-  { id: 'roots', name: 'Root Spikes', desc: 'Root Spikes reach further and hit harder.', max: 3 },
-  { id: 'buds', name: 'Cursed Buds', desc: 'Buds drain faster and heal more.', max: 3 },
-  { id: 'field', name: 'Flower Field', desc: 'Flower Field is wider and lasts longer.', max: 2, req: 'buds' },
-  { id: 'sea', name: 'Sea of Light', desc: 'Ceremonial Sea of Light lasts 2s longer and its roots hit harder.', max: 1, req: 'field' },
+  { id: 'heartwood', name: 'Heartwood', icon: '🪵', desc: '+8% melee damage and +10 max HP per rank.', max: 3, branch: 'Forest', tier: 0 },
+  { id: 'balls', name: 'Wooden Balls', icon: '🟤', desc: 'More, harder wooden balls and seeds.', max: 3, req: 'ab:balls', branch: 'Wood', tier: 1 },
+  { id: 'roots', name: 'Root Spikes', icon: '🌿', desc: 'Root techniques reach further and hit harder.', max: 3, req: 'ab:root_spikes', branch: 'Roots', tier: 2 },
+  { id: 'buds', name: 'Cursed Buds', icon: '🌱', desc: 'Buds drain faster and heal more.', max: 3, req: 'ab:buds', branch: 'Buds', tier: 2 },
+  { id: 'field', name: 'Flower Field', icon: '🌸', desc: 'Flower Field is wider and lasts longer.', max: 2, req: 'ab:flower_field', branch: 'Flowers', tier: 3 },
+  { id: 'sea', name: 'Sea of Light', icon: '☀️', desc: 'Ceremonial Sea of Light lasts 2s longer and its roots hit harder.', max: 1, req: 'field', branch: 'Flowers', tier: 5 },
 ];
 
 class HanamiKit extends Kit {
@@ -75,11 +77,42 @@ class HanamiKit extends Kit {
     ];
     this.p.stats.meleeMult += r('heartwood') * 0.08;
     this.p.maxHp += r('heartwood') * 10; this.p.hp = Math.min(this.p.hp + r('heartwood') * 10, this.p.maxHp);
-    this.slots = {
-      ranged: this.ability({ name: 'Wooden Balls', icon: '🟤', cd: 1.3, ce: 0, use: () => this.balls() }),
-      t1: this.ability({ name: 'Root Spikes', icon: '🌿', cd: 6, ce: 12, use: () => this.rootLine() }),
-      t2: this.ability({ name: 'Cursed Buds', icon: '🌱', cd: 10, ce: 16, use: () => this.buds() }),
-      t3: this.ability({ name: 'Flower Field', icon: '🌸', cd: 18, ce: 30, use: () => this.flowerField() }),
+    this.branches = ['Wood', 'Roots', 'Buds', 'Flowers', 'Forest'];
+    this.rootMul = 1; this.rootHold = 1; this.budBonus = 0;
+    this.library = {
+      // ---- Wood
+      balls: ability({ name: 'Wooden Ball Barrage', icon: '🟤', kind: 'basic', desc: 'A burst of hard wooden balls.', cd: 1.3, ce: 0, branch: 'Wood', tier: 0, start: true, legacy: 'ranged', use: () => this.balls() }),
+      seed_shot: ability({ name: 'Seed Bullet', icon: '🌰', kind: 'basic', desc: 'One hard seed that pierces every curse in a line; the first it hits sprouts a cursed bud.', cd: 1.1, ce: 0, branch: 'Wood', tier: 1, req: 'balls', use: () => this.seedShot() }),
+      branch_lash: ability({ name: 'Branch Lash', icon: '🎋', kind: 'technique', desc: 'Your arm grows into a long branch and sweeps everything in front of you aside.', cd: 5, ce: 8, branch: 'Wood', tier: 2, req: 'seed_shot', use: () => this.branchLash() }),
+      wood_shield: ability({ name: 'Wooden Shield', icon: '🛡️', kind: 'defence', desc: 'Wooden planks grow around you for 6s and soak up to 70 damage.', cd: 14, ce: 10, branch: 'Wood', tier: 2, req: 'balls', use: () => this.woodShield() }),
+      great_seed: ability({ name: 'Great Seed', icon: '🥥', kind: 'technique', desc: 'A colossal wooden seed rolls forward, flattening every curse in its path.', cd: 10, ce: 16, branch: 'Wood', tier: 3, req: 'branch_lash', use: () => this.greatSeed() }),
+      // ---- Roots
+      root_spikes: ability({ name: 'Root Spikes', icon: '🌿', kind: 'technique', desc: 'A line of sharpened roots tears out of the ground.', cd: 6, ce: 12, branch: 'Roots', tier: 1, legacy: 't1', use: () => this.rootLine() }),
+      root_bind: ability({ name: 'Root Bind', icon: '🪢', kind: 'technique', desc: 'Roots burst up around the aim point and bind every curse there in place.', cd: 10, ce: 14, branch: 'Roots', tier: 2, req: 'root_spikes', use: () => this.rootBind() }),
+      root_wave: ability({ name: 'Root Upheaval', icon: '🌀', kind: 'technique', desc: 'Three rings of roots burst outward from you, one after another.', cd: 9, ce: 14, branch: 'Roots', tier: 2, req: 'root_spikes', use: () => this.rootWave() }),
+      root_surge: ability({ name: 'Root Surge', icon: '🏄', kind: 'movement', desc: 'Ride a surging root forward, spearing what you pass.', cd: 6, ce: 6, branch: 'Roots', tier: 3, req: 'root_wave', use: () => this.rootSurge() }),
+      root_cage: ability({ name: 'Root Cage', icon: '🪺', kind: 'technique', desc: 'A cage of giant roots closes around the aim point for 4s: curses inside cannot get out and are speared again and again.', cd: 18, ce: 26, branch: 'Roots', tier: 4, req: 'root_bind', use: () => this.rootCage() }),
+      // ---- Buds
+      buds: ability({ name: 'Cursed Buds', icon: '🌱', kind: 'technique', desc: 'Seeds latch onto curses and drain their life and Cursed Energy into you.', cd: 10, ce: 16, branch: 'Buds', tier: 1, legacy: 't2', use: () => this.buds() }),
+      burst_bloom: ability({ name: 'Burst Bloom', icon: '🌺', kind: 'technique', desc: 'Every budded curse bursts into a storm of razor petals; you heal for each one.', cd: 7, ce: 10, branch: 'Buds', tier: 2, req: 'buds', use: () => this.burstBloom() }),
+      draining_vine: ability({ name: 'Draining Vine', icon: '🧬', kind: 'heal', desc: 'A vine latches onto a curse for 3s and pumps its life into you.', cd: 12, ce: 12, branch: 'Buds', tier: 3, req: 'buds', use: () => this.drainingVine() }),
+      pollen: ability({ name: 'Pollen Cloud', icon: '🌼', kind: 'technique', desc: 'A heavy cloud of cursed pollen hangs over the aim for 6s: curses inside slow, choke and falter.', cd: 14, ce: 14, branch: 'Buds', tier: 3, req: 'burst_bloom', use: () => this.pollen() }),
+      seed_rain: ability({ name: 'Seed Rain', icon: '🌧️', kind: 'technique', desc: 'Scatter seeds high into the air: they rain over an area and bud every curse they strike.', cd: 16, ce: 22, branch: 'Buds', tier: 4, req: 'draining_vine', use: () => this.seedRain() }),
+      // ---- Flowers
+      bloom_of_life: ability({ name: 'Bloom of Life', icon: '💐', kind: 'heal', desc: 'Flowers bloom at your feet and restore 25% of your health over 4s (allies nearby heal too).', cd: 24, ce: 18, branch: 'Flowers', tier: 1, use: () => this.bloomOfLife() }),
+      flower_field: ability({ name: 'Flower Field', icon: '🌸', kind: 'buff', desc: 'A field of flowers blooms around you; curses inside are calmed while you regenerate.', cd: 18, ce: 30, branch: 'Flowers', tier: 2, legacy: 't3', req: 'bloom_of_life', use: () => this.flowerField() }),
+      petal_storm: ability({ name: 'Petal Storm', icon: '🌪️', kind: 'technique', desc: 'Razor petals whirl around you for 3s, cutting every curse that comes close.', cd: 12, ce: 16, branch: 'Flowers', tier: 3, req: 'flower_field', use: () => this.petalStorm() }),
+      flower_eye: ability({ name: 'Flower of the Eye', icon: '👁️', kind: 'technique', desc: 'Draw the life of the land in through the flower in your eye, then release it as a colossal beam. Heals you.', cd: 24, ce: 45, branch: 'Flowers', tier: 4, req: 'petal_storm', use: () => this.flowerEye() }),
+      // ---- Forest
+      verdant_step: ability({ name: 'Verdant Step', icon: '🍃', kind: 'movement', desc: 'Sink into the earth and rise from it at the aim point.', cd: 7, ce: 6, branch: 'Forest', tier: 1, use: () => this.verdantStep() }),
+      sacred_tree: ability({ name: 'Sacred Tree', icon: '🌳', kind: 'summon', desc: 'A great tree grows at the aim for 10s: its roots spear nearby curses and its shade heals you.', cd: 20, ce: 22, branch: 'Forest', tier: 3, req: 'verdant_step', use: () => this.sacredTree() }),
+      overgrowth: ability({ name: 'Disaster Plants: Overgrowth', icon: '🌲', kind: 'technique', desc: 'The forest erupts: giant roots and trunks burst out of the ground all around you at marked spots.', cd: 22, ce: 40, branch: 'Forest', tier: 4, req: 'sacred_tree', use: () => this.overgrowth() }),
+    };
+    this.passives = {
+      photosynthesis: passive({ name: 'Photosynthesis', icon: '☀️', desc: 'Standing still, you regenerate 1.5% of your health per second.', branch: 'Flowers', tier: 2, req: 'bloom_of_life', apply: (pl, k) => { k.photo = true; } }),
+      thorned_bark: passive({ name: 'Thorned Bark', icon: '🌵', desc: '+6% damage reduction; curses that strike you up close are pierced by thorns.', branch: 'Wood', tier: 3, req: 'wood_shield', apply: (pl, k) => { pl.stats.armor = Math.min(0.7, pl.stats.armor + 0.06); k.thorns = true; } }),
+      deep_roots: passive({ name: 'Deep Roots', icon: '🌳', desc: 'Root techniques hit 20% harder and hold curses 50% longer.', branch: 'Roots', tier: 3, req: 'root_bind', apply: (pl, k) => { k.rootMul *= 1.2; k.rootHold *= 1.5; } }),
+      bountiful: passive({ name: 'Bountiful Buds', icon: '🌱', desc: 'Buds last 2s longer and planting one restores 2 Cursed Energy.', branch: 'Buds', tier: 2, req: 'buds', apply: (pl, k) => { k.budBonus += 2; } }),
     };
     // Ceremonial Sea of Light: a sunlit sea of flowers under great trees. The
     // flowers sap the Cursed Energy of everything inside (their attacks come
@@ -134,6 +167,11 @@ class HanamiKit extends Kit {
     this.roots.push({ m, t: 0, h, w });
   }
   tick(dt) {
+    if (this.photo) {
+      const p = this.p, lp = this.lastPos ?? (this.lastPos = p.pos.clone());
+      if (p.pos.distanceToSquared(lp) < 0.0004 * Math.max(1, dt * 60) && p.hp < p.maxHp && !p.dead) { p.hp = Math.min(p.maxHp, p.hp + p.maxHp * 0.015 * dt); if (Math.random() < dt * 4) this.game.particles.burst(tmp.set(p.pos.x, p.pos.y + 0.2, p.pos.z), { count: 1, color: LEAF, speed: 0.3, up: 2, life: 0.8, size: 0.12 }); }
+      lp.copy(p.pos);
+    }
     for (let i = this.roots.length - 1; i >= 0; i--) {
       const rt = this.roots[i]; rt.t += dt;
       const k = rt.t < 0.1 ? rt.t / 0.1 : rt.t < 0.5 ? 1 : Math.max(0, 1 - (rt.t - 0.5) / 0.3);
@@ -196,7 +234,7 @@ class HanamiKit extends Kit {
   spike(at, R, dmg) {
     const g = this.game, p = this.p;
     at.y = this.groundAt(at.x, at.z, at.y);
-    g.combat.aoe(at, R, dmg, p, { knock: 3, stagger: 0.5 });
+    g.combat.aoe(at, R, dmg * this.rootMul, p, { knock: 3, stagger: 0.5 });
     for (const e of g.enemies) if (!e.dead && !e.isBoss && e.pos.distanceTo(at) < R + 0.3) e.vel.y = Math.max(e.vel.y, 7);
     for (let k = 0; k < 2; k++) this.rootStab(at.clone().add(new THREE.Vector3((Math.random() - 0.5) * R, 0, (Math.random() - 0.5) * R)), 1.4 + Math.random() * 0.8, 0.3 + Math.random() * 0.15);
     const c = at.clone().setY(at.y + 0.2);
@@ -211,7 +249,7 @@ class HanamiKit extends Kit {
     const n = 4 + rk;
     this.cast(0.45);
     const target = g.domainSys?.sureHit(p) ? g.nearestEnemy(p.pos, 30) : null;
-    for (let i = 0; i < n; i++) setTimeout(() => {
+    for (let i = 0; i < n; i++) this.after(i * 0.07, () => {
       const a = Math.atan2(p.aimDir.x, p.aimDir.z) + (Math.random() - 0.5) * 0.25;
       const dir = new THREE.Vector3(Math.sin(a), 0.04, Math.cos(a));
       g.projectiles.fire({ pos: this.handPos().add(new THREE.Vector3((Math.random() - 0.5) * 0.5, (Math.random() - 0.5) * 0.4, 0)), vel: dir.multiplyScalar(24), team: 'player', shape: 'orb', color: WOOD, emissive: 0.15, scale: 1.4, life: 0.8, radius: 0.4, gravity: 3,
@@ -219,7 +257,7 @@ class HanamiKit extends Kit {
         onHit: (e, q) => { g.combat.damageEnemy(e, 8 + rk * 3, p, { knock: q.vel.clone().setY(0).setLength(3), stagger: 0.25 }); g.fx.hitSpark(q.pos, null, { color: 0xd8b080 }); g.audio?.impact(0.7, 'wood'); },
         onExpire: (q, why) => { if (why === 'wall') g.fx.debris(q.pos, 0x8a5a2a, 2); } });
       g.audio?.whoosh(0.5);
-    }, i * 70);
+    });
   }
   // -------------------------------------------------------------- Root Spikes
   rootLine() {
@@ -228,11 +266,11 @@ class HanamiKit extends Kit {
     const target = g.domainSys?.sureHit(p) ? g.nearestEnemy(p.pos, 30) : null;
     const dir = target ? tmp.subVectors(target.pos, p.pos).setY(0).normalize().clone() : p.aimDir.clone().setY(0).normalize();
     const n = 7 + rk * 2, dmg = 22 + rk * 8;
-    for (let i = 0; i < n; i++) setTimeout(() => {
+    for (let i = 0; i < n; i++) this.after(i * 0.055, () => {
       const at = p.pos.clone().addScaledVector(dir, 1.6 + i * 1.3).add(new THREE.Vector3((Math.random() - 0.5) * 0.6, 0, (Math.random() - 0.5) * 0.6));
       this.spike(at, 1.5, dmg);
       if (i % 2 === 0) { g.shake(0.12); g.audio?.breakBlock('wood'); }
-    }, i * 55);
+    });
     g.audio?.noise({ dur: 0.6, gain: 0.3, type: 'lowpass', freq: 300, sweep: 900 });
   }
   // -------------------------------------------------------------- Cursed Buds
@@ -251,8 +289,10 @@ class HanamiKit extends Kit {
   }
   plantBud(e) {
     const g = this.game, p = this.p, rk = this.rank('buds');
-    if (e.budT > 0) { e.budT = 4; return; }
-    e.budT = 4;
+    const life = 4 + this.budBonus;
+    if (this.budBonus) p.gainCE(2);
+    if (e.budT > 0) { e.budT = life; return; }
+    e.budT = life;
     g.fx.hitSpark(e.pos.clone().setY(e.pos.y + e.height * 0.6), null, { color: SAP });
     let tick = 0;
     g.addUpdater((dt) => {
@@ -303,6 +343,372 @@ class HanamiKit extends Kit {
       if (t >= dur) { g.lights.remove(light); return false; }
       return true;
     });
+  }
+  // ============================================================== new abilities
+  incoming(a, src) {
+    if (this.thorns && src && src.maxHp && !src.dead && src.pos && src.pos.distanceTo(this.p.pos) < 3.5) {
+      this.hit(src, 10, { stagger: 0.2, color: '#b8ff6a' });
+      this.rootStab(src.pos.clone().setY(this.groundAt(src.pos.x, src.pos.z, src.pos.y)), 1.2, 0.25);
+    }
+    return a;
+  }
+  // a wooden mesh helper (shared box geometry)
+  woodBox(w, h, d, mat = this.rootMat) { const m = new THREE.Mesh(this.rootGeo, mat); m.scale.set(w, h, d); m.castShadow = true; return m; }
+  seedShot() {
+    const g = this.game, p = this.p, rk = this.rank('balls');
+    this.cast(0.3);
+    let first = true;
+    g.projectiles.fire({ pos: this.handPos(), vel: p.aimDir.clone().setY(0).normalize().multiplyScalar(34), team: 'player', shape: 'orb', color: 0x6a4420, emissive: 0.3, scale: 1.6, life: 0.7, radius: 0.5, pierce: true,
+      trail: (q) => { if (Math.random() < 0.5) g.particles.burst(q.pos, { count: 1, color: LEAF, speed: 0.3, life: 0.3, size: 0.12 }); },
+      onHit: (e, q) => { this.hit(e, 20 + rk * 6, { knock: q.vel.clone().setLength(3), stagger: 0.4 }); g.fx.hitSpark(q.pos, null, { color: 0xd8b080 }); if (first) { first = false; this.plantBud(e); } g.audio?.impact(0.9, 'wood'); } });
+    g.audio?.whoosh(0.8);
+  }
+  branchLash() {
+    const g = this.game, p = this.p, R = 4.8;
+    this.pose('swingR', 0.4);
+    const f = this.aimAngle(); p.facing = f;
+    const arm = new THREE.Group(), br = this.woodBox(0.35, R, 0.35); br.rotation.x = Math.PI / 2; br.position.z = 0; arm.add(br);
+    for (let k = 1; k < 4; k++) { const l = this.woodBox(0.5, 0.25, 0.5, new THREE.MeshStandardNodeMaterial({ color: LEAF, emissive: LEAF, emissiveIntensity: 0.3 })); l.position.set(0, 0.1, k * R / 4); arm.add(l); }
+    g.scene.add(arm);
+    const hitSet = new Set();
+    this.during(0.32, (t, dt, k) => {
+      const a = f + 1.6 - k * 3.2;
+      arm.position.set(p.pos.x, p.pos.y + 1.1, p.pos.z); arm.rotation.y = a;
+      const dir = tmp.set(Math.sin(a), 0, Math.cos(a));
+      this.line(p.pos, dir, R, 0.7, (e) => {
+        if (hitSet.has(e)) return; hitSet.add(e);
+        this.hit(e, 26 + this.rank('balls') * 4, { melee: true, stagger: 0.6, knock: tmp2.subVectors(e.pos, p.pos).setY(0).normalize().multiplyScalar(9) });
+        g.fx.hitSpark(e.pos.clone().setY(e.pos.y + 1), null, { color: LEAF });
+      });
+      if (Math.random() < 0.6) g.particles.burst(tmp2.set(p.pos.x + dir.x * R, p.pos.y + 1.1, p.pos.z + dir.z * R), { count: 2, color: LEAF, speed: 1, life: 0.4, size: 0.14 });
+    }, () => { g.scene.remove(arm); });
+    g.fx.slashArc(p.pos, f, LEAF, R, 1.6, 0.3);
+    g.audio?.whoosh(1.2); this.after(0.12, () => g.audio?.impact(1, 'wood'));
+  }
+  woodShield() {
+    const g = this.game, p = this.p;
+    this.cast(0.4, true);
+    const planks = [];
+    for (let i = 0; i < 8; i++) { const m = this.woodBox(0.5, 2.2, 0.25); g.scene.add(m); planks.push(m); }
+    let soak = 70;
+    g.audio?.breakBlock('wood'); g.fx.summonCircle(p.pos, LEAF);
+    this.buff('wood_shield', 6, {
+      incoming: (a) => {
+        const took = Math.min(soak, a); soak -= took;
+        g.particles.burst(tmp.set(p.pos.x, p.pos.y + 1, p.pos.z), { count: 10, color: WOOD, additive: false, speed: 4, life: 0.5, size: 0.2, gravity: 12 });
+        g.audio?.impact(0.8, 'wood');
+        if (soak <= 0) { const b = this.buffs.get('wood_shield'); if (b) b.left = 0.01; }
+        return a - took;
+      },
+      onTick: (dt, b) => {
+        const k = Math.min(1, (b.dur - b.left) * 5);
+        planks.forEach((m, i) => { const a = i / planks.length * Math.PI * 2 + g.time * 0.4; m.position.set(p.pos.x + Math.cos(a) * 1.2, p.pos.y - 0.2, p.pos.z + Math.sin(a) * 1.2); m.rotation.y = -a; m.scale.y = 2.2 * k * (0.5 + 0.5 * soak / 70); });
+      },
+      onEnd: () => { for (const m of planks) { g.scene.remove(m); g.fx.debris(m.position.clone().setY(m.position.y + 1), 0x6a4420, 2); } },
+    });
+  }
+  greatSeed() {
+    const g = this.game, p = this.p;
+    this.cast(0.5, true);
+    const f = this.fwd(), R = 1.5;
+    const ball = new THREE.Mesh(new THREE.IcosahedronGeometry(R, 1), new THREE.MeshStandardNodeMaterial({ color: 0x7a4e24, roughness: 0.9, flatShading: true }));
+    ball.castShadow = true;
+    const pos = p.pos.clone().addScaledVector(f, 1.8); pos.y = this.groundAt(pos.x, pos.z, p.pos.y) + R;
+    ball.position.copy(pos); g.scene.add(ball);
+    g.markers.spawn({ pos: p.pos.clone(), dur: 0.4, shape: 'rect', width: R * 2.4, length: 16, facing: Math.atan2(f.x, f.z), color: LEAF });
+    const hitSet = new Set(), axis = new THREE.Vector3(f.z, 0, -f.x);
+    this.after(0.25, () => this.during(1.4, (t, dt) => {
+      const nx = ball.position.x + f.x * 11 * dt, nz = ball.position.z + f.z * 11 * dt;
+      const gy = this.groundAt(nx, nz, ball.position.y - R);
+      if (g.world.solidAt(nx, gy + R, nz)) return false;
+      ball.position.set(nx, gy + R, nz); ball.rotateOnWorldAxis(axis, 11 * dt / R);
+      if (Math.random() < 0.5) g.fx.landDust(ball.position.clone().setY(gy), 4);
+      for (const e of this.foes(ball.position, R + 0.6)) {
+        if (hitSet.has(e)) continue; hitSet.add(e);
+        this.hit(e, 44 + this.rank('balls') * 8, { stagger: 0.9, knock: tmp.copy(f).multiplyScalar(10).add(tmp2.subVectors(e.pos, ball.position).setY(0).normalize().multiplyScalar(5)) });
+        if (!e.isBoss) e.vel.y = Math.max(e.vel.y, 6);
+        g.audio?.impact(1.3, 'wood'); g.shake(0.2);
+      }
+    }, () => { g.scene.remove(ball); ball.geometry.dispose(); g.fx.debris(ball.position, 0x7a4e24, 8); g.audio?.breakBlock('wood'); }));
+    g.audio?.whoosh(1.4);
+  }
+  rootBind() {
+    const g = this.game, p = this.p;
+    this.cast(0.45, true);
+    const c = this.aimGround(11), R = 3.5;
+    g.markers.spawn({ pos: c, dur: 0.35, radius: R, color: LEAF });
+    this.after(0.35, () => {
+      for (let i = 0; i < 10; i++) { const a = i / 10 * Math.PI * 2; this.rootStab(c.clone().add(tmp.set(Math.cos(a) * R * 0.8, 0, Math.sin(a) * R * 0.8)), 2.2, 0.35); }
+      for (const e of this.foes(c, R)) {
+        this.hit(e, (18 + this.rank('roots') * 5) * this.rootMul, { stagger: 0.5, knock: new THREE.Vector3() });
+        this.stun(e, 2 * this.rootHold);
+        const at = e.pos.clone(); at.y = this.groundAt(at.x, at.z, at.y);
+        for (let k = 0; k < 3; k++) this.rootStab(at.clone().add(tmp.set((Math.random() - 0.5) * 0.8, 0, (Math.random() - 0.5) * 0.8)), 1 + e.height * 0.6, 0.22);
+      }
+      g.fx.rings.spawn(tmp.set(c.x, c.y + 0.06, c.z), { color: LEAF, r0: R, r1: 0.4, dur: 0.4, thick: 0.2 });
+      g.audio?.breakBlock('wood'); g.shake(0.2);
+    });
+  }
+  rootWave() {
+    const g = this.game, p = this.p;
+    this.cast(0.5, true);
+    const c = p.pos.clone(), hit = new Set();
+    for (let k = 0; k < 3; k++) this.after(k * 0.18, () => {
+      const r = 2.2 + k * 2.2, n = 8 + k * 5;
+      for (let i = 0; i < n; i++) { const a = i / n * Math.PI * 2 + k * 0.3; const at = c.clone().add(tmp.set(Math.cos(a) * r, 0, Math.sin(a) * r)); at.y = this.groundAt(at.x, at.z, c.y); this.rootStab(at, 1.6 + k * 0.3, 0.32); }
+      for (const e of this.foes(c, r + 1.3)) {
+        const d = Math.hypot(e.pos.x - c.x, e.pos.z - c.z); if (d < r - 1.4 || hit.has(e)) continue; hit.add(e);
+        this.hit(e, (24 + this.rank('roots') * 6) * this.rootMul, { stagger: 0.6, knock: tmp.subVectors(e.pos, c).setY(0).normalize().multiplyScalar(6) });
+        if (!e.isBoss) e.vel.y = Math.max(e.vel.y, 7);
+      }
+      g.fx.shockwave(c, LEAF, r + 0.6); g.audio?.breakBlock('wood'); g.shake(0.15);
+    });
+  }
+  rootSurge() {
+    const g = this.game, p = this.p, f = this.fwd();
+    let last = p.pos.clone();
+    this.dash(f, 8, 0.3, { hitR: 1.5, dmg: 16 * this.rootMul, color: LEAF, onHit: (e) => { if (!e.isBoss) e.vel.y = Math.max(e.vel.y, 6); } });
+    this.during(0.3, () => {
+      if (p.pos.distanceTo(last) > 0.9) { last = p.pos.clone(); this.rootStab(last.clone(), 1.3, 0.4); g.particles.burst(tmp.set(last.x, last.y + 0.2, last.z), { count: 4, color: WOOD, additive: false, speed: 3, up: 2, life: 0.4, size: 0.2, gravity: 10 }); }
+    });
+    g.audio?.whoosh(1.2); g.audio?.breakBlock('wood');
+  }
+  rootCage() {
+    const g = this.game, p = this.p;
+    this.cast(0.5, true);
+    const c = this.aimGround(11), R = 3.6, N = 12, dur = 4;
+    g.markers.spawn({ pos: c, dur: 0.45, radius: R, color: LEAF });
+    g.toast?.('Root Cage');
+    const bars = [];
+    this.after(0.45, () => {
+      for (let i = 0; i < N; i++) {
+        const a = i / N * Math.PI * 2, x = c.x + Math.cos(a) * R, z = c.z + Math.sin(a) * R;
+        const m = this.woodBox(0.5, 0.01, 0.5); m.position.set(x, this.groundAt(x, z, c.y) - 0.1, z);
+        m.rotation.set(-Math.sin(a) * 0.35, 0, Math.cos(a) * 0.35);   // lean in over the cage
+        g.scene.add(m); bars.push(m);
+      }
+      g.audio?.breakBlock('wood'); g.shake(0.25);
+      let tick = 0;
+      this.during(dur, (t, dt) => {
+        const k = Math.min(1, t * 5);
+        for (const m of bars) m.scale.y = 4.5 * k * (t > dur - 0.3 ? Math.max(0.01, (dur - t) / 0.3) : 1);
+        // nothing walks out of the cage
+        for (const e of g.enemies) {
+          if (e.dead || e.isBoss) continue;
+          tmp.subVectors(e.pos, c).setY(0); const d = tmp.length();
+          if (d > R - 0.5 && d < R + 1.2) { e.pos.x = c.x + tmp.x / d * (R - 0.6); e.pos.z = c.z + tmp.z / d * (R - 0.6); }
+        }
+        tick -= dt; if (tick > 0) return;
+        tick = 0.5;
+        for (const e of this.foes(c, R)) {
+          this.hit(e, (14 + this.rank('roots') * 4) * this.rootMul, { stagger: 0.4, knock: new THREE.Vector3() });
+          this.slow(e, 0.6);
+          const at = e.pos.clone(); at.y = this.groundAt(at.x, at.z, at.y);
+          this.rootStab(at.add(tmp.set((Math.random() - 0.5) * 0.6, 0, (Math.random() - 0.5) * 0.6)), 1.2 + e.height * 0.6, 0.28);
+        }
+      }, () => { for (const m of bars) { g.scene.remove(m); g.fx.debris(m.position.clone().setY(m.position.y + 1), 0x6a4420, 2); } });
+    });
+  }
+  burstBloom() {
+    const g = this.game, p = this.p;
+    const list = g.enemies.filter((e) => !e.dead && e.budT > 0);
+    if (!list.length) { g.toast?.('No budded curses'); g.audio?.ui('back'); return false; }
+    this.cast(0.4, true);
+    let healed = 0;
+    for (const e of list) {
+      const at = e.pos.clone().setY(e.pos.y + e.height * 0.6);
+      healed += this.hit(e, 30 + this.rank('buds') * 8, { stagger: 0.6, unblockable: true, color: '#ff9ad8' }) || 0;
+      g.combat.aoe(at, 2, 12, p, { knock: 4, stagger: 0.3 });
+      e.budT = 0;
+      g.particles.burst(at, { count: 26, color: BLOOM, speed: 7, life: 0.6, size: 0.16, drag: 2, shape: 1 });
+      g.particles.burst(at, { count: 10, color: 0xffffff, speed: 4, life: 0.5, size: 0.12, shape: 1 });
+      g.fx.rings.spawn(tmp.set(e.pos.x, e.pos.y + 0.06, e.pos.z), { color: BLOOM, r0: 0.3, r1: 2.2, dur: 0.35, thick: 0.15 });
+    }
+    p.heal(healed * 0.3, true);
+    g.shake(0.25); g.audio?.impact(1.2); g.audio?.energy('heal');
+  }
+  drainingVine() {
+    const g = this.game, p = this.p;
+    const t = this.target(11);
+    if (!t) { g.toast?.('No curse in reach'); g.audio?.ui('back'); return false; }
+    p.action = { type: 'cast', both: true, dur: 3, elapsed: 0, t: 0, moveScale: 0.3, lock: false };
+    g.audio?.energy('spit');
+    let tick = 0;
+    this.during(3, (tt, dt) => {
+      if (t.dead || t.pos.distanceTo(p.pos) > 15) { if (p.action?.dur === 3) p.action = null; return false; }
+      const a = this.handPos(), b = t.pos.clone().setY(t.pos.y + t.height * 0.6), d = tmp.subVectors(b, a); const L = d.length();
+      if (Math.random() < 0.5) g.fx.slashLine(a, d.normalize(), L, LEAF, 0.12, 0.1, Math.random() * 3);
+      if (Math.random() < 0.7) g.particles.burst(tmp2.lerpVectors(b, a, Math.random()), { count: 1, color: SAP, speed: 0.2, life: 0.3, size: 0.18 });
+      tick -= dt; if (tick > 0) return;
+      tick = 0.25;
+      const dealt = this.hit(t, 7 + this.rank('buds') * 2, { stagger: 0.1, ceGain: 1, color: '#b8ff6a' }) || 0;
+      p.heal(dealt * 0.6 + 1, true);
+      this.slow(t, 0.4);
+    });
+  }
+  pollen() {
+    const g = this.game, p = this.p;
+    this.cast(0.4, true);
+    const c = this.aimGround(11), R = 4.2;
+    g.audio?.noise({ dur: 0.6, gain: 0.2, type: 'bandpass', freq: 1200, sweep: 400 });
+    this.during(6, () => {
+      for (let i = 0; i < 2; i++) { const a = Math.random() * Math.PI * 2, r = Math.sqrt(Math.random()) * R; g.particles.glow.emit(c.x + Math.cos(a) * r, c.y + 0.3 + Math.random() * 2.2, c.z + Math.sin(a) * r, (Math.random() - 0.5) * 0.4, 0.2, (Math.random() - 0.5) * 0.4, 1.4, 2.6, 2.3, 0.8, 0.14, 0, 1, 0.3, 0); }
+    });
+    this.zone(c, R, 6, 0.4, (list) => {
+      for (const e of list) {
+        this.slow(e, 0.6);
+        this.hit(e, 4 + this.rank('buds'), { stagger: 0, ceGain: 0.5, color: '#ffe06a' });
+        if (!e.isBoss && e.state === 'windup' && Math.random() < 0.35) { e.cancelAttack?.(); e.state = 'stagger'; e.stateT = 0; e.stagger = 0.5; }
+      }
+    }, { color: 0xffe06a, particles: 0.4 });
+  }
+  seedRain() {
+    const g = this.game, p = this.p;
+    this.cast(0.5, true);
+    const c = this.aimGround(12), R = 5;
+    g.markers.spawn({ pos: c, dur: 0.5, radius: R, color: SAP });
+    for (let i = 0; i < 8; i++) g.particles.burst(this.handPos(), { count: 1, color: SAP, speed: 6, spread: 0.2, dir: tmp.set(0, 8, 0), life: 0.4, size: 0.2 });
+    let tt = 0;
+    this.after(0.4, () => this.during(2, (t, dt) => {
+      tt -= dt; if (tt > 0) return; tt = 0.06;
+      const a = Math.random() * Math.PI * 2, r = Math.sqrt(Math.random()) * R;
+      const at = new THREE.Vector3(c.x + Math.cos(a) * r, c.y, c.z + Math.sin(a) * r);
+      g.projectiles.fire({ pos: at.clone().setY(c.y + 9), vel: new THREE.Vector3(0, -24, 0), team: 'player', shape: 'cube', color: SAP, emissive: 2, scale: 0.7, life: 0.5, radius: 0.6, ghost: true,
+        onHit: (e) => { this.hit(e, 8, { stagger: 0.2 }); this.plantBud(e); },
+        onExpire: (q, why) => { if (why !== 'hit') g.particles.burst(q.pos, { count: 3, color: LEAF, speed: 2, life: 0.3, size: 0.1 }); } });
+    }));
+    g.audio?.energy('spit');
+  }
+  bloomOfLife() {
+    const g = this.game, p = this.p;
+    if (p.hp >= p.maxHp) { g.toast?.('Already at full health'); g.audio?.ui('back'); return false; }
+    this.cast(0.5, true);
+    p.healOverTime = { left: p.maxHp * 0.25, t: 4 };
+    for (const pl of g.players) if (pl !== p && !pl.dead && pl.pos.distanceTo(p.pos) < 6) pl.heal(pl.maxHp * 0.15);
+    g.fx.heal(p.pos, BLOOM); g.audio?.energy('heal');
+    const c = p.pos.clone();
+    g.fx.rings.spawn(tmp.set(c.x, c.y + 0.06, c.z), { color: BLOOM, r0: 0.3, r1: 3, dur: 0.6, thick: 0.15 });
+    this.during(4, () => {
+      if (Math.random() < 0.6) { const a = Math.random() * Math.PI * 2, r = 0.4 + Math.random() * 1.4, col = Math.random() < 0.5 ? [2.6, 1.4, 2.0] : [2.6, 2.5, 1.4]; g.particles.glow.emit(p.pos.x + Math.cos(a) * r, p.pos.y + 0.1, p.pos.z + Math.sin(a) * r, 0, 0.8 + Math.random(), 0, 1, col[0], col[1], col[2], 0.16, -0.3, 1, 0.5, 1); }
+    });
+  }
+  petalStorm() {
+    const g = this.game, p = this.p, R = 3.6;
+    this.cast(0.35, true);
+    g.audio?.whoosh(1.4);
+    let tick = 0;
+    this.during(3, (t, dt) => {
+      for (let i = 0; i < 6; i++) {
+        const a = t * 7 + i / 6 * Math.PI * 2 + Math.random() * 0.4, r = 1 + Math.random() * (R - 1);
+        g.particles.glow.emit(p.pos.x + Math.cos(a) * r, p.pos.y + 0.3 + Math.random() * 2, p.pos.z + Math.sin(a) * r, -Math.sin(a) * 9, 0.3, Math.cos(a) * 9, 0.25, i % 2 ? 2.6 : 2.6, i % 2 ? 1.2 : 2.6, i % 2 ? 1.8 : 2.6, 0.16, 0, 1, 0.6, 1);
+      }
+      tick -= dt; if (tick > 0) return; tick = 0.25;
+      for (const e of this.foes(p.pos, R)) { this.hit(e, 7 + this.rank('field') * 2, { stagger: 0.15, knock: tmp.subVectors(e.pos, p.pos).setY(0).normalize().multiplyScalar(1.5), color: '#ff9ad8' }); }
+    });
+  }
+  flowerEye() {
+    const g = this.game, p = this.p;
+    const L = 24, W = 1.7, CH = 1.1;
+    p.action = { type: 'cast', both: true, dur: CH + 0.9, elapsed: 0, t: 0, moveScale: 0, lock: true, hold: true, cancelable: false, faceAim: true };
+    p.invulnerable = true;
+    g.toast?.('Flower of the Eye'); g.audio?.charge(CH, 0.7);
+    this.beamMats ??= [beamMaterial(SAP), beamMaterial(0xffffff, true)];
+    const light = g.lights.attach(p.object, SAP, 6, 10, { offsetY: 2.5, priority: 5 });
+    let beam = null, from = null, dir = null;
+    this.during(CH + 0.9, (t) => {
+      if (!beam) {
+        p.facing = this.aimAngle();
+        // the land's life streams in towards the flower in Hanami's eye
+        const eye = p.pos.clone().setY(p.pos.y + 2.4);
+        for (let i = 0; i < 6; i++) { const a = Math.random() * Math.PI * 2, r = 3 + Math.random() * 5; g.particles.glow.emit(eye.x + Math.cos(a) * r, p.pos.y + 0.2, eye.z + Math.sin(a) * r, -Math.cos(a) * r * 1.4, 2.2, -Math.sin(a) * r * 1.4, 0.65, 1.4, 2.6, 0.8, 0.16, 0, 1, 0.3, 1); }
+        if (t < CH) return;
+        dir = this.fwd(); from = p.pos.clone().addScaledVector(dir, 0.8).setY(p.pos.y + 2.2);
+        const grp = new THREE.Group();
+        const outer = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, L, 16, 1, true), this.beamMats[0]);
+        const inner = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, L, 10, 1, true), this.beamMats[1]);
+        for (const m of [outer, inner]) { m.rotation.x = Math.PI / 2; m.position.z = L / 2; m.renderOrder = 24; }
+        grp.add(outer, inner); grp.position.copy(from); grp.lookAt(from.clone().add(dir)); grp.scale.set(W, W, 1);
+        g.scene.add(grp); beam = grp;
+        this.beamMats.forEach((m) => { m.userData.alpha.value = 1; });
+        let healed = 0;
+        this.line(p.pos, dir, L, W + 0.4, (e) => { healed += this.hit(e, 110 + this.rank('field') * 20, { stagger: 1, unblockable: true, knock: dir.clone().multiplyScalar(10), color: '#b8ff6a' }) || 0; g.particles.burst(e.pos.clone().setY(e.pos.y + 1), { count: 12, color: SAP, speed: 6, life: 0.5, size: 0.14, shape: 1 }); });
+        p.heal(p.maxHp * 0.15 + healed * 0.1, true);
+        g.fx.flash(0xe0ffc0, 0.6, 0.25); g.fx.screenWave(from, 1.2, 0.5); g.fx.chroma(1.2);
+        g.lights.flash(from.clone().addScaledVector(dir, 8), SAP, 20, 20, 0.8, { priority: 7 });
+        g.shake(0.7); g.hitStop(0.08); g.audio?.energy('purple');
+        for (let s = 2; s < L; s += 2) g.combat.hitBlocks(tmp.copy(from).addScaledVector(dir, s).setY(p.pos.y + 0.5), dir, W, Math.PI, 40, p);
+        return;
+      }
+      const k = Math.max(0, 1 - (t - CH) / 0.9);
+      beam.scale.set(W * (0.3 + 0.7 * k) * (1 + Math.sin(t * 50) * 0.05), W * (0.3 + 0.7 * k), 1);
+      this.beamMats.forEach((m) => { m.userData.alpha.value = k; });
+    }, () => {
+      if (beam) { g.scene.remove(beam); beam.children.forEach((m) => m.geometry.dispose()); }
+      g.lights.remove(light); p.invulnerable = false; if (p.action?.lock) p.action = null;
+    });
+  }
+  verdantStep() {
+    const g = this.game, p = this.p;
+    const to = this.aimGround(10), from = p.pos.clone();
+    if (!this.blink(to, { color: LEAF, iframes: 0.4 })) return false;
+    for (const at of [from, p.pos]) {
+      g.particles.burst(tmp.set(at.x, at.y + 0.2, at.z), { count: 14, color: WOOD, additive: false, speed: 3, up: 2, life: 0.6, size: 0.25, gravity: 10 });
+      g.particles.burst(tmp.set(at.x, at.y + 0.4, at.z), { count: 12, color: LEAF, speed: 2.5, up: 2, life: 0.6, size: 0.14 });
+      for (let i = 0; i < 4; i++) this.rootStab(at.clone().add(tmp.set((Math.random() - 0.5) * 1.6, 0, (Math.random() - 0.5) * 1.6)), 1, 0.25);
+    }
+    for (const e of this.foes(p.pos, 2.2)) this.hit(e, 12 * this.rootMul, { stagger: 0.4, knock: tmp.subVectors(e.pos, p.pos).setY(0).normalize().multiplyScalar(5) });
+    g.audio?.breakBlock('wood');
+  }
+  sacredTree() {
+    const g = this.game, p = this.p;
+    this.cast(0.5, true);
+    const c = this.aimGround(8);
+    const tree = new THREE.Group();
+    const bark = new THREE.MeshStandardNodeMaterial({ color: 0x5a3a1e, roughness: 0.95 });
+    const bloom = new THREE.MeshStandardNodeMaterial({ color: 0xffc8e8, roughness: 0.7, emissive: 0xff9ad8, emissiveIntensity: 0.35 });
+    const leaf = new THREE.MeshStandardNodeMaterial({ color: 0x5aa83a, roughness: 0.8, emissive: LEAF, emissiveIntensity: 0.1 });
+    const add = (m, w, h, d, x, y, z, rz = 0) => { const o = this.woodBox(w, h, d, m); o.position.set(x, y, z); o.rotation.z = rz; tree.add(o); };
+    add(bark, 1, 4.5, 1, 0, 0, 0); add(bark, 0.5, 2.2, 0.5, 0.5, 3.2, 0, -0.7); add(bark, 0.5, 2.2, 0.5, -0.5, 3, 0, 0.7);
+    add(leaf, 4, 1.6, 4, 0, 4.2, 0); add(bloom, 3, 1.2, 3, 0.3, 5.6, -0.2); add(leaf, 2, 1, 2, -1.2, 5, 0.8);
+    for (let k = 0; k < 4; k++) { const a = k / 4 * Math.PI * 2; const o = this.woodBox(0.4, 1.6, 0.4, bark); o.position.set(Math.cos(a) * 0.8, -0.2, Math.sin(a) * 0.8); o.rotation.set(Math.sin(a) * 1.1, 0, -Math.cos(a) * 1.1); tree.add(o); }
+    tree.position.copy(c); tree.scale.set(1, 0.01, 1); g.scene.add(tree);
+    g.fx.summonCircle(c, LEAF); g.audio?.energy('summon'); g.audio?.breakBlock('wood');
+    const light = g.lights.flash(c.clone().setY(c.y + 3), 0xfff0c0, 3, 8, 10, { priority: 3, fade: false });
+    let cd = 0.6, heal = 0;
+    this.during(10, (t, dt) => {
+      tree.scale.y = Math.min(1, t * 2.5) * (t > 9.6 ? Math.max(0.01, (10 - t) / 0.4) : 1);
+      tree.rotation.z = Math.sin(t * 1.3) * 0.02;
+      if (Math.random() < 0.2) g.particles.glow.emit(c.x + (Math.random() - 0.5) * 4, c.y + 5, c.z + (Math.random() - 0.5) * 4, 0.6, -0.6, 0.3, 2.5, 2.4, 1.3, 1.9, 0.12, 0, 0.5, 0.8, 1);
+      cd -= dt; heal -= dt;
+      if (cd <= 0) {
+        const e = g.nearestEnemy(c, 8);
+        if (e) { cd = 0.8; this.spike(e.pos.clone(), 1.5, 20 + this.rank('roots') * 5); g.audio?.breakBlock('wood'); }
+      }
+      if (heal <= 0) { heal = 1; for (const pl of g.players) if (!pl.dead && pl.pos.distanceTo(c) < 4) pl.heal(pl.maxHp * 0.03, true); }
+    }, () => { g.scene.remove(tree); g.lights.remove(light); g.fx.debris(c.clone().setY(c.y + 2), 0x5a3a1e, 8); });
+  }
+  overgrowth() {
+    const g = this.game, p = this.p, c = p.pos.clone(), R = 9;
+    p.action = { type: 'cast', both: true, dur: 0.9, elapsed: 0, t: 0, moveScale: 0, lock: true, hold: true, cancelable: false };
+    g.toast?.('Disaster Plants'); g.audio?.charge(0.6, 0.5);
+    const spots = [];
+    for (let i = 0; i < 14; i++) {
+      const a = i / 14 * Math.PI * 2 + Math.random() * 0.3, r = 2.5 + Math.random() * (R - 2.5);
+      const at = new THREE.Vector3(c.x + Math.cos(a) * r, c.y, c.z + Math.sin(a) * r); at.y = this.groundAt(at.x, at.z, c.y);
+      spots.push(at); g.markers.spawn({ pos: at, dur: 0.6 + i * 0.03, radius: 2, color: LEAF });
+    }
+    // enemies the player is aiming at get their own trunk
+    for (const e of this.foes(c, R).slice(0, 4)) { const at = e.pos.clone(); at.y = this.groundAt(at.x, at.z, at.y); spots.push(at); g.markers.spawn({ pos: at, dur: 0.6, radius: 2, color: LEAF }); }
+    spots.forEach((at, i) => this.after(0.6 + Math.min(i, 14) * 0.03, () => {
+      g.combat.aoe(at, 2, (46 + this.rank('roots') * 8) * this.rootMul, p, { knock: 6, stagger: 0.8 });
+      for (const e of this.foes(at, 2.2)) { if (!e.isBoss) e.vel.y = Math.max(e.vel.y, 9); this.slow(e, 2); }
+      this.rootStab(at.clone(), 4 + Math.random() * 2, 0.9);
+      for (let k = 0; k < 3; k++) this.rootStab(at.clone().add(tmp.set((Math.random() - 0.5) * 2, 0, (Math.random() - 0.5) * 2)), 2 + Math.random() * 1.5, 0.4);
+      g.particles.burst(at.clone().setY(at.y + 0.4), { count: 10, color: WOOD, additive: false, speed: 6, spread: 0.3, dir: tmp.set(0, 3, 0), life: 0.6, size: 0.35, gravity: 10 });
+      g.particles.burst(at.clone().setY(at.y + 2), { count: 10, color: LEAF, speed: 4, life: 0.6, size: 0.16 });
+      if (i % 3 === 0) { g.audio?.breakBlock('wood'); g.shake(0.25); }
+    }));
+    this.after(0.9, () => { if (p.action?.lock) p.action = null; g.fx.flash(0xd0ffc0, 0.3, 0.2); });
   }
 }
 registerKit('hanami', HanamiKit, HANAMI_SKILLS);

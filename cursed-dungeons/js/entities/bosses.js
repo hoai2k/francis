@@ -92,7 +92,7 @@ export class Boss {
     const g = this.game;
     if (this.dead) return;
     this.dead = true; this.deathT = 0; this.co = null; this.tasks.length = 0; this.object.visible = true; this.untargetable = false; this.st.airborne = false;
-    if (g.domain && g.domain.caster === this) g.domainSys.end();
+    if (g.domain && g.domain.caster === this) g.domainSys.collapse();   // the barrier cracks and shatters with its caster
     this.B.onDeath?.call(this);
     for (const p of this.props) this.removeProp(p, true);
     g.lights.remove(this.lightH);
@@ -237,14 +237,15 @@ export class Boss {
     }
     this.pos.copy(to); this.untargetable = false; this.st.airborne = false; this.vel.set(0, 0, 0);
   }
-  // a Domain Expansion cast by the boss through the shared domain system
-  // (the players' own domains can't open while it holds, and vice versa).
+  // a Domain Expansion cast by the boss through the shared domain system: the
+  // barrier closes over the whole arena (centred on it), trapping the players
+  // inside with the boss until it ends or the boss dies. No camera move.
+  // (One domain at a time; js/domain.js resolves a clash by power.)
   domain(def) {
     const g = this.game;
-    if (g.domain || !g.domainSys) return false;
-    const ok = g.domainSys.start(this, { sureHit: false, radius: 24, ...def });
-    if (ok && g.rig.cine) g.rig.cine.dur = def.cineDur ?? 2.6;   // a short orbit, then back to play
-    return ok;
+    if (!g.domainSys || (g.domain && g.domain.phase !== 'collapse')) return false;
+    const a = this.arena, inArena = a && Math.hypot(this.pos.x - a.c.x, this.pos.z - a.c.z) < a.R + 4;
+    return g.domainSys.start(this, { sureHit: false, radius: 24, ...def, center: inArena ? a.c : this.pos, minRadius: inArena ? a.R + 3 : 0 });
   }
   // ---------------------------------------------------------------- coroutines
   *roar() {

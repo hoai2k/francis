@@ -1,8 +1,14 @@
 // Light manager: a fixed pool of point lights (so shaders never recompile)
 // is assigned every frame to the most relevant light sources — static
 // torches/lanterns/cursed pools plus short-lived dynamic flashes from
-// attacks and projectiles. Also owns the moon/sun directional light.
+// attacks and projectiles. Also owns the sun/moon directional light, whose
+// direction, colour and intensity the environment (time of day) sets every
+// frame with setSun(). Its shadow map follows the camera focus with a
+// stabilised orthographic frustum (snapped to shadow-map texels, so shadows
+// don't shimmer as you walk) sized to what the camera can see.
 import * as THREE from 'three/webgpu';
+
+const _r = new THREE.Vector3(), _u = new THREE.Vector3(), _f = new THREE.Vector3(), _c = new THREE.Vector3();
 
 export class LightManager {
   constructor(scene) {
@@ -17,7 +23,16 @@ export class LightManager {
     this.sun.target.position.set(0, 0, 0);
     scene.add(this.sun, this.sun.target);
     this.sunOffset = new THREE.Vector3(-18, 36, 10);
+    this.sunDir = this.sunOffset.clone().normalize();   // towards the light; env.setSun() overrides
+    this.torch = 1;          // 0..1: lanterns & torches dim by day, take over at night
+    this.viewDist = 30;      // how far the camera sees (sizes the shadow frustum)
+    this.extent = 0;
     this.t = 0;
+  }
+  setSun(dir, color, intensity, { moon = false } = {}) {
+    this.sunDir.copy(dir);
+    this.sun.color.copy(color); this.sun.intensity = intensity;
+    if (this.sun.shadow && 'intensity' in this.sun.shadow) this.sun.shadow.intensity = moon ? 0.72 : 1;
   }
   configure(preset) {
     for (const l of this.pool) { this.scene.remove(l); l.dispose?.(); }
@@ -32,15 +47,23 @@ export class LightManager {
     }
     const s = this.sun;
     s.castShadow = preset.shadows;
+    this.preset = preset;
+    this.extent = 0;
     if (preset.shadows) {
       s.shadow.mapSize.set(preset.shadowSize, preset.shadowSize);
-      const e = 34; const cam = s.shadow.camera;
-      cam.left = -e; cam.right = e; cam.top = e; cam.bottom = -e; cam.near = 1; cam.far = 120;
-      s.shadow.bias = -0.0006; s.shadow.normalBias = 0.04;
-      s.shadow.radius = preset.shadowType === 'vsm' ? 10 : preset.shadowSize >= 2048 ? 4 : 2;
-      s.shadow.blurSamples = 16;
-      s.shadow.camera.updateProjectionMatrix();
+      s.shadow.bias = preset.shadowType === 'vsm' ? -0.0004 : -0.0006;
+      s.shadow.normalBias = preset.shadowSize >= 4096 ? 0.03 : 0.045;
+      s.shadow.radius = preset.shadowRadius ?? (preset.shadowType === 'vsm' ? 9 : preset.shadowSize >= 2048 ? 3.5 : 2);
+      s.shadow.blurSamples = preset.shadowType === 'vsm' ? 18 : 8;
+      this.fitShadow(34);
     }
+  }
+  // Orthographic shadow frustum of half-size e around the focus.
+  fitShadow(e) {
+    const cam = this.sun.shadow.camera;
+    cam.left = -e; cam.right = e; cam.top = e; cam.bottom = -e; cam.near = 1; cam.far = 320;
+    cam.updateProjectionMatrix();
+    this.extent = e;
   }
   setStatic(list) { this.static = list.map((L) => ({ ...L, flicker: L.flicker ?? (L.block ? 0.12 : 0.25), seed: Math.random() * 100 })); }
   // Short-lived light for hits, projectiles, techniques. Returns handle.
@@ -56,9 +79,21 @@ export class LightManager {
   remove(d) { const i = this.dynamic.indexOf(d); if (i >= 0) this.dynamic.splice(i, 1); }
   update(dt, focus) {
     this.t += dt;
-    // sun follows the action so the shadow map stays sharp around players
-    this.sun.position.copy(focus).add(this.sunOffset);
-    this.sun.target.position.copy(focus);
+    // shadow frustum: big enough for the view (title / cutscene cameras see more), in steps so it rarely changes
+    if (this.sun.castShadow) {
+      const want = Math.min(this.preset?.shadowMaxExtent ?? 80, Math.max(22, Math.ceil(this.viewDist * 1.1 / 6) * 6));
+      if (want !== this.extent) this.fitShadow(want);
+    }
+    // stabilise: move the light only in whole shadow-map texels across its view plane
+    const dir = this.sunDir;
+    _f.copy(dir).negate();
+    _r.set(0, 1, 0).cross(_f); if (_r.lengthSq() < 1e-6) _r.set(1, 0, 0); _r.normalize();
+    _u.copy(_f).cross(_r).normalize();
+    const texel = (2 * (this.extent || 34)) / (this.sun.shadow.mapSize.x || 1024);
+    const a = Math.round(focus.dot(_r) / texel) * texel, b = Math.round(focus.dot(_u) / texel) * texel, c = focus.dot(_f);
+    _c.copy(_r).multiplyScalar(a).addScaledVector(_u, b).addScaledVector(_f, c);
+    this.sun.position.copy(_c).addScaledVector(dir, 160);
+    this.sun.target.position.copy(_c);
     this.sun.target.updateMatrixWorld();
     const cands = [];
     for (let i = this.dynamic.length - 1; i >= 0; i--) {
@@ -74,7 +109,7 @@ export class LightManager {
       const dist2 = (L.x - focus.x) ** 2 + (L.z - focus.z) ** 2;
       if (dist2 > 38 * 38) continue;
       const fl = 1 + Math.sin(this.t * 13 + L.seed) * L.flicker * 0.5 + Math.sin(this.t * 7.3 + L.seed * 2) * L.flicker * 0.5;
-      cands.push({ s: L.intensity / (1 + dist2 / 120), d: L, k: fl });
+      cands.push({ s: L.intensity / (1 + dist2 / 120), d: L, k: fl * (0.3 + 0.7 * this.torch) });
     }
     cands.sort((a, b) => b.s - a.s);
     for (let i = 0; i < this.pool.length; i++) {

@@ -5,6 +5,7 @@ import * as THREE from 'three/webgpu';
 import { uniform, uv, vec3, vec4, float, smoothstep, length, sin, atan, mix, abs, fract, positionLocal } from 'three/tsl';
 import { Grade } from './renderer.js';
 import { U } from './materials.js';
+import { E } from './envNodes.js';
 
 const tmp = new THREE.Vector3();
 
@@ -213,7 +214,9 @@ export class Effects {
   // ---------------- ambient
   ambient(dt, kind, focus) {
     this.ambientT += dt;
-    const rate = { fireflies: 6, embers: 10, spores: 10, drips: 6 }[kind] ?? 0;
+    // fireflies come out at dusk; by day the same places get drifting sunlit pollen motes
+    if (kind === 'fireflies' && E.day.value > 0.6) kind = 'motes';
+    const rate = { fireflies: 6, embers: 10, spores: 10, drips: 6, motes: 7 }[kind] ?? 0;
     const n = Math.floor(this.ambientT * rate); if (!n) return;
     this.ambientT -= n / rate;
     for (let i = 0; i < n; i++) {
@@ -222,6 +225,7 @@ export class Effects {
       if (kind === 'fireflies') this.p.glow.emit(x, y, z, (Math.random() - 0.5) * 0.6, 0.2, (Math.random() - 0.5) * 0.6, 3 + Math.random() * 3, 2.2, 2.6, 0.8, 0.09, 0, 0.1, 1, 0);
       else if (kind === 'embers') this.p.glow.emit(x, focus.y + Math.random(), z, (Math.random() - 0.5) * 0.8, 1 + Math.random(), (Math.random() - 0.5) * 0.8, 3 + Math.random() * 2, 3, 1.1, 0.3, 0.07, -0.2, 0.3, 0.2, 1);
       else if (kind === 'spores') this.p.glow.emit(x, y, z, (Math.random() - 0.5) * 0.3, 0.15, (Math.random() - 0.5) * 0.3, 4 + Math.random() * 3, 0.9, 0.5, 1.6, 0.08, 0, 0.2, 1, 0);
+      else if (kind === 'motes') { const c = E.sunColor.value; this.p.glow.emit(x, y, z, (Math.random() - 0.5) * 0.4, 0.05 + Math.random() * 0.1, (Math.random() - 0.5) * 0.4, 4 + Math.random() * 3, 0.35 + c.r * 0.12, 0.33 + c.g * 0.1, 0.25 + c.b * 0.08, 0.05, 0, 0.15, 1, 0); }
       else if (kind === 'drips') this.p.glow.emit(x, focus.y + 7, z, 0, -2, 0, 0.9, 0.5, 0.8, 1.0, 0.05, 12, 0, 1, 1);
     }
   }

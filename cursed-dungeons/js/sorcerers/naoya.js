@@ -1,20 +1,22 @@
-// Naoya-style kit — Projection Sorcery.
+// Naoya-style kit — Projection Sorcery. 22 abilities on the technique tree;
+// four are equipped (RMB takes a basic one) plus F.
 //   The 24fps rule: every technique moves you in fixed frames, and anything
 //   you touch that can't keep up is frozen inside a flat frame "panel".
 //   Speed stacks build with every hit and technique (faster movement, harder
 //   techniques) and fade if you stop moving.
-//   LMB  lightning-fast strikes; each hit adds a stack.
-//   RMB  Projection Dash: a frame-by-frame dash that panels everything it passes.
-//   1    Blitz: rapid-fire strikes that jump from curse to curse.
-//   2    Acceleration: max stacks; for a few seconds every blow panels its target.
-//   3    Mach Strike: spend every stack on one sound-barrier-breaking dash punch;
-//        panelled curses shatter.
-//   F    Domain: Time Cell Moon Palace — Projection Sorcery on every body
-//        inside: whatever moves breaks apart in proportion to how far it
-//        moved (attacking counts), freezing in 24fps panels; holding still
-//        is the only defence. A full moon and a ring of 24 film frames.
+//   LMB         lightning-fast strikes; each hit adds a stack.
+//   Projection  Projection Dash (start, RMB), Panel Jab, Afterimage, Frame Skip,
+//               Zigzag Projection
+//   Frames      Frame Freeze, Panel Shatter, 24-Frame Lock, Film Reel
+//   Speed       Acceleration, Momentum, Supersonic Kick, Maximum Speed
+//   Strikes     Blitz, Palm Barrage, Axe Kick, Frame Cutter, Mach Strike
+//   Zenin       Zenin Pride, Projection Counter, Sonic Boom, Cursed Spirit Form
+//   F           Domain: Time Cell Moon Palace — Projection Sorcery on every body
+//               inside: whatever moves breaks apart in proportion to how far it
+//               moved (attacking counts), freezing in 24fps panels; holding still
+//               is the only defence. A full moon and a ring of 24 film frames.
 import * as THREE from 'three/webgpu';
-import { Kit } from './kit.js';
+import { Kit, ability, passive } from './kit.js';
 import { registerKit, registerSorcerer } from './index.js';
 import { registerLook } from '../entities/models.js';
 import { registerDomainEnv } from '../world/biomes.js';
@@ -48,12 +50,12 @@ registerDomainEnv('time_cell_moon_palace', {
 });
 
 export const NAOYA_SKILLS = [
-  { id: 'tempo', name: 'Tempo', desc: '+1 max speed stack per rank, and stacks last longer.', max: 3 },
-  { id: 'frames', name: 'Frame Lock', desc: 'Panels hold curses longer.', max: 3 },
-  { id: 'dash', name: 'Projection', desc: 'Projection Dash reaches further and hits harder.', max: 3 },
-  { id: 'blitz', name: 'Blitz', desc: 'More Blitz strikes.', max: 2, req: 'dash' },
-  { id: 'mach', name: 'Sound Barrier', desc: 'Mach Strike scales harder with stacks.', max: 3, req: 'tempo' },
-  { id: 'palace', name: 'Moon Palace', desc: 'Time Cell Moon Palace lasts 2s longer and moving bodies break harder.', max: 1, req: 'frames' },
+  { id: 'tempo', name: 'Tempo', icon: '🥁', desc: '+1 max speed stack per rank, and stacks last longer.', max: 3, branch: 'Speed', tier: 0 },
+  { id: 'frames', name: 'Frame Lock', icon: '🖼️', desc: 'Panels hold curses longer.', max: 3, req: 'ab:frame_freeze', branch: 'Frames', tier: 2 },
+  { id: 'dash', name: 'Projection', icon: '🎞️', desc: 'Projection Dash reaches further and hits harder.', max: 3, req: 'ab:dash', branch: 'Projection', tier: 1 },
+  { id: 'blitz', name: 'Blitz', icon: '⚡', desc: 'More Blitz strikes.', max: 2, req: 'ab:blitz', branch: 'Strikes', tier: 2 },
+  { id: 'mach', name: 'Sound Barrier', icon: '💨', desc: 'Mach Strike and Sonic Boom scale harder with stacks.', max: 3, req: 'tempo', branch: 'Speed', tier: 1 },
+  { id: 'palace', name: 'Moon Palace', icon: '🌕', desc: 'Time Cell Moon Palace lasts 2s longer and moving bodies break harder.', max: 1, req: 'frames', branch: 'Frames', tier: 5 },
 ];
 
 class NaoyaKit extends Kit {
@@ -68,11 +70,42 @@ class NaoyaKit extends Kit {
       { ...fast, style: 'swingL', dur: 0.26, windup: 0.27, strike: 0.48, dmg: 12, range: 2.7, arc: 1.2, lunge: 8, knock: 3, stop: 0.04, shake: 0.14, chainAt: 0.5 },
       { ...fast, style: 'uppercut', dur: 0.4, windup: 0.3, strike: 0.5, dmg: 22, range: 2.8, arc: 1.0, lunge: 6, knock: 8, stop: 0.08, shake: 0.3, ring: true, ringColor: FRAME, stagger: 0.5 },
     ];
-    this.slots = {
-      ranged: this.ability({ name: 'Projection Dash', icon: '🎞️', cd: 1.4, ce: 0, use: () => this.dash() }),
-      t1: this.ability({ name: 'Blitz', icon: '⚡', cd: 7, ce: 14, use: () => this.blitz() }),
-      t2: this.ability({ name: 'Acceleration', icon: '⏩', cd: 14, ce: 16, use: () => this.accelerate() }),
-      t3: this.ability({ name: 'Mach Strike', icon: '💨', cd: 15, ce: 30, use: () => this.mach() }),
+    this.branches = ['Projection', 'Frames', 'Speed', 'Strikes', 'Zenin'];
+    this.stackPow = 0.05; this.decayMul = 1; this.frameMul = 1;
+    this.library = {
+      // ---- Projection
+      dash: ability({ name: 'Projection Dash', icon: '🎞️', kind: 'basic', desc: 'A frame-by-frame dash that panels everything it passes.', cd: 1.4, ce: 0, branch: 'Projection', tier: 0, start: true, legacy: 'ranged', use: () => this.dash() }),
+      panel_jab: ability({ name: 'Panel Jab', icon: '👉', kind: 'basic', desc: 'Two frames to reach the curse you aim at, one jab, and it is frozen in a panel.', cd: 1.1, ce: 0, branch: 'Projection', tier: 1, req: 'dash', use: () => this.panelJab() }),
+      afterimage: ability({ name: 'Afterimage', icon: '👥', kind: 'defence', desc: 'For 3s you leave afterimages a frame behind: most hits strike the afterimage instead of you.', cd: 14, ce: 10, branch: 'Projection', tier: 2, req: 'panel_jab', use: () => this.afterimage() }),
+      frame_skip: ability({ name: 'Frame Skip', icon: '⏭️', kind: 'movement', desc: 'Skip three frames ahead to the aim point; you cannot be hit in between.', cd: 4, ce: 4, branch: 'Projection', tier: 2, req: 'dash', use: () => this.frameSkip() }),
+      zigzag: ability({ name: 'Zigzag Projection', icon: '〽️', kind: 'movement', desc: 'Three projected dashes in a zigzag, panelling and striking everything along the way.', cd: 7, ce: 10, branch: 'Projection', tier: 3, req: 'frame_skip', use: () => this.zigzag() }),
+      // ---- Frames
+      frame_freeze: ability({ name: 'Frame Freeze', icon: '🧊', kind: 'technique', desc: 'Every curse around you is caught out of step and frozen in a panel.', cd: 9, ce: 12, branch: 'Frames', tier: 1, use: () => this.frameFreeze() }),
+      panel_shatter: ability({ name: 'Panel Shatter', icon: '💥', kind: 'technique', desc: 'Every panelled curse shatters with its frame — harder with more speed stacks.', cd: 8, ce: 14, branch: 'Frames', tier: 2, req: 'frame_freeze', use: () => this.panelShatter() }),
+      frame_lock: ability({ name: '24-Frame Lock', icon: '🔒', kind: 'technique', desc: 'Lock one curse into 24 frames: it is struck once per frame, then the last frame breaks.', cd: 12, ce: 16, branch: 'Frames', tier: 3, req: 'panel_shatter', use: () => this.frameLock() }),
+      film_reel: ability({ name: 'Film Reel', icon: '📽️', kind: 'technique', desc: '24 film frames circle you for 4s; any curse inside the reel is panelled and cut, frame after frame.', cd: 20, ce: 30, branch: 'Frames', tier: 4, req: 'frame_lock', use: () => this.filmReel() }),
+      // ---- Speed
+      accelerate: ability({ name: 'Acceleration', icon: '⏩', kind: 'buff', desc: 'Max stacks; for a few seconds every blow panels its target.', cd: 14, ce: 16, branch: 'Speed', tier: 1, legacy: 't2', use: () => this.accelerate() }),
+      momentum: ability({ name: 'Momentum', icon: '🏃', kind: 'buff', desc: '+4 speed stacks, and none of them fade for 8s.', cd: 18, ce: 10, branch: 'Speed', tier: 2, req: 'accelerate', use: () => this.momentum() }),
+      sonic_kick: ability({ name: 'Supersonic Kick', icon: '🦵', kind: 'technique', desc: 'Close in over three frames and kick a curse so fast it flies off and breaks whatever it hits.', cd: 8, ce: 12, branch: 'Speed', tier: 3, req: 'momentum', use: () => this.sonicKick() }),
+      max_speed: ability({ name: 'Maximum Speed', icon: '🌪️', kind: 'technique', desc: 'For 3s you move at the limit of 24 frames: you strike every curse nearby, over and over, untouchable.', cd: 24, ce: 40, branch: 'Speed', tier: 4, req: 'sonic_kick', use: () => this.maxSpeed() }),
+      // ---- Strikes
+      blitz: ability({ name: 'Blitz', icon: '⚡', kind: 'technique', desc: 'Rapid-fire strikes that jump from curse to curse.', cd: 7, ce: 14, branch: 'Strikes', tier: 1, legacy: 't1', use: () => this.blitz() }),
+      palm_rush: ability({ name: 'Palm Barrage', icon: '🖐️', kind: 'technique', desc: 'A palm strike on every other frame for half a second, then a final shove.', cd: 6, ce: 8, branch: 'Strikes', tier: 2, req: 'blitz', use: () => this.palmRush() }),
+      axe_kick: ability({ name: 'Axe Kick', icon: '🪓', kind: 'technique', desc: 'Project up and come down heel-first on the aim point, panelling what you land on.', cd: 7, ce: 10, branch: 'Strikes', tier: 2, req: 'blitz', use: () => this.axeKick() }),
+      frame_cutter: ability({ name: 'Frame Cutter', icon: '✂️', kind: 'technique', desc: 'Six frames down a straight line, a cut on each: everything on the line is panelled.', cd: 9, ce: 14, branch: 'Strikes', tier: 3, req: 'palm_rush', use: () => this.frameCutter() }),
+      mach: ability({ name: 'Mach Strike', icon: '💨', kind: 'technique', desc: 'Spend every stack on one sound-barrier-breaking dash punch; panelled curses shatter.', cd: 15, ce: 30, branch: 'Strikes', tier: 3, legacy: 't3', req: 'blitz', use: () => this.mach() }),
+      // ---- Zenin
+      zenin_pride: ability({ name: 'Zenin Pride', icon: '👑', kind: 'buff', desc: 'The heir of the Zenin clan does not lose: +20% damage and +10% damage reduction for 8s.', cd: 20, ce: 12, branch: 'Zenin', tier: 1, use: () => this.zeninPride() }),
+      counter: ability({ name: 'Projection Counter', icon: '🔁', kind: 'defence', desc: 'Stand ready for 1.2s: the first attack is read frame by frame — you slip behind the attacker and panel it.', cd: 10, ce: 8, branch: 'Zenin', tier: 2, req: 'zenin_pride', use: () => this.counter() }),
+      sonic_boom: ability({ name: 'Sonic Boom', icon: '🔊', kind: 'basic', desc: 'Punch faster than sound: the shockwave flies on and hits everything in a line.', cd: 1.6, ce: 4, branch: 'Zenin', tier: 3, req: 'zenin_pride', use: () => this.sonicBoom() }),
+      cursed_spirit: ability({ name: 'Cursed Spirit Form', icon: '👹', kind: 'buff', desc: 'Return as a vengeful cursed spirit for 12s: +4 max stacks, stacks never fade, every blow lets out a sonic boom and heals you.', cd: 40, ce: 35, branch: 'Zenin', tier: 4, req: 'counter', use: () => this.cursedSpirit() }),
+    };
+    this.passives = {
+      projection_mastery: passive({ name: 'Projection Mastery', icon: '🎬', desc: 'Panels hold 30% longer.', branch: 'Projection', tier: 3, req: 'frame_skip', apply: (pl, k) => { k.frameMul *= 1.3; } }),
+      fluid_frames: passive({ name: 'Fluid Frames', icon: '🌊', desc: 'Speed stacks fade half as fast.', branch: 'Speed', tier: 2, req: 'accelerate', apply: (pl, k) => { k.decayMul *= 0.5; } }),
+      arrogance: passive({ name: 'Heir\'s Arrogance', icon: '😏', desc: 'Each speed stack adds 8% damage instead of 5%.', branch: 'Speed', tier: 3, req: 'momentum', apply: (pl, k) => { k.stackPow = 0.08; } }),
+      spirit_body: passive({ name: 'Cursed Body', icon: '🩸', desc: '+25 max health and heal for 3% of the damage you deal.', branch: 'Zenin', tier: 3, req: 'zenin_pride', apply: (pl) => { pl.maxHp += 25; pl.hp += 25; pl.stats.lifesteal += 0.03; } }),
     };
     // Time Cell Moon Palace: Projection Sorcery applied to the cells of every
     // body inside. Anything that moves out of step with the 24 frames breaks
@@ -114,9 +147,9 @@ class NaoyaKit extends Kit {
     this.panelGeo = { face: new THREE.PlaneGeometry(1, 1), bar: new THREE.BoxGeometry(1, 0.05, 0.05), side: new THREE.BoxGeometry(0.05, 1, 0.05) };
     this.panelMats = { face: new THREE.MeshBasicNodeMaterial({ color: FRAME, transparent: true, opacity: 0.18, depthWrite: false, side: THREE.DoubleSide }), edge: new THREE.MeshStandardNodeMaterial({ color: 0xffffff, emissive: FRAME, emissiveIntensity: 3 }) };
   }
-  get maxStacks() { return 8 + this.rank('tempo'); }
+  get maxStacks() { return 8 + this.rank('tempo') + (this.spiritT > 0 ? 4 : 0); }
   get speedMul() { return 1 + this.stacks * 0.05 + (this.accelT > 0 ? 0.25 : 0); }
-  get power() { return 1 + this.stacks * 0.05; }
+  get power() { return 1 + this.stacks * this.stackPow; }
   dispose() { super.dispose(); for (const pn of this.panels) this.game.scene.remove(pn.mesh); this.panels = []; this.clearPalace(); }
   // Domain set-piece: a vast full moon over the palace and a ring of 24 film
   // frames (with sprocket holes) circling the arena.
@@ -156,7 +189,7 @@ class NaoyaKit extends Kit {
     this.palace = null;
   }
   addStack(n = 1) { this.stacks = Math.min(this.maxStacks, this.stacks + n); this.stackT = 2.5 + this.rank('tempo') * 0.5; }
-  onMeleeHit(e) { this.addStack(1); if (this.accelT > 0) this.panel(e, 0.8); }
+  onMeleeHit(e) { this.addStack(1); if (this.accelT > 0) this.panel(e, 0.8); if (this.spiritT > 0) this.spiritBoom(e); }
   // ------------------------------------------------------------ panels
   makePanel() {
     const grp = new THREE.Group(), M = this.panelMats, G = this.panelGeo;
@@ -169,7 +202,7 @@ class NaoyaKit extends Kit {
   panel(e, dur) {
     if (e.dead) return;
     const g = this.game;
-    dur *= 1 + this.rank('frames') * 0.2;
+    dur *= (1 + this.rank('frames') * 0.2) * this.frameMul;
     if (e.isBoss) e.slowT = Math.max(e.slowT ?? 0, dur);
     else { e.cancelAttack?.(); e.state = 'stagger'; e.stateT = 0; e.stagger = 0.1; e.sealT = Math.max(e.sealT ?? 0, dur); }
     e.panelEnd = Math.max(e.panelEnd ?? 0, g.time + dur);
@@ -183,7 +216,8 @@ class NaoyaKit extends Kit {
   tick(dt) {
     const g = this.game, p = this.p;
     this.accelT = Math.max(0, this.accelT - dt);
-    this.stackT -= dt;
+    this.spiritT = Math.max(0, (this.spiritT ?? 0) - dt);
+    if (!this.holdStacks && !(this.spiritT > 0)) this.stackT -= dt * this.decayMul;
     if (this.stackT <= 0 && this.stacks > 0) { this.stacks--; this.stackT = 0.35; }
     // panels follow their curse and face the camera
     for (let i = this.panels.length - 1; i >= 0; i--) {
@@ -215,12 +249,12 @@ class NaoyaKit extends Kit {
   frameMove(from, to, frames, onFrame) {
     const g = this.game, p = this.p;
     p.iframes = Math.max(p.iframes, frames * FPS + 0.15);
-    for (let f = 1; f <= frames; f++) setTimeout(() => {
+    for (let f = 1; f <= frames; f++) this.after(f * FPS, () => {
       const prev = p.pos.clone();
       p.pos.lerpVectors(from, to, f / frames); p.visY = p.pos.y; p.vel.set(0, 0, 0);
       g.particles.burst(prev.setY(prev.y + 1), { count: 6, color: FRAME, speed: 0.5, life: 0.25, size: 0.6, sizeEnd: 0.2, intensity: 1.4 });
       onFrame?.(f);
-    }, f * FPS * 1000);
+    });
   }
   // ------------------------------------------------------------ RMB
   dash() {
@@ -239,7 +273,7 @@ class NaoyaKit extends Kit {
         g.fx.hitSpark(tmp.copy(e.pos).setY(e.pos.y + e.height * 0.6), dir, { color: FRAME });
       }
     });
-    setTimeout(() => { if (hit.size) { g.hitStop(0.05); g.shake(0.2); g.audio?.impact(1.1); } this.addStack(1 + hit.size); }, 4 * FPS * 1000 + 10);
+    this.after(4 * FPS + 0.01, () => { if (hit.size) { g.hitStop(0.05); g.shake(0.2); g.audio?.impact(1.1); } this.addStack(1 + hit.size); });
     g.audio?.whoosh(1.2); g.audio?.energy('teleport');
   }
   // ------------------------------------------------------------ 1
@@ -250,7 +284,7 @@ class NaoyaKit extends Kit {
     if (!pool.length) { g.toast?.('No curses in reach'); g.audio?.ui('back'); return false; }
     p.action = { type: 'attack', step: { style: 'punch', strike: 0.3, windup: 0.2 }, style: 'punch', dur: n * FPS * 2 + 0.2, elapsed: 0, t: 0, windup: 0.2, strike: 0.3, struck: true, moveScale: 0, lock: true, cancelable: false };
     p.iframes = Math.max(p.iframes, n * FPS * 2 + 0.3);
-    for (let i = 0; i < n; i++) setTimeout(() => {
+    for (let i = 0; i < n; i++) this.after(i * FPS * 2, () => {
       const alive = pool.filter((e) => !e.dead);
       if (!alive.length) return;
       const e = alive[i % alive.length];
@@ -272,7 +306,7 @@ class NaoyaKit extends Kit {
       this.addStack(1);
       g.hitStop(0.025); g.shake(0.12); g.audio?.impact(0.9 + i * 0.05);
       if (i === n - 1) { p.action = null; g.fx.screenWave(at, 0.6, 0.3); }
-    }, i * FPS * 2 * 1000);
+    });
   }
   // ------------------------------------------------------------ 2
   accelerate() {
@@ -315,6 +349,335 @@ class NaoyaKit extends Kit {
         g.shake(0.6 + st * 0.03); g.hitStop(0.09); g.audio?.blackFlash();
         this.stacks = 0;
       }
+    });
+  }
+  // ============================================================== new abilities
+  // a free spot on the near side of a curse (or null)
+  besideSpot(e, side = 1) {
+    const w = this.game.world, p = this.p;
+    tmp.subVectors(p.pos, e.pos).setY(0); if (tmp.lengthSq() < 0.01) tmp.set(0, 0, 1);
+    const spot = e.pos.clone().addScaledVector(tmp.normalize(), side * (e.radius + 0.9));
+    const gy = w.groundBelow(spot.x, spot.z, e.pos.y + 1.5);
+    if (!isFinite(gy) || Math.abs(gy - e.pos.y) > 1.5 || w.solidAt(spot.x, gy + 0.5, spot.z) || w.solidAt(spot.x, gy + 1.5, spot.z)) return null;
+    return spot.setY(gy);
+  }
+  frameFlash(at, s = 1) {
+    const g = this.game;
+    g.fx.rings.spawn(tmp2.set(at.x, at.y + 0.06, at.z), { color: FRAME, r0: 0.3, r1: 2.5 * s, dur: 0.25, thick: 0.1 });
+    g.particles.burst(tmp2.set(at.x, at.y + 1, at.z), { count: 8, color: Math.random() < 0.5 ? FRAME : 0xffffff, speed: 3, life: 0.3, size: 0.1, drag: 3, shape: 1, intensity: 3 });
+  }
+  strike(e, dmg, o = {}) {
+    const g = this.game;
+    this.hit(e, dmg * this.power, { stagger: 0.3, ...o });
+    g.fx.hitSpark(tmp.copy(e.pos).setY(e.pos.y + e.height * 0.6), null, { color: o.spark ?? FRAME, big: !!o.big });
+  }
+  spiritBoom(e) {
+    const g = this.game, p = this.p;
+    if ((this.boomT ?? 0) > g.time) return;
+    this.boomT = g.time + 0.25;
+    const at = e.pos.clone();
+    g.combat.aoe(at, 2.4, 10 * this.power, p, { knock: 6, stagger: 0.3 });
+    g.fx.rings.spawn(tmp.set(at.x, at.y + 1, at.z), { color: 0xffffff, r0: 0.3, r1: 2.6, dur: 0.25, thick: 0.08 });
+    p.heal(3, true);
+  }
+  panelJab() {
+    const g = this.game, p = this.p, t = this.target(8);
+    if (!t) { g.toast?.('No curse in reach'); g.audio?.ui('back'); return false; }
+    const spot = this.besideSpot(t) ?? p.pos.clone();
+    p.action = { type: 'attack', step: { style: 'punch', strike: 0.5, windup: 0.3 }, style: 'punch', dur: 0.25, elapsed: 0, t: 0, windup: 0.3, strike: 0.5, struck: true, moveScale: 0 };
+    this.frameMove(p.pos.clone(), spot, 2, (f) => {
+      if (f < 2 || t.dead) return;
+      p.facing = Math.atan2(t.pos.x - p.pos.x, t.pos.z - p.pos.z);
+      this.strike(t, 14 + this.rank('dash') * 3, { knock: new THREE.Vector3() });
+      this.panel(t, 1);
+      this.addStack(1); g.audio?.impact(0.9);
+    });
+    g.audio?.whoosh(0.8);
+  }
+  afterimage() {
+    const g = this.game, p = this.p;
+    g.audio?.energy('teleport'); g.fx.chroma(0.5);
+    const ghosts = [];
+    let gt = 0;
+    this.buff('afterimage', 3, {
+      incoming: (a) => {
+        if (Math.random() < 0.7) {
+          const m = this.makePanel(); m.position.set(p.pos.x, p.pos.y + 1, p.pos.z); m.quaternion.copy(g.rig.camera.quaternion); m.scale.set(1.4, 2, 1); g.scene.add(m);
+          this.after(0.3, () => g.scene.remove(m));
+          g.particles.burst(tmp.set(p.pos.x, p.pos.y + 1, p.pos.z), { count: 10, color: FRAME, speed: 2, life: 0.3, size: 0.4, sizeEnd: 0.1 });
+          this.addStack(1);
+          return 0;
+        }
+        return a;
+      },
+      onTick: (dt) => {
+        gt -= dt; if (gt > 0) return; gt = FPS * 3;
+        g.particles.burst(tmp.set(p.pos.x, p.pos.y + 1, p.pos.z), { count: 3, color: FRAME, speed: 0.1, life: 0.35, size: 0.9, sizeEnd: 0.7, intensity: 1 });
+      },
+      onEnd: () => { for (const m of ghosts) g.scene.remove(m); },
+    });
+  }
+  frameSkip() {
+    const g = this.game, p = this.p;
+    const dir = this.fwd(), to = this.reach(dir, Math.min(9, Math.max(2, Math.hypot(p.aimPoint.x - p.pos.x, p.aimPoint.z - p.pos.z))));
+    if (to.distanceTo(p.pos) < 1) { g.audio?.ui('back'); return false; }
+    p.facing = Math.atan2(dir.x, dir.z);
+    this.frameMove(p.pos.clone(), to, 3);
+    p.iframes = Math.max(p.iframes, 0.4);
+    this.addStack(1);
+    g.audio?.energy('teleport');
+  }
+  zigzag() {
+    const g = this.game, p = this.p, base = this.aimAngle(), hit = new Set();
+    p.iframes = Math.max(p.iframes, 0.7);
+    for (let leg = 0; leg < 3; leg++) this.after(leg * 0.17, () => {
+      const a = base + (leg === 1 ? -0.7 : 0.7) * (leg === 2 ? 0.6 : 1);
+      const dir = new THREE.Vector3(Math.sin(a), 0, Math.cos(a));
+      const to = this.reach(dir, 4.5);
+      p.facing = a;
+      this.frameMove(p.pos.clone(), to, 3, () => {
+        for (const e of this.foes(p.pos, 1.8)) { if (hit.has(e)) continue; hit.add(e); this.strike(e, 16 + this.rank('dash') * 3, { knock: dir.clone().multiplyScalar(3) }); this.panel(e, 0.8); this.addStack(1); }
+      });
+      g.audio?.whoosh(1);
+    });
+    this.after(0.55, () => { if (hit.size) { g.hitStop(0.04); g.shake(0.2); } });
+  }
+  frameFreeze() {
+    const g = this.game, p = this.p, R = 5.5;
+    this.cast(0.3, true);
+    const list = this.foes(p.pos, R);
+    g.fx.flash(0xd0f4ff, 0.3, 0.1); g.fx.chroma(0.8);
+    for (let k = 0; k < 3; k++) this.after(k * FPS * 2, () => g.fx.rings.spawn(tmp.set(p.pos.x, p.pos.y + 0.06, p.pos.z), { color: k % 2 ? 0xffffff : FRAME, r0: 0.4, r1: R, dur: 0.3, thick: 0.12 }));
+    for (const e of list) { this.strike(e, 10, { stagger: 0.2, knock: new THREE.Vector3() }); this.panel(e, 1.5); }
+    this.addStack(list.length);
+    g.audio?.tone({ freq: 1400, dur: 0.2, gain: 0.08, type: 'square', filter: 5000 }); g.audio?.energy('teleport');
+  }
+  panelShatter() {
+    const g = this.game, p = this.p;
+    const list = g.enemies.filter((e) => !e.dead && e.panelEnd > g.time && e.pos.distanceTo(p.pos) < 22);
+    if (!list.length) { g.toast?.('Nothing is panelled'); g.audio?.ui('back'); return false; }
+    this.cast(0.35, true);
+    for (const e of list) {
+      const at = e.pos.clone().setY(e.pos.y + e.height * 0.5);
+      this.strike(e, 40 + this.stacks * 3, { stagger: 0.8, unblockable: true, big: true });
+      e.panelEnd = 0; if (!e.isBoss) e.sealT = 0;
+      g.particles.burst(at, { count: 28, color: FRAME, speed: 9, life: 0.5, size: 0.14, drag: 3, shape: 1, intensity: 4 });
+      g.particles.burst(at, { count: 1, color: 0xffffff, speed: 0, life: 0.15, size: 2.6, sizeEnd: 1.4, drag: 0, intensity: 2.5 });
+      g.combat.aoe(at, 2, 12 * this.power, p, { knock: 5, stagger: 0.3 });
+    }
+    g.shake(0.35); g.hitStop(0.06); g.fx.chroma(0.8);
+    g.audio?.noise({ dur: 0.35, gain: 0.5, type: 'highpass', freq: 3000, sweep: 9000 }); g.audio?.impact(1.4);
+  }
+  frameLock() {
+    const g = this.game, p = this.p, t = this.target(13);
+    if (!t) { g.toast?.('No curse in reach'); g.audio?.ui('back'); return false; }
+    this.cast(0.4, true);
+    this.panel(t, 2.6);
+    g.toast?.('24 frames');
+    let f = 0, acc = 0;
+    this.during(2.4, (tt, dt) => {
+      acc += dt;
+      while (acc >= 0.1 && f < 24) {
+        acc -= 0.1; f++;
+        if (t.dead) return false;
+        this.hit(t, 3 * this.power, { stagger: 0, knock: new THREE.Vector3(), crit: false, color: '#a8f0ff' });
+        g.particles.burst(tmp.copy(t.pos).setY(t.pos.y + t.height * (0.2 + Math.random() * 0.7)), { count: 3, color: f % 2 ? FRAME : 0xffffff, speed: 2, life: 0.25, size: 0.08, shape: 1 });
+        if (f % 4 === 0) g.audio?.tone({ freq: 1200 + f * 40, dur: 0.04, gain: 0.04, type: 'square', filter: 5000 });
+      }
+    }, () => {
+      if (t.dead) return;
+      this.strike(t, 34, { stagger: 1, unblockable: true, big: true });
+      g.particles.burst(tmp.copy(t.pos).setY(t.pos.y + t.height * 0.5), { count: 24, color: FRAME, speed: 8, life: 0.5, size: 0.14, drag: 3, shape: 1, intensity: 4 });
+      g.shake(0.3); g.audio?.impact(1.4);
+    });
+  }
+  filmReel() {
+    const g = this.game, p = this.p, R = 6, N = 24, dur = 4;
+    this.cast(0.5, true);
+    g.toast?.('Film Reel'); g.audio?.charge(0.4, 1.6);
+    const frames = [];
+    for (let i = 0; i < N; i++) { const m = this.makePanel(); m.scale.set(1.3, 2, 1); g.scene.add(m); frames.push(m); }
+    let tick = 0;
+    this.during(dur, (t, dt) => {
+      const grow = Math.min(1, t * 3) * (t > dur - 0.3 ? Math.max(0.05, (dur - t) / 0.3) : 1);
+      frames.forEach((m, i) => {
+        const a = i / N * Math.PI * 2 + t * 1.6, r = R * grow;
+        m.position.set(p.pos.x + Math.cos(a) * r, p.pos.y + 1.2, p.pos.z + Math.sin(a) * r);
+        m.rotation.set(0, -a, 0);
+      });
+      tick -= dt; if (tick > 0) return; tick = 0.4;
+      for (const e of this.foes(p.pos, R * grow)) { this.hit(e, 8 * this.power, { stagger: 0.15, knock: new THREE.Vector3(), color: '#a8f0ff' }); this.panel(e, 0.5); }
+      this.addStack(1);
+    }, () => { for (const m of frames) g.scene.remove(m); });
+  }
+  momentum() {
+    const g = this.game, p = this.p;
+    this.addStack(4);
+    g.fx.rings.spawn(tmp.set(p.pos.x, p.pos.y + 0.06, p.pos.z), { color: GOLD, r0: 0.4, r1: 3.5, dur: 0.35, thick: 0.15 });
+    g.audio?.charge(0.3, 1.6); g.toast?.('Momentum');
+    this.buff('momentum', 8, { onStart: () => { this.holdStacks = true; }, onEnd: () => { this.holdStacks = false; },
+      onTick: () => { if (Math.random() < 0.3) g.particles.burst(tmp.set(p.pos.x, p.pos.y + 0.3, p.pos.z), { count: 1, color: GOLD, speed: 0.5, up: 1, life: 0.4, size: 0.12 }); } });
+  }
+  sonicKick() {
+    const g = this.game, p = this.p, t = this.target(9);
+    if (!t) { g.toast?.('No curse in reach'); g.audio?.ui('back'); return false; }
+    const spot = this.besideSpot(t) ?? p.pos.clone();
+    p.action = { type: 'attack', step: { style: 'spin', strike: 0.6, windup: 0.3 }, style: 'spin', dur: 0.35, elapsed: 0, t: 0, windup: 0.3, strike: 0.6, struck: true, moveScale: 0, lock: true, cancelable: false };
+    this.frameMove(p.pos.clone(), spot, 3, (f) => {
+      if (f < 3 || t.dead) return;
+      const dir = tmp2.subVectors(t.pos, p.pos).setY(0).normalize().clone();
+      p.facing = Math.atan2(dir.x, dir.z);
+      this.strike(t, 40 + this.rank('mach') * 6, { stagger: 1, unblockable: true, knock: dir.clone().multiplyScalar(t.isBoss ? 4 : 22), big: true });
+      if (!t.isBoss) t.vel.y = Math.max(t.vel.y, 5);
+      g.fx.rings.spawn(tmp.copy(t.pos).setY(t.pos.y + 1), { color: 0xffffff, r0: 0.4, r1: 3.5, dur: 0.3, thick: 0.1, tilt: new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), dir) });
+      // whatever it flies into gets hit too
+      let tt = 0;
+      this.during(0.5, (x, dt) => { tt += dt; for (const o of this.foes(t.pos, 1.6)) if (o !== t && !o._kicked) { o._kicked = true; this.strike(o, 18, { stagger: 0.6, knock: dir.clone().multiplyScalar(8) }); this.after(0.5, () => { o._kicked = false; }); } });
+      this.addStack(2); g.hitStop(0.07); g.shake(0.45); g.audio?.blackFlash?.();
+    });
+    g.audio?.whoosh(1.4);
+  }
+  maxSpeed() {
+    const g = this.game, p = this.p;
+    if (!this.foes(p.pos, 11).length) { g.toast?.('No curses in reach'); g.audio?.ui('back'); return false; }
+    this.stacks = this.maxStacks; this.stackT = 4;
+    g.toast?.('Maximum Speed'); g.fx.flash(0xe0f8ff, 0.35, 0.15); g.fx.chroma(1.2);
+    p.iframes = Math.max(p.iframes, 3.2);
+    let tick = 0, i = 0;
+    this.during(3, (t, dt) => {
+      p.iframes = Math.max(p.iframes, 0.2);
+      tick -= dt; if (tick > 0) return; tick = FPS * 3;
+      const pool = this.foes(p.pos, 11);
+      if (!pool.length) return;
+      const e = pool[i++ % pool.length];
+      const spot = this.besideSpot(e, i % 2 ? 1 : -1) ?? this.besideSpot(e);
+      if (spot) { g.particles.burst(tmp.set(p.pos.x, p.pos.y + 1, p.pos.z), { count: 6, color: FRAME, speed: 0.5, life: 0.25, size: 0.6, sizeEnd: 0.2 }); p.pos.copy(spot); p.visY = spot.y; p.vel.set(0, 0, 0); }
+      p.facing = Math.atan2(e.pos.x - p.pos.x, e.pos.z - p.pos.z);
+      p.action = { type: 'attack', step: { style: i % 2 ? 'punch' : 'swingL', strike: 0.4, windup: 0.2 }, style: i % 2 ? 'punch' : 'swingL', dur: FPS * 3, elapsed: 0, t: 0, windup: 0.2, strike: 0.4, struck: true, moveScale: 0 };
+      this.strike(e, 12, { knock: new THREE.Vector3(), stagger: 0.25 });
+      this.panel(e, 0.4);
+      g.combat.aoe(e.pos, 2, 5 * this.power, p, { knock: 2, stagger: 0.1 });
+      if (i % 4 === 0) { g.fx.rings.spawn(tmp.copy(p.pos).setY(p.pos.y + 1), { color: 0xffffff, r0: 0.3, r1: 3, dur: 0.25, thick: 0.08 }); g.shake(0.15); }
+      g.audio?.impact(0.8 + (i % 5) * 0.08);
+    }, () => { p.action = null; });
+  }
+  palmRush() {
+    const g = this.game, p = this.p, R = 3;
+    p.action = { type: 'attack', step: { style: 'punch', strike: 0.3, windup: 0.2 }, style: 'punch', dur: 0.6, elapsed: 0, t: 0, windup: 0.2, strike: 0.3, struck: true, moveScale: 0.2 };
+    p.facing = this.aimAngle();
+    let f = 0;
+    this.during(0.55, (t) => {
+      const nf = Math.floor(t / (FPS * 2));
+      while (f < nf && f < 12) {
+        f++;
+        const dir = tmp2.set(Math.sin(p.facing), 0, Math.cos(p.facing));
+        const hand = this.handPos().add(tmp.set((Math.random() - 0.5) * 0.8, (Math.random() - 0.5) * 0.6, 0));
+        g.particles.burst(hand.addScaledVector(dir, 0.6), { count: 2, color: FRAME, speed: 1, life: 0.15, size: 0.4, sizeEnd: 0.1 });
+        for (const e of this.foes(p.pos, R, dir, 0.7)) { this.hit(e, 5 * this.power, { stagger: 0.12, knock: new THREE.Vector3(), crit: f % 3 === 0 }); if (f === 12) this.panel(e, 0.6); }
+        if (f % 2) g.audio?.impact(0.6 + f * 0.03);
+      }
+    }, () => {
+      const dir = new THREE.Vector3(Math.sin(p.facing), 0, Math.cos(p.facing));
+      for (const e of this.foes(p.pos, R + 0.5, dir, 0.8)) this.strike(e, 18, { stagger: 0.7, knock: dir.clone().multiplyScalar(10) });
+      this.addStack(2); g.shake(0.25); g.fx.screenWave(this.handPos(), 0.5, 0.25);
+    });
+  }
+  axeKick() {
+    const g = this.game, p = this.p;
+    const to = this.aimGround(7), from = p.pos.clone(), R = 3;
+    g.markers.spawn({ pos: to, dur: FPS * 6, radius: R, color: FRAME });
+    p.action = { type: 'attack', step: { style: 'slam', strike: 0.8, windup: 0.3 }, style: 'slam', dur: FPS * 7, elapsed: 0, t: 0, windup: 0.3, strike: 0.8, struck: true, moveScale: 0, lock: true, cancelable: false };
+    p.iframes = Math.max(p.iframes, FPS * 7);
+    const top = from.clone().lerp(to, 0.5).setY(Math.max(from.y, to.y) + 3.5);
+    if (g.world.solidAt(top.x, top.y + 1, top.z)) top.y = Math.max(from.y, to.y) + 0.5;
+    this.frameMove(from, top, 3, (f) => {
+      if (f < 3) return;
+      this.frameMove(top, to, 3, (f2) => {
+        if (f2 < 3) return;
+        for (const e of this.foes(to, R)) { this.strike(e, 32 + this.rank('blitz') * 4, { stagger: 0.8, knock: tmp2.subVectors(e.pos, to).setY(0).normalize().multiplyScalar(5) }); this.panel(e, 0.7); }
+        g.fx.shockwave(to, FRAME, R + 1); g.fx.landDust(to, 20);
+        this.addStack(2); g.shake(0.4); g.hitStop(0.05); g.audio?.impact(1.5);
+        p.action = null;
+      });
+    });
+    g.audio?.whoosh(1.1);
+  }
+  frameCutter() {
+    const g = this.game, p = this.p, dir = this.fwd(), hit = new Set();
+    const to = this.reach(dir, 9), from = p.pos.clone();
+    p.facing = Math.atan2(dir.x, dir.z);
+    p.action = { type: 'attack', step: { style: 'swingR', strike: 0.4, windup: 0.2 }, style: 'swingR', dur: 6 * FPS + 0.1, elapsed: 0, t: 0, windup: 0.2, strike: 0.4, struck: true, moveScale: 0, lock: true, cancelable: false };
+    this.frameMove(from, to, 6, (f) => {
+      const a = from.clone().lerp(to, (f - 1) / 6).setY(p.pos.y + 1), L = from.distanceTo(to) / 6 + 0.5;
+      g.fx.slashLine(a, dir, L, f % 2 ? FRAME : 0xffffff, 0.3, 0.25, (f % 2 ? 1 : -1) * 0.6);
+      for (const e of this.foes(p.pos, 2)) { if (hit.has(e)) continue; hit.add(e); this.strike(e, 20 + this.rank('dash') * 3, { stagger: 0.5, knock: new THREE.Vector3() }); this.panel(e, 1); }
+      if (f === 6) { p.action = null; this.addStack(1 + hit.size); if (hit.size) { g.hitStop(0.05); g.shake(0.25); } }
+    });
+    g.audio?.energy('slash'); g.audio?.whoosh(1.2);
+  }
+  zeninPride() {
+    const g = this.game, p = this.p;
+    this.cast(0.4, true);
+    g.toast?.('Zenin Pride'); g.audio?.charge(0.3, 1.2);
+    g.fx.rings.spawn(tmp.set(p.pos.x, p.pos.y + 0.06, p.pos.z), { color: GOLD, r0: 0.4, r1: 3, dur: 0.4, thick: 0.18 });
+    this.statBuff('zenin_pride', 8, { meleeMult: 0.2, techMult: 0.2, armor: 0.1 }, {
+      onTick: () => { if (Math.random() < 0.35) { const a = Math.random() * Math.PI * 2; g.particles.glow.emit(p.pos.x + Math.cos(a) * 0.6, p.pos.y + 0.2, p.pos.z + Math.sin(a) * 0.6, 0, 1.6, 0, 0.6, 2.6, 2.1, 1.1, 0.12, 0, 1, 0.05, 1); } },
+    });
+  }
+  counter() {
+    const g = this.game, p = this.p;
+    p.action = { type: 'cast', both: true, dur: 1.2, elapsed: 0, t: 0, moveScale: 0, lock: false };
+    g.fx.rings.spawn(tmp.set(p.pos.x, p.pos.y + 1, p.pos.z), { color: FRAME, r0: 1.5, r1: 0.4, dur: 0.3, thick: 0.1 });
+    g.audio?.tone({ freq: 900, to: 1400, dur: 0.15, gain: 0.06, type: 'triangle' });
+    this.buff('counter', 1.2, {
+      incoming: (a, src) => {
+        const b = this.buffs.get('counter'); if (b) b.left = 0.01;
+        p.action = null;
+        const e = src && src.maxHp && !src.dead && src.pos ? src : this.target(6);
+        g.fx.flash(0xd0f4ff, 0.3, 0.1); g.audio?.energy('teleport');
+        if (e) {
+          const spot = this.besideSpot(e, -1) ?? this.besideSpot(e);
+          if (spot) { g.particles.burst(tmp.set(p.pos.x, p.pos.y + 1, p.pos.z), { count: 10, color: FRAME, speed: 0.5, life: 0.3, size: 0.6, sizeEnd: 0.2 }); p.pos.copy(spot); p.visY = spot.y; p.vel.set(0, 0, 0); }
+          p.facing = Math.atan2(e.pos.x - p.pos.x, e.pos.z - p.pos.z);
+          this.pose('punch', 0.25);
+          this.strike(e, 40, { stagger: 1, unblockable: true, big: true, knock: new THREE.Vector3() });
+          this.panel(e, 1.5);
+          g.hitStop(0.08); g.shake(0.35); g.audio?.impact(1.5);
+        }
+        p.iframes = Math.max(p.iframes, 0.5);
+        this.addStack(3);
+        return 0;
+      },
+    });
+  }
+  sonicBoom() {
+    const g = this.game, p = this.p;
+    this.pose('punch', 0.25); p.facing = this.aimAngle();
+    const dmg = (18 + this.rank('mach') * 4) * this.power;
+    const dir = this.fwd();
+    g.projectiles.fire({ pos: this.handPos(), vel: dir.clone().multiplyScalar(40), team: 'player', shape: 'slash', color: 0xe8fbff, emissive: 3, scale: 1.4, life: 0.4, radius: 1, pierce: true,
+      trail: (q) => { if (Math.random() < 0.5) g.fx.rings.spawn(tmp.copy(q.pos), { color: 0xffffff, r0: 0.3, r1: 1.4, dur: 0.15, thick: 0.05, tilt: new THREE.Quaternion().setFromUnitVectors(tmp2.set(0, 0, 1), dir) }); },
+      onHit: (e, q) => { this.hit(e, dmg, { knock: dir.clone().multiplyScalar(8), stagger: 0.5 }); g.fx.hitSpark(q.pos, dir, { color: 0xffffff }); } });
+    g.fx.rings.spawn(this.handPos(), { color: 0xffffff, r0: 0.2, r1: 1.6, dur: 0.2, thick: 0.08, tilt: new THREE.Quaternion().setFromUnitVectors(tmp2.set(0, 0, 1), dir) });
+    this.addStack(1);
+    g.audio?.whoosh(1.6); g.audio?.impact(0.7);
+  }
+  cursedSpirit() {
+    const g = this.game, p = this.p;
+    p.action = { type: 'cast', both: true, dur: 0.7, elapsed: 0, t: 0, moveScale: 0, lock: true, hold: true, cancelable: false };
+    g.toast?.('Cursed Spirit Form', 'domain');
+    g.fx.flash(0x200018, 0.45, 0.3); g.fx.chroma(1); g.shake(0.4);
+    g.audio?.energy('summon'); g.audio?.tone({ freq: 60, to: 35, dur: 1.2, gain: 0.35, type: 'sawtooth', filter: 400, rev: 0.6 });
+    this.blast(p.pos.clone(), 4, 24, { color: 0x8a5aff, knock: 10, stagger: 0.6 });
+    this.after(0.7, () => { if (p.action?.lock) p.action = null; });
+    this.spiritT = 12;
+    this.statBuff('cursed_spirit', 12, { lifesteal: 0.05, speed: 0.1 }, {
+      onStart: () => { this.stacks = this.maxStacks; },
+      onTick: () => {
+        if (Math.random() < 0.6) g.particles.glow.emit(p.pos.x + (Math.random() - 0.5) * 0.9, p.pos.y + Math.random() * 2, p.pos.z + (Math.random() - 0.5) * 0.9, 0, 0.6, 0, 0.6, 1.2, 0.5, 2, 0.18, -0.4, 1.5, 0.3, 0);
+        if (Math.random() < 0.2) g.particles.burst(tmp.set(p.pos.x, p.pos.y + 1, p.pos.z), { count: 1, color: FRAME, speed: 1, life: 0.3, size: 0.1, shape: 1 });
+      },
+      onEnd: () => { this.spiritT = 0; this.stacks = Math.min(this.stacks, this.maxStacks); },
     });
   }
 }

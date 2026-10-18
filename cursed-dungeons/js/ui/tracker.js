@@ -6,8 +6,11 @@
 //   - glowing footprints along the walkable way there, from a distance field
 //     worked out once per goal over the voxel world (2.5D: it follows the
 //     floor the goal stands on, over bridges and up one-block steps).
-// In the hub the goal is the next chapter's quest marker (story/questMarkers.js);
-// in a mission it is the next thing to do (Mission.updateGuide).
+// In the open world the goal is the tracked quest's current step, or the
+// region gate / Window station on the way to it (game.quests.guide(),
+// quests/index.js); in a mission it is the next thing to do (Mission.updateGuide).
+// The footprint field covers the whole region (big regions are fine: one
+// flood per goal).
 // API: game.tracker.setGoal({ pos, title, where, radius?, feet?, quiet? }) / clear().
 import * as THREE from 'three/webgpu';
 import { h } from './ui.js';

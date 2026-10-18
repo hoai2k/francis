@@ -8,6 +8,14 @@
 // new HubNpcs(game, L) builds everything (rigs are cached between hub
 // visits); update(dt) every frame; talk(id) / station(id, open) start a
 // conversation. Conversation progress is saved in save.data.hubTalk.
+//
+// RegionNpcs (bottom of the file): the ambient people of any open-world
+// region (L.people posts: { id, name, look, pos, yaw, pose: 'idle'|'wave'|
+// 'sit'|'wander', wander, lines: [[…], […]], barks, color }) plus the NPCs a
+// quest needs. They idle, wander, face you, talk through game.dialogue
+// (quests get first say: game.quests.onTalk) and show a gold ! (new quest)
+// or ? (quest step) over their heads — for the Jujutsu High residents too.
+// Civilian looks: npc_civ_0 … npc_civ_5.
 import * as THREE from 'three/webgpu';
 import { registerLook, buildSorcererModel, PROP_KIT } from './models.js';
 import { SORCERERS } from '../sorcerers/index.js';
@@ -78,6 +86,17 @@ registerLook('npc_maki', {
     rig.extras.weapon = s;
   },
 });
+
+// townsfolk / civilians: npc_civ_0 … npc_civ_5
+const CIVS = [
+  { skinTone: 0xf4d0b0, hair: 0x2a1a10, top: 0xe85a3a, pants: 0x2a3a5a, shoes: 0x1a1a1a, eye: 0x3a2a1a, fringe: 3, hairSide: 3, hairBack: 4 },   // kid in a red tee
+  { skinTone: 0xe8c0a0, hair: 0x101010, top: 0xf2f2ea, collar: 0xf2f2ea, pants: 0x3a3a3a, shoes: 0x2a1a10, eye: 0x2a2a2a, fringe: 1, hairSide: 2, hairBack: 3 },   // shopkeeper, white apron
+  { skinTone: 0xf0cdb0, hair: 0x6a3a1a, top: 0x3a6ab8, pants: 0x2a2a3a, shoes: 0xf0f0f0, eye: 0x4a2a1a, fringe: 3, hairSide: 5, hairBack: 6, hairVolume: true },   // student in a blue hoodie
+  { skinTone: 0xd8a888, hair: 0x2a2a2a, top: 0x3a5a3a, collar: 0x2a4a2a, pants: 0x4a4030, shoes: 0x2a1a10, eye: 0x2a2a2a, fringe: 1, hairSide: 2, hairBack: 3 },   // ranger / station master
+  { skinTone: 0xf0d6c0, hair: 0xb8b8c0, top: 0x8a4a6a, collar: 0x6a3a5a, pants: 0x4a3a4a, shoes: 0x1a1a1a, eye: 0x3a3a3a, fringe: 2, hairSide: 3, hairBack: 4, bob: true },   // grandma
+  { skinTone: 0xe0b890, hair: 0x15120f, top: 0xd8a040, collar: 0x8a5a2a, pants: 0xd8a040, shoes: 0x2a1a10, eye: 0x2a2a2a, fringe: 0, hairSide: 0, hairBack: 0 },   // monk in saffron
+];
+CIVS.forEach((p, i) => registerLook('npc_civ_' + i, { paint: { collar: p.top, topTrim: p.top, buttons: p.top, ...p }, hair: () => [], hairColor: p.hair, cape: null, scale: i === 0 ? 0.92 : 1.12, emit: 0 }));
 
 // ---------------------------------------------------------------- who is who
 const tq = (g) => { const id = g.players[0]?.sorcerer ?? g.save?.data.technique; return SORCERERS[id]?.technique ?? 'a new technique'; };
@@ -267,6 +286,7 @@ export class HubNpcs {
   bump(defId) { const d = this.game.save?.data; if (!d) return; d.hubTalk ??= {}; d.hubTalk[defId] = (d.hubTalk[defId] ?? 0) + 1; }
   talk(defId, n = null, onEnd = null) {
     const g = this.game, def = NPC_DEFS[defId]; if (!def || !g.dialogue) { onEnd?.(); return; }
+    if (!onEnd && g.quests?.onTalk(n?.id ?? defId)) return;   // a quest takes the conversation (quests/index.js)
     const i = this.progress(defId);
     const set = def.sets[i % def.sets.length];
     this.bump(defId);
@@ -280,10 +300,16 @@ export class HubNpcs {
   }
   // A station NPC (shop, missions, technique tree): new lines first, then the menu.
   station(id, open) {
+    if (this.game.quests?.onTalk(id)) return;
     const n = this.byId[id]; const defId = n?.defId ?? id; const def = NPC_DEFS[defId];
     if (def && n?.rig.root.visible && this.progress(defId) < def.sets.length) { this.talk(defId, n, open); return; }
     if (n && def?.barks?.length) this.bark(n, def.barks[Math.floor(Math.random() * def.barks.length)], 2.4);
     open();
+  }
+  // a resident who stays away because a player has their technique (you are Gojo: no second Gojo)
+  hiddenByPlayer(id) {
+    const n = this.byId[id]; if (!n) return false; const g = this.game;
+    return !!((n.def.hideIfPlayer && g.players.some((p) => p.sorcerer === n.def.look)) || (n.hideIfPlayer && g.players.some((p) => p.sorcerer === n.hideIfPlayer)));
   }
   label(id, fallback) { const n = this.byId[id]; const def = n && NPC_DEFS[n.defId]; return def && n.rig.root.visible !== false ? `${def.short} · ${def.station ?? fallback}` : fallback; }
   // ------------------------------------------------------------ speech bubbles
@@ -453,7 +479,9 @@ export class HubNpcs {
       HubNpcs.birds = birds;
     }
     this.birds = HubNpcs.birds;
-    this.birdS = Array.from({ length: this.birds.count }, (_, i) => ({ r: 22 + Math.random() * 22, h: 16 + Math.random() * 10, sp: (0.12 + Math.random() * 0.1) * (i % 3 === 0 ? -1 : 1), ph: Math.random() * Math.PI * 2, fl: Math.random() * 10, cx: 64 + (Math.random() - 0.5) * 30, cz: 60 + (Math.random() - 0.5) * 30 }));
+    const bc = L.spots?.courtyard ?? new THREE.Vector3(64, 14, 60);
+    this.birdY = bc.y;
+    this.birdS = Array.from({ length: this.birds.count }, (_, i) => ({ r: 22 + Math.random() * 22, h: 16 + Math.random() * 10, sp: (0.12 + Math.random() * 0.1) * (i % 3 === 0 ? -1 : 1), ph: Math.random() * Math.PI * 2, fl: Math.random() * 10, cx: bc.x + (Math.random() - 0.5) * 30, cz: bc.z - 8 + (Math.random() - 0.5) * 30 }));
     g.scene.add(this.birds); g.hubProps.push(this.birds);
     // koi
     if (L.pond) {
@@ -544,7 +572,7 @@ export class HubNpcs {
       const m = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), p = new THREE.Vector3(), e = new THREE.Euler();
       this.birdS.forEach((b, i) => {
         b.ph += b.sp * dt; b.fl += dt * (7 + (i % 3));
-        const x = b.cx + Math.cos(b.ph) * b.r, z = b.cz + Math.sin(b.ph) * b.r, y = 14 + b.h + Math.sin(b.ph * 3) * 1.2;
+        const x = b.cx + Math.cos(b.ph) * b.r, z = b.cz + Math.sin(b.ph) * b.r, y = (this.birdY ?? 14) + b.h + Math.sin(b.ph * 3) * 1.2;
         p.set(x, y, z);
         e.set(0, -b.ph + (b.sp > 0 ? 0 : Math.PI), Math.sin(b.ph * 2) * 0.2); q.setFromEuler(e);
         const flap = 0.55 + Math.abs(Math.sin(b.fl)) * 0.6;
@@ -559,7 +587,7 @@ export class HubNpcs {
       this.koiS.forEach((f, i) => {
         f.a += f.sp * dt; f.wob += dt * 6;
         const x = pd.cx + Math.cos(f.a) * pd.rx * f.r, z = pd.cz + Math.sin(f.a) * pd.rz * f.r;
-        if (Math.abs(z - 27.5) < 2.2 && Math.abs(x - pd.cx) < 9) { p.set(x, -50, z); }   // hidden under the bridge
+        if (Math.abs(z - (pd.bridgeZ ?? 27.5)) < 2.2 && Math.abs(x - pd.cx) < 9) { p.set(x, -50, z); }   // hidden under the bridge
         else p.set(x, pd.y + 0.12, z);
         const dir = f.sp > 0 ? 1 : -1;
         const vx = -Math.sin(f.a) * pd.rx * dir, vz = Math.cos(f.a) * pd.rz * dir;
@@ -582,4 +610,113 @@ export class HubNpcs {
     }
   }
   dispose() { this.hideBubbles(); }
+}
+
+// ---------------------------------------------------------------- quest marks (! and ?)
+function markTexture(ch) {
+  const cv = document.createElement('canvas'); cv.width = 64; cv.height = 96;
+  const c = cv.getContext('2d');
+  c.font = 'bold 84px "Pixelify Sans", sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+  c.lineWidth = 10; c.strokeStyle = '#3a1a5a'; c.strokeText(ch, 32, 52);
+  c.fillStyle = ch === '!' ? '#ffd84a' : '#7ae0ff'; c.fillText(ch, 32, 52);
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+const MARK_MATS = {};
+function markMesh(ch) {
+  MARK_MATS[ch] ??= new THREE.MeshBasicNodeMaterial({ map: markTexture(ch), transparent: true, depthWrite: false, side: THREE.DoubleSide });
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 0.93), MARK_MATS[ch]);
+  m.renderOrder = 6; m.castShadow = false; m.frustumCulled = false;
+  return m;
+}
+
+// ---------------------------------------------------------------- region people
+const LOOK_FALLBACK = 'npc_civ_2';
+export class RegionNpcs {
+  // posts: L.people plus quest NPC posts (game.quests.npcPosts(L))
+  constructor(game, L, extra = []) {
+    this.game = game; this.L = L; this.list = []; this.byId = {}; this.t = 0;
+    this.bubbles = new Map();
+    for (const p of [...(L.people ?? []), ...extra]) { try { this.add(p); } catch (e) { console.warn('npc', p.id, e); } }
+    this.refreshMarks();
+  }
+  has(id) { return !!this.byId[id]; }
+  posOf(id) { return this.byId[id]?.pos.clone() ?? null; }
+  makeRig(look) { return buildSorcererModel(SORCERERS[look] || look?.startsWith?.('npc_') ? look : LOOK_FALLBACK); }
+  add(p) {
+    if (!p?.id || this.byId[p.id] || !p.pos) return null;
+    const g = this.game;
+    const rig = this.makeRig(p.look ?? LOOK_FALLBACK);
+    const n = { ...p, rig, pos: p.pos.clone(), home: p.pos.clone(), yaw: p.yaw ?? 0, baseYaw: p.yaw ?? 0, headYaw: 0, t: Math.random() * 10, talkI: 0, target: null, wait: 1 + Math.random() * 3, mark: null, markCh: null };
+    rig.root.position.copy(n.pos); rig.root.rotation.set(0, n.yaw, 0);
+    g.scene.add(rig.root); (g.hubProps ??= []).push(rig.root);
+    g.dialogue?.speaker(p.id, { name: p.name ?? p.id, color: p.color ?? '#c8b8ff', voice: p.voice ?? 1, rig });
+    this.list.push(n); this.byId[p.id] = n;
+    g.interactables.push({ id: 'npc-' + p.id, pos: n.pos, radius: 2.2, label: `Talk to ${p.name ?? p.id}`, action: () => this.talk(n), enabled: () => n.rig.root.visible && !g.dialogue?.active });
+    return n;
+  }
+  talk(n) {
+    const g = this.game;
+    n.talking = true;
+    const end = () => { n.talking = false; this.refreshMarks(); };
+    if (g.quests?.onTalk(n.id)) { const chk = () => { if (g.dialogue?.active) { setTimeout(chk, 200); return; } end(); }; setTimeout(chk, 200); return; }
+    const sets = n.lines?.length ? n.lines : [['…']];
+    const set = typeof sets === 'function' ? sets(g) : sets[n.talkI++ % sets.length];
+    g.dialogue?.say(n.id, set, { onEnd: end });
+  }
+  // gold ! over people with a new quest, blue ? over people a quest step wants (Jujutsu High residents too)
+  refreshMarks() {
+    const q = this.game.quests;
+    const all = [...this.list, ...(this.game.hubNpcs?.list ?? [])];
+    for (const n of all) {
+      const ch = q?.npcMark?.(n.id) ?? null;
+      if (ch === n.markCh) continue;
+      if (n.mark) { n.mark.parent?.remove(n.mark); n.mark = null; }
+      n.markCh = ch;
+      if (ch) { n.mark = markMesh(ch); this.game.scene.add(n.mark); (this.game.hubProps ??= []).push(n.mark); }
+    }
+  }
+  update(dt) {
+    const g = this.game; this.t += dt;
+    const focus = g.rig?.focus ?? ZERO, ps = g.players.filter((p) => !p.dead), W = g.world, cam = g.rig?.camera;
+    for (const n of this.list) {
+      const r = n.rig;
+      const far = Math.hypot(n.pos.x - focus.x, n.pos.z - focus.z) > 64;
+      r.root.visible = !far;
+      if (n.mark) n.mark.visible = !far;
+      if (far) continue;
+      n.t += dt;
+      let near = null, nd = 1e9;
+      for (const p of ps) { const d = Math.hypot(p.pos.x - n.pos.x, p.pos.z - n.pos.z); if (d < nd) { nd = d; near = p; } }
+      let speed = 0;
+      if (n.pose === 'wander' && !n.talking && !(near && nd < 3.5)) {
+        if (!n.target) { n.wait -= dt; if (n.wait <= 0) { const a = Math.random() * Math.PI * 2, d = Math.random() * (n.wander ?? 5); n.target = n.home.clone().add(tmp.set(Math.cos(a) * d, 0, Math.sin(a) * d)); } }
+        else {
+          const dx = n.target.x - n.pos.x, dz = n.target.z - n.pos.z, d = Math.hypot(dx, dz);
+          if (d < 0.3) { n.target = null; n.wait = 2 + Math.random() * 5; }
+          else {
+            n.yaw = dampAngle(n.yaw, Math.atan2(dx, dz), 6, dt);
+            const sp = 1.6 * dt, nx = n.pos.x + Math.sin(n.yaw) * sp, nz = n.pos.z + Math.cos(n.yaw) * sp;
+            const gy = W.standY(nx, nz, n.pos.y, 1);
+            if (isFinite(gy) && Math.abs(gy - n.pos.y) <= 1.01 && !W.liquidAt(nx, gy + 0.2, nz)) { n.pos.x = nx; n.pos.z = nz; n.pos.y += (gy - n.pos.y) * Math.min(1, dt * 12); speed = 1.6; }
+            else { n.target = null; n.wait = 1; }
+          }
+        }
+      } else if (near && (nd < 5 || n.talking)) n.yaw = dampAngle(n.yaw, Math.atan2(near.pos.x - n.pos.x, near.pos.z - n.pos.z), n.talking ? 6 : 3, dt);
+      else n.yaw = dampAngle(n.yaw, n.baseYaw, 1.5, dt);
+      r.root.position.copy(n.pos); r.root.rotation.y = n.yaw;
+      r.animate({ dt, speed, vel: speed ? tmp.set(Math.sin(n.yaw) * speed, 0, Math.cos(n.yaw) * speed) : ZERO });
+      if (n.pose === 'wave' && !speed) { const w = Math.max(0, Math.sin(n.t * 0.7)); r.armR.rotation.set(-2.7 * w, 0, 0.3 * w + Math.sin(n.t * 12) * 0.25 * w); }
+      if (n.pose === 'sit' && !speed) { r.legR.rotation.x = -1.45; r.legL.rotation.x = -1.45; }
+    }
+    // marks bob over heads and face the camera
+    const all = [...this.list, ...(g.hubNpcs?.list ?? [])];
+    for (const n of all) {
+      if (!n.mark) continue;
+      const sc = (n.rig.spec?.scale ?? 1.18) / 1.18;
+      n.mark.position.set(n.pos.x, n.pos.y + 2.9 * sc + Math.sin(this.t * 3 + n.pos.x) * 0.12, n.pos.z);
+      if (cam) n.mark.quaternion.copy(cam.quaternion);
+      n.mark.visible = n.rig.root.visible;
+    }
+  }
+  dispose() { for (const n of this.list) n.mark?.parent?.remove(n.mark); }
 }

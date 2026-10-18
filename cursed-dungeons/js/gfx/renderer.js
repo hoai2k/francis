@@ -5,7 +5,7 @@ import * as THREE from 'three/webgpu';
 import {
   pass, mrt, output, normalView, metalness, roughness, diffuseColor, velocity, emissive,
   vec2, vec3, vec4, float, uniform, sample, packNormalToRGB, unpackRGBToNormal, renderOutput,
-  screenUV, mix, luminance, smoothstep, length, clamp, step, max, min, sin, add, dot, normalize,
+  screenUV, mix, luminance, smoothstep, length, clamp, step, max, min, sin, add, dot, normalize, Fn, If,
 } from 'three/tsl';
 import { bloom } from 'three/addons/tsl/display/BloomNode.js';
 import { fxaa } from 'three/addons/tsl/display/FXAANode.js';
@@ -22,11 +22,16 @@ export const QUALITY_ORDER = ['low', 'medium', 'high', 'ultra'];
 export const QUALITY_LABEL = { low: 'Low / Mobile', medium: 'Medium', high: 'High', ultra: 'Ultra · Ray Traced' };
 
 // Tier presets. Everything the rest of the game needs to know lives here.
+//   foliage / foliageFade   instanced grass density (0..1) and its draw distance
+//   cloudShadows            cloud shadows on the ground (needs shadow maps)
+//   sunShafts               world-space sun shafts under tree canopies (count multiplier)
+//   godrays                 screen-space light scattering from the sun when it is on screen
+//   fogSun                  fog glows towards the sun (cheap, every tier)
 export const PRESETS = {
-  low: { pixelRatio: 0.7, maxPR: 1, shadows: false, shadowSize: 0, pointLights: 2, pointShadows: 0, bloom: 0.35, ao: false, ssr: false, ssgi: false, fxaa: false, traa: false, shafts: false, particles: 1200, enemyCap: 12, bake: 1.0, fogDetail: 0, decoDensity: 0.4 },
-  medium: { pixelRatio: 1, maxPR: 1.25, shadows: true, shadowSize: 1024, shadowType: 'pcf', pointLights: 6, pointShadows: 0, bloom: 0.6, ao: false, ssr: false, ssgi: false, fxaa: true, traa: false, shafts: false, particles: 3000, enemyCap: 16, bake: 0.55, fogDetail: 1, decoDensity: 0.7 },
-  high: { pixelRatio: 1, maxPR: 1.5, shadows: true, shadowSize: 2048, shadowType: 'pcf', pointLights: 16, pointShadows: 1, bloom: 0.8, ao: true, ssr: 'water', ssgi: false, fxaa: true, traa: false, shafts: true, particles: 6000, enemyCap: 20, bake: 0.4, fogDetail: 2, decoDensity: 1 },
-  ultra: { pixelRatio: 1, maxPR: 2, shadows: true, shadowSize: 4096, shadowType: 'vsm', pointLights: 48, pointShadows: 2, bloom: 0.9, ao: true, ssr: 'all', ssgi: true, fxaa: false, traa: true, shafts: true, particles: 12000, enemyCap: 24, bake: 0.25, fogDetail: 3, decoDensity: 1, clustered: true },
+  low: { pixelRatio: 0.7, maxPR: 1, shadows: false, shadowSize: 0, pointLights: 2, pointShadows: 0, bloom: 0.35, ao: false, ssr: false, ssgi: false, fxaa: false, traa: false, shafts: false, particles: 1200, enemyCap: 12, bake: 1.0, fogDetail: 0, decoDensity: 0.4, foliage: 0.22, foliageFade: 26, cloudShadows: false, sunShafts: 0, godrays: false, clouds: true },
+  medium: { pixelRatio: 1, maxPR: 1.25, shadows: true, shadowSize: 1024, shadowType: 'pcf', shadowRadius: 2, shadowMaxExtent: 48, pointLights: 6, pointShadows: 0, bloom: 0.6, ao: false, ssr: false, ssgi: false, fxaa: true, traa: false, shafts: true, particles: 3000, enemyCap: 16, bake: 0.55, fogDetail: 1, decoDensity: 0.7, foliage: 0.5, foliageFade: 36, cloudShadows: true, sunShafts: 0.5, godrays: false, clouds: true },
+  high: { pixelRatio: 1, maxPR: 1.5, shadows: true, shadowSize: 2048, shadowType: 'pcf', shadowRadius: 3.5, shadowMaxExtent: 64, pointLights: 16, pointShadows: 1, bloom: 0.8, ao: true, ssr: 'water', ssgi: false, fxaa: true, traa: false, shafts: true, particles: 6000, enemyCap: 20, bake: 0.4, fogDetail: 2, decoDensity: 1, foliage: 0.85, foliageFade: 48, cloudShadows: true, sunShafts: 1, godrays: true, clouds: true },
+  ultra: { pixelRatio: 1, maxPR: 2, shadows: true, shadowSize: 4096, shadowType: 'vsm', shadowRadius: 6, shadowMaxExtent: 84, pointLights: 48, pointShadows: 2, bloom: 0.9, ao: true, ssr: 'all', ssgi: true, fxaa: false, traa: true, shafts: true, particles: 12000, enemyCap: 24, bake: 0.25, fogDetail: 3, decoDensity: 1, clustered: true, foliage: 1, foliageFade: 60, cloudShadows: true, sunShafts: 1.4, godrays: true, clouds: true },
 };
 
 // Compatibility shim: some Chromium builds reject the default 'rgba'
@@ -98,7 +103,14 @@ export const Grade = {
   dofAmount: uniform(0),
   dofFocus: uniform(20),
   bloomStrength: uniform(0.8),
+  bloomThreshold: uniform(0.72),
   chroma: uniform(0),
+  // split toning (display space): multiply shadows / highlights by these
+  shadowTint: uniform(new THREE.Color(1, 1, 1)),
+  highlightTint: uniform(new THREE.Color(1, 1, 1)),
+  // screen-space sun scattering: sun position in uv (x, y), strength (z); colour
+  sunScreen: uniform(new THREE.Vector3(0.5, 0.5, 0)),
+  sunScatterColor: uniform(new THREE.Color(1, 0.8, 0.5)),
 };
 
 export class GameRenderer {
@@ -129,6 +141,7 @@ export class GameRenderer {
     this.quality = q;
     this.preset = { ...PRESETS[q] };
     if (this.backend !== 'WebGPU') { this.preset.clustered = false; if (q === 'ultra') this.preset.pointLights = 24; }
+    if (this.info?.mobile) { this.preset.foliage *= 0.7; this.preset.foliageFade = Math.min(this.preset.foliageFade, 30); }
     const r = this.renderer;
     r.shadowMap.enabled = this.preset.shadows;
     r.shadowMap.type = this.preset.shadowType === 'vsm' ? THREE.VSMShadowMap : THREE.PCFShadowMap;
@@ -215,8 +228,31 @@ export class GameRenderer {
     if (this.motionBlur && outputs.velocity) {
       color = motionBlur(color, scenePass.getTextureNode('velocity').mul(0.6));
     }
+    if (P.godrays) {
+      // screen-space light scattering: march from each pixel towards the sun and
+      // gather the open sky (depth = far) it passes, so trees and roofs cut rays
+      const S = Grade.sunScreen;
+      const scatter = Fn(() => {
+        const acc = float(0).toVar();
+        If(S.z.greaterThan(0.001), () => {
+          const dir = S.xy.sub(screenUV).toVar();
+          const N = 14;
+          for (let i = 0; i < N; i++) {
+            const f = (i + 0.5) / N;
+            const u = screenUV.add(dir.mul(f * 0.92));
+            const sky = step(0.99995, depthTex.sample(u).r);
+            const inside = step(0.0, u.x).mul(step(u.x, 1.0)).mul(step(0.0, u.y)).mul(step(u.y, 1.0));
+            acc.addAssign(sky.mul(inside).mul(1 - f * 0.55));
+          }
+          const falloff = smoothstep(0.85, 0.0, length(dir.mul(vec2(renderer.domElement.width / Math.max(1, renderer.domElement.height), 1))));
+          acc.assign(acc.div(N).mul(falloff).mul(S.z));
+        });
+        return acc;
+      })();
+      color = vec4(color.rgb.add(vec3(Grade.sunScatterColor).mul(scatter)), color.a);
+    }
     if (P.bloom > 0) {
-      color = color.add(bloom(color, Grade.bloomStrength, 0.45, 0.72));
+      color = color.add(bloom(color, Grade.bloomStrength, 0.5, Grade.bloomThreshold));
     }
     if (P.quality === 'ultra' || this.quality === 'ultra' || this.quality === 'high') {
       const vz = scenePass.getViewZNode();
@@ -229,6 +265,7 @@ export class GameRenderer {
     const lum = luminance(c);
     c = mix(vec3(lum), c, Grade.saturation);
     c = c.sub(0.5).mul(Grade.contrast).add(0.5);
+    c = c.mul(mix(vec3(Grade.shadowTint), vec3(Grade.highlightTint), smoothstep(0.08, 0.75, lum)));
     c = c.mul(Grade.tint).add(Grade.lift);
     const uvc = screenUV.sub(0.5);
     const vig = smoothstep(0.35, 0.95, length(uvc.mul(vec2(1.0, 0.8))).mul(1.25));

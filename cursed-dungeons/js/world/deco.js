@@ -2,9 +2,14 @@
 // talismans, bones, candles, banners and hanging lanterns. All sprite quads
 // are merged into one mesh (wind sway via a vertex attribute); a few 3D
 // props (shrine lanterns, stone lanterns) are merged into a second mesh.
+// While instanced foliage (gfx/foliage.js) is on, the sprite grass tufts and
+// ferns are left out (the foliage replaces them); flowers and the rest stay.
 import * as THREE from 'three/webgpu';
 import { spriteUV, SPRITE_INDEX as SI } from '../gfx/textures.js';
 import { ditherMask, occlusionAmount } from '../gfx/materials.js';
+import { withCloudShadow } from '../gfx/envNodes.js';
+
+const GRASSY = new Set(['grass', 'tall_grass', 'fern']);
 
 export class Decorations {
   constructor() { this.items = []; this.props = []; this.mesh = null; this.propMesh = null; }
@@ -26,8 +31,10 @@ export class Decorations {
     };
     let seed = 1;
     const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+    const fol = materials.foliage;
+    const foliageOn = !!(fol?.replacesDeco && fol.effectiveDensity > 0);
     for (const it of this.items) {
-      if (it.optional !== false && rnd() > density && (it.type === 'grass' || it.type === 'tall_grass' || it.type === 'fern')) continue;
+      if (it.optional !== false && GRASSY.has(it.type) && (foliageOn || rnd() > density)) continue;
       const s = it.scale ?? 1;
       const sprite = SI[it.type] ?? SI.grass;
       const uvr = spriteUV(sprite);
@@ -118,7 +125,7 @@ export class Decorations {
 }
 
 export function makePropMaterials() {
-  const S = (c, o = {}) => { const m = new THREE.MeshStandardNodeMaterial({ color: c, roughness: 0.8, ...o }); m.maskNode = ditherMask(occlusionAmount()); return m; };
+  const S = (c, o = {}) => { const m = new THREE.MeshStandardNodeMaterial({ color: c, roughness: 0.8, ...o }); m.maskNode = ditherMask(occlusionAmount()); return withCloudShadow(m); };
   return {
     stone: S(0x8a8a88), dark: S(0x1c1814), wood: S(0x6a4a2a), red: S(0xb5281f, { roughness: 0.4 }), metal: S(0x4a4e55, { metalness: 0.8, roughness: 0.35 }),
     wax: S(0xefe6cc), glass: S(0x223344, { roughness: 0.05, metalness: 0.6 }),

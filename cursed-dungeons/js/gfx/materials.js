@@ -5,8 +5,9 @@ import * as THREE from 'three/webgpu';
 import {
   uniform, uniformArray, attribute, texture, uv, vec2, vec3, vec4, float, positionWorld, positionLocal,
   screenCoordinate, interleavedGradientNoise, smoothstep, dot, clamp, max, sin, cos, time, mix,
-  transformNormalToView, normalize, fract, abs, step, length, floor,
+  transformNormalToView, normalize, fract, abs, step, length, floor, pow, cameraPosition, reflect,
 } from 'three/tsl';
+import { E, withCloudShadow, skyGradient } from './envNodes.js';
 
 export const U = {
   time: uniform(0),              // game time (respects slow-mo / pause)
@@ -109,11 +110,18 @@ export function createBlockMaterial(atlas, { occlude = true } = {}) {
   // ~0.7 = worn/raised texels a bit shinier than crevices)
   const gloss = clamp(float(1).sub(float(1).sub(tex.a).mul(1.3)), 0.55, 1);
   const D = domainLook(albedo);
-  m.colorNode = vec4(mix(albedo, D.col, D.mask).mul(ao), 1);
+  // softer, deeper per-vertex AO with a cool sky tint in the corners (bounce light
+  // from the sky fills the shadows blue, like MCD2)
+  const occl = pow(ao.x, 1.35);
+  const aoCol = vec3(occl).mul(mix(vec3(0.84, 0.89, 1.1), vec3(1, 1, 1), occl));
+  m.colorNode = vec4(mix(albedo, D.col, D.mask).mul(aoCol), 1);
   m.roughnessNode = mix(mat.x.mul(gloss), float(0.06), D.mask.mul(step(U.domainType, 3.5)).mul(float(1).sub(step(1.5, U.domainType).mul(step(U.domainType, 2.5)))));
-  const baseEmit = albedo.mul(mat.z.mul(1.6)).add(albedo.mul(bake).mul(ao).mul(U.bakeStrength));
+  // baked torch/lantern light counts fully at night and only a little by day
+  const torch = mix(float(0.22), float(1.0), E.torch);
+  const baseEmit = albedo.mul(mat.z.mul(mix(1.1, 1.45, E.torch))).add(albedo.mul(bake).mul(ao).mul(U.bakeStrength).mul(torch));
   m.emissiveNode = mix(baseEmit, D.emi, D.mask).add(vec3(0.6, 0.8, 1.4).mul(D.rim).mul(2)).add(trenchGlow());
   if (occlude) m.maskNode = ditherMask(occlusionAmount());
+  withCloudShadow(m);
   return m;
 }
 
@@ -126,19 +134,29 @@ export function createRoofMaterial(atlas) {
   return m;
 }
 
-// Water: dark, glossy, animated normals; SSR + environment probe reflect in it.
+// Water: animated normals, the sky reflected with a Fresnel term, a sun glint
+// and drifting foam flecks; SSR (High+) and the environment probe add the world.
 export function createWaterMaterial(color = 0x0c2440) {
-  const m = new THREE.MeshStandardNodeMaterial({ color, roughness: 0.03, metalness: 0.55 });
+  const m = new THREE.MeshStandardNodeMaterial({ color, roughness: 0.04, metalness: 0.25 });
   const p = positionWorld.xz;
   const t = U.time;
   const w1 = sin(p.x.mul(1.3).add(t.mul(1.1))).mul(cos(p.y.mul(1.1).sub(t.mul(0.9))));
   const w2 = sin(p.x.mul(-2.7).add(p.y.mul(2.1)).add(t.mul(1.7)));
   const dx = cos(p.x.mul(1.3).add(t.mul(1.1))).mul(0.08).add(cos(p.x.mul(-2.7).add(p.y.mul(2.1)).add(t.mul(1.7))).mul(-0.05));
   const dz = sin(p.y.mul(1.1).sub(t.mul(0.9))).mul(-0.08).add(w2.mul(0.04));
-  m.normalNode = transformNormalToView(normalize(vec3(dx.negate(), 1, dz.negate())));
+  const nW = normalize(vec3(dx.negate(), 1, dz.negate()));
+  m.normalNode = transformNormalToView(nW);
   m.positionNode = positionLocal.add(vec3(0, w1.mul(0.03), 0));
-  const foam = smoothstep(0.55, 0.95, w1.mul(0.5).add(0.5)).mul(0.04);
-  m.emissiveNode = vec3(0.02, 0.06, 0.1).add(foam);
+  const deep = new THREE.Color(color), shallow = new THREE.Color(0x1d6a86);
+  m.colorNode = mix(vec3(deep.r, deep.g, deep.b), vec3(shallow.r, shallow.g, shallow.b), w1.mul(0.5).add(0.5).mul(0.35));
+  const view = normalize(positionWorld.sub(cameraPosition));
+  const r = reflect(view, nW);
+  const fres = float(0.06).add(pow(float(1).sub(max(dot(view.negate(), nW), 0)), 4).mul(0.9));
+  const sky = skyGradient(r).mul(0.75);
+  const glint = vec3(E.sunColor).mul(pow(max(dot(r, E.sunDir), 0), 220).mul(2.2));
+  const fleck = smoothstep(0.82, 0.98, w1.mul(0.5).add(0.5).mul(w2.mul(0.5).add(0.5))).mul(0.06);
+  m.emissiveNode = sky.mul(fres).add(glint).add(vec3(0.85, 0.92, 1.0).mul(fleck).mul(E.day.mul(0.7).add(0.3))).add(vec3(0.01, 0.025, 0.04));
+  withCloudShadow(m);
   return m;
 }
 
@@ -162,14 +180,20 @@ export function createDecoMaterial(spriteMap, { sway = true } = {}) {
   if (sway) {
     const swayAmt = attribute('sway', 'float');
     const ph = positionWorld.x.mul(0.8).add(positionWorld.z.mul(0.6));
-    const s = sin(U.time.mul(2.2).add(ph)).mul(0.08).add(sin(U.time.mul(5.1).add(ph.mul(2.0))).mul(0.025));
+    const gust = sin(positionWorld.x.mul(0.14).add(positionWorld.z.mul(0.08)).sub(U.time.mul(1.7))).mul(0.5).add(0.5);
+    const s = sin(U.time.mul(2.2).add(ph)).mul(0.07).add(sin(U.time.mul(5.1).add(ph.mul(2.0))).mul(0.02)).add(gust.mul(0.07));
     m.positionNode = positionLocal.add(vec3(s, 0, s.mul(0.6)).mul(swayAmt).mul(U.wind));
   }
   const emit = attribute('emit', 'float');
   const tex = texture(spriteMap, uv());
   const D = domainLook(tex.rgb);
   m.colorNode = vec4(mix(tex.rgb, D.col, D.mask), tex.a);
-  m.emissiveNode = mix(tex.rgb.mul(emit), D.emi, D.mask);
+  // plants catch the low sun (translucent leaves); lit sprites (talismans, candles) glow brighter at night
+  const view = normalize(positionWorld.sub(cameraPosition));
+  const back = pow(max(dot(view, E.sunDir), 0), 2);
+  const trans = vec3(E.sunColor).mul(E.day).mul(float(0.04).add(back.mul(0.22))).mul(sway ? attribute('sway', 'float').min(1) : float(0));
+  m.emissiveNode = mix(tex.rgb.mul(emit.mul(mix(0.8, 1.3, E.torch))).add(tex.rgb.mul(trans)), D.emi, D.mask);
+  withCloudShadow(m);
   return m;
 }
 

@@ -59,8 +59,17 @@ export class Player {
     this.skills = g.save ? g.save.sorc(this.sorcerer).skills : {};
     applyGear(this, g.save ? g.save.gearFor(this.sorcerer) : []);
     this.applyTree();
+    // abilities keep their cooldowns across a loadout change (no free resets)
+    const cds = {};
+    for (const [id, a] of Object.entries(this.kit.library ?? {})) if (a.cdLeft > 0 || a.maxCharges) cds[id] = { cdLeft: a.cdLeft, chargesLeft: a.chargesLeft, recharge: a.recharge };
     this.kit.dispose?.();
     this.kit = createKit(this);
+    for (const [id, c] of Object.entries(cds)) { const a = this.kit.library?.[id]; if (a) { a.cdLeft = c.cdLeft; if (a.maxCharges && c.chargesLeft != null) { a.chargesLeft = Math.min(a.maxCharges, c.chargesLeft); a.recharge = c.recharge; } } }
+  }
+  // damage dealt (combat.damageEnemy) → kit hooks for passives / on-kill effects
+  onHitEnemy(e, dealt, o) {
+    this.kit?.onHitEnemy?.(e, dealt, o);
+    if (e.hp <= 0 && !e.killCredited) { e.killCredited = true; this.kit?.onKill?.(e); }
   }
   // Shared technique-tree nodes: RCT, its mastery and Cursed Energy reserves.
   applyTree() {

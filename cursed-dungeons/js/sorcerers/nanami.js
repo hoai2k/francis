@@ -15,7 +15,7 @@
 //        him shatters, curses are buried, and the ceiling's worth of rubble
 //        comes down on them.
 import * as THREE from 'three/webgpu';
-import { Kit } from './kit.js';
+import { Kit, ability, passive } from './kit.js';
 import { registerKit, registerSorcerer } from './index.js';
 import { registerLook } from '../entities/models.js';
 import { B } from '../world/blocks.js';
@@ -63,12 +63,12 @@ registerLook('nanami', {
 });
 
 export const NANAMI_SKILLS = [
-  { id: 'ratio', name: '7:3', desc: 'Ratio criticals hit harder.', max: 3 },
-  { id: 'window', name: 'Precise Eye', desc: 'The weak point stays exposed longer.', max: 3 },
-  { id: 'flurry', name: 'Diligent Work', desc: '7:3 Flurry cuts faster and harder; Black Flash hits harder.', max: 2 },
-  { id: 'collapse', name: 'Collapse', desc: 'Collapse (ultimate) shatters a wider area and brings down more rubble.', max: 3 },
-  { id: 'overtime', name: 'Overtime', desc: 'Overtime lasts longer and hits harder.', max: 3 },
-  { id: 'contract', name: 'Binding Vow', desc: 'Overtime clocks in sooner on its own.', max: 2, req: 'overtime' },
+  { id: 'ratio', name: '7:3', icon: '📏', desc: 'Ratio criticals hit harder.', max: 3, branch: 'Ratio', tier: 1, req: 'ab:ratio_strike' },
+  { id: 'window', name: 'Exposed Point', icon: '👁️', desc: 'The weak point stays exposed longer.', max: 3, branch: 'Ratio', tier: 3, req: 'ab:weak_point' },
+  { id: 'flurry', name: 'Diligent Work', icon: '🗡️', desc: '7:3 Flurry cuts faster and harder; Black Flash hits harder.', max: 2, branch: 'Blade', tier: 3, req: 'ab:flurry' },
+  { id: 'collapse', name: 'Collapse', icon: '🧱', desc: 'Every Collapse (and the ultimate) shatters a wider area and brings down more rubble.', max: 3, branch: 'Collapse', tier: 1 },
+  { id: 'overtime', name: 'Overtime', icon: '🕔', desc: 'Overtime lasts longer and hits harder.', max: 3, branch: 'Overtime', tier: 3, req: 'ab:overtime' },
+  { id: 'contract', name: 'Binding Vow', icon: '📜', desc: 'Overtime clocks in sooner on its own.', max: 2, branch: 'Overtime', tier: 4, req: 'up:overtime' },
 ];
 
 class NanamiKit extends Kit {
@@ -81,11 +81,41 @@ class NanamiKit extends Kit {
       { style: 'punch', dur: 0.3, windup: 0.28, strike: 0.5, dmg: 15, range: 2.9, arc: 0.9, lunge: 8, knock: 4, stop: 0.06, shake: 0.18, trail: CLOTH },
       { style: 'slam', dur: 0.55, windup: 0.42, strike: 0.6, dmg: 28, range: 3.2, arc: Math.PI, lunge: 4, knock: 10, stop: 0.09, shake: 0.42, ring: true, ringColor: GOLD, stagger: 0.6, trail: GOLD },
     ];
-    this.slots = {
-      ranged: this.ability({ name: 'Ratio Strike', icon: '📏', cd: 1.6, ce: 0, use: () => this.ratioStrike() }),
-      t1: this.ability({ name: '7:3 Flurry', icon: '🗡️', cd: 6, ce: 12, use: () => this.flurry() }),
-      t2: this.ability({ name: 'Black Flash', icon: '⚡', cd: 7, ce: 16, use: () => this.blackFlashPunch() }),
-      t3: this.ability({ name: 'Overtime', icon: '🕔', cd: 24, ce: 30, use: () => { this.cast(0.4, true); this.startOvertime(9 + r('overtime') * 2); } }),
+    this.branches = ['Ratio', 'Blade', 'Black Flash', 'Overtime', 'Collapse'];
+    this.library = {
+      // ---- Ratio Technique (7:3)
+      ratio_strike: ability({ name: 'Ratio Strike', icon: '📏', kind: 'basic', desc: 'Lunge at the marked curse and cut its 7:3 point — always a critical, far bigger while the weak point is exposed.', cd: 1.6, ce: 0, branch: 'Ratio', tier: 0, start: true, legacy: 'ranged', use: () => this.ratioStrike() }),
+      weak_point: ability({ name: 'Forced Weak Point', icon: '📐', kind: 'technique', desc: 'Draw the ten-part line across a curse and fix its 7:3 mark: its weak point stays exposed for 5s.', cd: 9, ce: 10, branch: 'Ratio', tier: 1, req: 'ratio_strike', use: () => this.forceWeakPoint() }),
+      parry: ability({ name: 'Calculated Parry', icon: '🤺', kind: 'defence', desc: 'Read the attack: for 1.2s the next hit is deflected completely and answered with a Ratio critical on the attacker.', cd: 10, ce: 8, branch: 'Ratio', tier: 2, req: 'ratio_strike', use: () => this.parry() }),
+      ten_division: ability({ name: 'Ten Divisions', icon: '📊', kind: 'technique', desc: 'Divide everything in a line ahead into ten parts (marked on the ground), then cut all of it at the 7:3 line.', cd: 8, ce: 14, branch: 'Ratio', tier: 2, req: 'weak_point', use: () => this.tenDivisions() }),
+      critical_point: ability({ name: '7:3 Critical Point', icon: '🎯', kind: 'technique', desc: 'One flawless cut through the marked curse\'s weak point. The more wounded it is, the deeper it goes; doubled on an exposed mark.', cd: 16, ce: 26, branch: 'Ratio', tier: 4, req: 'ten_division', use: () => this.criticalPoint() }),
+      // ---- the cloth-wrapped blade
+      rising_cut: ability({ name: 'Rising Cut', icon: '🗡️', kind: 'basic', desc: 'A quick upward cut with the wrapped blade that pops light curses into the air.', cd: 0.8, ce: 0, branch: 'Blade', tier: 1, use: () => this.risingCut() }),
+      flurry: ability({ name: '7:3 Flurry', icon: '⚔️', kind: 'technique', desc: 'Seven fast cuts, then a heavy cut through the weak point.', cd: 6, ce: 12, branch: 'Blade', tier: 2, legacy: 't1', req: 'rising_cut', use: () => this.flurry() }),
+      sweep: ability({ name: 'Horizontal Sweep', icon: '🌙', kind: 'technique', desc: 'A wide, flat cut all around you that throws curses back.', cd: 6, ce: 8, branch: 'Blade', tier: 2, req: 'rising_cut', use: () => this.sweep() }),
+      measured_step: ability({ name: 'Measured Step', icon: '👞', kind: 'movement', desc: 'A precise dash that cuts through everything in the way; the first curse cut has its weak point exposed.', cd: 5, ce: 5, branch: 'Blade', tier: 3, req: 'sweep', use: () => this.measuredStep() }),
+      blunt_edge: ability({ name: 'Blunt Edge', icon: '🔨', kind: 'technique', desc: 'The blade is bound in cloth — swing it like a club: a crushing overhead blow that stuns and breaks guards in front of you.', cd: 9, ce: 12, branch: 'Blade', tier: 3, req: 'flurry', use: () => this.bluntEdge() }),
+      // ---- Black Flash (Nanami held the record: four in a row)
+      black_flash: ability({ name: 'Black Flash', icon: '⚡', kind: 'technique', desc: 'A tie-wrapped punch that always sparks black. Chain them within a few seconds for up to four in a row, each one harder.', cd: 7, ce: 16, branch: 'Black Flash', tier: 1, legacy: 't2', use: () => this.blackFlashPunch() }),
+      kick: ability({ name: 'Straight Kick', icon: '🦶', kind: 'technique', desc: 'A flat front kick that sends a curse flying back into the ones behind it.', cd: 5, ce: 6, branch: 'Black Flash', tier: 2, req: 'black_flash', use: () => this.straightKick() }),
+      tie_wrap: ability({ name: 'Tie Wrap', icon: '👔', kind: 'buff', desc: 'Wrap your tie around your fist: for 8s melee hits 20% harder and every combo blow may spark a Black Flash.', cd: 16, ce: 12, branch: 'Black Flash', tier: 2, req: 'black_flash', use: () => this.tieWrap() }),
+      bf_record: ability({ name: 'Consecutive Black Flash', icon: '🏆', kind: 'technique', desc: 'The record: four Black Flashes in a row on one curse, each harder than the last.', cd: 18, ce: 30, branch: 'Black Flash', tier: 3, req: 'kick', use: () => this.bfRecord() }),
+      // ---- Overtime
+      overtime: ability({ name: 'Overtime', icon: '🕔', kind: 'buff', desc: 'The binding vow lifts — damage up, speed up, and every weak point stays exposed. Also clocks in by itself after a long fight.', cd: 24, ce: 30, branch: 'Overtime', tier: 1, legacy: 't3', use: () => { this.cast(0.4, true); this.startOvertime(9 + this.rank('overtime') * 2); } }),
+      clock_out: ability({ name: 'Clocking Out', icon: '🚪', kind: 'movement', desc: 'Step back out of reach (invulnerable), leaving a 7:3 cut where you stood.', cd: 6, ce: 4, branch: 'Overtime', tier: 2, req: 'overtime', use: () => this.clockOut() }),
+      time_mgmt: ability({ name: 'Time Management', icon: '⏱️', kind: 'buff', desc: 'Work efficiently: for 5s your other cooldowns run twice as fast.', cd: 20, ce: 12, branch: 'Overtime', tier: 2, req: 'overtime', use: () => this.timeManagement() }),
+      grit: ability({ name: 'Grit', icon: '🔥', kind: 'defence', desc: 'Keep working through the burns (Shibuya): for 5s take 40% less damage, recover 15% health, and nothing can drop you below 1 health.', cd: 24, ce: 14, branch: 'Overtime', tier: 3, req: 'clock_out', use: () => this.grit() }),
+      overtime_rush: ability({ name: 'Overtime Rush', icon: '💼', kind: 'technique', desc: 'Push forward through ten rapid cuts. During Overtime every cut is a critical.', cd: 14, ce: 22, branch: 'Overtime', tier: 4, req: 'time_mgmt', use: () => this.overtimeRush() }),
+      // ---- Extension Technique: Collapse
+      collapse_line: ability({ name: 'Collapse: Fault Line', icon: '🪨', kind: 'technique', desc: 'Strike the 7:3 point of the floor ahead: the ground ruptures along a line (marked first), throwing curses up and slowing them.', cd: 10, ce: 18, branch: 'Collapse', tier: 2, req: 'weak_point', use: () => this.collapseLine() }),
+      rubble_rain: ability({ name: 'Falling Rubble', icon: '🧱', kind: 'technique', desc: 'Break the structure above the aimed spot: rubble rains down on the marked circle for 2s.', cd: 14, ce: 22, branch: 'Collapse', tier: 3, req: 'collapse_line', use: () => this.rubbleRain() }),
+      crater: ability({ name: 'Collapse: Crater', icon: '🕳️', kind: 'technique', desc: 'Drive the blade into the floor at your feet: everything around you caves in — curses are battered, stunned and buried.', cd: 18, ce: 30, branch: 'Collapse', tier: 4, req: 'rubble_rain', use: () => this.crater() }),
+    };
+    this.passives = {
+      precise_eye: passive({ name: 'Precise Eye', icon: '👓', desc: 'The weak point stays exposed 50% longer, and forced weak points last 2s more.', branch: 'Ratio', tier: 3, req: 'weak_point', apply: (pl, k) => { k.eyeBonus = true; } }),
+      discipline: passive({ name: 'Grade 1 Discipline', icon: '🧑‍💼', desc: '+12% melee damage and +5% critical chance.', branch: 'Blade', tier: 2, req: 'rising_cut', apply: (pl) => { pl.stats.meleeMult += 0.12; pl.stats.crit += 0.05; } }),
+      record: passive({ name: 'Record Holder', icon: '📈', desc: 'Every Black Flash restores 10 extra Cursed Energy and the streak lasts 2s longer.', branch: 'Black Flash', tier: 3, req: 'tie_wrap', apply: (pl, k) => { k.recordHolder = true; } }),
+      contract: passive({ name: 'Contract Hours', icon: '📝', desc: 'Overtime grants 15% more damage and clocks in on its own 15s sooner.', branch: 'Overtime', tier: 3, req: 'time_mgmt', apply: (pl, k) => { k.contractHours = true; } }),
     };
     this.ultimate = { name: 'Collapse', icon: '🧱', use: () => this.collapse() };
     this.mark = null; this.cycle = 0; this.workT = 0; this.overtimeT = 0; this.bfStreak = 0; this.bfT = 0;
@@ -109,7 +139,7 @@ class NanamiKit extends Kit {
   }
   get overtime() { return this.overtimeT > 0; }
   get speedMul() { return this.overtime ? 1.2 : 1; }
-  exposed(e) { return e && (this.overtime || this.game.domainSys?.sureHit(this.p) || (e === this.mark && this.cycle < 0.35 + this.rank('window') * 0.07)); }
+  exposed(e) { return e && (this.overtime || this.game.domainSys?.sureHit(this.p) || (e.ratioUntil ?? 0) > this.game.time || (e === this.mark && this.cycle < (0.35 + this.rank('window') * 0.07) * (this.eyeBonus ? 1.5 : 1))); }
   ratioMult() { return (1.6 + this.rank('ratio') * 0.35) * (this.overtime ? 1.3 + this.rank('overtime') * 0.08 : 1); }
   weakPoint(e) { return e.pos.clone().setY(e.pos.y + e.height * 0.7); }
   pickMark() {
@@ -144,7 +174,7 @@ class NanamiKit extends Kit {
       if (this.overtimeT <= 0) this.endOvertime();
     } else if (fighting) {
       this.workT += dt;
-      if (this.workT >= 45 - this.rank('contract') * 10) this.startOvertime(7 + this.rank('overtime') * 1.5);
+      if (this.workT >= 45 - this.rank('contract') * 10 - (this.contractHours ? 15 : 0)) this.startOvertime(7 + this.rank('overtime') * 1.5);
     }
   }
   // ------------------------------------------------------------ ratio hits
@@ -189,7 +219,8 @@ class NanamiKit extends Kit {
   }
   landBlackFlash(target) {
     const g = this.game, p = this.p, rk = this.rank('flurry');
-    this.bfStreak = Math.min(4, this.bfStreak + 1); this.bfT = 4;
+    this.bfStreak = Math.min(4, this.bfStreak + 1); this.bfT = this.recordHolder ? 6 : 4;
+    if (this.recordHolder) p.gainCE(10);
     const kd = tmp.subVectors(target.pos, p.pos).setY(0).normalize();
     g.combat.damageEnemy(target, (20 + rk * 6) * (1 + (this.bfStreak - 1) * 0.15), p, { melee: true, blackFlash: true, stagger: 1, knock: kd.clone().multiplyScalar(11) });
     g.combat.blackFlashFx(p, target);
@@ -224,8 +255,8 @@ class NanamiKit extends Kit {
     const g = this.game, p = this.p, rk = this.rank('flurry');
     p.facing = Math.atan2(p.aimDir.x, p.aimDir.z);
     const gap = 60 - rk * 8;
-    for (let i = 0; i < 8; i++) setTimeout(() => {
-      if (p.dead || this.disposed) return;
+    for (let i = 0; i < 8; i++) this.after(i * gap / 1000, () => {
+      if (p.dead) return;
       const last = i === 7;
       const style = last ? 'slam' : i % 2 ? 'swingL' : 'swingR';
       p.action = { type: 'attack', step: { style, strike: 0.4, windup: 0.2 }, style, dur: last ? 0.42 : 0.12, elapsed: 0, t: 0, windup: 0.2, strike: 0.4, struck: true, moveScale: 0.25 };
@@ -242,7 +273,325 @@ class NanamiKit extends Kit {
         g.fx.shockwave(p.pos.clone().addScaledVector(fwd, 1.4), GOLD, 4);
         g.shake(0.4); g.hitStop(0.09); g.audio?.impact(1.7, 'crit');
       }
-    }, i * gap);
+    });
+  }
+  // ============================================================== tree abilities
+  // Tie Wrap: combo blows may spark a Black Flash
+  blackFlashReady() {
+    if (!this.buffs.has('tie_wrap')) return false;
+    if (Math.random() < 0.2) { this.bfStreak = Math.min(4, this.bfStreak + 1); this.bfT = this.recordHolder ? 6 : 4; if (this.recordHolder) this.p.gainCE(10); return true; }
+    return false;
+  }
+  // draw the ten-part ruler across a curse (gold ticks, the 7:3 mark in white)
+  rulerFx(e) {
+    const g = this.game, p = this.p;
+    const side = tmp2.set(Math.cos(p.facing), 0, -Math.sin(p.facing)).clone();
+    const base = e.pos.clone().addScaledVector(side, -(e.radius + 0.6));
+    g.fx.slashLine(base.clone().setY(e.pos.y), new THREE.Vector3(0, 1, 0), e.height * 1.1, GOLD, 0.06, 0.6);
+    for (let i = 1; i < 10; i++) g.fx.slashLine(base.clone().setY(e.pos.y + e.height * i / 10), side, i === 7 ? (e.radius + 0.6) * 2 : 0.35, i === 7 ? 0xffffff : GOLD, i === 7 ? 0.08 : 0.04, 0.6);
+  }
+  forceWeakPoint() {
+    const g = this.game, p = this.p;
+    const t = this.target(12) ?? this.mark;
+    if (!t || t.dead) { g.toast?.('No curse to mark'); g.audio?.ui('back'); return false; }
+    this.cast(0.35);
+    p.facing = Math.atan2(t.pos.x - p.pos.x, t.pos.z - p.pos.z);
+    t.ratioUntil = g.time + 5 + (this.eyeBonus ? 2 : 0);
+    this.mark = t; p.autoTarget = t;
+    this.rulerFx(t);
+    g.fx.hitSpark(this.weakPoint(t), null, { color: GOLD, big: true });
+    g.lights.flash(this.weakPoint(t), GOLD, 6, 6, 0.3);
+    g.audio?.tone?.({ freq: 880, to: 1320, dur: 0.18, gain: 0.08, type: 'triangle' });
+  }
+  parry() {
+    const g = this.game, p = this.p;
+    this.cast(0.3, true);
+    g.fx.slashArc(p.pos, p.facing, GOLD, 1.8, 0.8, 0.3);
+    g.audio?.whoosh(0.7);
+    let used = false;
+    this.buff('parry', 1.2, {
+      incoming: (a, src) => {
+        if (used) return a;
+        used = true; this.buffs.get('parry').left = 0;
+        g.fx.damageNumber(p.pos.clone().setY(p.pos.y + 1.6), 0, { text: 'PARRY', color: '#ffd84a' });
+        g.fx.hitSpark(this.handPos(), null, { color: 0xffffff, big: true });
+        p.iframes = Math.max(p.iframes, 0.4);
+        if (src && src.pos && !src.dead && !src.isPlayer && src.takeDamage) {
+          p.facing = Math.atan2(src.pos.x - p.pos.x, src.pos.z - p.pos.z);
+          this.pose('swingR', 0.3);
+          src.ratioUntil = Math.max(src.ratioUntil ?? 0, g.time + 3);
+          this.ratioCut(src, 20 + this.rank('ratio') * 6, this.ratioMult() * 1.4, { melee: true, stagger: 1, knock: tmp.subVectors(src.pos, p.pos).setY(0).normalize().multiplyScalar(6) });
+          g.hitStop(0.08); g.shake(0.3);
+        }
+        g.audio?.impact(1.6, 'crit');
+        return 0;
+      },
+      onTick: () => { if (Math.random() < 0.5) g.particles.burst(this.handPos(), { count: 1, color: GOLD, speed: 1, life: 0.2, size: 0.1, shape: 1 }); },
+    });
+  }
+  tenDivisions() {
+    const g = this.game, p = this.p;
+    const f = this.fwd(), side = new THREE.Vector3(f.z, 0, -f.x), L = 10, from = p.pos.clone().setY(p.pos.y + 0.12);
+    p.facing = this.aimAngle();
+    // the line is divided into ten on the ground; the seventh mark burns white
+    g.fx.slashLine(from, f, L, GOLD, 0.1, 0.55);
+    for (let i = 1; i <= 10; i++) g.fx.slashLine(from.clone().addScaledVector(f, L * i / 10).addScaledVector(side, -0.7), side, 1.4, i === 7 ? 0xffffff : GOLD, i === 7 ? 0.14 : 0.06, 0.55);
+    this.cast(0.5, false, { lock: true, hold: true, cancelable: false, moveScale: 0 });
+    g.audio?.tone?.({ freq: 660, to: 990, dur: 0.3, gain: 0.07, type: 'triangle' });
+    this.after(0.35, () => {
+      if (p.action?.lock) p.action = null;
+      this.pose('swingR', 0.3);
+      const at = p.pos.clone().setY(p.pos.y + 1.1);
+      g.fx.slashLine(at, f, L, 0xffffff, 0.4, 0.2); g.fx.slashLine(at.clone().setY(at.y - 0.05), f, L, GOLD, 0.2, 0.35);
+      let n = 0;
+      this.line(p.pos, f, L, 1.1, (e) => { this.ratioCut(e, 22 + this.rank('ratio') * 6, this.ratioMult() * (this.exposed(e) ? 1.4 : 1), { stagger: 0.7, knock: f.clone().multiplyScalar(3) }); n++; });
+      if (n) { g.hitStop(0.07); g.shake(0.3); g.fx.chroma(0.5); }
+      g.audio?.energy('slash');
+    });
+  }
+  criticalPoint() {
+    const g = this.game, p = this.p;
+    const t = (this.mark && !this.mark.dead && this.mark.pos.distanceTo(p.pos) < 9) ? this.mark : this.target(9);
+    if (!t) { g.toast?.('No curse in reach'); g.audio?.ui('back'); return false; }
+    this.closeIn(t, GOLD);
+    this.rulerFx(t);
+    p.action = { type: 'cast', both: true, dur: 0.4, elapsed: 0, t: 0, moveScale: 0, lock: true, hold: true, cancelable: false };
+    p.iframes = Math.max(p.iframes, 0.7);
+    g.audio?.charge?.(0.3, 0.35);
+    this.after(0.32, () => {
+      if (p.action?.lock) p.action = null;
+      if (t.dead) return;
+      this.pose('swingL', 0.35);
+      const missing = Math.min((t.maxHp - t.hp) * 0.35, t.isBoss ? 260 : 400);
+      const mult = this.ratioMult() * (this.exposed(t) ? 2 : 1);
+      this.ratioCut(t, 26 + this.rank('ratio') * 8 + missing / Math.max(1, mult), mult, { melee: true, unblockable: true, stagger: 1.2, knock: tmp.subVectors(t.pos, p.pos).setY(0).normalize().multiplyScalar(6) });
+      const w = this.weakPoint(t);
+      g.fx.slashX(w, 2.4 + t.height * 0.4, 0xffffff);
+      g.fx.screenWave(w, 0.9, 0.4); g.fx.flash(0xfff0b0, 0.3, 0.12); g.fx.chroma(1);
+      g.hitStop(0.12); g.shake(0.55); g.audio?.impact(2, 'crit');
+    });
+  }
+  risingCut() {
+    const g = this.game, p = this.p;
+    p.facing = this.aimAngle();
+    this.pose('uppercut', 0.28);
+    this.after(0.08, () => {
+      const f = this.fwd();
+      let n = 0;
+      for (const e of this.foes(p.pos, 3, f, 0.8)) {
+        this.hit(e, 14, { melee: true, stagger: 0.4, knock: f.clone().multiplyScalar(1.5) });
+        if (!e.isBoss) e.vel.y = Math.max(e.vel.y, 7);
+        if (this.exposed(e)) this.ratioCut(e, 8, this.ratioMult(), { melee: true });
+        n++;
+      }
+      g.fx.slashArc(p.pos, p.facing, GOLD, 2.8, 0.4, 0.15, true);
+      if (n) { g.hitStop(0.04); g.audio?.impact(1); }
+      g.audio?.swing(1);
+    });
+  }
+  sweep() {
+    const g = this.game, p = this.p, R = 3.8;
+    p.action = { type: 'attack', step: { style: 'spin', strike: 0.45, windup: 0.2 }, style: 'spin', dur: 0.45, elapsed: 0, t: 0, windup: 0.2, strike: 0.45, struck: true, moveScale: 0.2 };
+    this.after(0.12, () => {
+      let n = 0;
+      for (const e of this.foes(p.pos, R)) {
+        const kd = tmp.subVectors(e.pos, p.pos).setY(0).normalize();
+        this.hit(e, 22 + this.rank('flurry') * 5, { melee: true, stagger: 0.6, knock: kd.multiplyScalar(9) });
+        if (this.exposed(e)) this.ratioCut(e, 10, this.ratioMult(), { melee: true });
+        n++;
+      }
+      g.fx.slashArc(p.pos, p.facing, GOLD, R, 1, 0.25); g.fx.slashArc(p.pos, p.facing + Math.PI, CLOTH, R * 0.9, 1, 0.25, true);
+      g.fx.shockwave(p.pos, GOLD, R + 0.5);
+      if (n) { g.hitStop(0.06); g.shake(0.3); g.audio?.impact(1.3); }
+      g.audio?.whoosh(1.2);
+    });
+  }
+  measuredStep() {
+    const g = this.game, p = this.p, f = this.fwd();
+    let first = true;
+    this.pose('swingR', 0.25);
+    g.audio?.whoosh(1.2);
+    this.dash(f, 7, 0.2, { color: GOLD, hitR: 1.5, dmg: 18, hitOpts: { melee: true, stagger: 0.5 }, onHit: (e) => {
+      if (first) { first = false; e.ratioUntil = Math.max(e.ratioUntil ?? 0, g.time + 3); this.mark = e; this.rulerFx(e); }
+      g.fx.hitSpark(e.pos.clone().setY(e.pos.y + 1), f, { color: GOLD });
+    }, onEnd: () => g.fx.slashLine(p.pos.clone().addScaledVector(f, -7).setY(p.pos.y + 1), f, 7, GOLD, 0.25, 0.25) });
+  }
+  bluntEdge() {
+    const g = this.game, p = this.p;
+    p.facing = this.aimAngle();
+    this.pose('slam', 0.5);
+    g.audio?.whoosh(1.1);
+    this.after(0.22, () => {
+      const f = this.fwd(), c = p.pos.clone().addScaledVector(f, 1.6);
+      let n = 0;
+      for (const e of this.foes(p.pos, 3.4, f, 0.9)) {
+        e.guarding = false;
+        this.hit(e, 36 + this.rank('flurry') * 8, { melee: true, unblockable: true, stagger: 1, knock: f.clone().multiplyScalar(4) });
+        this.stun(e, 1.5);
+        g.fx.hitSpark(e.pos.clone().setY(e.pos.y + e.height * 0.7), null, { color: 0xffffff, big: true });
+        n++;
+      }
+      g.fx.shockwave(c, GOLD, 3); g.fx.landDust(c, 20); g.debris.burst(c.clone().setY(c.y + 0.3), B.stone, 5, 0.7);
+      g.combat.hitBlocks(c, f, 1.6, Math.PI, 40, p);
+      g.shake(0.45); g.hitStop(n ? 0.08 : 0.03); g.audio?.impact(1.8);
+    });
+  }
+  straightKick() {
+    const g = this.game, p = this.p;
+    const t = this.target(4, 0.2);
+    if (t) this.closeIn(t, GOLD);
+    this.pose('uppercut', 0.3);
+    this.after(0.1, () => {
+      const f = this.fwd();
+      const e = (t && !t.dead) ? t : this.foes(p.pos, 2.8, f, 0.8)[0];
+      g.audio?.whoosh(1.1);
+      if (!e) return;
+      this.hit(e, 24, { melee: true, stagger: 0.9, knock: new THREE.Vector3() });
+      g.fx.hitSpark(e.pos.clone().setY(e.pos.y + 1), f, { color: 0xffffff, big: true });
+      g.hitStop(0.07); g.shake(0.35); g.audio?.impact(1.5);
+      if (e.isBoss) return;
+      const dir = tmp.subVectors(e.pos, p.pos).setY(0).normalize().clone(), seen = new Set([e]);
+      this.during(0.4, () => {
+        if (e.dead) return false;
+        e.knock.copy(dir).multiplyScalar(18);
+        for (const o of this.foes(e.pos, 1.5)) if (!seen.has(o)) { seen.add(o); this.hit(o, 18, { stagger: 0.7, knock: dir.clone().multiplyScalar(7) }); this.hit(e, 8, { stagger: 0.2 }); g.audio?.impact(1); }
+      });
+    });
+  }
+  tieWrap() {
+    const g = this.game, p = this.p;
+    this.cast(0.35, true);
+    g.toast?.('👔 Tie wrapped'); g.audio?.charge?.(0.3, 0.4);
+    const tie = p.rig.extras.tie;
+    this.statBuff('tie_wrap', 8, { meleeMult: 0.2 }, {
+      onStart: () => { if (tie) tie.visible = true; },
+      onTick: () => { if (Math.random() < 0.35) { const h = tmp.set(p.pos.x - Math.sin(p.facing + 1.2) * 0.4, p.pos.y + 1.1, p.pos.z - Math.cos(p.facing + 1.2) * 0.4); g.particles.burst(h, { count: 1, color: 0xff2a2a, speed: 1.2, life: 0.2, size: 0.08, shape: 1 }); } },
+      onEnd: () => { if (tie && !this.overtime) tie.visible = false; },
+    });
+  }
+  bfRecord() {
+    const g = this.game, p = this.p;
+    let t = (this.mark && !this.mark.dead && this.mark.pos.distanceTo(p.pos) < 8) ? this.mark : this.target(8);
+    if (!t) { g.toast?.('No curse in reach'); g.audio?.ui('back'); return false; }
+    if (p.rig.extras.tie) p.rig.extras.tie.visible = true;
+    p.iframes = Math.max(p.iframes, 1.1);
+    this.bfStreak = 0;
+    const styles = ['punch', 'swingL', 'swingR', 'uppercut'];
+    for (let i = 0; i < 4; i++) this.after(i * 0.22, () => {
+      if (!t || t.dead) t = this.target(8);
+      if (!t) return;
+      this.closeIn(t, 0xff2a2a);
+      this.pose(styles[i], 0.2);
+      this.landBlackFlash(t);
+      if (i === 3) { g.fx.screenWave(t.pos.clone().setY(t.pos.y + 1), 1, 0.45); g.fx.chroma(1.1); g.shake(0.6); }
+    });
+    this.after(1, () => { if (p.rig.extras.tie && !this.overtime && !this.buffs.has('tie_wrap')) p.rig.extras.tie.visible = false; });
+  }
+  clockOut() {
+    const g = this.game, p = this.p;
+    const back = this.fwd().negate(), at = p.pos.clone();
+    g.audio?.whoosh(1);
+    this.dash(back, 6, 0.2, { color: GOLD, iframes: 0.4 });
+    p.facing = Math.atan2(-back.x, -back.z);
+    // a parting cut across the spot you left
+    const side = new THREE.Vector3(back.z, 0, -back.x);
+    g.fx.slashLine(at.clone().setY(at.y + 1).addScaledVector(side, -2), side, 4, GOLD, 0.25, 0.3);
+    for (const e of this.foes(at, 2.4)) this.ratioCut(e, 12, this.exposed(e) ? this.ratioMult() : 1.5, { stagger: 0.5 });
+  }
+  timeManagement() {
+    const g = this.game, p = this.p;
+    this.cast(0.3, true);
+    g.toast?.('⏱️ Time Management'); g.audio?.tone?.({ freq: 1200, to: 1200, dur: 0.06, gain: 0.08, type: 'square' });
+    const self = this.library.time_mgmt;
+    this.buff('time_mgmt', 5, { onTick: (dt) => {
+      for (const k in this.slots) { const s = this.slots[k]; if (s === self || s.empty) continue; if (s.maxCharges) s.recharge = (s.recharge ?? 0) + dt; else s.cdLeft = Math.max(0, s.cdLeft - dt); }
+      if (Math.random() < 0.3) { const a = g.time * 4; g.particles.glow.emit(p.pos.x + Math.cos(a) * 0.9, p.pos.y + 1.2, p.pos.z + Math.sin(a) * 0.9, 0, 0.3, 0, 0.4, 2.6, 2, 0.5, 0.1, 0, 1, 0.2, 1); }
+    } });
+  }
+  grit() {
+    const g = this.game, p = this.p;
+    this.cast(0.35, true);
+    g.toast?.('🔥 Grit'); g.fx.flash(0x3a1004, 0.25, 0.2); g.audio?.charge?.(0.3, 0.5);
+    if (p.hp < p.maxHp) p.healOverTime = { left: p.maxHp * 0.15, t: 2.5 };
+    this.buff('grit', 5, {
+      incoming: (a) => { a *= 0.6; if (p.hp - a < 1) a = Math.max(0, p.hp - 1); return a; },
+      onTick: () => { if (Math.random() < 0.4) g.particles.glow.emit(p.pos.x + (Math.random() - 0.5) * 0.8, p.pos.y + Math.random() * 1.6, p.pos.z + (Math.random() - 0.5) * 0.8, 0, 1, 0, 0.5, 2.6, 1, 0.3, 0.1, 0, 1, 0.2, 1); },
+    });
+  }
+  overtimeRush() {
+    const g = this.game, p = this.p;
+    const crit = this.overtime;
+    p.iframes = Math.max(p.iframes, 0.6);
+    for (let i = 0; i < 10; i++) this.after(i * 0.07, () => {
+      p.facing = this.aimAngle();
+      const f = this.fwd(), last = i === 9;
+      const nx = p.pos.x + f.x * 0.55, nz = p.pos.z + f.z * 0.55;
+      if (!g.world.solidAt(nx, p.pos.y + 0.5, nz) && !g.world.solidAt(nx, p.pos.y + 1.5, nz)) { p.pos.x = nx; p.pos.z = nz; }
+      this.pose(last ? 'slam' : i % 2 ? 'swingL' : 'swingR', last ? 0.35 : 0.08);
+      for (const e of this.foes(p.pos, last ? 3.6 : 3, f, last ? Math.PI : 0.9)) {
+        if (last || this.exposed(e)) this.ratioCut(e, last ? 26 : 6, this.ratioMult() * (crit ? 1.3 : 1), { melee: true, stagger: last ? 1 : 0.2, knock: f.clone().multiplyScalar(last ? 9 : 0.6) });
+        else this.hit(e, 8, { melee: true, crit: crit || undefined, stagger: 0.2, knock: f.clone().multiplyScalar(0.6) });
+      }
+      g.fx.slashArc(p.pos, p.facing + (Math.random() - 0.5) * 0.7, i % 2 ? CLOTH : GOLD, 2.9, 0.35, 0.1, i % 2 === 1);
+      g.audio?.swing(i % 4);
+      if (last) { g.fx.shockwave(p.pos.clone().addScaledVector(f, 1.4), GOLD, 4); g.shake(0.45); g.hitStop(0.08); g.audio?.impact(1.8, 'crit'); }
+    });
+  }
+  // a smaller Collapse: the floor ruptures along a line
+  collapseLine() {
+    const g = this.game, p = this.p, rk = this.rank('collapse');
+    const f = this.fwd(), L = 11 + rk, start = p.pos.clone();
+    p.facing = this.aimAngle();
+    g.fx.slashLine(start.clone().setY(start.y + 0.12), f, L, GOLD, 0.5, 0.6);
+    g.fx.slashLine(start.clone().setY(start.y + 0.12).addScaledVector(f, L * 0.7), new THREE.Vector3(f.z, 0, -f.x), 0.01, 0xffffff, 0.01, 0.1);
+    this.pose('slam', 0.5);
+    g.audio?.charge?.(0.3, 0.4);
+    for (let i = 1; i <= 6; i++) this.after(0.3 + i * 0.06, () => {
+      const c = start.clone().addScaledVector(f, L * i / 6); c.y = this.groundAt(c.x, c.z, start.y);
+      g.combat.aoe(c, 1.9 + rk * 0.2, 30 + rk * 8, p, { knock: 3, stagger: 0.7, blocks: false, color: '#ffd84a' });
+      for (const e of this.foes(c, 2)) { if (!e.isBoss) e.vel.y = Math.max(e.vel.y, 8); this.slow(e, 2.5); }
+      g.combat.hitBlocks(c.clone().setY(c.y - 0.5), f, 1.4, Math.PI, 60, p);
+      g.debris.burst(c.clone().setY(c.y + 0.3), B.stone_brick, 5, 0.9);
+      g.fx.shockwave(c, GOLD, 2.2, 0.3);
+      g.shake(0.15); g.audio?.impact(1.1);
+    });
+    this.after(0.3, () => { g.audio?.breakBlock?.('stone'); });
+  }
+  rubbleRain() {
+    const g = this.game, p = this.p, rk = this.rank('collapse');
+    const c = this.aimGround(12), R = 4 + rk * 0.5;
+    this.pose('swingR', 0.35);
+    g.fx.rings.spawn(tmp.set(c.x, c.y + 0.08, c.z), { color: GOLD, r0: R, r1: R * 0.96, dur: 2.4, thick: 0.08 });
+    g.fx.rings.spawn(tmp.set(c.x, c.y + 0.08, c.z), { color: 0xffffff, r0: 0.3, r1: R, dur: 0.5, thick: 0.06 });
+    g.audio?.breakBlock?.('stone');
+    for (let i = 0; i < 16 + rk * 4; i++) this.after(0.35 + i * 0.11, () => {
+      const a = Math.random() * Math.PI * 2, rr = Math.sqrt(Math.random()) * R;
+      const from = tmp.set(c.x + Math.cos(a) * rr, c.y + 9 + Math.random() * 3, c.z + Math.sin(a) * rr).clone();
+      g.projectiles.fire({ pos: from, vel: new THREE.Vector3(0, -10, 0), team: 'player', shape: 'cube', color: 0x8a8070, emissive: 0.05, gravity: 26, life: 2, scale: 1.4 + Math.random(), radius: 0.7,
+        onHit: (e) => { this.hit(e, 16 + rk * 4, { stagger: 0.5, knock: new THREE.Vector3() }); },
+        onExpire: (q) => { g.combat.aoe(q.pos, 1.6, 10 + rk * 3, p, { stagger: 0.3, blocks: false }); g.fx.debris(q.pos, 0x8a8070, 4); g.audio?.impact(0.6); } });
+    });
+  }
+  crater() {
+    const g = this.game, p = this.p, rk = this.rank('collapse'), R = 6 + rk * 0.8;
+    p.action = { type: 'cast', both: true, dur: 0.6, elapsed: 0, t: 0, moveScale: 0, lock: true, hold: true, cancelable: false };
+    p.iframes = Math.max(p.iframes, 0.9);
+    const c = p.pos.clone();
+    // the ruler lines across the floor, then it caves in
+    for (let i = -2; i <= 2; i++) { const o = i / 2 * R * 0.8, half = Math.sqrt(Math.max(0, R * R - o * o)); g.fx.slashLine(c.clone().setY(c.y + 0.12).add(tmp.set(o, 0, -half)), new THREE.Vector3(0, 0, 1), half * 2, GOLD, 0.1, 0.6); g.fx.slashLine(c.clone().setY(c.y + 0.12).add(tmp.set(-half, 0, o)), new THREE.Vector3(1, 0, 0), half * 2, GOLD, 0.1, 0.6); }
+    g.fx.rings.spawn(tmp.set(c.x, c.y + 0.1, c.z), { color: GOLD, r0: R, r1: R * 0.95, dur: 0.6, thick: 0.1 });
+    g.audio?.charge?.(0.4, 0.5);
+    this.after(0.25, () => { p.action = { type: 'attack', step: { style: 'slam', strike: 0.5, windup: 0.35 }, style: 'slam', dur: 0.45, elapsed: 0, t: 0, windup: 0.35, strike: 0.5, struck: true, moveScale: 0 }; });
+    this.after(0.45, () => {
+      const n = g.combat.aoe(c, R, 60 + rk * 16, p, { knock: 5, stagger: 1, blocks: false, falloff: true, color: '#ffd84a' });
+      for (const e of this.foes(c, R + 0.5)) { this.stun(e, 1.4); this.slow(e, 4); }
+      for (let rr = 2; rr <= R; rr += 2) g.combat.hitBlocks(c.clone().setY(c.y - 1), tmp.set(0, 0, 1), rr, Math.PI, 300, p);
+      for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; g.debris.burst(c.clone().add(tmp.set(Math.cos(a) * R * 0.6, 0.4, Math.sin(a) * R * 0.6)), B.stone_brick, 8, 1.3); }
+      g.fx.shockwave(c, GOLD, R + 1.5, 0.6); g.fx.screenWave(c, 1.2, 0.5);
+      g.particles.burst(c.clone().setY(c.y + 0.5), { count: 40, color: 0x8a7a6a, additive: false, speed: R, up: 0.6, life: 1.2, size: 0.7, drag: 3, sizeEnd: 2.5 });
+      g.fx.flash(0x3a2408, 0.35, 0.2); g.shake(0.8); g.hitStop(n ? 0.1 : 0.04);
+      g.audio?.breakBlock?.('stone'); g.audio?.energy('explode');
+    });
   }
   // Extension Technique: Collapse. Nanami strikes the weak point of the
   // ground — it is a structure like any other, so the 7:3 point brings the
@@ -308,7 +657,7 @@ class NanamiKit extends Kit {
 
   startOvertime(dur, quiet = false) {
     const g = this.game, p = this.p;
-    if (!this.overtime && !this.otBonus) { this.otBonus = 0.25 + this.rank('overtime') * 0.08; p.stats.damage += this.otBonus; }
+    if (!this.overtime && !this.otBonus) { this.otBonus = 0.25 + this.rank('overtime') * 0.08 + (this.contractHours ? 0.15 : 0); p.stats.damage += this.otBonus; }
     this.overtimeT = Math.max(this.overtimeT, dur); this.workT = 0;
     if (p.rig.extras.tie) p.rig.extras.tie.visible = true;
     if (!quiet) { g.toast?.('🕔 OVERTIME — clocking out of the contract', 'big'); g.fx.flash(0xffa040, 0.35, 0.2); }

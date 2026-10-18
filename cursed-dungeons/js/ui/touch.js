@@ -57,10 +57,26 @@ export class TouchControls {
     root.appendChild(pause);
     if (!document.getElementById('rotate-hint')) document.body.appendChild(h('div', { id: 'rotate-hint' }, 'Rotate your device to landscape to play ⟲'));
   }
+  // show the equipped loadout's icons on RMB / 1 / 2 / 3
+  setIcons(kit) {
+    const def = { ranged: '✦', t1: '1', t2: '2', t3: '3' };
+    for (const k of ['ranged', 't1', 't2', 't3']) {
+      const b = this.btns[k]; if (!b) continue;
+      const ab = kit.slots?.[k];
+      const span = b.querySelector('span');
+      span.textContent = ab && !ab.empty ? ab.icon ?? def[k] : def[k];
+      b.classList.toggle('empty', !ab || !!ab.empty);
+      b.title = ab?.name ?? '';
+      let tag = b.querySelector('.tkey');
+      if (!tag) { tag = h('i', { class: 'tkey' }); b.appendChild(tag); }
+      tag.textContent = k === 'ranged' ? '' : k[1];
+    }
+  }
   show(on) { this.root.classList.toggle('hidden', !on); document.body.classList.toggle('playing', on); }
   // p: cooldown fraction 0..1 per action
-  setCooldown(a, frac, ready = false) {
+  setCooldown(a, frac, ready = false, locked = false) {
     const b = this.btns[a]; if (!b) return;
+    if (b.classList.contains('locked') !== locked) b.classList.toggle('locked', locked);
     b.firstChild.style.setProperty('--p', (frac * 100).toFixed(0) + '%');
     if (a === 'domain') b.classList.toggle('ready-ult', ready);
   }

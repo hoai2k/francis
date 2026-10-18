@@ -12,9 +12,11 @@ export function openSettings(game, onClose) {
     const gr = game.gr;
     const row = (label, input) => h('div', { class: 'setting' }, h('label', {}, label), input);
     const check = (key, after) => { const i = h('input', { type: 'checkbox' }); i.checked = !!settings[key]; i.addEventListener('change', () => { settings[key] = i.checked; saveSettings(); after?.(i.checked); }); return i; };
+    const checkD = (key, def, after) => { const i = h('input', { type: 'checkbox' }); i.checked = settings[key] ?? def; i.addEventListener('change', () => { settings[key] = i.checked; saveSettings(); after?.(i.checked); }); return i; };
     const range = (key, min, max, step, after) => { const i = h('input', { type: 'range', min, max, step, value: settings[key] }); i.addEventListener('input', () => { settings[key] = Number(i.value); saveSettings(); after?.(Number(i.value)); }); return i; };
     const select = (key, opts, after) => {
-      const s = h('select', {}, ...opts.map(([v, t]) => { const o = h('option', { value: v }, t); if (String(settings[key]) === String(v)) o.selected = true; return o; }));
+      const cur = settings[key] ?? { timeOfDay: 'auto', daySpeed: 1, foliage: 'auto' }[key];
+      const s = h('select', {}, ...opts.map(([v, t]) => { const o = h('option', { value: v }, t); if (String(cur) === String(v)) o.selected = true; return o; }));
       s.addEventListener('change', () => { settings[key] = s.value; saveSettings(); after?.(s.value); }); return s;
     };
     const tabs = h('div', { class: 'tabs' }, ...[['graphics', 'Graphics'], ['audio', 'Audio'], ['camera', 'Camera'], ['controls', 'Controls']].map(([id, t]) =>
@@ -24,14 +26,18 @@ export function openSettings(game, onClose) {
       const info = gr.info;
       body.append(
         h('div', { class: 'hint', style: 'margin:0 0 8px' }, `GPU: ${info.name} · Backend: ${gr.backend} · Detected tier: ${QUALITY_LABEL[info.tier]}`),
-        row('Quality', select('quality', [['auto', `Auto (${QUALITY_LABEL[info.tier]})`], ['low', QUALITY_LABEL.low], ['medium', QUALITY_LABEL.medium], ['high', QUALITY_LABEL.high], ['ultra', QUALITY_LABEL.ultra + (gr.backend === 'WebGPU' ? '' : ' (WebGL2)')]], (v) => game.applyQuality(v))),
+        row('Quality', select('quality', [['auto', `Auto (${QUALITY_LABEL[info.tier]})`], ['low', QUALITY_LABEL.low], ['medium', QUALITY_LABEL.medium], ['high', QUALITY_LABEL.high], ['ultra', QUALITY_LABEL.ultra + (gr.backend === 'WebGPU' ? '' : ' (WebGL2)')]], (v) => { game.applyQuality(v); game.env?.syncQuality?.(); })),
         row('Fullscreen (Alt+Enter)', (() => { const i = h('input', { type: 'checkbox' }); i.checked = isFullscreen(); i.addEventListener('change', async () => { await toggleFullscreen(); setTimeout(() => { i.checked = isFullscreen(); }, 300); }); return i; })()),
         row('Dynamic resolution', check('dynRes', (v) => { gr.dynRes = v; if (!v) { gr.scale = 1; gr.applyPixelRatio(); } })),
         row('Motion blur (Ultra)', check('motionBlur', (v) => { gr.motionBlur = v; gr.buildPipeline(); })),
+        row('Time of day', select('timeOfDay', [['auto', 'Region default'], ['dawn', 'Dawn'], ['morning', 'Morning'], ['day', 'Midday'], ['golden', 'Golden hour'], ['sunset', 'Sunset'], ['dusk', 'Dusk'], ['night', 'Night']].map(([v, t]) => [v, t]), () => game.env?.syncQuality?.())),
+        row('Day / night cycle', select('daySpeed', [['0', 'Frozen'], ['0.5', 'Slow (50 min)'], ['1', 'Normal (25 min)'], ['3', 'Fast (8 min)']], (v) => { settings.daySpeed = Number(v); saveSettings(); game.env?.syncQuality?.(); })),
+        row('Clouds', checkD('clouds', true, () => game.env?.syncQuality?.())),
+        row('Grass & flowers', select('foliage', [['auto', 'Auto (quality)'], ['0', 'Off'], ['0.5', 'Sparse'], ['1', 'Normal'], ['1.4', 'Lush']], () => game.env?.syncQuality?.())),
         row('Show FPS / mode', check('showFps', (v) => game.hud?.setReadout(v))),
         row('Damage numbers', check('damageNumbers')),
         row('Force WebGL2 (reload)', check('forceWebGL', () => { })),
-        h('div', { class: 'hint' }, 'Ultra uses WebGPU: SSGI light bounce, screen-space reflections, VSM soft shadows, TRAA + sharpen, depth of field. High: soft shadows, GTAO, bloom, water SSR, light shafts. Resolution drops automatically before effects if FPS falls below target.'),
+        h('div', { class: 'hint' }, 'Ultra uses WebGPU: SSGI light bounce, screen-space reflections, VSM soft shadows (4K), TRAA + sharpen, depth of field, lush foliage. High: soft shadows, GTAO, bloom, water SSR, sun shafts and god rays, cloud shadows. Medium: shadows, cloud shadows, light shafts, lighter foliage. Low / Mobile: no shadow maps, sparse foliage. Resolution drops automatically before effects if FPS falls below target.'),
         h('div', { class: 'row', style: 'margin-top:8px' }, h('button', { class: 'btn small', onclick: () => game.openPhotoMode?.() }, '📷 Photo Mode (path traced)'), settings.forceWebGL !== game.startedWebGL ? h('button', { class: 'btn small primary', onclick: () => location.reload() }, 'Reload to apply') : null),
       );
     } else if (tab === 'audio') {

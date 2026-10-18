@@ -150,7 +150,10 @@ function terrainHeight(x, z) {
 }
 
 // ---------------------------------------------------------------- builder
-export function buildJujutsuHigh() {
+// o.embed: built to be stamped into the open jujutsu_high region
+// (world/regions/jujutsu_high.js): no invisible walls round the edge and no
+// painted backdrop (the region has real mountains there).
+export function buildJujutsuHigh(o = {}) {
   const world = new World(SX, SY, SZ);
   const deco = new HubDeco();
   const shafts = new LightShafts();
@@ -180,8 +183,8 @@ export function buildJujutsuHigh() {
     }
   }
   // outer edges: invisible walls
-  for (let i = 0; i < SX; i++) for (const z of [0, SZ - 1]) { const h = hAt(i, z); W.fill(i, h, z, i, Math.min(SY - 1, h + 8), z, B.barrier); }
-  for (let i = 0; i < SZ; i++) for (const x of [0, SX - 1]) { const h = hAt(x, i); W.fill(x, h, i, x, Math.min(SY - 1, h + 8), i, B.barrier); }
+  if (!o.embed) for (let i = 0; i < SX; i++) for (const z of [0, SZ - 1]) { const h = hAt(i, z); W.fill(i, h, z, i, Math.min(SY - 1, h + 8), z, B.barrier); }
+  if (!o.embed) for (let i = 0; i < SZ; i++) for (const x of [0, SX - 1]) { const h = hAt(x, i); W.fill(x, h, i, x, Math.min(SY - 1, h + 8), i, B.barrier); }
 
   // ------------------------------------------------------------ paving helpers
   const setTop = (x, z, id, only = true) => { const y = top(x, z); if (!isFinite(y)) return; if (!only || isGround(W.get(x, y - 1, z))) W.set(x, y - 1, z, id); };
@@ -636,7 +639,7 @@ export function buildJujutsuHigh() {
   k.scatter(1, 1, SX - 2, SZ - 2, { density: 0.16, types: ['grass', 'grass', 'tall_grass', 'flower_red', 'flower_blue', 'fern', 'grass'] });
 
   // ------------------------------------------------------------ distant mountains and valley floor
-  deco.backdrop = () => {
+  if (!o.embed) deco.backdrop = () => {
     const g = new THREE.Group(); g.name = 'hub-backdrop';
     const pos = [], col = [];
     const ring = (n, r0, r1, h0, h1, c0, c1, seed) => {
@@ -701,5 +704,6 @@ export function buildJujutsuHigh() {
     titleCam: { center: V(66, FY + 5, 50), dist: 44, pitch: 22 * Math.PI / 180 },
     sunOffset: new THREE.Vector3(-30, 22, 14),
     biome: HUB_BIOME,
+    size: [SX, SY, SZ], hub: P, stairs: { x0: STX0, x1: STX1 },
   };
 }

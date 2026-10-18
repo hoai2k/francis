@@ -15,7 +15,7 @@
 //        is mauled (a huge wound plus maximum soul distortion). Anything that
 //        wanders in later is touched too.
 import * as THREE from 'three/webgpu';
-import { Kit } from './kit.js';
+import { Kit, ability, passive } from './kit.js';
 import { registerKit, registerSorcerer } from './index.js';
 import { registerLook } from '../entities/models.js';
 import { registerDomainEnv } from '../world/biomes.js';
@@ -173,12 +173,12 @@ class TransHuman {
 }
 
 export const MAHITO_SKILLS = [
-  { id: 'distort', name: 'Soul Distortion', desc: 'Distorted souls take more damage over time.', max: 3 },
-  { id: 'idle', name: 'Idle Transfiguration', desc: 'Transfigure curses at higher health.', max: 3 },
-  { id: 'repel', name: 'Body Repel', desc: 'More spikes, harder hits.', max: 2 },
-  { id: 'collector', name: 'Soul Collector', desc: 'Transfigured curses become minions more often; minions burst harder.', max: 3 },
-  { id: 'isomer', name: 'Polymorphic Soul Isomer', desc: 'Bigger, deadlier isomer.', max: 3, req: 'collector' },
-  { id: 'perfection', name: 'Perfection', desc: 'The domain lasts longer and its sure-hit touch mauls bosses harder.', max: 2 },
+  { id: 'distort', name: 'Soul Distortion', icon: '🌫️', desc: 'Distorted souls take more damage over time.', max: 3, branch: 'Touch', tier: 1, req: 'ab:touch' },
+  { id: 'idle', name: 'Idle Transfiguration', icon: '✋', desc: 'Transfigure curses at higher health.', max: 3, branch: 'Touch', tier: 3, req: 'ab:touch' },
+  { id: 'repel', name: 'Body Repel', icon: '🦔', desc: 'More spikes, harder hits.', max: 2, branch: 'Body', tier: 2, req: 'ab:repel' },
+  { id: 'collector', name: 'Soul Collector', icon: '🧟', desc: 'Transfigured curses become minions more often; minions burst harder.', max: 3, branch: 'Humans', tier: 2, req: 'ab:humans' },
+  { id: 'isomer', name: 'Polymorphic Soul Isomer', icon: '💣', desc: 'Bigger, deadlier isomer.', max: 3, branch: 'Humans', tier: 5, req: 'ab:isomer' },
+  { id: 'perfection', name: 'Perfection', icon: '🕳️', desc: 'The domain lasts longer and its sure-hit touch mauls bosses harder.', max: 2, branch: 'Soul', tier: 0 },
 ];
 
 class MahitoKit extends Kit {
@@ -191,11 +191,38 @@ class MahitoKit extends Kit {
       { style: 'swingR', dur: 0.3, windup: 0.3, strike: 0.52, dmg: 13, range: 2.7, arc: 1.2, lunge: 6, knock: 3, stop: 0.05, shake: 0.14, trail: FLESH, chainAt: 0.55 },
       { style: 'slam', dur: 0.56, windup: 0.42, strike: 0.6, dmg: 24, range: 3.2, arc: Math.PI, lunge: 4, knock: 9, stop: 0.09, shake: 0.4, ring: true, ringColor: SOUL, stagger: 0.6, trail: SOUL },
     ];
-    this.slots = {
-      ranged: this.ability({ name: 'Idle Transfiguration', icon: '✋', cd: 1.3, ce: 0, use: () => this.touch() }),
-      t1: this.ability({ name: 'Body Repel', icon: '🦔', cd: 6, ce: 12, use: () => this.repel() }),
-      t2: this.ability({ name: 'Transfigured Humans', icon: '🧟', cd: 14, ce: 18, use: () => this.humans() }),
-      t3: this.ability({ name: 'Soul Isomer', icon: '💣', cd: 18, ce: 35, use: () => this.isomer() }),
+    this.branches = ['Touch', 'Body', 'Humans', 'Soul'];
+    this.library = {
+      // ---- the touch
+      touch: ability({ name: 'Idle Transfiguration', icon: '✋', kind: 'basic', desc: 'A lunging soul-touch: heavy soul distortion. A weakened or overloaded curse is transfigured outright.', cd: 1.3, ce: 0, branch: 'Touch', tier: 0, start: true, legacy: 'ranged', use: () => this.touch() }),
+      stretch: ability({ name: 'Stretching Arm', icon: '🦾', kind: 'technique', desc: 'Your arm stretches far along your aim, grabs the first soul it touches and drags the curse back to you.', cd: 4, ce: 6, branch: 'Touch', tier: 1, req: 'touch', use: () => this.stretchArm() }),
+      palm_barrage: ability({ name: 'Palm Barrage', icon: '🖐️', kind: 'technique', desc: 'Six rapid palm strikes in front of you; every one of them distorts the soul.', cd: 7, ce: 12, branch: 'Touch', tier: 2, req: 'touch', use: () => this.palmBarrage() }),
+      soul_rupture: ability({ name: 'Soul Rupture', icon: '💥', kind: 'technique', desc: 'Twist every distorted soul nearby at once: each bursts for damage per distortion stack.', cd: 12, ce: 18, branch: 'Touch', tier: 3, req: 'palm_barrage', use: () => this.soulRupture() }),
+      black_flash: ability({ name: 'Black Flash', icon: '⚡', kind: 'technique', desc: 'Shibuya\'s evolution: close in and land a guaranteed Black Flash that tears at the soul.', cd: 14, ce: 20, branch: 'Touch', tier: 4, req: 'soul_rupture', use: () => this.blackFlashStrike(46) }),
+      // ---- reshaping his own body
+      blade_arm: ability({ name: 'Blade Arm', icon: '🔪', kind: 'basic', desc: 'Reshape an arm into a blade: two quick cuts that distort the soul.', cd: 0.9, ce: 0, branch: 'Body', tier: 1, use: () => this.bladeArm() }),
+      repel: ability({ name: 'Body Repel', icon: '🦔', kind: 'technique', desc: 'Bone spikes erupt from your body in every direction.', cd: 6, ce: 12, branch: 'Body', tier: 1, legacy: 't1', use: () => this.repel() }),
+      hammer_fist: ability({ name: 'Hammer Fist', icon: '🔨', kind: 'technique', desc: 'Swell an arm into a giant mallet and bring it down on the marked spot, stunning everything under it.', cd: 7, ce: 10, branch: 'Body', tier: 2, req: 'blade_arm', use: () => this.hammerFist() }),
+      bone_lance: ability({ name: 'Bone Lance', icon: '🦴', kind: 'basic', desc: 'Grow a bone spike and fire it: it pierces a line of curses.', cd: 1.4, ce: 3, branch: 'Body', tier: 2, req: 'repel', use: () => this.boneLance() }),
+      wings: ability({ name: 'Transfigured Wings', icon: '🪽', kind: 'movement', desc: 'Sprout wings and glide forward; landing touches every soul around you.', cd: 6, ce: 6, branch: 'Body', tier: 3, req: 'hammer_fist', use: () => this.wings() }),
+      hardened: ability({ name: 'Hardened Body', icon: '🐢', kind: 'defence', desc: 'Harden your skin into a shell for 4s: 60% less damage, and whatever strikes you has its soul distorted.', cd: 14, ce: 10, branch: 'Body', tier: 3, req: 'repel', use: () => this.hardened() }),
+      drill: ability({ name: 'Drill Arm', icon: '🌀', kind: 'technique', desc: 'Twist an arm into a drill and charge, grinding through everything in your path (ignores guards).', cd: 9, ce: 14, branch: 'Body', tier: 4, req: 'wings', use: () => this.drillArm() }),
+      // ---- transfigured humans
+      humans: ability({ name: 'Transfigured Humans', icon: '🧟', kind: 'summon', desc: 'Release grotesque reshaped humans that rush curses and burst on death.', cd: 14, ce: 18, branch: 'Humans', tier: 1, legacy: 't2', use: () => this.humans() }),
+      pocket_humans: ability({ name: 'Shrunken Humans', icon: '🫘', kind: 'basic', desc: 'Toss three shrunken humans from your pocket; they swell back to size on impact and burst.', cd: 1.5, ce: 4, branch: 'Humans', tier: 2, req: 'humans', use: () => this.pocketHumans() }),
+      multiplicity: ability({ name: 'Soul Multiplicity', icon: '🧌', kind: 'summon', desc: 'Fuse several souls into one hulking transfigured giant that fights for you for 16s.', cd: 22, ce: 28, branch: 'Humans', tier: 3, req: 'humans', use: () => this.multiplicity() }),
+      isomer: ability({ name: 'Polymorphic Soul Isomer', icon: '💣', kind: 'technique', desc: 'Hurl a mass of fused souls that detonates and spills out transfigured humans.', cd: 18, ce: 35, branch: 'Humans', tier: 4, legacy: 't3', req: 'multiplicity', use: () => this.isomer() }),
+      // ---- the soul itself
+      reshape: ability({ name: 'Reshape Body', icon: '💗', kind: 'heal', desc: 'As long as your soul is intact your body is just a shape: restore 30% health over 1.5s and shake off slows.', cd: 24, ce: 22, branch: 'Soul', tier: 1, use: () => this.reshapeBody() }),
+      shrink: ability({ name: 'Shrink', icon: '🐭', kind: 'movement', desc: 'Shrink to a tiny shape: for 1.5s curses lose track of you and you move much faster, then you swell back with a burst of spikes.', cd: 8, ce: 6, branch: 'Soul', tier: 2, req: 'reshape', use: () => this.shrink() }),
+      perception: ability({ name: 'Soul Perception', icon: '👁️', kind: 'buff', desc: 'See the shape of every soul: for 8s every hit distorts twice and you transfigure curses at higher health.', cd: 16, ce: 10, branch: 'Soul', tier: 2, req: 'reshape', use: () => this.perception() }),
+      distorted_killing: ability({ name: 'Instant Spirit Body of Distorted Killing', icon: '👹', kind: 'buff', desc: 'Mahito\'s final form: for 10s you are larger, armoured and far stronger, and every hit tears at the soul.', cd: 40, ce: 45, branch: 'Soul', tier: 5, req: 'perception', use: () => this.distortedKilling() }),
+    };
+    this.passives = {
+      soul_reader: passive({ name: 'Soul Reader', icon: '🔮', desc: 'Soul distortion lasts 2s longer and techniques deal 10% more damage.', branch: 'Touch', tier: 2, req: 'touch', apply: (pl, k) => { k.soulDur = 6; pl.stats.techMult += 0.1; } }),
+      disaster: passive({ name: 'Disaster Curse', icon: '☠️', desc: '+40 max health and 8% damage reduction.', branch: 'Body', tier: 3, req: 'hardened', apply: (pl) => { pl.maxHp += 40; pl.hp += 40; pl.stats.armor += 0.08; } }),
+      human_collection: passive({ name: 'Human Collection', icon: '🫙', desc: 'Transfigured humans last 5s longer and one more is released each time.', branch: 'Humans', tier: 2, req: 'humans', apply: (pl, k) => { k.humanBonus = true; } }),
+      evolving: passive({ name: 'Evolving Soul', icon: '🧬', desc: 'Every transfiguration restores 5 Cursed Energy and 2% health.', branch: 'Soul', tier: 3, req: 'perception', apply: (pl, k) => { k.evolving = true; } }),
     };
     this.domain = {
       name: 'Self-Embodiment of Perfection', icon: '✋', key: 'self_embodiment', type: 6, color: SOUL, sound: 'perfection', flash: 0x9ad8ff,
@@ -218,17 +245,17 @@ class MahitoKit extends Kit {
       onEnd: (g, d) => { d.touched?.clear(); this.lowerHands(); },
     };
   }
-  dispose() { super.dispose(); this.disposed = true; this.lowerHands(); }
+  dispose() { super.dispose(); this.disposed = true; this.lowerHands(); this.p.object?.scale.setScalar(1); }
   // ------------------------------------------------------------ soul
   soulTouch(e, n = 1) {
     if (!e || e.dead) return;
-    e.soul = Math.min(6, (e.soul ?? 0) + n); e.soulT = 4;
+    e.soul = Math.min(6, (e.soul ?? 0) + n * (this.buffs.has('perception') || this.buffs.has('distorted') ? 2 : 1)); e.soulT = this.soulDur ?? 4;
     e.soulTick = e.soulTick ?? 0.5;
     this.checkTransfig(e);
   }
   checkTransfig(e) {
     if (e.dead || e.isDummy) return;
-    const thresh = 0.22 + this.rank('idle') * 0.05;
+    const thresh = 0.22 + this.rank('idle') * 0.05 + (this.buffs.has('perception') ? 0.1 : 0);
     if (!e.isBoss && (e.hp / e.maxHp <= thresh || e.soul >= 6)) this.transfigure(e);
     else if (e.isBoss && e.soul >= 6) {
       // a soul too big to reshape — it ruptures instead
@@ -243,6 +270,7 @@ class MahitoKit extends Kit {
     const at = e.pos.clone().setY(e.pos.y + e.height * 0.5), base = e.pos.clone();
     g.combat.damageEnemy(e, (e.hp + 1) / Math.max(0.2, 1 - (e.armor ?? 0)), p, { unblockable: true, stagger: 0, color: '#7ac8f0' });
     if (!e.dead) return;
+    if (this.evolving) { p.gainCE(5); p.heal?.(p.maxHp * 0.02, true); }
     // reshape it: the body twists as it collapses
     e.object?.scale.set(1.5, 0.5, 1.2);
     g.fx.splat(at, FLESH); g.fx.splat(at, 0x8a1a1a);
@@ -323,7 +351,7 @@ class MahitoKit extends Kit {
   humans() {
     const g = this.game, p = this.p;
     this.cast(0.5, true);
-    const n = 3 + (this.rank('collector') >= 2 ? 1 : 0);
+    const n = 3 + (this.rank('collector') >= 2 ? 1 : 0) + (this.humanBonus ? 1 : 0);
     const old = g.allies.filter((a) => a.owner === p && a.kind === 'transfigured' && !a.dead);
     while (old.length + n > 7) old.shift().despawn(true);
     for (let i = 0; i < n; i++) {
@@ -331,7 +359,7 @@ class MahitoKit extends Kit {
       const pos = p.pos.clone().add(tmp.set(Math.sin(a) * 1.5, 0, Math.cos(a) * 1.5));
       const gy = g.world.groundBelow(pos.x, pos.z, p.pos.y + 2);
       if (isFinite(gy) && Math.abs(gy - p.pos.y) < 3) pos.y = gy; else pos.copy(p.pos);
-      g.allies.push(new TransHuman(g, p, pos, { life: 15, dmgMult: 1 + this.rank('collector') * 0.15 }));
+      g.allies.push(new TransHuman(g, p, pos, { life: 15 + (this.humanBonus ? 5 : 0), dmgMult: 1 + this.rank('collector') * 0.15 }));
     }
     // they are spat out of his own body
     g.particles.burst(p.pos.clone().setY(p.pos.y + 1), { count: 30, color: FLESH, additive: false, speed: 4, life: 0.7, size: 0.35, sizeEnd: 1 });
@@ -368,6 +396,248 @@ class MahitoKit extends Kit {
     g.fx.screenWave(at, 1.1, 0.5); g.fx.flash(0x6aa8d0, 0.35, 0.2); g.fx.chroma(1);
     g.shake(0.7); g.hitStop(0.08);
     g.audio?.energy('explode');
+  }
+  // ============================================================== tree abilities
+  onBlackFlash(t) { this.soulTouch(t, 3); this.handprint(t); }
+  // a stitched arm stretched from Mahito's shoulder to `to`
+  armFx(to, color = FLESH) {
+    const g = this.game, from = this.handPos(), n = Math.max(4, Math.round(from.distanceTo(to) * 3));
+    for (let i = 0; i <= n; i++) { const k = i / n; g.particles.burst(tmp.lerpVectors(from, to, k), { count: 1, color: i % 5 === 0 ? STITCH : color, additive: false, speed: 0.1, life: 0.18, size: 0.32, sizeEnd: 0.25 }); }
+  }
+  stretchArm() {
+    const g = this.game, p = this.p, f = this.fwd(), L = 11;
+    p.facing = this.aimAngle();
+    this.pose('punch', 0.35);
+    let first = null, fd = L;
+    this.line(p.pos, f, L, 0.8, (e, along) => { if (along < fd) { fd = along; first = e; } });
+    const tip = first ? first.pos.clone().setY(first.pos.y + first.height * 0.6) : this.handPos().addScaledVector(f, L);
+    this.armFx(tip);
+    g.audio?.whoosh(1.1);
+    if (!first) return;
+    this.hit(first, 14 + this.rank('idle') * 4, { stagger: 0.7, knock: new THREE.Vector3(), color: '#7ac8f0' });
+    this.handprint(first); this.soulTouch(first, 2);
+    if (!first.dead && !first.isBoss) {
+      const to = p.pos.clone().addScaledVector(f, 1.4 + first.radius);
+      const gy = g.world.groundBelow(to.x, to.z, p.pos.y + 2);
+      if (isFinite(gy) && Math.abs(gy - p.pos.y) < 3 && !g.world.solidAt(to.x, gy + 0.5, to.z)) { to.y = gy; g.fx.blinkPuff(first.pos, SOUL); first.pos.copy(to); first.vel?.set(0, 0, 0); }
+      this.stun(first, 0.8);
+    }
+    g.audio?.impact(1.1);
+  }
+  palmBarrage() {
+    const g = this.game, p = this.p;
+    const styles = ['punch', 'swingL', 'swingR'];
+    for (let i = 0; i < 6; i++) this.after(i * 0.1, () => {
+      p.facing = this.aimAngle();
+      this.pose(styles[i % 3], 0.11);
+      const f = this.fwd();
+      for (const e of this.foes(p.pos, 3, f, 0.8)) { this.hit(e, 8 + this.rank('idle') * 2, { melee: true, stagger: 0.25, knock: f.clone().multiplyScalar(0.6), color: '#7ac8f0' }); this.soulTouch(e, 1); this.handprint(e); }
+      g.particles.burst(this.handPos(), { count: 6, color: SOUL, speed: 3, life: 0.2, size: 0.1, shape: 1 });
+      g.audio?.impact(0.7);
+    });
+  }
+  soulRupture() {
+    const g = this.game, p = this.p, R = 14;
+    const souls = g.enemies.filter((e) => !e.dead && (e.soul ?? 0) > 0 && e.pos.distanceTo(p.pos) < R);
+    if (!souls.length) { g.toast?.('No distorted souls nearby — touch some first'); g.audio?.ui('back'); return false; }
+    this.cast(0.45, true);
+    g.fx.rings.spawn(tmp.set(p.pos.x, p.pos.y + 0.08, p.pos.z), { color: SOUL, r0: 0.4, r1: R, dur: 0.4, thick: 0.1 });
+    g.audio?.tone?.({ freq: 160, to: 60, dur: 0.5, gain: 0.18, type: 'sawtooth', filter: 900 });
+    this.after(0.25, () => {
+      for (const e of souls) {
+        if (e.dead) continue;
+        const st = e.soul ?? 0, at = e.pos.clone().setY(e.pos.y + e.height * 0.55);
+        e.soul = 0;
+        this.hit(e, 10 + st * (12 + this.rank('distort') * 3), { unblockable: true, stagger: 0.4 + st * 0.1, color: '#7ac8f0' });
+        g.fx.explosion(at, SOUL, 0.8 + st * 0.25);
+        g.particles.burst(at, { count: 8 + st * 3, color: FLESH, additive: false, speed: 4, life: 0.6, size: 0.25, sizeEnd: 0.6 });
+        if (!e.dead) this.checkTransfig(e);
+      }
+      g.fx.chroma(0.8); g.shake(0.4); g.hitStop(0.05); g.audio?.energy('explode');
+    });
+  }
+  bladeArm() {
+    const g = this.game, p = this.p;
+    for (let i = 0; i < 2; i++) this.after(i * 0.13, () => {
+      p.facing = this.aimAngle();
+      this.pose(i ? 'swingL' : 'swingR', 0.14);
+      const f = this.fwd();
+      for (const e of this.foes(p.pos, 3.1, f, 1)) { this.hit(e, 11, { melee: true, stagger: 0.3, knock: f.clone().multiplyScalar(1.5) }); this.soulTouch(e, 1); }
+      g.fx.slashArc(p.pos, p.facing, i ? BONE : SOUL, 3, 0.45, 0.14, i === 1);
+      g.audio?.swing(i);
+    });
+  }
+  hammerFist() {
+    const g = this.game, p = this.p, R = 3;
+    const c = p.pos.clone().addScaledVector(this.fwd(), 2.6); c.y = this.groundAt(c.x, c.z, p.pos.y);
+    p.facing = this.aimAngle();
+    g.fx.rings.spawn(tmp.set(c.x, c.y + 0.08, c.z), { color: SOUL, r0: R, r1: R * 0.95, dur: 0.35, thick: 0.1 });
+    // the arm swells into a huge fleshy mallet
+    const mallet = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.6, 2.2), new THREE.MeshStandardNodeMaterial({ color: FLESH, roughness: 0.8 }));
+    g.scene.add(mallet);
+    this.cast(0.5, true, { lock: true, hold: true, cancelable: false, moveScale: 0 });
+    this.during(0.32, (t, dt, k) => {
+      const a = -1.2 + k * 2.4, h = this.handPos();
+      mallet.position.set(h.x + Math.sin(p.facing) * (1 + Math.sin(a + 1.2) * 1.2), p.pos.y + 1.5 + Math.cos(a + 1.2) * 1.6, h.z + Math.cos(p.facing) * (1 + Math.sin(a + 1.2) * 1.2));
+      mallet.rotation.set(a, p.facing, 0); mallet.scale.setScalar(0.5 + k * 0.6);
+    }, () => {
+      g.scene.remove(mallet); mallet.geometry.dispose(); mallet.material.dispose();
+      if (p.action?.lock) p.action = null;
+      const n = g.combat.aoe(c, R, 38, p, { melee: true, knock: 5, stagger: 1, falloff: true });
+      for (const e of this.foes(c, R)) { this.stun(e, 1.3); this.soulTouch(e, 1); }
+      g.fx.shockwave(c, SOUL, R + 1); g.fx.landDust(c, 26); g.debris.burst(c.clone().setY(c.y + 0.3), B.stone, 6, 0.8);
+      g.shake(0.5); g.hitStop(n ? 0.08 : 0.03); g.audio?.impact(1.8);
+    });
+  }
+  boneLance() {
+    const g = this.game, p = this.p;
+    this.cast(0.25);
+    const pr = this.shoot({ speed: 30, shape: 'arrow', color: BONE, emissive: 0.5, scale: 1.4, life: 0.6, radius: 0.45, pierce: true,
+      trail: (q) => { if (Math.random() < 0.5) g.particles.burst(q.pos, { count: 1, color: BONE, additive: false, speed: 0.3, life: 0.2, size: 0.12, sizeEnd: 0.05 }); },
+      onHit: (e, q) => { this.hit(e, 18 + this.rank('repel') * 4, { stagger: 0.4, knock: q.vel.clone().setLength(3) }); this.soulTouch(e, 1); g.fx.hitSpark(q.pos, null, { color: BONE }); } });
+    if (!pr) return false;
+    g.audio?.energy('slash');
+  }
+  wings() {
+    const g = this.game, p = this.p, f = this.fwd();
+    // two broad, fleshy wings sprout for the glide
+    const mat = new THREE.MeshStandardNodeMaterial({ color: 0xb8a098, roughness: 0.8 });
+    const wings = [-1, 1].map((sx) => { const m = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.1, 1), mat); g.scene.add(m); return { m, sx }; });
+    p.vel.y = 8; p.grounded = false;
+    g.audio?.whoosh(1.4);
+    this.dash(f, 10, 0.5, { color: SOUL, iframes: 0.6, onEnd: () => {
+      for (const w of wings) { g.scene.remove(w.m); w.m.geometry.dispose(); } mat.dispose();
+      for (const e of this.foes(p.pos, 3)) { this.hit(e, 16, { stagger: 0.5, knock: tmp.subVectors(e.pos, p.pos).setY(0).normalize().multiplyScalar(4) }); this.soulTouch(e, 1); this.handprint(e); }
+      g.fx.shockwave(p.pos, SOUL, 3.5); g.fx.landDust(p.pos, 18);
+    } });
+    this.during(0.5, (t) => {
+      for (const w of wings) {
+        const a = p.facing + w.sx * Math.PI / 2;
+        w.m.position.set(p.pos.x + Math.sin(a) * 1.1 - Math.sin(p.facing) * 0.3, p.pos.y + 1.5, p.pos.z + Math.cos(a) * 1.1 - Math.cos(p.facing) * 0.3);
+        w.m.rotation.set(0, p.facing, w.sx * (0.3 + Math.sin(t * 20) * 0.4));
+      }
+    });
+  }
+  hardened() {
+    const g = this.game, p = this.p;
+    this.cast(0.3, true);
+    g.toast?.('🐢 Hardened Body'); g.audio?.charge?.(0.3, 0.4);
+    this.buff('hardened', 4, {
+      incoming: (a, src) => { if (src && !src.dead && !src.isPlayer && src.takeDamage && src.pos?.distanceTo(p.pos) < 5) this.soulTouch(src, 1); return a * 0.4; },
+      onTick: () => { if (Math.random() < 0.5) g.particles.burst(tmp.set(p.pos.x + (Math.random() - 0.5), p.pos.y + Math.random() * 1.8, p.pos.z + (Math.random() - 0.5)), { count: 1, color: BONE, additive: false, speed: 0.4, life: 0.4, size: 0.2, sizeEnd: 0.05 }); },
+    });
+  }
+  drillArm() {
+    const g = this.game, p = this.p, f = this.fwd();
+    this.pose('punch', 0.5);
+    g.audio?.whoosh(1.6);
+    const last = new Map();
+    let t0 = 0;
+    this.dash(f, 8, 0.5, { color: SOUL, iframes: 0.6 });
+    this.during(0.5, (t, dt) => {
+      t0 -= dt;
+      const h = this.handPos();
+      for (let i = 0; i < 3; i++) { const a = t * 40 + i * 2.1; g.particles.burst(tmp.set(h.x + Math.cos(a) * 0.3, h.y + Math.sin(a) * 0.3, h.z), { count: 1, color: i ? BONE : SOUL, additive: !i, speed: 2, life: 0.15, size: 0.12, shape: 1 }); }
+      if (t0 > 0) return;
+      t0 = 0.08;
+      for (const e of this.foes(p.pos, 2, f, 1)) {
+        this.hit(e, 9, { melee: true, unblockable: true, stagger: 0.3, knock: f.clone().multiplyScalar(2) });
+        if (!last.has(e)) { last.set(e, 1); this.soulTouch(e, 2); }
+        g.fx.hitSpark(e.pos.clone().setY(e.pos.y + 1), f, { color: BONE });
+      }
+      g.combat.hitBlocks(p.pos.clone().addScaledVector(f, 1), f, 1.2, Math.PI, 30, p);
+    });
+  }
+  pocketHumans() {
+    const g = this.game, p = this.p;
+    this.pose('throw', 0.35);
+    const base = this.aimAngle();
+    for (let i = 0; i < 3; i++) {
+      const a = base + (i - 1) * 0.2, dist = 7 + i, flight = 0.5, grav = 20;
+      const vel = new THREE.Vector3(Math.sin(a), 0, Math.cos(a)).multiplyScalar(dist / flight); vel.y = 0.5 * grav * flight;
+      g.projectiles.fire({ pos: this.handPos(), vel, team: 'player', shape: 'cube', color: FLESH, emissive: 0.1, gravity: grav, life: 1.5, scale: 0.7, radius: 0.35,
+        onHit: (e) => { this.hit(e, 8, { stagger: 0.3 }); this.soulTouch(e, 1); },
+        onExpire: (q) => {
+          // it swells back to a human's size — and bursts
+          g.fx.splat(q.pos, FLESH); g.fx.splat(q.pos, 0x8a1a1a);
+          g.particles.burst(q.pos, { count: 12, color: FLESH, additive: false, speed: 3, up: 1, life: 0.5, size: 0.3, sizeEnd: 0.7 });
+          g.combat.aoe(q.pos, 2, 12 * (1 + this.rank('collector') * 0.15), p, { knock: 4, stagger: 0.4, blocks: false });
+          for (const e of this.foes(q.pos, 2.2)) this.soulTouch(e, 1);
+          g.audio?.energy('spit');
+        } });
+    }
+    g.audio?.whoosh(0.8);
+  }
+  multiplicity() {
+    const g = this.game, p = this.p;
+    this.cast(0.6, true);
+    const pos = p.pos.clone().addScaledVector(this.fwd(), 2);
+    const gy = g.world.groundBelow(pos.x, pos.z, p.pos.y + 2);
+    if (isFinite(gy) && Math.abs(gy - p.pos.y) < 3) pos.y = gy; else pos.copy(p.pos);
+    // several souls are kneaded into one body
+    for (let i = 0; i < 4; i++) { const a = i / 4 * Math.PI * 2; for (let k = 0; k < 6; k++) g.particles.glow.emit(pos.x + Math.cos(a) * 3, pos.y + 1, pos.z + Math.sin(a) * 3, -Math.cos(a) * 6, 0.5, -Math.sin(a) * 6, 0.5, 0.9, 1.4, 1.8, 0.2, 0, 1, 0.3, 0); }
+    const giant = new TransHuman(g, p, pos, { life: 16 + (this.humanBonus ? 5 : 0), hpMult: 5, dmgMult: 3 * (1 + this.rank('collector') * 0.15) });
+    giant.object.scale.setScalar(2.2); giant.radius = 0.9; giant.height = 2.8; giant.speed = 5.5;
+    g.allies.push(giant);
+    g.fx.shockwave(pos, SOUL, 4); g.shake(0.35);
+    g.audio?.energy('summon'); g.audio?.tone?.({ freq: 120, to: 60, dur: 0.5, gain: 0.15, type: 'sawtooth', filter: 700 });
+  }
+  reshapeBody() {
+    const g = this.game, p = this.p;
+    if (this.rctHeal(0.3, 1.5, SOUL) === false) return false;
+    p.slowT = 0;
+    g.particles.burst(p.pos.clone().setY(p.pos.y + 1), { count: 20, color: FLESH, additive: false, speed: 2, life: 0.5, size: 0.3, sizeEnd: 0.05 });
+  }
+  shrink() {
+    const g = this.game, p = this.p;
+    const s0 = p.object.scale.x;
+    p.untargetable = true;
+    for (const e of g.enemies) if (e.target === p) e.target = null;
+    g.fx.blinkPuff(p.pos, SOUL);
+    g.audio?.tone?.({ freq: 700, to: 1400, dur: 0.15, gain: 0.08, type: 'triangle' });
+    this.statBuff('shrink', 1.5, { speed: 0.6 }, {
+      onStart: () => p.object.scale.setScalar(s0 * 0.4),
+      onTick: () => { for (const e of g.enemies) if (e.target === p) e.target = null; },
+      onEnd: (disposing) => {
+        p.untargetable = false;
+        p.object.scale.setScalar(s0);
+        if (disposing) return;
+        // swelling back to size: a burst of bone spikes
+        for (let i = 0; i < 10; i++) { const a = i / 10 * Math.PI * 2; g.fx.slashLine(p.pos.clone().setY(p.pos.y + 1), tmp.set(Math.sin(a), 0.2, Math.cos(a)), 2.4, BONE, 0.15, 0.25); }
+        g.combat.aoe(p.pos, 2.8, 18, p, { knock: 8, stagger: 0.6 });
+        for (const e of this.foes(p.pos, 3)) this.soulTouch(e, 1);
+        g.fx.shockwave(p.pos, SOUL, 3); g.audio?.energy('slash');
+      },
+    });
+  }
+  perception() {
+    const g = this.game, p = this.p;
+    this.cast(0.35, true);
+    g.toast?.('👁️ Soul Perception'); g.fx.flash(0x0a2030, 0.25, 0.2);
+    g.audio?.tone?.({ freq: 300, to: 600, dur: 0.4, gain: 0.08, type: 'sine', rev: 0.5 });
+    this.buff('perception', 8, { onTick: () => {
+      // every soul nearby glows through the body
+      for (const e of g.enemies) if (!e.dead && Math.random() < 0.08 && e.pos.distanceTo(p.pos) < 18) g.particles.glow.emit(e.pos.x, e.pos.y + e.height * 0.6, e.pos.z, 0, 0.4, 0, 0.4, 0.8, 1.6, 2.4, 0.25, 0, 1, 0.4, 0);
+    } });
+  }
+  distortedKilling() {
+    const g = this.game, p = this.p;
+    if (this.buffs.has('distorted')) return false;
+    p.action = { type: 'cast', both: true, dur: 0.7, elapsed: 0, t: 0, moveScale: 0, lock: true, hold: true, cancelable: false };
+    p.iframes = Math.max(p.iframes, 0.9);
+    g.toast?.('INSTANT SPIRIT BODY OF DISTORTED KILLING', 'big');
+    g.fx.flash(0x0a1a28, 0.45, 0.3); g.fx.chroma(1.2); g.fx.screenWave(p.pos.clone().setY(p.pos.y + 1), 1, 0.5);
+    g.fx.rings.spawn(tmp.set(p.pos.x, p.pos.y + 0.08, p.pos.z), { color: SOUL, r0: 0.5, r1: 6, dur: 0.6, thick: 0.2 });
+    g.particles.burst(p.pos.clone().setY(p.pos.y + 1), { count: 40, color: FLESH, additive: false, speed: 5, life: 0.8, size: 0.4, sizeEnd: 1 });
+    g.audio?.tone?.({ freq: 90, to: 45, dur: 1, gain: 0.25, type: 'sawtooth', filter: 700, rev: 0.6 });
+    g.combat.aoe(p.pos, 4, 30, p, { knock: 12, stagger: 1 });
+    const s0 = p.object.scale.x;
+    this.after(0.6, () => { if (p.action?.lock) p.action = null; });
+    this.statBuff('distorted', 10, { meleeMult: 0.4, techMult: 0.25, armor: 0.3, speed: 0.2 }, {
+      onStart: () => p.object.scale.setScalar(s0 * 1.25),
+      onTick: () => { if (Math.random() < 0.6) g.particles.glow.emit(p.pos.x + (Math.random() - 0.5) * 1.2, p.pos.y + Math.random() * 2.3, p.pos.z + (Math.random() - 0.5) * 1.2, 0, 1, 0, 0.5, 0.8, 1.6, 2.4, 0.14, 0, 1, 0.3, 1); },
+      onEnd: () => p.object.scale.setScalar(s0),
+    });
   }
   // ------------------------------------------------------------ domain
   // Idle Transfiguration as a sure-hit: every soul inside is touched once

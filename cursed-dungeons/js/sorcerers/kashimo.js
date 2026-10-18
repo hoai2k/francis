@@ -16,7 +16,7 @@
 //        breaks down: most of his HP drains away and he cannot use techniques
 //        for a few seconds.
 import * as THREE from 'three/webgpu';
-import { Kit } from './kit.js';
+import { Kit, ability, passive } from './kit.js';
 import { registerKit, registerSorcerer } from './index.js';
 import { registerLook } from '../entities/models.js';
 
@@ -52,11 +52,11 @@ registerLook('kashimo', {
 });
 
 export const KASHIMO_SKILLS = [
-  { id: 'conduct', name: 'Conductivity', desc: 'Charge stacks faster; strikes and Full Discharge hit harder.', max: 3 },
-  { id: 'chain', name: 'Chain Lightning', desc: 'Discharge jumps to one more curse per rank.', max: 2 },
-  { id: 'staff', name: 'Nyoi Staff', desc: '+8% melee damage per rank; the planted staff lasts longer.', max: 3 },
-  { id: 'clap', name: 'Charged Strike', desc: 'Charged Strike hits harder per Charge.', max: 2, req: 'conduct' },
-  { id: 'amber', name: 'Mythical Beast', desc: 'Mythical Beast Amber lasts 2s longer and the breakdown is gentler.', max: 2 },
+  { id: 'conduct', name: 'Conductivity', icon: '⚡', desc: 'Charge stacks faster; strikes and Full Discharge hit harder.', max: 3, branch: 'Charge', tier: 0 },
+  { id: 'chain', name: 'Chain Lightning', icon: '⛓️', desc: 'Discharge jumps to one more curse per rank.', max: 2, req: 'ab:discharge', branch: 'Discharge', tier: 1 },
+  { id: 'staff', name: 'Nyoi Staff', icon: '🦯', desc: '+8% melee damage per rank; staff techniques hit harder and the planted staff lasts longer.', max: 3, branch: 'Staff', tier: 0 },
+  { id: 'clap', name: 'Charged Strike', icon: '🌩️', desc: 'Charged Strike hits harder per Charge.', max: 2, req: ['conduct', 'ab:thunderclap'], branch: 'Charge', tier: 2 },
+  { id: 'amber', name: 'Mythical Beast', icon: '🐉', desc: 'Mythical Beast Amber lasts 2s longer and the breakdown is gentler.', max: 2, branch: 'Storm', tier: 5 },
 ];
 
 // Jagged lightning between two points, drawn from short slash quads.
@@ -87,11 +87,39 @@ class KashimoKit extends Kit {
       { style: 'slam', dur: 0.56, windup: 0.42, strike: 0.6, dmg: 28, range: 3.5, arc: Math.PI, lunge: 4, knock: 11, stop: 0.09, shake: 0.42, ring: true, ringColor: VOLT, stagger: 0.55, trail: VOLT },
     ];
     this.p.stats.meleeMult += r('staff') * 0.08;
-    this.slots = {
-      ranged: this.ability({ name: 'Electric Discharge', icon: '⚡', cd: 0.9, ce: 0, use: () => (this.amberT > 0 ? this.beam() : this.discharge()) }),
-      t1: this.ability({ name: 'Staff Throw', icon: '🦯', cd: 8, ce: 12, use: () => this.staffThrow() }),
-      t2: this.ability({ name: 'Charged Strike', icon: '🌩️', cd: 7, ce: 16, use: () => this.thunderclap() }),
-      t3: this.ability({ name: 'Full Discharge', icon: '💥', cd: 12, ce: 26, use: () => this.fullDischarge() }),
+    this.branches = ['Discharge', 'Staff', 'Charge', 'Storm'];
+    this.library = {
+      // ---- Discharge: raw electric cursed energy
+      discharge: ability({ name: 'Electric Discharge', icon: '⚡', kind: 'basic', desc: 'A bolt that chains between curses, favouring charged ones. During Mythical Beast Amber it becomes a beam.', cd: 0.9, ce: 0, branch: 'Discharge', tier: 0, start: true, legacy: 'ranged', use: () => (this.amberT > 0 ? this.beam() : this.discharge()) }),
+      spark_bolt: ability({ name: 'Spark Bolt', icon: '🌠', kind: 'basic', desc: 'A fast, straight bolt that stores 2 Charge in the curse it hits.', cd: 0.7, ce: 0, branch: 'Discharge', tier: 1, req: 'discharge', use: () => this.sparkBolt() }),
+      ball_lightning: ability({ name: 'Ball Lightning', icon: '🔵', kind: 'technique', desc: 'A slow, crackling orb that zaps and charges every curse it drifts past, then bursts into a lightning strike.', cd: 8, ce: 12, branch: 'Discharge', tier: 2, req: 'spark_bolt', use: () => this.ballLightning() }),
+      em_wave: ability({ name: 'Electromagnetic Wave', icon: '📡', kind: 'technique', desc: 'A wave of electromagnetism washes over the front: curses are charged (+2), jolted stiff for a moment and shown to you.', cd: 9, ce: 12, branch: 'Discharge', tier: 3, req: 'spark_bolt', use: () => this.emWave() }),
+      full_discharge: ability({ name: 'Full Discharge', icon: '💥', kind: 'technique', desc: 'All his stored electricity leaves his body in a burst.', cd: 12, ce: 26, branch: 'Discharge', tier: 3, legacy: 't3', req: 'ball_lightning', use: () => this.fullDischarge() }),
+      lightning_beam: ability({ name: 'Lightning Beam', icon: '🔆', kind: 'technique', desc: 'Gather current in the palm for half a second, then fire a beam of pure electricity that cuts through curses and walls.', cd: 12, ce: 22, branch: 'Discharge', tier: 4, req: 'full_discharge', use: () => this.lightningBeam() }),
+      // ---- Staff: the Nyoi staff
+      staff_throw: ability({ name: 'Staff Throw', icon: '🦯', kind: 'technique', desc: 'The staff flies out and plants itself as a lightning rod that zaps every curse around it.', cd: 8, ce: 12, branch: 'Staff', tier: 1, legacy: 't1', use: () => this.staffThrow() }),
+      staff_sweep: ability({ name: 'Nyoi Sweep', icon: '🌀', kind: 'technique', desc: 'Whirl the staff around you: every curse it strikes is knocked back and charged.', cd: 5, ce: 6, branch: 'Staff', tier: 1, use: () => this.staffSweep() }),
+      staff_thrust: ability({ name: 'Extending Thrust', icon: '🥢', kind: 'basic', desc: 'The staff shoots out to twice its length, piercing everything on the line.', cd: 1.0, ce: 0, branch: 'Staff', tier: 2, req: 'staff_sweep', use: () => this.staffThrust() }),
+      pole_vault: ability({ name: 'Pole Vault', icon: '🤸', kind: 'movement', desc: 'Vault on the staff to the aim point and land in a lightning strike.', cd: 7, ce: 8, branch: 'Staff', tier: 2, req: 'staff_throw', use: () => this.poleVault() }),
+      staff_flurry: ability({ name: 'Staff Flurry', icon: '🎋', kind: 'technique', desc: 'Eight lightning-quick jabs into the front, each one storing Charge.', cd: 8, ce: 12, branch: 'Staff', tier: 3, req: 'staff_thrust', use: () => this.staffFlurry() }),
+      // ---- Charge: lightning drawn to the charge
+      thunderclap: ability({ name: 'Charged Strike', icon: '🌩️', kind: 'technique', desc: 'Every charged curse is struck from the sky at once.', cd: 7, ce: 16, branch: 'Charge', tier: 1, legacy: 't2', use: () => this.thunderclap() }),
+      static_field: ability({ name: 'Static Field', icon: '🟦', kind: 'technique', desc: 'Electrify the marked ground for 5s: curses inside are zapped and charged every half second.', cd: 12, ce: 14, branch: 'Charge', tier: 2, req: 'thunderclap', use: () => this.staticField() }),
+      magnetize: ability({ name: 'Magnetize', icon: '🧲', kind: 'technique', desc: 'Charged curses are dragged together toward the aim point — harder the more Charge they carry.', cd: 10, ce: 12, branch: 'Charge', tier: 2, req: 'thunderclap', use: () => this.magnetize() }),
+      conductor: ability({ name: 'Conductor', icon: '🔗', kind: 'technique', desc: 'Current jumps between every pair of charged curses close to each other, burning them all.', cd: 9, ce: 16, branch: 'Charge', tier: 3, req: 'magnetize', use: () => this.conductor() }),
+      overload: ability({ name: 'Overload', icon: '🔋', kind: 'technique', desc: 'Double the Charge in every charged curse — anything pushed past the limit discharges on the spot.', cd: 14, ce: 22, branch: 'Charge', tier: 4, req: ['conductor', 'static_field'], use: () => this.overload() }),
+      // ---- Storm: the God of Lightning
+      lightning_step: ability({ name: 'Lightning Step', icon: '⚡', kind: 'movement', desc: 'Move as a bolt: blink forward, zapping and charging every curse you pass through.', cd: 5, ce: 6, branch: 'Storm', tier: 1, use: () => this.lightningStep() }),
+      reflexes: ability({ name: 'Lightning Reflexes', icon: '🧠', kind: 'buff', desc: 'Electricity races down his nerves: 30% faster attacks and 20% faster movement for 6s.', cd: 18, ce: 12, branch: 'Storm', tier: 2, req: 'lightning_step', use: () => this.reflexes() }),
+      electro_shield: ability({ name: 'Electric Barrier', icon: '🛡️', kind: 'defence', desc: 'A crackling field for 4s: you take 40% less damage and every attacker is shocked and charged.', cd: 15, ce: 12, branch: 'Storm', tier: 2, req: 'lightning_step', use: () => this.electroShield() }),
+      thunderstorm: ability({ name: 'Thunderstorm', icon: '⛈️', kind: 'technique', desc: 'For 4s lightning rains down around you (each bolt\'s spot flashes first), seeking charged curses.', cd: 16, ce: 26, branch: 'Storm', tier: 3, req: 'reflexes', use: () => this.thunderstorm() }),
+      heaven_strike: ability({ name: 'Heaven\'s Strike', icon: '🌩️', kind: 'technique', desc: 'Mark the aim with a ring, then call down a colossal bolt that blasts, charges and stuns everything inside.', cd: 18, ce: 32, branch: 'Storm', tier: 4, req: 'thunderstorm', use: () => this.heavenStrike() }),
+    };
+    this.passives = {
+      conductive_body: passive({ name: 'Conductive Body', icon: '🔌', desc: 'Charge builds 50% faster.', branch: 'Charge', tier: 2, req: 'thunderclap', apply: (pl, k) => { k.chargeMul = 1.5; } }),
+      static_skin: passive({ name: 'Static Skin', icon: '✴️', desc: 'Anything that hits you is shocked and charged.', branch: 'Storm', tier: 3, req: 'electro_shield', apply: (pl, k) => { k.staticSkin = true; } }),
+      lightning_rod: passive({ name: 'Lightning Rod', icon: '🗼', desc: 'The planted staff lasts 3s longer, reaches 2m further and zaps 30% harder.', branch: 'Staff', tier: 3, req: 'staff_throw', apply: (pl, k) => { k.rodBonus = 3; k.rodR = 7.5; k.rodMul = 1.3; } }),
+      seeker: passive({ name: 'Seeker of the Strongest', icon: '🔥', desc: '400 years of looking for a worthy fight: +12% damage and +20 max health.', branch: 'Discharge', tier: 3, req: 'spark_bolt', apply: (pl) => { pl.stats.damage += 0.12; pl.maxHp += 20; pl.hp += 20; } }),
     };
     this.amberT = 0; this.burnT = 0; this.arcT = 0; this.rod = null;
     this.ultimate = { name: 'Mythical Beast Amber', icon: '🐉', use: () => this.amber() };
@@ -99,7 +127,7 @@ class KashimoKit extends Kit {
   // ------------------------------------------------------------ charge & lightning
   charge(e, n) {
     if (e.dead) return;
-    e.kCharge = (e.kCharge ?? 0) + n * (1 + this.rank('conduct') * 0.25);
+    e.kCharge = (e.kCharge ?? 0) + n * (1 + this.rank('conduct') * 0.25) * (this.chargeMul ?? 1);
     if (e.kCharge >= 5) { e.kCharge = 0; this.strike(e.pos.clone(), 30 + this.rank('conduct') * 10, 2); this.game.fx.damageNumber(e.pos, 0, { text: 'DISCHARGE', color: '#6ae8ff', crit: true }); }
   }
   // a lightning bolt from the sky onto a point
@@ -178,7 +206,7 @@ class KashimoKit extends Kit {
     g.scene.add(grp);
     const light = g.lights.attach(tip, VOLT, 6, 8, { offsetY: 0, priority: 3 });
     this.strike(at.clone(), 20, 2);
-    this.rod = { grp, light, t: 5 + this.rank('staff') * 1.5, tick: 0.2, top: at.clone().setY(at.y + 3) };
+    this.rod = { grp, light, t: 5 + this.rank('staff') * 1.5 + (this.rodBonus ?? 0), tick: 0.2, top: at.clone().setY(at.y + 3) };
   }
   removeRod() {
     if (!this.rod) return;
@@ -223,6 +251,244 @@ class KashimoKit extends Kit {
       g.shake(0.45); g.hitStop(0.05);
       g.audio?.noise({ dur: 0.5, gain: 0.5, type: 'highpass', freq: 2000, sweep: 400, rev: 0.4 }); g.audio?.blackFlash();
     }, 260);
+  }
+  // ------------------------------------------------------------ library abilities
+  incoming(amount, src) {
+    // Static Skin: whatever touches him gets shocked
+    const g = this.game, p = this.p;
+    if (this.staticSkin && src && src.pos && !src.dead && !src.isPlayer && g.enemies.includes(src) && g.time - (this.skinT ?? -9) > 0.3) {
+      this.skinT = g.time;
+      zap(g, p.pos.clone().setY(p.pos.y + 1.2), src.pos.clone().setY(src.pos.y + (src.height ?? 1.5) * 0.6), VOLT, 0.22, 4);
+      this.hit(src, 6, { stagger: 0.3, ceGain: 0 }); this.charge(src, 1);
+    }
+    return amount;
+  }
+  chargedFoes(R = 16) { const p = this.p; return this.game.enemies.filter((e) => !e.dead && (e.kCharge ?? 0) > 0 && e.pos.distanceTo(p.pos) < R); }
+  // ---- Discharge
+  sparkBolt() {
+    const g = this.game, p = this.p;
+    this.cast(0.22);
+    this.shoot({ speed: 42, shape: 'arrow', color: VOLT, emissive: 3, scale: 0.7, radius: 0.35, life: 0.45, light: 2,
+      trail: (q) => { if (Math.random() < 0.7) g.particles.burst(q.pos, { count: 1, color: WHITE, speed: 1, life: 0.15, size: 0.06, shape: 3 }); },
+      onHit: (e, q) => { this.hit(e, 12 + this.rank('conduct') * 2, { stagger: 0.25, knock: q.vel.clone().setY(0).setLength(1.5) }); this.charge(e, 2); g.fx.hitSpark(q.pos, null, { color: VOLT }); } });
+    g.audio?.noise({ dur: 0.1, gain: 0.25, type: 'highpass', freq: 3500, sweep: 1500 });
+  }
+  ballLightning() {
+    const g = this.game, p = this.p;
+    this.cast(0.35, true);
+    let done = false;
+    const pop = (q) => { if (done) return; done = true; this.strike(q.pos.clone(), 22, 2.2); };
+    this.shoot({ speed: 9, color: VOLT, emissive: 3.5, scale: 2.2, radius: 0.6, life: 1.7, light: 5, ghost: true, pierce: true, zt: 0,
+      trail: (q, dt) => {
+        if (Math.random() < 0.6) g.particles.burst(q.pos, { count: 1, color: Math.random() < 0.5 ? VOLT : WHITE, speed: 2.5, life: 0.2, size: 0.07, shape: 3 });
+        q.zt -= dt ?? 0.016;
+        if (q.zt > 0) return;
+        q.zt = 0.25;
+        for (const e of this.foes(q.pos, 3.5)) { zap(g, q.pos, e.pos.clone().setY(e.pos.y + e.height * 0.6), VOLT, 0.18, 4); this.hit(e, 7, { stagger: 0.2, ceGain: 1 }); this.charge(e, 1); }
+        if (Math.random() < 0.5) zap(g, q.pos, q.pos.clone().add(new THREE.Vector3((Math.random() - 0.5) * 3, (Math.random() - 0.5) * 2, (Math.random() - 0.5) * 3)), WHITE, 0.1, 3);
+      },
+      onExpire: (q) => pop(q) });
+    g.audio?.charge(0.3, 1.8);
+  }
+  emWave() {
+    const g = this.game, p = this.p, R = 9;
+    this.cast(0.35, true);
+    const face = this.aimAngle();
+    for (let i = 0; i < 5; i++) this.after(i * 0.04, () => g.fx.slashArc(p.pos, face, i % 2 ? WHITE : VOLT, 1.8 + i * 1.8, 0.8, 0.25));
+    const list = this.foes(p.pos, R, this.fwd(), 0.8);
+    for (const e of list) {
+      this.hit(e, 10 + this.rank('conduct') * 3, { stagger: 0.5 }); this.charge(e, 2);
+      if (!e.isBoss) this.stun(e, 0.6); else e.cancelAttack?.();
+      g.fx.damageNumber(e.pos.clone().setY(e.pos.y + e.height + 0.2), 0, { text: `⚡${Math.round(e.kCharge ?? 0)}`, color: '#6ae8ff' });
+    }
+    g.fx.chroma(0.4); g.audio?.noise({ dur: 0.35, gain: 0.3, type: 'bandpass', freq: 900, sweep: 3000, q: 3 });
+  }
+  lightningBeam() {
+    const g = this.game, p = this.p;
+    this.cast(0.85, true, { lock: true, moveScale: 0 });
+    g.audio?.charge(0.5, 1.6);
+    this.during(0.5, () => { const h = this.handPos(); zap(g, h.clone().add(new THREE.Vector3((Math.random() - 0.5) * 2.5, (Math.random() - 0.5) * 2, (Math.random() - 0.5) * 2.5)), h, Math.random() < 0.5 ? VOLT : WHITE, 0.12, 3); });
+    this.after(0.5, () => { if (p.dead) return; this.beam(); for (const e of this.foes(p.pos, 22, this.fwd(), 0.12)) this.charge(e, 1); g.fx.flash(0xc0f0ff, 0.2, 0.12); });
+  }
+  // ---- Staff
+  staffSweep() {
+    const g = this.game, p = this.p, R = 3.6;
+    this.pose('spin', 0.42);
+    let n = 0;
+    for (const e of this.foes(p.pos, R)) {
+      this.hit(e, 18 + this.rank('staff') * 5, { melee: true, stagger: 0.6, knock: tmp.subVectors(e.pos, p.pos).setY(0).normalize().multiplyScalar(e.isBoss ? 3 : 9) });
+      this.charge(e, 1); n++;
+      zap(g, p.pos.clone().setY(p.pos.y + 1.1), e.pos.clone().setY(e.pos.y + e.height * 0.5), VOLT, 0.15, 3);
+    }
+    g.fx.slashArc(p.pos, p.facing, VOLT, R, Math.PI, 0.25); g.fx.slashArc(p.pos, p.facing + Math.PI, WHITE, R * 0.8, Math.PI, 0.2);
+    if (n) { g.hitStop(0.04); g.audio?.impact(1.1); } else g.audio?.swing(2);
+  }
+  staffThrust() {
+    const g = this.game, p = this.p, dir = this.fwd(), L = 6.5;
+    this.pose('punch', 0.28); p.facing = Math.atan2(dir.x, dir.z);
+    const from = p.pos.clone().setY(p.pos.y + 1.15);
+    g.fx.slashLine(from, dir, L, 0x7a90b0, 0.22, 0.18, 0); g.fx.slashLine(from, dir, L, VOLT, 0.1, 0.2, Math.PI / 2);
+    this.line(p.pos, dir, L, 0.7, (e) => { this.hit(e, 16 + this.rank('staff') * 4, { melee: true, stagger: 0.4, knock: dir.clone().multiplyScalar(4) }); this.charge(e, 1); g.fx.hitSpark(e.pos.clone().setY(e.pos.y + e.height * 0.6), dir, { color: VOLT }); });
+    g.audio?.swing(1);
+  }
+  poleVault() {
+    const g = this.game, p = this.p;
+    const to = this.aimGround(9);
+    const d = tmp.subVectors(to, p.pos).setY(0); let dist = d.length();
+    if (dist < 3) { d.copy(this.fwd()); dist = 4; }
+    d.normalize();
+    p.vel.y = Math.max(p.vel.y, 9);
+    this.dash(d.clone(), dist, 0.42, { color: VOLT, iframes: 0.5, onEnd: () => {
+      this.strike(p.pos.clone(), 30 + this.rank('staff') * 6, 2.6);
+      for (const e of this.foes(p.pos, 2.6)) this.charge(e, 1);
+      g.fx.shockwave(p.pos, VOLT, 3);
+    } });
+    g.audio?.whoosh(1.2);
+  }
+  staffFlurry() {
+    const g = this.game, p = this.p;
+    this.cast(0.75, true, { lock: true, moveScale: 0.3 });
+    for (let i = 0; i < 8; i++) this.after(i * 0.08, () => {
+      if (p.dead) return;
+      const dir = this.fwd(); p.facing = Math.atan2(dir.x, dir.z);
+      const from = p.pos.clone().setY(p.pos.y + 0.9 + Math.random() * 0.5);
+      const jd = dir.clone().add(new THREE.Vector3((Math.random() - 0.5) * 0.3, 0, (Math.random() - 0.5) * 0.3)).normalize();
+      g.fx.slashLine(from, jd, 3.6, i % 2 ? VOLT : 0x9ab0d0, 0.16, 0.1, Math.random() * 3);
+      const list = this.foes(p.pos, 3.6, dir, 0.6);
+      for (const e of list) { this.hit(e, 7 + this.rank('staff') * 2, { melee: true, stagger: 0.25, knock: dir.clone().multiplyScalar(i === 7 ? 8 : 0.8) }); this.charge(e, 0.5); }
+      if (list.length) { g.audio?.impact(0.7); g.hitStop(0.015); } else g.audio?.swing(i % 3);
+    });
+  }
+  // ---- Charge
+  staticField() {
+    const g = this.game, p = this.p, R = 4;
+    const c = this.aimGround(10);
+    this.cast(0.35);
+    zap(g, this.handPos(), c.clone().setY(c.y + 0.2), VOLT, 0.25, 5);
+    this.zone(c, R, 5, 0.5, (list) => {
+      for (const e of list) { this.hit(e, 4 + this.rank('conduct'), { stagger: 0.15, ceGain: 1 }); this.charge(e, 1); zap(g, c.clone().setY(c.y + 0.3), e.pos.clone().setY(e.pos.y + e.height * 0.5), VOLT, 0.14, 3); }
+      const a = Math.random() * Math.PI * 2, r = Math.random() * R;
+      zap(g, c.clone().setY(c.y + 0.2), c.clone().add(new THREE.Vector3(Math.cos(a) * r, 0.2, Math.sin(a) * r)), WHITE, 0.1, 3);
+    }, { color: VOLT });
+    g.audio?.noise({ dur: 0.3, gain: 0.2, type: 'highpass', freq: 2500, sweep: 800 });
+  }
+  magnetize() {
+    const g = this.game, p = this.p, list = this.chargedFoes();
+    if (!list.length) { g.toast?.('No charged curses'); g.audio?.ui('back'); return false; }
+    const c = this.aimGround(10);
+    this.cast(0.4, true);
+    g.fx.rings.spawn(tmp.set(c.x, c.y + 0.08, c.z), { color: VOLT, r0: 4, r1: 0.4, dur: 0.4, thick: 0.15 });
+    for (const e of list) {
+      const to = tmp2.subVectors(c, e.pos).setY(0); const d = to.length();
+      if (!e.isBoss && d > 0.5) e.knock?.addScaledVector(to.normalize(), Math.min(18, d * (1.6 + (e.kCharge ?? 0) * 0.3)));
+      this.hit(e, 6 * Math.max(1, Math.round(e.kCharge ?? 1)), { stagger: 0.6, color: '#6ae8ff' });
+      zap(g, c.clone().setY(c.y + 1), e.pos.clone().setY(e.pos.y + e.height * 0.6), VOLT, 0.2, 5);
+    }
+    g.audio?.noise({ dur: 0.4, gain: 0.3, type: 'bandpass', freq: 400, sweep: 1600, q: 2 });
+  }
+  conductor() {
+    const g = this.game, p = this.p, list = this.chargedFoes();
+    if (!list.length) { g.toast?.('No charged curses'); g.audio?.ui('back'); return false; }
+    this.cast(0.4, true, { type: 'raise' });
+    const dmg = 10 + this.rank('conduct') * 3, burnt = new Map();
+    const burn = (e) => burnt.set(e, (burnt.get(e) ?? 0) + 1);
+    let links = 0;
+    for (let i = 0; i < list.length && links < 24; i++) for (let j = i + 1; j < list.length && links < 24; j++) {
+      const a = list[i], b = list[j];
+      if (a.pos.distanceTo(b.pos) > 9) continue;
+      zap(g, a.pos.clone().setY(a.pos.y + a.height * 0.6), b.pos.clone().setY(b.pos.y + b.height * 0.6), links % 2 ? WHITE : VOLT, 0.22, 5);
+      burn(a); burn(b); links++;
+    }
+    if (!links) { zap(g, p.pos.clone().setY(p.pos.y + 1.2), list[0].pos.clone().setY(list[0].pos.y + 1), VOLT, 0.25, 5); burn(list[0]); }
+    for (const [e, n] of burnt) this.hit(e, dmg * Math.min(4, n) * (1 + (e.kCharge ?? 0) * 0.1), { stagger: 0.5, unblockable: true, color: '#6ae8ff' });
+    g.fx.chroma(0.5); g.shake(0.25);
+    g.audio?.noise({ dur: 0.3, gain: 0.35, type: 'highpass', freq: 2500, sweep: 900, rev: 0.3 });
+  }
+  overload() {
+    const g = this.game, p = this.p, list = this.chargedFoes();
+    if (!list.length) { g.toast?.('No charged curses'); g.audio?.ui('back'); return false; }
+    this.cast(0.45, true, { type: 'raise' });
+    g.fx.flash(0x9ad8ff, 0.2, 0.12);
+    list.forEach((e, i) => this.after(i * 0.05, () => {
+      if (e.dead) return;
+      zap(g, p.pos.clone().setY(p.pos.y + 1.4), e.pos.clone().setY(e.pos.y + e.height * 0.6), VOLT, 0.2, 5);
+      this.hit(e, 8, { stagger: 0.4, ceGain: 1 });
+      this.charge(e, Math.max(1, (e.kCharge ?? 0) / ((1 + this.rank('conduct') * 0.25) * (this.chargeMul ?? 1))));
+    }));
+    g.audio?.charge(0.3, 2);
+  }
+  // ---- Storm
+  lightningStep() {
+    const g = this.game, p = this.p, dir = this.fwd();
+    const from = p.pos.clone();
+    for (const d of [8, 6, 4]) {
+      if (this.blink(from.clone().addScaledVector(dir, d), { color: VOLT, quiet: true, iframes: 0.35 })) {
+        zap(g, from.clone().setY(from.y + 1), p.pos.clone().setY(p.pos.y + 1), WHITE, 0.4, 6);
+        zap(g, from.clone().setY(from.y + 1), p.pos.clone().setY(p.pos.y + 1), VOLT, 0.25, 6);
+        this.line(from, dir, d, 1, (e) => { this.hit(e, 14 + this.rank('conduct') * 3, { stagger: 0.4 }); this.charge(e, 1); });
+        g.lights.flash(p.pos.clone().setY(p.pos.y + 1.5), VOLT, 8, 8, 0.15);
+        g.audio?.noise({ dur: 0.2, gain: 0.3, type: 'highpass', freq: 3000, sweep: 1000 });
+        return;
+      }
+    }
+    g.audio?.ui('back'); return false;
+  }
+  reflexes() {
+    const g = this.game, p = this.p;
+    this.cast(0.3);
+    this.statBuff('reflexes', 6, { attackSpeed: 0.3, speed: 0.2 }, { onTick: () => { if (Math.random() < 0.15) zap(g, p.pos.clone().setY(p.pos.y + 0.4 + Math.random() * 1.4), p.pos.clone().add(new THREE.Vector3((Math.random() - 0.5) * 1.6, 0.5 + Math.random() * 1.4, (Math.random() - 0.5) * 1.6)), VOLT, 0.08, 2); } });
+    g.fx.rings.spawn(tmp.set(p.pos.x, p.pos.y + 0.08, p.pos.z), { color: VOLT, r0: 0.4, r1: 3, dur: 0.35, thick: 0.15 });
+    g.toast?.('🧠 Lightning Reflexes');
+    g.audio?.noise({ dur: 0.25, gain: 0.25, type: 'highpass', freq: 3000, sweep: 800 });
+  }
+  electroShield() {
+    const g = this.game, p = this.p;
+    this.cast(0.3);
+    this.buff('electro_shield', 4, {
+      onTick: () => {
+        if (Math.random() < 0.4) { const a = Math.random() * Math.PI * 2, b = a + 0.8 + Math.random(); zap(g, p.pos.clone().add(new THREE.Vector3(Math.cos(a) * 1.2, 0.3 + Math.random() * 1.6, Math.sin(a) * 1.2)), p.pos.clone().add(new THREE.Vector3(Math.cos(b) * 1.2, 0.3 + Math.random() * 1.6, Math.sin(b) * 1.2)), VOLT, 0.1, 3); }
+      },
+      incoming: (amt, src) => {
+        if (src && src.pos && !src.dead && !src.isPlayer && g.enemies.includes(src)) { zap(g, p.pos.clone().setY(p.pos.y + 1.2), src.pos.clone().setY(src.pos.y + (src.height ?? 1.5) * 0.6), WHITE, 0.25, 4); this.hit(src, 8, { stagger: 0.5, ceGain: 0 }); this.charge(src, 2); }
+        return amt * 0.6;
+      } });
+    g.fx.rings.spawn(tmp.set(p.pos.x, p.pos.y + 1, p.pos.z), { color: VOLT, r0: 0.4, r1: 1.6, dur: 0.3, thick: 0.15 });
+    g.audio?.noise({ dur: 0.4, gain: 0.25, type: 'highpass', freq: 2500, sweep: 500 });
+  }
+  thunderstorm() {
+    const g = this.game, p = this.p;
+    this.cast(0.45, true, { type: 'raise' });
+    g.fx.flash(0x203040, 0.25, 0.3);
+    let acc = 0.2;
+    this.during(4, (t, dt) => {
+      if (p.dead) return false;
+      acc -= dt; if (acc > 0) return; acc = 0.3;
+      const charged = this.chargedFoes(10);
+      let at;
+      if (charged.length && Math.random() < 0.7) at = charged[Math.floor(Math.random() * charged.length)].pos.clone();
+      else { const a = Math.random() * Math.PI * 2, r = 2 + Math.random() * 7; at = new THREE.Vector3(p.pos.x + Math.cos(a) * r, p.pos.y, p.pos.z + Math.sin(a) * r); }
+      at.y = this.groundAt(at.x, at.z, p.pos.y);
+      g.fx.rings.spawn(tmp.set(at.x, at.y + 0.08, at.z), { color: VOLT, r0: 2, r1: 0.3, dur: 0.22, thick: 0.15 });
+      this.after(0.22, () => this.strike(at, 22 + this.rank('conduct') * 4, 1.8));
+    });
+  }
+  heavenStrike() {
+    const g = this.game, p = this.p, R = 4.2;
+    const c = this.aimGround(12);
+    this.cast(0.6, true, { type: 'raise', lock: true });
+    g.fx.rings.spawn(tmp.set(c.x, c.y + 0.07, c.z), { color: VOLT, r0: R, r1: R * 0.97, dur: 0.9, thick: 0.12 });
+    g.fx.rings.spawn(tmp.set(c.x, c.y + 0.08, c.z), { color: WHITE, r0: R, r1: 0.3, dur: 0.9, thick: 0.2 });
+    g.audio?.charge(0.8, 1.2);
+    this.during(0.9, () => { if (Math.random() < 0.3) zap(g, c.clone().setY(c.y + 14), c.clone().add(new THREE.Vector3((Math.random() - 0.5) * R, 6 + Math.random() * 4, (Math.random() - 0.5) * R)), DEEP, 0.15, 4); });
+    this.after(0.9, () => {
+      zap(g, c.clone().setY(c.y + 30), c.clone().setY(c.y + 0.2), WHITE, 1.4, 10);
+      zap(g, c.clone().setY(c.y + 30), c.clone().setY(c.y + 0.2), VOLT, 0.8, 8);
+      this.blast(c, R, 110 + this.rank('conduct') * 20, { color: VOLT, knock: 9, stagger: 1 });
+      for (const e of this.foes(c, R)) { this.charge(e, 2); this.stun(e, 0.8); }
+      g.lights.flash(c.clone().setY(c.y + 3), VOLT, 30, R + 10, 0.4, { priority: 7 });
+      g.fx.flash(WHITE, 0.45, 0.2); g.fx.chroma(1.2); g.hitStop(0.08);
+      g.audio?.blackFlash(); g.audio?.noise({ dur: 0.6, gain: 0.5, type: 'highpass', freq: 1800, sweep: 400, rev: 0.4 });
+    });
   }
   // In Mythical Beast Amber, Discharge becomes a beam of pure electricity.
   beam() {
@@ -333,9 +599,9 @@ class KashimoKit extends Kit {
       rod.t -= dt; rod.tick -= dt;
       if (rod.tick <= 0) {
         rod.tick = 0.4;
-        for (const e of g.enemies) if (!e.dead && !e.isDummy && e.pos.distanceTo(rod.grp.position) < 5.5) {
+        for (const e of g.enemies) if (!e.dead && !e.isDummy && e.pos.distanceTo(rod.grp.position) < (this.rodR ?? 5.5)) {
           zap(g, rod.top, e.pos.clone().setY(e.pos.y + e.height * 0.6), VOLT, 0.2, 4);
-          g.combat.damageEnemy(e, 8, p, { stagger: 0.25, ceGain: 1 });
+          g.combat.damageEnemy(e, 8 * (this.rodMul ?? 1), p, { stagger: 0.25, ceGain: 1 });
           this.charge(e, 1);
         }
         if (Math.random() < 0.5) zap(g, rod.top, rod.top.clone().add(new THREE.Vector3((Math.random() - 0.5) * 2, 1.5, (Math.random() - 0.5) * 2)), WHITE, 0.1, 3);

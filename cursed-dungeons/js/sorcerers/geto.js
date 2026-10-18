@@ -13,7 +13,7 @@
 //        summoned spirit, every banked stock and a horde from his reserve are
 //        compressed into one spiralling mass and fired as a colossal beam.
 import * as THREE from 'three/webgpu';
-import { Kit } from './kit.js';
+import { Kit, ability, passive } from './kit.js';
 import { registerKit, registerSorcerer } from './index.js';
 import { registerLook } from '../entities/models.js';
 import { buildCurseModel } from '../entities/curses.js';
@@ -21,6 +21,7 @@ import { FLASH_MATERIAL } from '../entities/character.js';
 import { moveEntity, groundAhead } from '../physics.js';
 import { damp, dampAngle, clamp } from '../util.js';
 import { makeOrb } from '../gfx/orbs.js';
+import { B } from '../world/blocks.js';
 
 const VIOLET = 0x9a5aff, DEEP = 0x3a1a6a, BLACK = 0x0a0610;
 const tmp = new THREE.Vector3(), tmp2 = new THREE.Vector3();
@@ -66,6 +67,11 @@ const SPIRITS = {
   imp: { hp: 35, speed: 7.5, dmg: 8, range: 1.4, cd: 0.7, radius: 0.35, height: 1, style: 'punch' },
   spitter: { hp: 70, speed: 4, dmg: 14, range: 9, cd: 1.6, radius: 0.4, height: 2.1, ranged: true },
   tank: { hp: 240, speed: 3.6, dmg: 28, range: 2.4, cd: 1.6, radius: 0.8, height: 2.9, style: 'slam', aoe: true },
+  blob: { hp: 40, speed: 7, dmg: 44, range: 1.5, cd: 0, radius: 0.55, height: 1.2, kamikaze: true },
+  shadow: { hp: 90, speed: 8, dmg: 22, range: 1.9, cd: 0.8, radius: 0.45, height: 2.3, style: 'swingL' },
+  maw: { hp: 200, speed: 0, dmg: 16, range: 11, cd: 1.1, radius: 0.85, height: 2.4, ranged: true, rooted: true },
+  transfigured: { hp: 70, speed: 6, dmg: 14, range: 1.7, cd: 0.9, radius: 0.45, height: 2.0, style: 'punch' },
+  flyhead: { hp: 25, speed: 7, dmg: 7, range: 1.4, cd: 0.6, radius: 0.35, height: 1, style: 'punch' },
 };
 
 // An absorbed curse fighting for its master. Same contract as Ally.
@@ -118,8 +124,9 @@ class Spirit {
     } else {
       tmp2.subVectors(this.owner.pos, this.pos).setY(0); const d = tmp2.length();
       if (d > 3) { want.copy(tmp2.normalize().multiplyScalar(S.speed * Math.min(1, d / 6))); this.facing = dampAngle(this.facing, Math.atan2(tmp2.x, tmp2.z), 6, dt); }
-      if (d > 22) this.pos.copy(this.owner.pos);
+      if (d > 22 && !S.rooted) this.pos.copy(this.owner.pos);
     }
+    if (S.rooted) want.set(0, 0, 0);
     if (want.lengthSq() > 0.01 && !groundAhead(g.world, this.pos.x + want.x * 0.12, this.pos.y, this.pos.z + want.z * 0.12, 2.5)) want.set(0, 0, 0);
     this.vel.x = damp(this.vel.x, want.x + this.knock.x, 10, dt); this.vel.z = damp(this.vel.z, want.z + this.knock.z, 10, dt);
     this.knock.multiplyScalar(Math.exp(-dt * 6));
@@ -138,7 +145,16 @@ class Spirit {
   attack(e) {
     const g = this.game, S = this.S, own = this.owner;
     this.cd = S.cd; this.atkT = 0.4;
-    const mult = 1 + (own.kit?.rank?.('legion') ?? 0) * 0.2;
+    const mult = (1 + (own.kit?.rank?.('legion') ?? 0) * 0.2) * (own.kit?.buffs?.has('feast') ? 1.5 : 1);
+    if (S.kamikaze) {
+      // a bloater: it bursts on contact
+      const c = this.pos.clone().setY(this.pos.y + 0.6);
+      g.combat.aoe(c, 3, this.dmg * mult, own, { knock: 9, stagger: 0.8, ceGain: 2, blocks: false });
+      g.fx.explosion(c, VIOLET, 2.4); g.fx.splat(c, 0xb8ff6a); g.fx.shockwave(this.pos, VIOLET, 3.5);
+      g.shake(0.3); g.audio?.energy('explode');
+      this.despawn(true);
+      return;
+    }
     if (S.ranged) {
       const from = this.pos.clone().setY(this.pos.y + this.height * 0.8);
       const v = tmp.subVectors(e.pos, from).setY(e.pos.y + e.height * 0.5 - from.y).normalize().multiplyScalar(16);
@@ -160,6 +176,29 @@ class Spirit {
   }
 }
 
+// the Rainbow Dragon's body: N armoured segments (hidden until placed)
+function buildDragon(g, size, N) {
+  const M = getDragonMats();
+  const grp = new THREE.Group(); g.scene.add(grp);
+  const segs = [];
+  for (let i = 0; i < N; i++) {
+    const s = (i === 0 ? 1.3 : 1.05 - i / N * 0.6) * size;
+    const seg = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.9 * s, 0.8 * s, 0.9 * s), M.body[i % M.body.length]); body.castShadow = true; seg.add(body);
+    const plate = new THREE.Mesh(new THREE.BoxGeometry(0.3 * s, 0.3 * s, 0.6 * s), M.horn); plate.position.y = 0.5 * s; seg.add(plate);
+    if (i === 0) {
+      for (const x of [-0.3, 0.3]) {
+        const horn = new THREE.Mesh(new THREE.BoxGeometry(0.12 * s, 0.12 * s, 0.7 * s), M.horn); horn.position.set(x * s, 0.45 * s, -0.4 * s); horn.rotation.x = 0.5; seg.add(horn);
+        const eye = new THREE.Mesh(new THREE.BoxGeometry(0.14 * s, 0.1 * s, 0.05 * s), M.eye); eye.position.set(x * s, 0.15 * s, 0.46 * s); seg.add(eye);
+      }
+      const jaw = new THREE.Mesh(new THREE.BoxGeometry(0.7 * s, 0.25 * s, 0.6 * s), M.belly); jaw.position.set(0, -0.35 * s, 0.35 * s); seg.add(jaw);
+    }
+    seg.visible = false; grp.add(seg); segs.push(seg);
+  }
+  return { grp, segs };
+}
+function disposeGroup(g, grp) { g.scene.remove(grp); grp.traverse((o) => o.geometry?.dispose()); }
+
 let dragonMats = null;
 function getDragonMats() {
   if (dragonMats) return dragonMats;
@@ -169,12 +208,12 @@ function getDragonMats() {
 }
 
 export const GETO_SKILLS = [
-  { id: 'swarm', name: 'Grub Swarm', desc: 'More, stronger grub spirits; kills absorb curses more often.', max: 3 },
-  { id: 'legion', name: 'Legion', desc: '+20% spirit damage per rank; one more spirit released.', max: 3 },
-  { id: 'hardy', name: 'Hardy Spirits', desc: 'Spirits are tougher and last longer.', max: 2, req: 'legion' },
-  { id: 'dragon', name: 'Rainbow Dragon', desc: 'The dragon is bigger and hits harder.', max: 3 },
-  { id: 'uzumaki', name: 'Maximum: Uzumaki', desc: 'Maximum: Uzumaki gains more power from each spirit.', max: 3 },
-  { id: 'abyss', name: 'Kuchisake-onna', desc: 'Her question binds curses longer and her scissors cut deeper.', max: 2 },
+  { id: 'swarm', name: 'Grub Swarm', icon: '🐛', desc: 'More, stronger grub spirits; kills absorb curses more often.', max: 3, branch: 'Swarm', tier: 1, req: 'ab:swarm' },
+  { id: 'legion', name: 'Legion', icon: '👹', desc: '+20% spirit damage per rank; one more spirit released.', max: 3, branch: 'Spirits', tier: 2, req: 'ab:release' },
+  { id: 'hardy', name: 'Hardy Spirits', icon: '💪', desc: 'Spirits are tougher and last longer.', max: 2, branch: 'Spirits', tier: 3, req: 'up:legion' },
+  { id: 'dragon', name: 'Rainbow Dragon', icon: '🐉', desc: 'The dragon is bigger and hits harder (its Coil too).', max: 3, branch: 'Grade 1', tier: 2, req: 'ab:dragon' },
+  { id: 'uzumaki', name: 'Maximum: Uzumaki', icon: '🌀', desc: 'Uzumaki (and the Maximum ultimate) gains more power from each spirit.', max: 3, branch: 'Special Grade', tier: 1 },
+  { id: 'abyss', name: 'Kuchisake-onna', icon: '✂️', desc: 'Her question binds curses longer and her scissors cut deeper.', max: 2, branch: 'Grade 1', tier: 3, req: 'ab:kuchisake' },
 ];
 
 class GetoKit extends Kit {
@@ -187,17 +226,47 @@ class GetoKit extends Kit {
       { style: 'swingR', dur: 0.3, windup: 0.3, strike: 0.52, dmg: 14, range: 2.7, arc: 1.2, lunge: 6, knock: 3.5, stop: 0.05, shake: 0.15, trail: VIOLET, chainAt: 0.55 },
       { style: 'spin', dur: 0.48, windup: 0.3, strike: 0.55, dmg: 22, range: 3.2, arc: Math.PI, lunge: 3, knock: 9, stop: 0.08, shake: 0.32, ring: true, ringColor: VIOLET, trail: DEEP },
     ];
-    this.slots = {
-      ranged: this.ability({ name: 'Spirit Swarm', icon: '🐛', cd: 1.1, ce: 0, use: () => this.swarm() }),
-      t1: this.ability({ name: 'Release Spirits', icon: '👹', cd: 12, ce: 16, use: () => this.release() }),
-      t2: this.ability({ name: 'Rainbow Dragon', icon: '🐉', cd: 10, ce: 20, use: () => this.dragon() }),
-      t3: this.ability({ name: 'Kuchisake-onna', icon: '✂️', cd: 16, ce: 28, use: () => this.kuchisake() }),
+    this.branches = ['Swarm', 'Spirits', 'Grade 1', 'Special Grade', 'Absorption'];
+    this.library = {
+      // ---- the swarm of lesser spirits
+      swarm: ability({ name: 'Spirit Swarm', icon: '🐛', kind: 'basic', desc: 'Loose three homing grub spirits. Kills may absorb the curse into your stock.', cd: 1.1, ce: 0, branch: 'Swarm', tier: 0, start: true, legacy: 'ranged', use: () => this.swarm() }),
+      fly_heads: ability({ name: 'Fly Head Cloud', icon: '🪰', kind: 'basic', desc: 'A buzzing cloud of Grade 4 fly heads pours out in a cone, chewing on curses and slowing them.', cd: 1.6, ce: 4, branch: 'Swarm', tier: 1, req: 'swarm', use: () => this.flyCloud() }),
+      spirit_bomb: ability({ name: 'Bloater Spirit', icon: '🎈', kind: 'summon', desc: 'Release a bloated spirit that waddles to the nearest curse and bursts.', cd: 7, ce: 12, branch: 'Swarm', tier: 2, req: 'fly_heads', use: () => this.spiritBomb() }),
+      rampart: ability({ name: 'Spirit Rampart', icon: '🧱', kind: 'defence', desc: 'Lesser spirits pile up around you for 4s: half damage taken, and curses that come close are gnawed on.', cd: 14, ce: 14, branch: 'Swarm', tier: 2, req: 'swarm', use: () => this.rampart() }),
+      maw: ability({ name: 'Spirit Maw', icon: '👄', kind: 'technique', desc: 'A colossal curse mouth bursts out of the marked ground and bites down. Weakened curses it catches are swallowed into your stock.', cd: 10, ce: 16, branch: 'Swarm', tier: 3, req: 'spirit_bomb', use: () => this.spiritMaw() }),
+      // ---- summoned spirits
+      release: ability({ name: 'Release Spirits', icon: '👹', kind: 'summon', desc: 'Absorbed curses fight at your side. A big stock buys a Grade 2 bruiser.', cd: 12, ce: 16, branch: 'Spirits', tier: 1, legacy: 't1', use: () => this.release() }),
+      stalkers: ability({ name: 'Shadow Stalkers', icon: '🥷', kind: 'summon', desc: 'Two fast Grade 2 stalkers that hunt down curses and hit hard.', cd: 14, ce: 16, branch: 'Spirits', tier: 2, req: 'release', use: () => this.summonStalkers() }),
+      maw_pillar: ability({ name: 'Maw Pillar', icon: '🗿', kind: 'summon', desc: 'Plant a rooted pillar spirit that spits at every curse in range for 14s.', cd: 16, ce: 18, branch: 'Spirits', tier: 2, req: 'release', use: () => this.mawPillar() }),
+      bulwark: ability({ name: 'Grade 2 Bulwark', icon: '🛡️', kind: 'summon', desc: 'A hulking armoured spirit that draws every curse nearby onto itself.', cd: 20, ce: 22, branch: 'Spirits', tier: 3, req: 'stalkers', use: () => this.bulwark() }),
+      manta: ability({ name: 'Manta Ray', icon: '🪽', kind: 'movement', desc: 'Ride a flying ray-shaped spirit over the battlefield, dropping grubs on the curses below.', cd: 7, ce: 8, branch: 'Spirits', tier: 3, req: 'maw_pillar', use: () => this.mantaRide() }),
+      night_parade: ability({ name: 'Night Parade of a Hundred Demons', icon: '🏮', kind: 'summon', desc: 'The night parade: a wave of spirits floods forward through the (marked) street, trampling curses, then stays to fight.', cd: 30, ce: 40, branch: 'Spirits', tier: 4, req: 'bulwark', use: () => this.nightParade() }),
+      // ---- Grade 1 cursed spirits
+      dragon: ability({ name: 'Rainbow Dragon', icon: '🐉', kind: 'technique', desc: 'An armoured serpent spirit tears through a line of curses.', cd: 10, ce: 20, branch: 'Grade 1', tier: 1, legacy: 't2', use: () => this.dragon() }),
+      kuchisake: ability({ name: 'Kuchisake-onna', icon: '✂️', kind: 'summon', desc: '"Am I pretty?" Every curse around her is bound until the question is answered — then her giant scissors cut them.', cd: 16, ce: 28, branch: 'Grade 1', tier: 2, legacy: 't3', req: 'dragon', use: () => this.kuchisake() }),
+      dragon_coil: ability({ name: 'Rainbow Dragon: Coil', icon: '🌈', kind: 'defence', desc: 'The dragon coils around you for 3s: its armoured body stops 70% of every hit and grinds curses that come close.', cd: 18, ce: 22, branch: 'Grade 1', tier: 3, req: 'dragon', use: () => this.dragonCoil() }),
+      smallpox: ability({ name: 'Smallpox Deity', icon: '⚰️', kind: 'technique', desc: 'A grave rises around the aimed curse and a coffin seals it. Count of three — then the grave closes.', cd: 22, ce: 32, branch: 'Grade 1', tier: 4, req: 'kuchisake', use: () => this.smallpox() }),
+      // ---- Special Grade
+      tamamo: ability({ name: 'Tamamo-no-Mae', icon: '🦊', kind: 'summon', desc: 'The special grade vengeful spirit from the Night Parade: she hovers over the field for 7s, raining foxfire on every curse.', cd: 26, ce: 34, branch: 'Special Grade', tier: 2, req: 'dragon', use: () => this.tamamo() }),
+      lesser_uzumaki: ability({ name: 'Uzumaki', icon: '🌀', kind: 'technique', desc: 'Compress up to three stocked spirits into a spiral beam. Every stock spent makes it far stronger.', cd: 14, ce: 26, branch: 'Special Grade', tier: 3, req: 'tamamo', use: () => this.lesserUzumaki() }),
+      idle_transfig: ability({ name: 'Extracted: Idle Transfiguration', icon: '✋', kind: 'technique', desc: 'Kenjaku pulled Mahito\'s technique out with Uzumaki: a touch that reshapes the soul. A weakened curse becomes a transfigured spirit that fights for you.', cd: 12, ce: 20, branch: 'Special Grade', tier: 5, req: 'lesser_uzumaki', use: () => this.extractedTouch() }),
+      // ---- absorption
+      absorb_ab: ability({ name: 'Absorb', icon: '⚫', kind: 'technique', desc: 'Crush a weakened curse (below 40% health) into a black ball and swallow it: +1 stock and you recover 8% health.', cd: 8, ce: 8, branch: 'Absorption', tier: 1, use: () => this.absorbAbility() }),
+      horde: ability({ name: 'Stock Release: Horde', icon: '👾', kind: 'summon', desc: 'Empty your stock: every absorbed curse is released at once as a spirit.', cd: 18, ce: 10, branch: 'Absorption', tier: 2, req: 'absorb_ab', use: () => this.horde() }),
+      feast: ability({ name: 'Spirit Feast', icon: '🍖', kind: 'buff', desc: 'Your spirits are fully healed, last 6s longer and hit 50% harder for 8s.', cd: 20, ce: 16, branch: 'Absorption', tier: 3, req: 'horde', use: () => this.feast() }),
+    };
+    this.passives = {
+      spirit_master: passive({ name: 'Spirit Master', icon: '👺', desc: 'Your spirits have 30% more health and last 4s longer.', branch: 'Spirits', tier: 2, req: 'release', apply: (pl, k) => { k.spiritHp = 0.3; k.spiritLife = 4; } }),
+      grade1: passive({ name: 'Grade 1 Collection', icon: '📿', desc: 'Grade 1 spirits (Rainbow Dragon, Kuchisake-onna, Smallpox Deity) deal 20% more damage.', branch: 'Grade 1', tier: 3, req: 'kuchisake', apply: (pl, k) => { k.g1 = 1.2; } }),
+      rag_taste: passive({ name: 'Taste of Rags', icon: '🤢', desc: 'Swallowing a curse tastes vile — but every one absorbed heals 10% health and restores 10 Cursed Energy.', branch: 'Absorption', tier: 2, req: 'absorb_ab', apply: (pl, k) => { k.ragTaste = true; } }),
+      vast_stock: passive({ name: 'Vast Stock', icon: '🗃️', desc: 'Stock holds up to 15 curses and the swarm absorbs curses 15% more often.', branch: 'Absorption', tier: 3, req: 'horde', apply: (pl, k) => { k.stockMax = 15; k.absorbBonus = 0.15; } }),
     };
     this.ultimate = { name: 'Maximum: Uzumaki', icon: '🌀', use: () => this.uzumaki() };
     this.stock = 0;
   }
   dispose() {
     super.dispose(); this.disposed = true;
+    if (this.tama) { this.game.scene.remove(this.tama); this.tama = null; }
     if (this.kuchi) { this.game.scene.remove(this.kuchi); this.kuchi = null; }
     if (this.uzuOrb) { this.game.scene.remove(this.uzuOrb); this.game.lights.remove(this.uzuLight); this.uzuOrb = null; this.game.fx.dimTarget = 0; }
   }
@@ -211,7 +280,7 @@ class GetoKit extends Kit {
     const gy = g.world.groundBelow(pos.x, pos.z, p.pos.y + 2); pos.y = isFinite(gy) && Math.abs(gy - p.pos.y) < 3 ? gy : p.pos.y;
     if (!isFinite(gy) || Math.abs(gy - p.pos.y) >= 3) pos.set(p.pos.x, p.pos.y, p.pos.z);
     const hard = this.rank('hardy');
-    const s = new Spirit(g, p, model, pos, { life: life ?? 18 + hard * 6, hpMult: 1 + hard * 0.4 });
+    const s = new Spirit(g, p, model, pos, { life: (life ?? 18 + hard * 6) + (this.spiritLife ?? 0), hpMult: 1 + hard * 0.4 + (this.spiritHp ?? 0) });
     g.allies.push(s);
     return s;
   }
@@ -220,7 +289,8 @@ class GetoKit extends Kit {
     const g = this.game, p = this.p;
     if (!e.dead) g.combat.damageEnemy(e, (e.hp + 1) / Math.max(0.2, 1 - (e.armor ?? 0)), p, { unblockable: true, stagger: 0, color: '#9a5aff' });
     if (!e.dead) return;
-    this.stock = Math.min(10, this.stock + 1);
+    this.stock = Math.min(this.stockMax ?? 10, this.stock + 1);
+    if (this.ragTaste) { p.heal?.(p.maxHp * 0.1, true); p.gainCE(10); }
     const from = e.pos.clone().setY(e.pos.y + e.height * 0.5);
     for (let i = 0; i < 14; i++) {
       const k = i / 14;
@@ -262,7 +332,7 @@ class GetoKit extends Kit {
         onHit: (e, q) => {
           g.combat.damageEnemy(e, 8 + rk * 3, p, { knock: q.vel.clone().setLength(2), stagger: 0.2 });
           g.fx.hitSpark(q.pos, null, { color: VIOLET });
-          if (e.dead && !e.isDummy && !e.isBoss && Math.random() < 0.25 + rk * 0.1) this.absorb(e);
+          if (e.dead && !e.isDummy && !e.isBoss && Math.random() < 0.25 + rk * 0.1 + (this.absorbBonus ?? 0)) this.absorb(e);
         } });
     }
     g.audio?.energy('spit');
@@ -285,27 +355,12 @@ class GetoKit extends Kit {
     const start = p.pos.clone().addScaledVector(dir, -2.5).setY(p.pos.y + 1.4);
     const L = 26 + rk * 2, dur = 1.15, size = 1 + rk * 0.15;
     const M = getDragonMats();
-    const grp = new THREE.Group(); g.scene.add(grp);
-    const segs = [];
     const N = 16;
-    for (let i = 0; i < N; i++) {
-      const s = (i === 0 ? 1.3 : 1.05 - i / N * 0.6) * size;
-      const seg = new THREE.Group();
-      const body = new THREE.Mesh(new THREE.BoxGeometry(0.9 * s, 0.8 * s, 0.9 * s), M.body[i % M.body.length]); body.castShadow = true; seg.add(body);
-      const plate = new THREE.Mesh(new THREE.BoxGeometry(0.3 * s, 0.3 * s, 0.6 * s), M.horn); plate.position.y = 0.5 * s; seg.add(plate);
-      if (i === 0) {
-        for (const x of [-0.3, 0.3]) {
-          const horn = new THREE.Mesh(new THREE.BoxGeometry(0.12 * s, 0.12 * s, 0.7 * s), M.horn); horn.position.set(x * s, 0.45 * s, -0.4 * s); horn.rotation.x = 0.5; seg.add(horn);
-          const eye = new THREE.Mesh(new THREE.BoxGeometry(0.14 * s, 0.1 * s, 0.05 * s), M.eye); eye.position.set(x * s, 0.15 * s, 0.46 * s); seg.add(eye);
-        }
-        const jaw = new THREE.Mesh(new THREE.BoxGeometry(0.7 * s, 0.25 * s, 0.6 * s), M.belly); jaw.position.set(0, -0.35 * s, 0.35 * s); seg.add(jaw);
-      }
-      seg.visible = false; grp.add(seg); segs.push(seg);
-    }
+    const { grp, segs } = buildDragon(g, size, N);
     const light = g.lights.attach(segs[0], VIOLET, 6, 9, { offsetY: 0, priority: 4 });
     const trail = [start.clone()];
     const hit = new Set();
-    const dmg = 40 + rk * 14;
+    const dmg = (40 + rk * 14) * (this.g1 ?? 1);
     let t = 0, blockT = 0;
     g.audio?.energy('summon'); g.audio?.whoosh(1.6);
     g.addUpdater((dt) => {
@@ -340,7 +395,7 @@ class GetoKit extends Kit {
         return true;
       }
       g.particles.burst(head, { count: 30, color: VIOLET, speed: 4, life: 0.6, size: 0.4, sizeEnd: 0.05 });
-      g.scene.remove(grp); g.lights.remove(light);
+      disposeGroup(g, grp); g.lights.remove(light);
       return false;
     });
     g.shake(0.2);
@@ -382,7 +437,7 @@ class GetoKit extends Kit {
         for (const e of bound) {
           if (e.dead) continue;
           const c = e.pos.clone().setY(e.pos.y + e.height * 0.55);
-          g.combat.damageEnemy(e, 34 + rk * 14, p, { unblockable: true, stagger: 0.8, color: '#ffb0c0', knock: tmp.subVectors(e.pos, at).setY(0).normalize().multiplyScalar(4) });
+          g.combat.damageEnemy(e, (34 + rk * 14) * (this.g1 ?? 1), p, { unblockable: true, stagger: 0.8, color: '#ffb0c0', knock: tmp.subVectors(e.pos, at).setY(0).normalize().multiplyScalar(4) });
           g.fx.slashX(c, 2 + e.height * 0.4, 0xff8aa8);
           g.fx.hitSpark(c, null, { color: 0xff8aa8, big: true });
         }
@@ -415,6 +470,349 @@ class GetoKit extends Kit {
     box(0.25, 0.25, 0.06, 0, -0.1, 0, m(0x3a1a1a), blades);
     grp.userData.blades = blades;
     return grp;
+  }
+  // ============================================================== tree abilities
+  // spawn a spirit at a given spot (summon() places them around Geto)
+  summonAt(model, pos, life, o = {}) {
+    const g = this.game, p = this.p;
+    const mine = this.spirits();
+    while (mine.length >= (o.cap ?? 8)) mine.shift().despawn();
+    const gy = g.world.groundBelow(pos.x, pos.z, pos.y + 2);
+    const at = pos.clone(); if (isFinite(gy) && Math.abs(gy - pos.y) < 4) at.y = gy; else at.copy(p.pos);
+    const hard = this.rank('hardy');
+    const s = new Spirit(g, p, model, at, { life: life + (this.spiritLife ?? 0), hpMult: (o.hpMult ?? 1) * (1 + hard * 0.4 + (this.spiritHp ?? 0)), dmgMult: o.dmgMult ?? 1 });
+    g.allies.push(s);
+    return s;
+  }
+  flyCloud() {
+    const g = this.game, p = this.p, rk = this.rank('swarm');
+    this.cast(0.3);
+    const f = this.fwd(), from = this.handPos();
+    for (let i = 0; i < 26; i++) {
+      const a = this.aimAngle() + (Math.random() - 0.5) * 1.1, sp = 6 + Math.random() * 6;
+      g.particles.burst(from, { count: 1, color: i % 3 ? 0x2a2a1a : VIOLET, additive: i % 3 === 0, speed: 0.2, dir: tmp.set(Math.sin(a) * sp, (Math.random() - 0.3) * 2, Math.cos(a) * sp), life: 0.5, size: 0.22, sizeEnd: 0.15, drag: 1.5 });
+    }
+    g.audio?.noise?.({ dur: 0.35, gain: 0.18, type: 'bandpass', freq: 420, q: 3 });
+    for (let k = 0; k < 2; k++) this.after(0.12 + k * 0.18, () => {
+      for (const e of this.foes(p.pos, 5.5, f, 0.6)) { g.combat.damageEnemy(e, 7 + rk * 2, p, { stagger: 0.2, knock: f.clone().multiplyScalar(1) }); this.slow(e, 1); if (e.dead && !e.isDummy && !e.isBoss && Math.random() < 0.15 + (this.absorbBonus ?? 0)) this.absorb(e); }
+    });
+  }
+  spiritBomb() {
+    const g = this.game, p = this.p;
+    this.cast(0.35, true);
+    const at = p.pos.clone().addScaledVector(this.fwd(), 1.5);
+    const s = this.summonAt('blob', at, 8, { cap: 10 });
+    s.object.scale.setScalar(1.3);
+    g.audio?.energy('summon');
+  }
+  rampart() {
+    const g = this.game, p = this.p;
+    this.cast(0.35, true);
+    g.toast?.('🧱 Spirit Rampart'); g.audio?.energy('summon');
+    let tick = 0;
+    this.buff('rampart', 4, {
+      incoming: (a) => a * 0.5,
+      onTick: (dt) => {
+        // a churning ring of dark little spirits
+        for (let i = 0; i < 3; i++) { const a = Math.random() * Math.PI * 2; g.particles.burst(tmp.set(p.pos.x + Math.cos(a) * 1.4, p.pos.y + 0.3 + Math.random() * 1.6, p.pos.z + Math.sin(a) * 1.4), { count: 1, color: i ? BLACK : VIOLET, additive: !i, speed: 0.4, life: 0.4, size: 0.4, sizeEnd: 0.15 }); }
+        tick -= dt;
+        if (tick <= 0) { tick = 0.4; for (const e of this.foes(p.pos, 2.4)) g.combat.damageEnemy(e, 6, p, { stagger: 0.2, knock: tmp2.subVectors(e.pos, p.pos).setY(0).normalize().multiplyScalar(3), ceGain: 1 }); }
+      },
+    });
+  }
+  spiritMaw() {
+    const g = this.game, p = this.p, R = 3;
+    const c = this.aimGround(11);
+    this.cast(0.4, true);
+    g.fx.darkRings.spawn(tmp.set(c.x, c.y + 0.08, c.z), { color: 0x000000, r0: R, r1: R * 0.9, dur: 0.6, thick: 0.25 });
+    g.fx.rings.spawn(tmp.set(c.x, c.y + 0.09, c.z), { color: VIOLET, r0: 0.3, r1: R, dur: 0.5, thick: 0.08 });
+    g.audio?.tone?.({ freq: 90, to: 50, dur: 0.6, gain: 0.15, type: 'sawtooth', filter: 600 });
+    // the jaws: two rows of teeth rising out of the ground, then snapping shut
+    const grp = new THREE.Group(); grp.position.copy(c); g.scene.add(grp);
+    const gum = new THREE.MeshStandardNodeMaterial({ color: 0x3a1020, roughness: 0.6 }), tooth = new THREE.MeshStandardNodeMaterial({ color: 0xf0e8d0, roughness: 0.5 });
+    const jaws = [];
+    for (const side of [-1, 1]) {
+      const j = new THREE.Group(); j.position.z = side * R * 0.9; grp.add(j); jaws.push(j);
+      const base = new THREE.Mesh(new THREE.BoxGeometry(R * 2, 0.6, 0.8), gum); j.add(base);
+      for (let i = 0; i < 7; i++) { const t = new THREE.Mesh(new THREE.BoxGeometry(0.35, 1.2, 0.35), tooth); t.position.set((i - 3) * R * 0.28, 0.8, -side * 0.2); t.rotation.x = side * 0.35; j.add(t); }
+    }
+    grp.rotation.y = this.aimAngle(); grp.position.y = c.y - 2;
+    this.during(0.9, (t) => {
+      grp.position.y = c.y - 2 + Math.min(1, t / 0.4) * 2;
+      const shut = t < 0.45 ? 0 : Math.min(1, (t - 0.45) / 0.1);
+      jaws.forEach((j, i) => { j.position.z = (i ? 1 : -1) * R * 0.9 * (1 - shut * 0.85); j.rotation.x = (i ? 1 : -1) * (0.9 - shut * 0.9); });
+    }, () => disposeGroup(g, grp));
+    this.after(0.55, () => {
+      const n = g.combat.aoe(c, R, 50, p, { stagger: 1, knock: 2, blocks: false, color: '#c8a0ff' });
+      for (const e of this.foes(c, R)) if (!e.isBoss && !e.isDummy && e.hp / e.maxHp < 0.35) this.absorb(e);
+      g.debris.burst(c.clone().setY(c.y + 0.3), B.stone, 8, 1);
+      g.shake(0.45); g.hitStop(n ? 0.07 : 0.02); g.audio?.impact(1.7);
+    });
+  }
+  summonStalkers() {
+    const g = this.game, p = this.p;
+    this.cast(0.45, true);
+    for (let i = 0; i < 2; i++) this.summonAt('shadow', p.pos.clone().add(tmp.set(Math.sin(p.facing + (i ? 1.6 : -1.6)) * 1.6, 0, Math.cos(p.facing + (i ? 1.6 : -1.6)) * 1.6)), 16, { dmgMult: 1 + this.rank('legion') * 0.1 });
+    g.fx.flash(DEEP, 0.2, 0.12); g.audio?.energy('summon');
+  }
+  mawPillar() {
+    const g = this.game, p = this.p;
+    this.cast(0.45, true);
+    const at = this.aimGround(7);
+    const s = this.summonAt('maw', at, 14);
+    s.facing = this.aimAngle();
+    g.debris.burst(at.clone().setY(at.y + 0.3), B.stone, 6, 0.8);
+    g.audio?.energy('summon');
+  }
+  bulwark() {
+    const g = this.game, p = this.p;
+    this.cast(0.5, true);
+    const at = p.pos.clone().addScaledVector(this.fwd(), 2.5);
+    const s = this.summonAt('tank', at, 16, { hpMult: 2.2 });
+    s.object.scale.multiplyScalar(1.15);
+    // every curse nearby turns on it
+    g.fx.rings.spawn(tmp.set(s.pos.x, s.pos.y + 0.1, s.pos.z), { color: VIOLET, r0: 0.5, r1: 10, dur: 0.5, thick: 0.12 });
+    for (const e of g.enemies) if (!e.dead && !e.isBoss && e.pos.distanceTo(s.pos) < 10) e.target = s;
+    this.buff('bulwark_taunt', 6, { onTick: () => { if (s.dead) return; for (const e of g.enemies) if (!e.dead && !e.isBoss && e.target === p && e.pos.distanceTo(s.pos) < 8) e.target = s; } });
+    g.audio?.energy('summon'); g.shake(0.25);
+  }
+  mantaRide() {
+    const g = this.game, p = this.p, f = this.fwd();
+    // a flat, ray-shaped spirit under Geto's feet
+    const ray = new THREE.Group();
+    const skin = new THREE.MeshStandardNodeMaterial({ color: 0x3a2a5a, roughness: 0.5, emissive: VIOLET, emissiveIntensity: 0.3 });
+    const body = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.25, 1.8), skin); ray.add(body);
+    const wings = [];
+    for (const sx of [-1, 1]) { const w = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.12, 1.2), skin); w.position.x = sx * 1.3; ray.add(w); wings.push(w); }
+    const tail = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.1, 1.6), skin); tail.position.z = -1.6; ray.add(tail);
+    g.scene.add(ray);
+    g.audio?.whoosh(1.4); g.audio?.energy('summon');
+    let drop = 0;
+    this.dash(f, 11, 0.45, { color: VIOLET, iframes: 0.6, onEnd: () => disposeGroup(g, ray) });
+    p.vel.y = 4;
+    this.during(0.45, (t, dt) => {
+      ray.position.set(p.pos.x, p.pos.y - 0.05, p.pos.z); ray.rotation.y = Math.atan2(f.x, f.z);
+      wings.forEach((w, i) => { w.rotation.z = (i ? -1 : 1) * Math.sin(t * 24) * 0.35; });
+      drop -= dt;
+      if (drop <= 0) {
+        drop = 0.09;
+        for (const e of this.foes(p.pos, 2.2)) g.combat.damageEnemy(e, 9, p, { stagger: 0.3, knock: f.clone().multiplyScalar(2) });
+        g.particles.burst(tmp.set(p.pos.x, p.pos.y, p.pos.z), { count: 3, color: VIOLET, speed: 1.5, life: 0.4, size: 0.25, sizeEnd: 0.05, gravity: 8 });
+      }
+    });
+  }
+  nightParade() {
+    const g = this.game, p = this.p;
+    const f = this.fwd(), side = new THREE.Vector3(f.z, 0, -f.x), L = 18, W = 3.5;
+    this.cast(0.7, true);
+    g.toast?.('🏮 Night Parade of a Hundred Demons', 'big');
+    // the street they will flood is marked
+    for (const s of [-W, W]) g.fx.slashLine(p.pos.clone().setY(p.pos.y + 0.12).addScaledVector(side, s), f, L, VIOLET, 0.12, 1);
+    g.fx.flash(DEEP, 0.3, 0.2); g.audio?.energy('summon');
+    const start = p.pos.clone().addScaledVector(f, -1);
+    const hit = new Set();
+    // a stampede of dark shapes running down the street
+    this.during(1.1, (t, dt, k) => {
+      const head = start.clone().addScaledVector(f, L * k);
+      for (let i = 0; i < 6; i++) { const o = (Math.random() - 0.5) * 2 * W; g.particles.burst(tmp.copy(head).addScaledVector(side, o).setY(head.y + 0.4 + Math.random() * 1.6), { count: 1, color: i % 3 ? BLACK : VIOLET, additive: i % 3 === 0, speed: 1, dir: f.clone().multiplyScalar(6), life: 0.5, size: 0.7, sizeEnd: 0.2 }); }
+      this.line(start, f, L * k, W, (e, along) => {
+        if (hit.has(e) || along < L * k - 2.5) return;
+        hit.add(e);
+        g.combat.damageEnemy(e, 34 + this.rank('legion') * 6, p, { stagger: 0.8, knock: f.clone().multiplyScalar(8) });
+        g.fx.hitSpark(e.pos.clone().setY(e.pos.y + 1), f, { color: VIOLET, big: true });
+      });
+      if (Math.random() < 0.3) g.shake(0.1);
+    }, () => {
+      // the parade stays to fight
+      const kinds = ['swarmer', 'imp', 'spitter', 'shadow', 'swarmer', 'flyhead'];
+      kinds.forEach((m, i) => this.summonAt(m, start.clone().addScaledVector(f, L * (0.4 + i * 0.1)).addScaledVector(side, (i % 2 ? 1 : -1) * 1.5), 10, { cap: 12 }));
+    });
+  }
+  dragonCoil() {
+    const g = this.game, p = this.p, rk = this.rank('dragon');
+    this.cast(0.4, true);
+    const N = 14, size = 0.9 + rk * 0.1;
+    const { grp, segs } = buildDragon(g, size, N);
+    const light = g.lights.attach(segs[0], VIOLET, 5, 8, { offsetY: 0, priority: 4 });
+    g.audio?.energy('summon'); g.toast?.('🌈 Rainbow Dragon: Coil');
+    let tick = 0;
+    const done = () => { disposeGroup(g, grp); g.lights.remove(light); };
+    this.buff('coil', 3, {
+      incoming: (a) => a * 0.3,
+      onTick: (dt) => {
+        const b = this.buffs.get('coil'), t = 3 - (b?.left ?? 0);
+        segs.forEach((seg, i) => {
+          const a = t * 3 - i * 0.42, r = 1.6, y = 0.4 + i * 0.09 + Math.sin(t * 4 + i * 0.5) * 0.15;
+          seg.visible = true; seg.position.set(p.pos.x + Math.cos(a) * r, p.pos.y + y, p.pos.z + Math.sin(a) * r);
+          seg.lookAt(p.pos.x + Math.cos(a + 0.4) * r, p.pos.y + y, p.pos.z + Math.sin(a + 0.4) * r);
+        });
+        tick -= dt;
+        if (tick <= 0) { tick = 0.3; for (const e of this.foes(p.pos, 3.2)) g.combat.damageEnemy(e, (10 + rk * 3) * (this.g1 ?? 1), p, { stagger: 0.4, knock: tmp.subVectors(e.pos, p.pos).setY(0).normalize().multiplyScalar(5), ceGain: 1 }); }
+      },
+      onEnd: done,
+    });
+  }
+  smallpox() {
+    const g = this.game, p = this.p;
+    const t = this.target(12);
+    if (!t) { g.toast?.('No curse to bury'); g.audio?.ui('back'); return false; }
+    this.cast(0.5, true);
+    const c = t.pos.clone();
+    // a ring of grave markers, a coffin closing around the curse
+    const grp = new THREE.Group(); grp.position.copy(c); g.scene.add(grp);
+    const stone = new THREE.MeshStandardNodeMaterial({ color: 0x8a8a90, roughness: 0.9 }), wood = new THREE.MeshStandardNodeMaterial({ color: 0x4a2a1a, roughness: 0.8 }), cloth = new THREE.MeshStandardNodeMaterial({ color: 0xe8e0d0, roughness: 0.9 });
+    for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2, m = new THREE.Mesh(new THREE.BoxGeometry(0.6, 1.4, 0.2), stone); m.position.set(Math.cos(a) * 3, -1.4, Math.sin(a) * 3); m.rotation.y = -a; grp.add(m); }
+    const H = t.height + 0.6, Wd = t.radius * 2 + 0.6;
+    const coffin = new THREE.Group(); grp.add(coffin);
+    for (const [w, h, d, x, z] of [[Wd, H, 0.15, 0, Wd / 2], [Wd, H, 0.15, 0, -Wd / 2], [0.15, H, Wd, Wd / 2, 0], [0.15, H, Wd, -Wd / 2, 0]]) { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), wood); m.position.set(x, H / 2, z); coffin.add(m); }
+    const lid = new THREE.Mesh(new THREE.BoxGeometry(Wd + 0.2, 0.15, Wd + 0.2), wood); lid.position.y = H + 4; grp.add(lid);
+    const tag = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.6, 0.05), cloth); tag.position.set(0, H * 0.6, Wd / 2 + 0.1); coffin.add(tag);
+    coffin.scale.y = 0.01;
+    g.audio?.tone?.({ freq: 110, to: 70, dur: 0.8, gain: 0.15, type: 'sawtooth', filter: 500, rev: 0.6 });
+    const hold = 3;
+    this.stun(t, t.isBoss ? 1.5 : hold + 0.4);
+    if (!t.isBoss) t.sealT = Math.max(t.sealT ?? 0, hold + 0.4);
+    let count = 3;
+    this.during(hold + 0.5, (tt) => {
+      grp.children.forEach((m) => { if (m.geometry?.parameters?.height === 1.4) m.position.y = Math.min(0.7, -1.4 + tt * 4); });
+      coffin.scale.y = Math.min(1, tt * 2);
+      if (!t.dead && !t.isBoss) { t.pos.x = c.x; t.pos.z = c.z; }
+      lid.position.y = H + 4 - Math.min(1, tt / hold) * 4;
+      if (tt >= (3 - count) * (hold / 3) && count > 0) { g.fx.damageNumber(c.clone().setY(c.y + H + 0.8), 0, { text: String(count), color: '#e8e0d0' }); g.audio?.tone?.({ freq: 300, to: 300, dur: 0.12, gain: 0.1, type: 'square' }); count--; }
+    }, () => disposeGroup(g, grp));
+    this.after(hold, () => {
+      if (t.dead) return;
+      const dmg = (90 + Math.min(t.maxHp * (t.isBoss ? 0.12 : 0.6), t.isBoss ? 420 : 600)) * (this.g1 ?? 1);
+      g.combat.damageEnemy(t, dmg, p, { unblockable: true, stagger: 1.2, knock: new THREE.Vector3(), color: '#e8e0d0' });
+      g.combat.aoe(c, 3, 26, p, { knock: 6, stagger: 0.5, blocks: false });
+      g.fx.shockwave(c, 0xe8e0d0, 4); g.debris.burst(c.clone().setY(c.y + 0.4), B.stone, 10, 1.2);
+      g.fx.screenWave(c.clone().setY(c.y + 1), 0.9, 0.4);
+      g.shake(0.55); g.hitStop(0.1); g.audio?.impact(2);
+    });
+  }
+  tamamo() {
+    const g = this.game, p = this.p;
+    if (this.tama) return false;
+    this.cast(0.6, true);
+    const fig = this.buildTamamo();
+    const at = p.pos.clone().addScaledVector(this.fwd(), -1.5).setY(p.pos.y + 2.2);
+    fig.position.copy(at); g.scene.add(fig); this.tama = fig;
+    const light = g.lights.attach(fig, 0x9ad8ff, 8, 12, { offsetY: 1, priority: 4 });
+    g.fx.summonCircle(p.pos, 0x9ad8ff); g.fx.flash(0x203050, 0.3, 0.2);
+    g.toast?.('🦊 Tamamo-no-Mae', 'big'); g.audio?.energy('summon');
+    let shot = 0;
+    this.during(7, (t, dt) => {
+      if (this.tama !== fig) return false;
+      fig.position.lerp(tmp.set(p.pos.x - Math.sin(p.facing) * 1.5, p.pos.y + 2.4 + Math.sin(t * 2) * 0.3, p.pos.z - Math.cos(p.facing) * 1.5), Math.min(1, dt * 3));
+      fig.rotation.y = p.facing;
+      fig.userData.tails.forEach((tl, i) => { tl.rotation.z = Math.sin(t * 3 + i) * 0.3 + (i - 4) * 0.18; });
+      shot -= dt;
+      if (shot <= 0) {
+        shot = 0.4;
+        const e = g.nearestEnemy(fig.position, 16);
+        if (e) g.projectiles.fire({ pos: fig.position.clone().setY(fig.position.y + 1), vel: tmp.subVectors(e.pos, fig.position).setY(1).normalize().multiplyScalar(14), team: 'player', shape: 'orb', color: 0x7ab8ff, emissive: 3, scale: 1.4, life: 1.6, radius: 0.5, homing: 8, target: e, light: 2,
+          trail: (q) => g.particles.burst(q.pos, { count: 1, color: 0x7ab8ff, speed: 0.3, life: 0.3, size: 0.3, sizeEnd: 0.05 }),
+          onHit: (en, q) => { g.combat.damageEnemy(en, 18, p, { stagger: 0.3, knock: q.vel.clone().setLength(2), color: '#9ad8ff' }); g.fx.explosion(q.pos, 0x7ab8ff, 1.2); } });
+      }
+    }, () => { g.particles.burst(fig.position.clone(), { count: 30, color: 0x9ad8ff, speed: 3, life: 0.6, size: 0.3, sizeEnd: 0.05 }); disposeGroup(g, fig); g.lights.remove(light); if (this.tama === fig) this.tama = null; });
+  }
+  buildTamamo() {
+    const grp = new THREE.Group();
+    const m = (c, e = 0) => new THREE.MeshStandardNodeMaterial({ color: c, roughness: 0.6, emissive: e ? c : 0, emissiveIntensity: e });
+    const robe = m(0xf4f0ff, 0.25), hair = m(0x1a1a2a), skin = m(0xf8eee8), fire = m(0x7ab8ff, 2.5), red = m(0xc02030);
+    const box = (w, h, d, x, y, z, mat, par = grp) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); b.position.set(x, y, z); par.add(b); return b; };
+    box(1, 1.6, 0.7, 0, 0, 0, robe); box(1.3, 0.3, 0.9, 0, -0.9, 0, robe);
+    box(0.6, 0.6, 0.6, 0, 1.15, 0, skin); box(0.7, 0.4, 0.7, 0, 1.45, -0.05, hair); box(0.7, 1.2, 0.2, 0, 0.9, -0.35, hair);
+    box(0.1, 0.06, 0.02, -0.13, 1.2, 0.31, red); box(0.1, 0.06, 0.02, 0.13, 1.2, 0.31, red);
+    for (const sx of [-0.2, 0.2]) box(0.12, 0.3, 0.12, sx, 1.8, 0, hair);   // fox ears
+    const tails = [];
+    for (let i = 0; i < 9; i++) { const t = new THREE.Group(); t.position.set(0, -0.6, -0.4); grp.add(t); box(0.18, 1.4, 0.18, 0, -0.7, -0.3, i % 2 ? robe : fire, t); tails.push(t); }
+    grp.userData.tails = tails;
+    return grp;
+  }
+  lesserUzumaki() {
+    const g = this.game, p = this.p, rk = this.rank('uzumaki');
+    const spend = Math.min(3, this.stock);
+    this.stock -= spend;
+    const power = spend * 2 + 2;
+    p.action = { type: 'cast', both: true, dur: 0.75, elapsed: 0, t: 0, moveScale: 0, lock: true, hold: true, cancelable: false, faceAim: true };
+    const orb = makeOrb(VIOLET, { radius: 0.3, darkCore: true, coreColor: 0x000000 });
+    g.scene.add(orb);
+    g.audio?.charge?.(0.5, 0.5);
+    if (spend) g.toast?.(`🌀 Uzumaki — ${spend} stock compressed`);
+    this.during(0.55, (t, dt, k) => {
+      orb.position.copy(this.handPos().setY(p.pos.y + 2)); orb.scale.setScalar(0.3 + k * (0.6 + power * 0.08)); orb.rotation.y += dt * 12;
+      this.spiralFx(p.pos, 1.5);
+    }, () => {
+      g.scene.remove(orb);
+      if (p.action?.lock) p.action = null;
+      const dir = p.aimDir.clone().setY(0).normalize(), from = this.handPos(), L = 18, W = 1.2 + power * 0.1;
+      const dmg = 40 + spend * 28 + rk * 10;
+      this.line(p.pos, dir, L, W, (e) => { g.combat.damageEnemy(e, dmg, p, { unblockable: true, stagger: 0.8, knock: dir.clone().multiplyScalar(8), color: '#c8a0ff' }); g.fx.hitSpark(e.pos.clone().setY(e.pos.y + 1), dir, { color: VIOLET, big: true }); });
+      const side = new THREE.Vector3(dir.z, 0, -dir.x);
+      for (let s = 0; s < L; s += 0.5) for (const ph of [0, Math.PI]) { const a = s * 1.4 + ph; g.particles.glow.emit(from.x + dir.x * s + side.x * Math.cos(a) * W, from.y + Math.sin(a) * W * 0.8, from.z + dir.z * s + side.z * Math.cos(a) * W, dir.x * 5, 0, dir.z * 5, 0.5, 1.6, 0.7, 2.8, 0.25, 0, 2, 0.1, 0); }
+      g.fx.slashLine(from, dir, L, VIOLET, W * 1.4, 0.4); g.fx.slashLine(from, dir, L, 0xffffff, W * 0.4, 0.25);
+      for (let s = 1; s < L; s += 1.5) g.combat.hitBlocks(tmp2.copy(from).addScaledVector(dir, s).setY(p.pos.y), dir, W, Math.PI, 50, p);
+      g.fx.screenWave(from, 0.9, 0.4); g.shake(0.4); g.hitStop(0.06);
+      g.audio?.energy('purple');
+    });
+  }
+  extractedTouch() {
+    const g = this.game, p = this.p, t = this.target(6);
+    if (!t) { g.toast?.('No soul in reach'); g.audio?.ui('back'); return false; }
+    this.closeIn(t, 0x7ac8f0);
+    this.pose('punch', 0.35);
+    this.after(0.1, () => {
+      if (t.dead) return;
+      const at = t.pos.clone().setY(t.pos.y + t.height * 0.55), base = t.pos.clone();
+      g.fx.arcs.spawn(at, { color: 0x7ac8f0, r0: 0.4, r1: 1.4 + t.radius, dur: 0.35, thick: 0.5, arc: 0.6, rotY: Math.random() * Math.PI * 2 });
+      g.particles.burst(at, { count: 24, color: 0x7ac8f0, speed: 5, life: 0.5, size: 0.14, shape: 1, intensity: 3 });
+      if (!t.isBoss && !t.isDummy && t.hp / t.maxHp < 0.5) {
+        // the soul is reshaped: the body collapses into a transfigured spirit of Geto's
+        g.combat.damageEnemy(t, (t.hp + 1) / Math.max(0.2, 1 - (t.armor ?? 0)), p, { unblockable: true, stagger: 0, color: '#7ac8f0' });
+        if (t.dead) { g.fx.splat(at, 0xd8b0a8); g.fx.splat(at, 0x8a1a1a); this.summonAt('transfigured', base, 14); }
+      } else {
+        g.combat.damageEnemy(t, 48, p, { melee: true, unblockable: true, stagger: 0.9, color: '#7ac8f0' });
+        this.slow(t, 3);
+      }
+      g.lights.flash(at, 0x7ac8f0, 8, 8, 0.25); g.hitStop(0.07); g.shake(0.3);
+      g.audio?.tone?.({ freq: 500, to: 120, dur: 0.25, gain: 0.1, type: 'sawtooth', filter: 1600 });
+    });
+  }
+  absorbAbility() {
+    const g = this.game, p = this.p;
+    let best = null, bd = 9;
+    for (const e of g.enemies) { if (e.dead || e.untargetable || e.isBoss || e.isDummy) continue; const d = e.pos.distanceTo(p.pos); if (d < bd && e.hp / e.maxHp < 0.4) { bd = d; best = e; } }
+    if (!best) { g.toast?.('No curse weak enough to absorb (below 40%)'); g.audio?.ui('back'); return false; }
+    this.cast(0.45, true);
+    const at = best.pos.clone().setY(best.pos.y + best.height * 0.5);
+    // the curse is crushed into a black ball, then swallowed
+    const ball = makeOrb(BLACK, { radius: 0.25, darkCore: true, coreColor: 0x000000 }); ball.position.copy(at); g.scene.add(ball);
+    this.absorb(best);
+    p.heal?.(p.maxHp * 0.08, true);
+    this.during(0.4, (t, dt, k) => { ball.position.lerpVectors(at, this.handPos().setY(p.pos.y + 1.6), k); ball.scale.setScalar(1 - k * 0.6); }, () => g.scene.remove(ball));
+    g.fx.heal(p.pos, VIOLET);
+  }
+  horde() {
+    const g = this.game, p = this.p;
+    if (this.stock <= 0) { g.toast?.('Your stock is empty — absorb some curses first'); g.audio?.ui('back'); return false; }
+    this.cast(0.6, true);
+    const n = Math.min(8, this.stock);
+    const kinds = ['swarmer', 'imp', 'spitter', 'flyhead', 'shadow', 'swarmer', 'tank', 'imp'];
+    for (let i = 0; i < n; i++) { const a = i / n * Math.PI * 2; this.summonAt(kinds[i % kinds.length], p.pos.clone().add(tmp.set(Math.cos(a) * 2, 0, Math.sin(a) * 2)), 14, { cap: 12 }); }
+    this.stock = 0;
+    g.toast?.(`👾 ${n} spirits released`);
+    g.fx.darkRings.spawn(tmp.set(p.pos.x, p.pos.y + 0.08, p.pos.z), { color: 0x000000, r0: 0.5, r1: 4, dur: 0.5, thick: 0.3 });
+    g.fx.flash(DEEP, 0.25, 0.15); g.audio?.energy('summon');
+  }
+  feast() {
+    const g = this.game, p = this.p;
+    const mine = this.spirits();
+    if (!mine.length) { g.toast?.('No spirits out to feed'); g.audio?.ui('back'); return false; }
+    this.cast(0.4, true);
+    for (const s of mine) { s.hp = s.maxHp; s.life += 6; g.fx.heal(s.pos, VIOLET); this.spiralFx(s.pos, s.height); }
+    this.buff('feast', 8);
+    g.toast?.('🍖 Spirit Feast'); g.audio?.energy('heal');
   }
   // Maximum: Uzumaki — the ultimate. Every spirit and stock, plus a horde
   // from Geto's reserve, compressed into one spiral.

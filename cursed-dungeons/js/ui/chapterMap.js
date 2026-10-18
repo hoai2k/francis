@@ -6,6 +6,7 @@
 import { h, toast } from './ui.js';
 import { ARCS, CHAPTERS, BOSS_NAMES, OBJECTIVES, chaptersOf, chapter, arc, chapterUnlocked, chapterDone, chapterPrev, nextChapter, missionDef, gradeName } from '../story/chapters.js';
 import { BIOMES } from '../world/biomes.js';
+import { REGIONS } from '../world/regions/index.js';
 
 export const THREATS = [['Standard', 'The grade the chapter was written for.'], ['Hard', 'One grade tougher: +1 grade.'], ['Nightmare', 'Two grades tougher: +2 grades.']];
 // card backdrops per biome: [top, bottom, accent]
@@ -45,7 +46,7 @@ function facts(ch, threat) {
     h('dt', {}, 'Boss'), h('dd', { style: `color:${BOSS_NAMES[ch.boss]?.color ?? '#fff'}` }, bossLabel(ch.boss)),
     h('dt', {}, 'Area'), h('dd', {}, `${BIOMES[ch.biome]?.name ?? ch.biome} · ${ch.place}`),
     h('dt', {}, 'Threat'), h('dd', {}, gradeName(ch.difficulty + threat)),
-    ch.start?.place ? h('dt', {}, 'Starts') : null, ch.start?.place ? h('dd', {}, `At Jujutsu High: ${ch.start.place}`) : null);
+    h('dt', {}, 'Curtain'), h('dd', {}, `In ${REGIONS[ch.region]?.name ?? 'Jujutsu High'}${ch.giver?.name || ch.giver?.npc ? ` · briefing: ${ch.giver.name ?? ch.giver.npc[0].toUpperCase() + ch.giver.npc.slice(1)}` : ''}`));
 }
 function threatPicker(cur, onPick) {
   return h('div', { class: 'diffs', role: 'radiogroup', 'aria-label': 'Threat' }, ...THREATS.map(([n, tip], i) =>
@@ -81,7 +82,9 @@ export function openChapterMap(game) {
         facts(ch, threat),
         h('div', { class: 'dlabel' }, 'Threat: ', h('b', {}, `${THREATS[threat][0]} · ${gradeName(ch.difficulty + threat)}`)),
         threatPicker(threat, (i) => { threat = i; d.lastThreat = i; renderDetail(); ui.setFocus(detail.querySelectorAll('.diff')[i]); }),
-        h('button', { class: 'btn primary cstart', 'data-start': true, disabled: !open, onclick: () => startChapter(game, ch, threat) }, open ? (done ? '↻ Play again' : '▶ Start chapter') : 'Locked'));
+        h('div', { class: 'row', style: 'gap:8px' },
+          open && !done && game.quests ? h('button', { class: 'btn', onclick: () => { game.quests.track(ch.id); close(); toast(`Tracking: ${ch.title} · follow the gold arrow`); } }, '📍 Track') : null,
+          h('button', { class: 'btn primary cstart', 'data-start': true, disabled: !open, onclick: () => startChapter(game, ch, threat) }, open ? (done ? '↻ Play again' : '▶ Ijichi drives you') : 'Locked')));
     };
     const cards = h('div', { class: 'ccards' });
     for (const ch of list) {

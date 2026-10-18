@@ -1,12 +1,12 @@
-// Roaming curses at Jujutsu High: now and then a low-grade curse (or a small
-// pack) crawls out of the forest on the ridges when a sorcerer is out near
-// the edge of the campus. They never come into the core: the school sits
-// inside Tengen's barrier, and a curse that wanders across the line burns
-// away. Capped (fewer on Low), spawned out of sight, despawned when everyone
-// is far away, and paused in menus, dialogue and cutscenes. Kills give the
-// usual coins and XP (main.js onEnemyKilled).
-//   new Roaming(game, L)   L.roam: [{ x0, z0, x1, z1 }] spawn zones, L.core: the barrier rect
-//   update(dt)             call every frame while in the hub
+// Roaming curses in the open world: now and then a curse (or a small pack)
+// crawls out of the wild when a sorcerer is in or near a roam zone. They
+// never enter a safe zone (Tengen's barrier over Jujutsu High, towns, camps):
+// a curse that wanders across the line burns away. Capped (fewer on Low),
+// spawned out of sight, despawned when everyone is far away, and paused in
+// menus, dialogue and cutscenes. Kills give the usual coins and XP.
+//   new Roaming(game, L)   L.roam: [{ x0, z0, x1, z1, kinds?, level?, dense? }] spawn zones
+//                          L.safe: [{ x0, z0, x1, z1 }] (and the old L.core) no-curse rects
+//   update(dt)             call every frame while in the world
 import * as THREE from 'three/webgpu';
 
 const tmp = new THREE.Vector3();
@@ -19,23 +19,25 @@ export class Roaming {
     this.game = game;
     this.zones = L.roam ?? [];
     this.core = L.core ?? null;
+    this.safe = [...(L.safe ?? []), ...(L.core && !(L.safe ?? []).length ? [L.core] : [])];
+    this.dense = this.zones.some((z) => z.dense);
     this.groundAt = L.groundAt ?? ((x, z) => game.world.groundBelow(x, z, game.world.sy - 1));   // terrain height (ignores tree tops)
     this.list = [];
     this.t = 12 + Math.random() * 8;   // a breather after arriving
     this.warned = false;
   }
-  get cap() { const q = this.game.gr?.quality; return q === 'low' ? 2 : q === 'medium' ? 3 : 4; }
+  get cap() { const q = this.game.gr?.quality; return (q === 'low' ? 2 : q === 'medium' ? 3 : 4) + (this.dense ? 3 : 0); }
   live() { this.list = this.list.filter((e) => !e.dead && this.game.enemies.includes(e)); return this.list; }
   active() {
     const g = this.game;
-    return g.state === 'playing' && g.mode === 'hub' && !g.paused && !g.dialogue?.active && !g.cutscenes?.active && !g.cutscene && this.zones.length > 0;
+    return g.state === 'playing' && (g.mode === 'world' || g.mode === 'hub') && !g.paused && !g.dialogue?.active && !g.cutscenes?.active && !g.cutscene && this.zones.length > 0;
   }
   update(dt) {
     if (!this.active()) return;
     this.keepOut(dt);
     this.t -= dt;
     if (this.t > 0) return;
-    this.t = 14 + Math.random() * 12;
+    this.t = (this.dense ? 6 : 14) + Math.random() * (this.dense ? 6 : 12);
     if (this.live().length >= this.cap) return;
     this.spawn();
   }
@@ -47,22 +49,26 @@ export class Roaming {
     if (!out.length) return 0;
     for (let tries = 0; tries < 20; tries++) {
       const h = out[Math.floor(Math.random() * out.length)];
-      const zone = this.zones[Math.floor(Math.random() * this.zones.length)];
-      const x = zone.x0 + Math.random() * (zone.x1 - zone.x0), z = zone.z0 + Math.random() * (zone.z1 - zone.z0);
-      const d = Math.hypot(x - h.pos.x, z - h.pos.z);
-      if (d < 11 || d > 24) continue;
+      // a spot 11–24 m from them, inside a roam zone
+      const ang = Math.random() * Math.PI * 2, dd = 11 + Math.random() * 13;
+      const x = h.pos.x + Math.cos(ang) * dd, z = h.pos.z + Math.sin(ang) * dd;
+      const zone = this.zones.find((r) => inRect(r, x, z));
+      if (!zone) continue;
       if (hs.some((p) => Math.hypot(x - p.pos.x, z - p.pos.z) < 10)) continue;
+      if (this.safe.some((r) => inRect(r, x, z))) continue;
+      if (g.world.isLoaded && !g.world.isLoaded(x, z)) continue;
       const y = this.groundAt(x, z);
       if (!isFinite(y) || g.world.liquidAt(x, y + 0.2, z) || g.world.solidAt(x, y + 0.5, z) || g.world.solidAt(x, y + 1.5, z)) continue;
       if (this.onScreen(tmp.set(x, y + 0.6, z))) continue;
-      const kind = Math.random() < 0.75 ? 'swarmer' : 'spitter';
-      const n = kind === 'swarmer' ? 1 + Math.floor(Math.random() * 3) : 1;
+      const kinds = zone.kinds ?? ['swarmer', 'swarmer', 'swarmer', 'spitter'];
+      const kind = kinds[Math.floor(Math.random() * kinds.length)];
+      const n = kind === 'swarmer' || kind === 'flyhead' ? 1 + Math.floor(Math.random() * 3) : 1;
       let made = 0;
       for (let i = 0; i < n; i++) {
         const px = x + (Math.random() - 0.5) * 2.5, pz = z + (Math.random() - 0.5) * 2.5;
         const py = this.groundAt(px, pz);
         if (!isFinite(py) || Math.abs(py - y) > 1.5) continue;
-        const e = g.spawnEnemy(kind, new THREE.Vector3(px, py, pz), { level: 1 });
+        const e = g.spawnEnemy(kind, new THREE.Vector3(px, py, pz), { level: zone.level ?? 1 });
         if (!e) continue;
         e.roamer = true; e.spawnT = 0.6;
         this.list.push(e); made++;
@@ -84,11 +90,12 @@ export class Roaming {
       const far = hs.length ? Math.min(...hs.map((p) => p.pos.distanceTo(e.pos))) : 99;
       e.farT = far > 42 ? (e.farT ?? 0) + dt : 0;
       if (e.farT > 4) { this.vanish(e, false); continue; }
-      if (this.core && inRect(this.core, e.pos.x, e.pos.z)) {
+      const zone = this.safe.find((r) => inRect(r, e.pos.x, e.pos.z));
+      if (zone) {
         e.coreT = (e.coreT ?? 0) + dt;
         if (e.coreT > 0.35) {
           this.vanish(e, true);
-          if (!this.warned) { this.warned = true; g.toast?.('Tengen\'s barrier burns away a curse that strayed onto the campus'); }
+          if (!this.warned) { this.warned = true; g.toast?.(zone === this.core || (this.core && zone.x0 === this.core.x0) ? 'Tengen\'s barrier burns away a curse that strayed onto the campus' : 'A barrier burns away a curse that strayed too close'); }
         }
       } else e.coreT = 0;
     }

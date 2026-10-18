@@ -7,8 +7,12 @@
 //   objective  exorcise | rescue | seal (mission.js)
 //   boss       entities/bosses.js BOSS_IDS (entities/bosses/<id>.js)
 //   difficulty base grade (1 = Grade 3 … 4 = Special Grade)
-//   start      where its quest marker stands at Jujutsu High: a hub spot
-//              (L.spots key) and a short description of the place
+//   start      where its quest marker stood in the old hub (kept for text)
+//   region     the open-world region its curtain (lair) is in; the lair is
+//              the region's 'lair_<id>' anchor (world/regions/)
+//   giver      who briefs it there: { npc, name, look, color, lines } — a
+//              Jujutsu High resident ('gojo', 'nitta'…) or a quest NPC the
+//              quest system stands at the region's 'giver_<id>' anchor
 //   intro      the briefing lines; outro: one line when it is cleared
 export const ARCS = [
   { id: 'womb', num: 1, title: 'Cursed Womb', sub: 'Fearsome Womb', color: '#7a5cff', icon: '☠',
@@ -47,6 +51,7 @@ export const CHAPTERS = [
   {
     id: 'm1', arc: 'womb', num: 1, title: 'The Finger', place: 'Sugisawa Third High, at night',
     biome: 'jujutsu_high', objective: 'seal', objText: 'Seal the cursed relics', boss: 'sugisawa_curse', difficulty: 1, icon: '☝',
+    region: 'jujutsu_high', giver: { npc: 'gojo', lines: ['Yo, first-year. Ready for your first real job?', 'A finger of Sukuna turned up at Sugisawa Third High. They keep the old wing down in Takao-machi.', 'Every curse for miles can smell it. Go seal the relics before something eats them. I\'ll be... nearby. Probably.'] },
     start: { at: 'gate', dx: 3, dz: -2, place: 'the school gate' },
     intro: [
       'A rotting finger in a school storeroom. Someone broke the seal.',
@@ -58,6 +63,7 @@ export const CHAPTERS = [
   {
     id: 'm2', arc: 'womb', num: 2, title: 'Fearsome Womb', place: 'Eishu Detention Centre',
     biome: 'tokyo_night', objective: 'rescue', objText: 'Free the trapped inmates', boss: 'finger_bearer', difficulty: 1, icon: '🥚',
+    region: 'shinjuku', giver: { npc: 'ijichi_shinjuku', name: 'Kiyotaka Ijichi', look: 'npc_ijichi', color: '#9ab0d8', lines: ['The Eishu Detention Centre is just past here. A cursed womb is forming inside.', 'Five inmates are still in there. The Window says it\'s Special Grade.', 'I\'ll drop the curtain. Please... come back.'] },
     start: { at: 'gate', dx: -3, dz: -2, place: 'the school gate' },
     intro: [
       'A cursed womb has hatched inside a detention centre. Five inmates are still inside.',
@@ -69,6 +75,7 @@ export const CHAPTERS = [
   {
     id: 'm3', arc: 'womb', num: 3, title: 'Transfigured', place: 'The sewers under Kawasaki',
     biome: 'flooded_subway', objective: 'exorcise', objText: 'Cut down the transfigured', boss: 'mahito', difficulty: 2, icon: '🧵',
+    region: 'shinjuku', giver: { npc: 'nanami_shinjuku', name: 'Kento Nanami', look: 'nanami', color: '#e8d27a', lines: ['Bodies twisted into shapes no person should have. The trail leads into the sewers.', 'This is overtime. Let us be quick.'] },
     start: { at: 'mainHall', dx: 0, dz: 3, place: 'the main hall' },
     intro: [
       'Bodies keep turning up in the city, twisted into shapes no person should have.',
@@ -81,6 +88,7 @@ export const CHAPTERS = [
   {
     id: 'm4', arc: 'kyoto', num: 1, title: 'Curse Hunt', place: 'The Kyoto school woods',
     biome: 'cursed_forest', objective: 'exorcise', objText: 'Out-exorcise Kyoto', boss: 'hanami', difficulty: 2, icon: '🏹',
+    region: 'kyoto', giver: { npc: 'todo_kyoto', name: 'Aoi Todo', look: 'todo', color: '#c89a6a', lines: ['So you\'re Tokyo\'s new blood. Tell me, what type of woman do you like?', '...Hah! Good answer. Day one of the Goodwill Event: whoever exorcises the most curses wins.', 'The woods are past the curtain. Try to keep up, brother.'] },
     start: { at: 'trainingGround', dx: 2, dz: 0, place: 'the training ground' },
     intro: [
       'Day one of the Goodwill Event: the team battle. Whoever exorcises the most curses wins.',
@@ -92,6 +100,7 @@ export const CHAPTERS = [
   {
     id: 'm7', arc: 'kyoto', num: 2, title: 'Black Flash', place: 'Jujutsu High grounds, under a curtain',
     biome: 'jujutsu_high', objective: 'rescue', objText: 'Free the students in the curtain', boss: 'hanami', difficulty: 2, icon: '⚡',
+    region: 'jujutsu_high', giver: { npc: 'nitta', lines: ['A curtain just dropped over the training ground! Gojo-san can\'t get through it.', 'Students from both schools are trapped in there. Please hurry!'] },
     start: { at: 'trainingGround', dx: -2, dz: 2, place: 'the training ground' },
     intro: [
       'The curtain keeps Gojo out. Students from both schools are trapped inside.',
@@ -103,6 +112,7 @@ export const CHAPTERS = [
   {
     id: 'm8', arc: 'kyoto', num: 3, title: 'Stolen Fingers', place: 'Yasohachi Bridge, Saitama',
     biome: 'tokyo_night', objective: 'seal', objText: 'Seal the Death Paintings', boss: 'eso_kechizu', difficulty: 3, icon: '🖼',
+    region: 'cursed_forest', giver: { npc: 'nobara_forest', name: 'Nobara Kugisaki', look: 'nobara', color: '#ffa050', lines: ['The fingers and the Death Paintings were stolen during the Goodwill Event.', 'Two of the wombs walked out to Yasohachi Bridge. They bleed poison, apparently. Gross.', 'Let\'s go seal them. I\'ll bring the hammer.'] },
     start: { at: 'shrine', dx: 2, dz: 2, place: 'the shrine steps' },
     intro: [
       'During the Goodwill Event the storehouse was robbed: Sukuna\'s fingers and the Death Paintings.',
@@ -115,6 +125,7 @@ export const CHAPTERS = [
   {
     id: 'm5', arc: 'shibuya', num: 1, title: 'The Curtain Falls', place: 'Shibuya, 31 October',
     biome: 'shibuya', objective: 'rescue', objText: 'Save the trapped civilians', boss: 'dagon', difficulty: 3, icon: '🎃',
+    region: 'shibuya', giver: { npc: 'nitta_shibuya', name: 'Akari Nitta', look: 'npc_nitta', color: '#f0b070', lines: ['20:31. A curtain sealed the station with thousands of people inside.', 'They want Gojo-san. Every sorcerer in Tokyo is heading in.', 'Get the civilians out. I\'ll keep the car running!'] },
     start: { at: 'gate', dx: 0, dz: -4, place: 'the school gate' },
     intro: [
       '20:31. A curtain seals Shibuya Station with thousands of people inside.',
@@ -126,6 +137,7 @@ export const CHAPTERS = [
   {
     id: 'm9', arc: 'shibuya', num: 2, title: 'Fukutoshin Line', place: 'Shibuya Station, B5F',
     biome: 'flooded_subway', objective: 'exorcise', objText: 'Clear the platform', boss: 'choso', difficulty: 3, icon: '🚇',
+    region: 'shibuya', giver: { npc: 'nanami_shibuya', name: 'Kento Nanami', look: 'nanami', color: '#e8d27a', lines: ['Gojo went down to B5F alone. The platform is packed with transfigured people.', 'Someone is waiting at the foot of the stairs. Be careful.'] },
     start: { at: 'mainHall', dx: -3, dz: 3, place: 'the main hall' },
     intro: [
       'The platform is packed with transfigured humans. Below them, the Prison Realm waits for Gojo.',
@@ -137,6 +149,7 @@ export const CHAPTERS = [
   {
     id: 'm6', arc: 'shibuya', num: 3, title: 'Disaster Flames', place: 'Shibuya Crossing',
     biome: 'shibuya', objective: 'seal', objText: 'Seal the cursed seals', boss: 'jogo', difficulty: 4, icon: '🌋',
+    region: 'shibuya', giver: { npc: 'maki_shibuya', name: 'Maki Zen\'in', look: 'npc_maki', color: '#6ac08a', lines: ['Jogo is burning his way through everyone on the surface.', 'Seal those cursed seals at the crossing. I\'ll cover you. Don\'t get roasted.'] },
     start: { at: 'shrine', dx: -2, dz: 2, place: 'the shrine steps' },
     intro: [
       'With Gojo gone, Jogo burns his way through the sorcerers on the surface.',
@@ -148,6 +161,7 @@ export const CHAPTERS = [
   {
     id: 'm11', arc: 'shibuya', num: 4, title: 'Eight-Handled Sword', place: 'Shibuya, Dogenzaka',
     biome: 'shibuya', objective: 'rescue', objText: 'Shield the wounded sorcerers', boss: 'mahoraga', difficulty: 4, icon: '☸',
+    region: 'shibuya', giver: { npc: 'yuji_shibuya', name: 'Yuji Itadori', look: 'yuji', color: '#ff8a6a', lines: ['Megumi\'s cornered on Dogenzaka. He\'s making a hand sign I\'ve never seen...', 'Whatever comes out of that shadow, we have to help the wounded first!'] },
     start: { at: 'trainingGround', dx: 0, dz: -3, place: 'the training ground' },
     intro: [
       'Megumi is cornered and bleeding out. He makes the one hand sign no Ten Shadows user has survived.',
@@ -159,6 +173,7 @@ export const CHAPTERS = [
   {
     id: 'm10', arc: 'shibuya', num: 5, title: 'Idle Transfiguration', place: 'Shibuya, before dawn',
     biome: 'shibuya', objective: 'exorcise', objText: 'Survive the night', boss: 'mahito', difficulty: 4, icon: '🖐',
+    region: 'shibuya', giver: { npc: 'todo_shibuya', name: 'Aoi Todo', look: 'todo', color: '#c89a6a', lines: ['Brother. Stand up.', 'Mahito has evolved. We end him here, before dawn.'] },
     start: { at: 'dormitory', dx: 0, dz: 3, place: 'the dormitory' },
     intro: [
       'Nanami is gone. Nobara is down. Mahito has evolved.',
@@ -170,6 +185,7 @@ export const CHAPTERS = [
   {
     id: 'm12', arc: 'shibuya', num: 6, title: 'King of Curses', place: 'Shibuya, the ruined crossing',
     biome: 'shibuya', objective: 'seal', objText: 'Seal the scattered fingers', boss: 'sukuna', difficulty: 4, icon: '👑',
+    region: 'shibuya', giver: { npc: 'yuta_shibuya', name: 'Yuta Okkotsu', look: 'yuta', color: '#c8c8ff', lines: ['Fifteen fingers. Sukuna walks Shibuya freely.', 'He scattered the rest. Seal them, and make him take you seriously.'] },
     start: { at: 'shrine', dx: 0, dz: -3, place: 'the shrine steps' },
     intro: [
       'Fifteen fingers. The vessel is drowning, and Ryomen Sukuna walks Shibuya freely.',
