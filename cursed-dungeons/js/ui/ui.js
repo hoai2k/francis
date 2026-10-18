@@ -15,6 +15,13 @@ export class UI {
     el.id = 'scr-' + id;
     this.root.appendChild(el);
     const s = { id, el, build, opts };
+    // A menu owned by a gamepad player ignores the keyboard and mouse (the
+    // keyboard player's), so nobody else can click around in it. Clicks the
+    // UI makes itself for the owner's A button carry detail 0 and pass.
+    if (opts.owner && opts.owner.startsWith('pad')) {
+      const block = (e) => { if (e.type === 'keydown' || e.detail > 0 || e.pointerType === 'mouse') { e.preventDefault(); e.stopPropagation(); } };
+      for (const t of ['click', 'pointerdown', 'mousedown', 'keydown', 'wheel']) el.addEventListener(t, block, true);
+    }
     this.stack.push(s);
     build(el, s);
     this.autoFocus(s);
@@ -79,7 +86,7 @@ export class UI {
   // Called every frame while a screen is open.
   update() {
     const s = this.top(); if (!s || s.opts.passive) return;
-    const m = this.game.input.menu();
+    const m = this.game.input.menu(s.opts.owner);
     // A screen may claim device-specific input before it reaches shared focus.
     // Character select uses this so one controller cannot click another
     // player's focused button while joining or choosing a sorcerer.

@@ -7,7 +7,7 @@ import { SORCERERS } from '../sorcerers/index.js';
 import { isMobile } from '../util.js';
 
 const KEYS = { ranged: 'RMB', t1: '1', t2: '2', t3: '3', heal: 'Q', domain: 'F', art1: 'R', art2: 'T' };
-const PADKEYS = { ranged: 'RT', t1: 'LB', t2: 'RB', t3: 'Y', heal: '↑', domain: 'LT', art1: '←', art2: '→' };
+const PADKEYS = { ranged: 'RT', t1: 'LB', t2: 'RB', t3: 'Y', heal: 'LT', domain: '↑', art1: '←', art2: '→' };
 const tmp = new THREE.Vector3();
 
 export class HUD {
@@ -112,7 +112,7 @@ export class HUD {
       for (const slot in els) {
         const e = els[slot];
         let frac = 0, ready = true, cnt = '';
-        if (slot === 'heal') { frac = p.healCharges > 0 ? p.healCd / 1.2 : 1; ready = p.healCharges > 0; cnt = String(p.healCharges); }
+        if (slot === 'heal') { frac = p.healCharges > 0 ? p.healCd / 1.2 : 1 - (p.healRecharge ?? 0) / p.rctRecharge; ready = p.healCharges > 0 && p.healCd <= 0; cnt = String(p.healCharges); }
         else if (slot.startsWith('art')) { const a = p.artifacts[+slot[3] - 1]; if (!a) continue; frac = a.cdLeft / (a.cd * (1 - p.stats.cdr)); ready = a.cdLeft <= 0; }
         else if (slot === 'domain') { frac = 1 - p.ce / p.maxCe; ready = p.ce >= p.maxCe && (!g.domain || !p.kit.domain); }
         else { const ab = p.kit.slots[slot]; frac = ab.cdLeft / Math.max(0.01, ab.cd * p.kit.cdr); ready = ab.cdLeft <= 0 && p.ce >= (ab.ce ?? 0) * (p.kit.ceMul ?? 1); if (ab.maxCharges > 1) cnt = String(ab.chargesLeft ?? ''); }

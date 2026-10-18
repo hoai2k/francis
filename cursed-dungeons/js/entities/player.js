@@ -12,6 +12,7 @@ import { applyGear } from '../loot.js';
 import { useArtifact } from '../artifacts.js';
 
 // tap: ~1.3 blocks · hold: ~2.6 blocks (gravity 32, see physics.js)
+const RCT_RECHARGE = 18;   // seconds per Reverse Cursed Technique charge
 const JUMP = { v: 9.2, hold: 0.32, holdGravity: 0.42 };
 // jump slam: attack in the air after a jump dives down and hits around the landing
 const SLAM = { dmg: 22, radius: 3, knock: 8, cd: 1.2 };
@@ -74,8 +75,10 @@ export class Player {
   // Shared technique-tree nodes: RCT, its mastery and Cursed Energy reserves.
   applyTree() {
     const sk = this.skills ?? {};
-    this.rctUnlocked = !!sk.unlock_rct;
-    this.healMax = 3 + (sk.rct_mastery ?? 0); this.healCharges = Math.min(this.healCharges ?? this.healMax, this.healMax);
+    // Reverse Cursed Technique is always available (like Minecraft Dungeons II's
+    // healing potion): charges refill over time, RCT Mastery adds a charge.
+    this.rctUnlocked = true;
+    this.healMax = 1 + (sk.rct_mastery ?? 0); this.healCharges = Math.min(this.healCharges ?? this.healMax, this.healMax);
     this.stats.healBonus = (this.stats.healBonus ?? 0) + (sk.rct_mastery ?? 0) * 0.1;
     this.maxCe = 100 + (sk.ce_reserve ?? 0) * 20;
     this.ceRegen = 1.6 * (1 + (sk.ce_flow ?? 0) * 0.5);
@@ -118,12 +121,13 @@ export class Player {
     g.audio?.enemyDie(true);
   }
   revive(frac = 0.4) { this.downed = false; this.dead = false; this.hp = this.maxHp * frac; this.iframes = 2; this.action = null; this.game.fx.heal(this.pos); this.game.audio?.energy('heal'); }
+  // seconds for one RCT charge to come back (cooldown reduction shortens it)
+  get rctRecharge() { return RCT_RECHARGE * (1 - (this.stats.cdr ?? 0) * 0.5); }
   useHeal() {
-    if (!this.rctUnlocked) {
-      if (this.game.time - (this.rctPing ?? -9) > 1.2) { this.rctPing = this.game.time; this.game.toast?.('🔒 Reverse Cursed Technique is locked — unlock it on the technique tree'); this.game.audio?.ui('back'); }
+    if (this.healCharges <= 0 || this.healCd > 0 || this.hp >= this.maxHp) {
+      if (this.healCharges <= 0 && this.game.time - (this.rctPing ?? -9) > 1.2) { this.rctPing = this.game.time; this.game.toast?.(`Reverse Cursed Technique recharging · ${Math.ceil(this.rctRecharge - (this.healRecharge ?? 0))}s`); this.game.audio?.ui('back'); }
       return;
     }
-    if (this.healCharges <= 0 || this.healCd > 0 || this.hp >= this.maxHp) return;
     this.healCharges--; this.healCd = 1.2;
     this.healOverTime = { left: this.maxHp * (0.45 + (this.stats.healBonus ?? 0)), t: 1.2 };
     this.game.fx.heal(this.pos, 0x9affd8);
@@ -135,6 +139,9 @@ export class Player {
   updateCombat(dt, inp) {
     const g = this.game;
     this.comboT -= dt; this.healCd = Math.max(0, this.healCd - dt);
+    // RCT charges come back one at a time
+    if (this.healCharges < this.healMax) { this.healRecharge = (this.healRecharge ?? 0) + dt; if (this.healRecharge >= this.rctRecharge) { this.healRecharge = 0; this.healCharges++; this.game.fx?.heal?.(this.pos, 0x9affd8); } }
+    else this.healRecharge = 0;
     if (this.healOverTime) { const r = this.healOverTime; const k = Math.min(r.left, (r.left / Math.max(0.05, r.t)) * dt); this.hp = Math.min(this.maxHp, this.hp + k); r.left -= k; r.t -= dt; if (r.t <= 0 || r.left <= 0) this.healOverTime = null; }
     if (inp.pressed.attack || (inp.held.attack && !inp.mouse && this.autoRepeat)) this.attackBuffer = 0.28;
     else this.attackBuffer -= dt;

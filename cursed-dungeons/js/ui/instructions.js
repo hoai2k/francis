@@ -8,10 +8,10 @@ const ACC = '#a07aff';
 const L = (key, val, fx, fy, ty, sub) => ({ side: 'l', key, val, fx, fy, ty, sub });
 const R = (key, val, fx, fy, ty, sub) => ({ side: 'r', key, val, fx, fy, ty, sub });
 const CALLOUTS = [
-  L('LT', 'Domain / ultimate', 162, 20, 20),
+  L('LT', 'Reverse CT (heal)', 162, 20, 20),
   L('LB', 'Technique 1', 150, 45, 62),
   L('Left stick', 'Move', 168, 125, 126),
-  L('D-pad', '↑ Reverse CT (heal)', 246, 182, 200, ['↓ Inventory', '← → Cursed tools']),
+  L('D-pad', '↑ Domain / ultimate', 246, 182, 200, ['↓ Inventory', '← → Cursed tools']),
   R('RT', 'Ranged technique', 480, 20, 20),
   R('RB', 'Technique 2', 490, 45, 62),
   R('Y', 'Technique 3', 466, 100, 102),
@@ -26,7 +26,7 @@ function callout(c) {
     `<text x="${tx}" y="${c.ty}" text-anchor="${anchor}"><tspan class="k">${c.key}</tspan><tspan class="v"> · ${c.val}</tspan>${subs}</text>`;
 }
 function padSvg() {
-  return `<svg viewBox="0 0 1010 450" role="img" aria-label="Gamepad diagram. Left stick moves, right stick aims. A jumps, hold it for a higher jump, and interacts when a prompt shows. X melee, in the air a jump slam. B dodge roll. LB, RB and Y techniques 1, 2 and 3. LT Domain Expansion or ultimate, RT ranged technique. D-pad up Reverse Cursed Technique, down inventory, left and right cursed tools. View map, Menu pause.">
+  return `<svg viewBox="0 0 1010 450" role="img" aria-label="Gamepad diagram. Left stick moves, right stick aims. A jumps, hold it for a higher jump, and interacts when a prompt shows. X melee, in the air a jump slam. B dodge roll. LB, RB and Y techniques 1, 2 and 3. LT Reverse Cursed Technique (heal), RT ranged technique. D-pad up Domain Expansion or ultimate, down inventory, left and right cursed tools. View map, Menu pause.">
   <style>
     .ld{stroke:${ACC};stroke-width:1.3;opacity:.75} .dot{fill:${ACC}} text{font:600 15px 'Pixelify Sans',system-ui,sans-serif;fill:#f2ecff}
     .k{font-weight:800;fill:#ffcf4a} .s{fill:#c8bce6;font-weight:500;font-size:14px} .body{fill:#140f22;stroke:${ACC};stroke-width:3} .part{fill:#221a38;stroke:${ACC};stroke-width:1.8}
@@ -67,8 +67,8 @@ const TABLE = [
   ['Ranged technique', 'Right click', 'RT', '✦'],
   ['Dodge roll (dodge through attacks)', 'Shift', 'B', '⤳'],
   ['Techniques 1 · 2 · 3', '1 · 2 · 3', 'LB · RB · Y', '1 · 2 · 3'],
-  ['Domain Expansion / ultimate (full CE bar)', 'F', 'LT', '領域'],
-  ['Reverse Cursed Technique (heal)', 'Q', 'D-pad ↑', '✚'],
+  ['Domain Expansion / ultimate (full CE bar)', 'F', 'D-pad ↑', '領域'],
+  ['Reverse Cursed Technique (heal, always available, recharges over time)', 'Q', 'LT', '✚'],
   ['Cursed tools', 'R · T', 'D-pad ← · →', '—'],
   ['Interact (talk, open, travel, enter a curtain)', 'E', 'A when a prompt shows', 'Tap the prompt'],
   ['Inventory', 'I', 'D-pad ↓', 'Pause menu'],
@@ -93,10 +93,10 @@ export function openInstructions(game, onClose) {
       sec('The open world',
         h('p', {}, 'Japan is ', h('b', {}, 'nine regions'), ': Jujutsu High and its valley town, the Cursed Forest, the Okinawa coast, Kyoto, Shinjuku, Shibuya and three Culling Game colonies (Tokyo No. 1, Sendai, Sakurajima). Walk anywhere: towns full of people, wild places full of curses, ruins, waterfalls and hidden lairs.'),
         h('ul', { class: 'tips' },
-          h('li', {}, h('b', {}, 'Region gates. '), 'Every road ends at a red torii gate on the edge of the region. Interact to walk on into the next region (your health comes with you).'),
+          h('li', {}, h('b', {}, 'One open world. '), 'The regions join up with no gates and no loading: follow a road to the edge of a region and just keep walking into the next one (you can see it ahead of you). Signposts mark the borders. The Culling Game colonies sit behind their barrier: you walk through it where the roads cross it, and only there.'),
           h('li', {}, h('b', {}, 'Window stations 窓. '), 'The Window (the sorcerers\' support network) keeps a glowing blue shrine in every region. Walk up to one to add it to your map, then touch any station, or open the World Map (Tab / View), to ', h('b', {}, 'fast travel'), ' to any station you have found.'),
           h('li', {}, h('b', {}, 'Quests. '), 'People with a gold ', h('b', { class: 'gold' }, '!'), ' over their heads have a side quest; a blue ? means a quest wants you to talk to them. Side quests ask you to exorcise curses, defeat a named curse, find lost things, rescue and escort someone, or clear a lair. The ', h('b', {}, 'Quest Log'), ' (J, hold View, or Pause) lists them; pick one and Track it.'),
-          h('li', {}, h('b', {}, 'Where to go. '), 'Follow the ', h('b', { class: 'gold' }, 'gold arrow, beam and footprints'), ' to the tracked quest. When it is in another region they lead to the right gate (or fast travel there). The minimap (top right) shows stations, gates, quest givers and curses.'),
+          h('li', {}, h('b', {}, 'Where to go. '), 'Follow the ', h('b', { class: 'gold' }, 'gold arrow, beam and footprints'), ' to the tracked quest. When it is in another region they lead along the road over the border (or fast travel there). The minimap (top right) shows stations, the roads out (⇧), quest givers and curses.'),
           h('li', {}, h('b', {}, 'Curses roam '), 'the wild. Towns, camps and the school sit behind barriers: curses cannot follow you in.'))),
       sec('A chapter (a curtain)',
         h('ol', { class: 'steps' },

@@ -242,7 +242,7 @@ export function openInventory(game, player) {
       h('div', { class: 'hint', style: 'margin:0 0 8px' }, `Level ${d.level} · ◆ ${d.coins} · Enchantment points: ${d.enchantPoints}`),
       h('div', { class: 'inv' }, h('div', {}, h('h3', {}, 'Equipped'), eqRow, h('h3', {}, 'Stash'), grid, stats), detail),
       h('div', { class: 'row', style: 'justify-content:flex-end;margin-top:10px' }, h('button', { class: 'btn', 'data-autofocus': true, onclick: close }, 'Close'))));
-  }, { dim: true, onBack: close });
+  }, { dim: true, onBack: close, owner: player?.device });
 }
 
 // ------------------------------------------------------------------ technique tree / loadout
@@ -270,7 +270,7 @@ export function openShop(game, player) {
       h('div', { class: 'row', style: 'justify-content:flex-end;margin-top:10px' },
         h('button', { class: 'btn small', onclick: () => { if (d.coins < 25) { toast('Need ◆25'); return; } d.coins -= 25; d.shop = null; save.write(); close(); openShop(game, player); } }, 'Restock (◆25)'),
         h('button', { class: 'btn', 'data-autofocus': true, onclick: close }, 'Close'))));
-  }, { dim: true, onBack: close });
+  }, { dim: true, onBack: close, owner: player?.device });
 }
 
 // ------------------------------------------------------------------ mission map table

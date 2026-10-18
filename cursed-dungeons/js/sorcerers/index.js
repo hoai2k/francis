@@ -53,10 +53,10 @@ export const SKILL_TREES = {};
 //   reqCount: n — needs n abilities unlocked beyond the first one.
 export const UNLOCK_NODES = [
   { id: 'ce_flow', name: 'Cursed Energy Flow', icon: '🌊', desc: 'Passive Cursed Energy regeneration +50% per rank.', max: 3, branch: 'Core', tier: 0 },
-  { id: 'unlock_rct', name: 'Reverse Cursed Technique', icon: '✚', desc: 'Unlock RCT healing (Q / D-pad ↑).', max: 1, reqCount: 1, branch: 'Core', tier: 2 },
+  { id: 'unlock_rct', name: 'Reverse Cursed Technique', icon: '✚', desc: 'Always available: heal with LT / Q. A charge comes back every 18 s.', max: 1, branch: 'Core', tier: 2 },
   { id: 'ce_reserve', name: 'Vast Reserves', icon: '🔋', desc: '+20 max Cursed Energy per rank.', max: 3, req: 'ce_flow', branch: 'Core', tier: 1 },
   { id: 'rct_mastery', name: 'RCT Mastery', icon: '💚', desc: '+1 RCT charge and stronger healing per rank.', max: 2, req: 'unlock_rct', branch: 'Core', tier: 3 },
-  { id: 'unlock_domain', name: 'Domain / Ultimate', icon: '領', desc: 'Unlock your Domain Expansion, or your ultimate attack if your sorcerer has no domain (F / LT).', max: 1, reqCount: 3, capstone: true },
+  { id: 'unlock_domain', name: 'Domain / Ultimate', icon: '領', desc: 'Unlock your Domain Expansion, or your ultimate attack if your sorcerer has no domain (F / D-pad ↑).', max: 1, reqCount: 3, capstone: true },
 ];
 // The old fixed-slot unlocks: kept as save keys (old saves and the kits not
 // yet given a library still use them) but no longer shown as tree nodes.
@@ -104,6 +104,7 @@ export function buildTree(kit, sid = kit.p.sorcerer) {
 }
 export function nodeRank(skills, n) {
   if (n.type === 'ability' && n.start) return 1;
+  if (n.key === 'unlock_rct') return 1;   // every sorcerer starts with Reverse Cursed Technique
   if (n.type === 'ability' && n.ref.legacy && n.ref.legacy !== 'ranged' && skills?.['unlock_' + n.ref.legacy] > 0) return Math.max(1, skills?.[n.key] ?? 0);
   return skills?.[n.key] ?? 0;
 }

@@ -147,5 +147,5 @@ export function openTechniqueTree(game, player) {
         h('button', { class: 'btn', onclick: close }, 'Close'))));
     // keep the selected node in view
     requestAnimationFrame(() => { const n = tree.by[sel]; if (n && wrap.scrollLeft === 0 && wrap.scrollTop === 0) { wrap.scrollLeft = Math.max(0, px(n) - wrap.clientWidth / 2); } });
-  }, { dim: true, onBack: close });
+  }, { dim: true, onBack: close, owner: player?.device });
 }

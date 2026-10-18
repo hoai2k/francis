@@ -35,7 +35,7 @@ import { Mission } from './mission.js';
 import { Pickups } from './pickups.js';
 import { Minimap } from './ui/minimap.js';
 import { BOSS_IDS, BOSSES } from './entities/bosses.js';
-import { Player } from './entities/player.js';
+import { Player, PLAYER_COLORS } from './entities/player.js';
 import { Enemy } from './entities/enemy.js';
 import { TrainingDummy } from './entities/dummy.js';
 import { FLASH_MATERIAL } from './entities/character.js';
@@ -647,20 +647,51 @@ class Game {
         h('button', { class: 'btn', onclick: () => openSettings(this) }, 'Settings'),
         h('button', { class: 'btn', onclick: () => toggleFullscreen() }, '⛶ Fullscreen'),
         h('button', { class: 'btn', onclick: () => { this.ui.close('pause'); this.openPhotoMode(); } }, '📷 Photo Mode'),
+        this.players.length > 1 ? h('button', { class: 'btn', onclick: () => { this.ui.close('pause'); this.paused = false; this.last = performance.now(); this.dropOut(player); } }, `Drop out (Player ${player.index + 1})`) : null,
         h('button', { class: 'btn', onclick: () => { this.ui.close('pause'); this.paused = false; this.save.write(); this.toTitle(); } }, 'Quit to Title'),
         this.mode === 'mission' ? h('button', { class: 'btn danger', onclick: () => { this.ui.close('pause'); this.paused = false; this.returnToWorld(); } }, 'Abandon mission') : null,
         this.worldMission ? h('button', { class: 'btn danger', onclick: () => { this.ui.close('pause'); this.paused = false; this.last = performance.now(); this.worldMission?.abandon(); } }, 'Abandon mission (lift the curtain)') : null,
       ));
-    }, { dim: true, onBack: () => this.resume() });
+    }, { dim: true, onBack: () => this.resume(), owner: player?.device });
   }
   resume() { this.save.write(); this.ui.close('pause'); this.paused = false; this.last = performance.now(); }
 
   // Drop-in co-op: an unassigned controller pressing Start/A joins.
+  // A player leaves the session from their pause menu; the others carry on.
+  // Their controller (or the keyboard) can join again later the usual way.
+  dropOut(p) {
+    if (!p || this.players.length <= 1 || !this.players.includes(p)) return;
+    if (this.domain?.caster === p) this.domainSys.end();
+    this.save.write();
+    this.removePlayer(p);
+    this.players.splice(this.players.indexOf(p), 1);
+    this.players.forEach((q, i) => { q.index = i; q.color = PLAYER_COLORS[i]; });
+    // the button that confirmed "Drop out" must be let go before it can rejoin
+    (this.joinBlock ??= {})[p.device] = performance.now() + 1200;
+    this.hud?.rebuildCards();
+    toast(`${p.device === 'kbm' ? 'Keyboard player' : 'Player'} dropped out · press ${p.device === 'kbm' ? 'Enter' : 'A / Start'} to join again`);
+    this.audio.ui('back');
+  }
   checkJoin() {
     if (isMobile || this.players.length >= 4) return;
+    const blocked = (id, held) => {
+      const b = this.joinBlock?.[id]; if (!b) return false;
+      if (performance.now() < b || held) { if (held) this.joinBlock[id] = Math.max(b, performance.now() + 200); return true; }
+      delete this.joinBlock[id]; return false;
+    };
+    // the keyboard can drop back in with Enter after dropping out
+    if (!this.players.some((p) => p.device === 'kbm')) {
+      const enter = this.input.keys.has('Enter') || this.input.keys.has('NumpadEnter');
+      if (!blocked('kbm', enter) && enter && !this.ui.stack.length) {
+        const tech = SORCERER_IDS.includes(this.save.data.technique) ? this.save.data.technique : rollTechnique();
+        const p = this.addPlayer('kbm', tech);
+        this.fx.summonCircle(p.pos, 0x6ad8ff); toast(`Player ${p.index + 1} joined (keyboard)`); this.audio.ui('buy');
+      }
+    }
     for (const pad of this.input.pads()) {
       const id = 'pad' + pad.index;
       if (this.players.some((p) => p.device === id)) continue;
+      if (blocked(id, pad.buttons[9]?.pressed || pad.buttons[0]?.pressed)) continue;
       if (pad.buttons[9]?.pressed || pad.buttons[0]?.pressed) {
         // a lone keyboard P1 who has been idle hands control to the controller instead
         const p0 = this.players[0];

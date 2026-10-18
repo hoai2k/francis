@@ -61,7 +61,7 @@ export function openSettings(game, onClose) {
         <span class="kbd">Space</span> jump (hold for a 2-block jump; attack in the air to jump-slam) · <span class="kbd">Shift</span> dodge · <span class="kbd">1</span><span class="kbd">2</span><span class="kbd">3</span> techniques · <span class="kbd">F</span> Domain Expansion ·
         <span class="kbd">Q</span> Reverse Cursed Technique (heal) · <span class="kbd">R</span><span class="kbd">T</span> cursed-tool artifacts · <span class="kbd">E</span> interact · <span class="kbd">Tab</span> map · <span class="kbd">I</span> inventory · <span class="kbd">Esc</span> pause · <span class="kbd">Wheel</span> zoom · <span class="kbd">F3</span> FPS readout · <span class="kbd">Alt</span>+<span class="kbd">Enter</span> fullscreen
         <h3>Gamepad</h3>
-        Left stick move · Right stick aim · <b>A</b> jump (hold: higher) / interact · <b>X</b> attack · <b>RT</b> ranged · <b>B</b> dodge · <b>LB / RB / Y</b> techniques · <b>LT</b> Domain · <b>D-pad ↑</b> heal · <b>D-pad ← →</b> artifacts · <b>D-pad ↓</b> inventory · <b>View</b> map · <b>Menu</b> pause
+        Left stick move · Right stick aim · <b>A</b> jump (hold: higher) / interact · <b>X</b> attack · <b>RT</b> ranged · <b>B</b> dodge · <b>LB / RB / Y</b> techniques · <b>LT</b> Reverse Cursed Technique (heal) · <b>D-pad ↑</b> Domain · <b>D-pad ← →</b> artifacts · <b>D-pad ↓</b> inventory · <b>View</b> map · <b>Menu</b> pause
         <h3>Local co-op</h3>
         Up to 4 players on one screen: keyboard+mouse plus gamepads. Press <b>A</b> or <b>Start</b> on a controller at character select (or <b>Start</b> during a mission) to drop in.
         <h3>Touch</h3>

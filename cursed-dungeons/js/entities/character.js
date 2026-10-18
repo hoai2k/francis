@@ -8,6 +8,7 @@ import { damp, clamp, lerp, easeOutCubic, easeInCubic, easeOutBack, mulberry32 }
 import { U } from '../gfx/materials.js';
 
 export const PX = 0.058;          // world units per skin pixel
+const ROLL_PIVOT = 4;             // skin pixels above the hip joint: the tucked body's centre of mass
 const SKIN = 64;                  // logical skin layout (Minecraft 64x64): painting API + UVs
 const HD = 2;                     // uploaded texels per logical pixel (128x128 "HD skin")
 const HW = SKIN * HD;
@@ -421,9 +422,22 @@ export class Rig {
     L(this.armL, 'armLX', T.armLX, 'x'); L(this.armL, 'armLY', T.armLY, 'y'); L(this.armL, 'armLZ', T.armLZ, 'z');
     L(this.legR, 'legRX', T.legRX, 'x'); L(this.legL, 'legLX', T.legLX, 'x');
     L(this.legR, 'legRZ', T.legRZ, 'z'); L(this.legL, 'legLZ', T.legLZ, 'z');
-    // body roll (dodge) and death fall rotate the hips around their pivot
-    if (a && (a.type === 'dodge')) this.hips.rotation.x = T.rootX;
-    else this.hips.rotation.x = damp(this.hips.rotation.x % (Math.PI * 2), T.rootX, snap, dt);
+    // The dodge roll spins the tucked body about its centre of mass (a few
+    // pixels above the hip joint), not the joint itself: the hips orbit that
+    // point, so the character tumbles in place instead of cartwheeling round
+    // its waist. The death fall still pivots at the hips.
+    if (a && (a.type === 'dodge')) {
+      const th = T.rootX, d = ROLL_PIVOT * PX;
+      this.hips.rotation.x = th;
+      this.hips.position.y = T.hipsY + T.lift + d * (1 - Math.cos(th));
+      this.hips.position.z = -d * Math.sin(th);
+    } else {
+      // wrap to (-π, π] first, so finishing a full roll (2π) settles forward
+      // instead of unwinding a whole turn backwards
+      const rx = this.hips.rotation.x, wrapped = rx - Math.PI * 2 * Math.round(rx / (Math.PI * 2));
+      this.hips.rotation.x = damp(wrapped, T.rootX, snap, dt);
+      this.hips.position.z = damp(this.hips.position.z, 0, snap, dt);
+    }
     this.physics(p);
   }
   attackPose(T, a, k) {

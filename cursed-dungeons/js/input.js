@@ -10,7 +10,8 @@ const KEYMAP = {
 };
 // Standard gamepad mapping
 // A jumps (and interacts while a prompt shows, see main.updateInteract), X attacks.
-const PADMAP = { 0: 'jump', 1: 'dodge', 2: 'attack', 3: 't3', 4: 't1', 5: 't2', 6: 'domain', 7: 'ranged', 8: 'map', 9: 'pause', 12: 'heal', 13: 'inv', 14: 'art1', 15: 'art2' };
+// LT heals (Reverse Cursed Technique, always available); D-pad up casts the Domain / Ultimate.
+const PADMAP = { 0: 'jump', 1: 'dodge', 2: 'attack', 3: 't3', 4: 't1', 5: 't2', 6: 'heal', 7: 'ranged', 8: 'map', 9: 'pause', 12: 'domain', 13: 'inv', 14: 'art1', 15: 'art2' };
 
 function blank() { const o = {}; for (const a of ACTIONS) o[a] = false; return o; }
 
@@ -113,10 +114,15 @@ export class Input {
   takeZoom() { const z = this.wheel + this.pinch; this.wheel = 0; this.pinch = 0; return z; }
 
   // Menu navigation merged across every device (edge-triggered).
-  menu() {
+  // Menu navigation this frame. `owner` (a device id) limits it to that
+  // player's own keyboard or controller: a player's inventory, technique tree,
+  // loadout and pause menu only answer to them. Edge state is still tracked
+  // for every device so nothing fires late when ownership changes.
+  menu(owner = null) {
     const out = { up: false, down: false, left: false, right: false, confirm: false, back: false, start: false, device: null };
+    const allow = (dev) => !owner || owner === 'touch' || owner === dev;
     const k = this.keys; const pk = this._menuPrevKeys || new Set();
-    const edge = (code) => k.has(code) && !pk.has(code);
+    const edge = (code) => allow('kbm') && k.has(code) && !pk.has(code);
     if (edge('ArrowUp') || edge('KeyW')) out.up = true; if (edge('ArrowDown') || edge('KeyS')) out.down = true;
     if (edge('ArrowLeft') || edge('KeyA')) out.left = true; if (edge('ArrowRight') || edge('KeyD')) out.right = true;
     if (edge('Enter')) { out.confirm = true; out.device = 'kbm'; }
@@ -131,7 +137,7 @@ export class Input {
         left: p.buttons[14]?.pressed || (p.axes[0] ?? 0) < -0.6, right: p.buttons[15]?.pressed || (p.axes[0] ?? 0) > 0.6,
         confirm: p.buttons[0]?.pressed, back: p.buttons[1]?.pressed, start: p.buttons[9]?.pressed,
       };
-      for (const key in cur) if (cur[key] && !prev[key]) { out[key] = true; if (key === 'confirm' || key === 'start') out.device = id; }
+      if (allow(id)) for (const key in cur) if (cur[key] && !prev[key]) { out[key] = true; if (key === 'confirm' || key === 'start') out.device = id; }
       this._padPrev[id] = cur;
     }
     return out;

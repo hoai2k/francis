@@ -114,5 +114,5 @@ export function openLoadout(game, player, opts = {}) {
         } }, 'Clear slot'),
         h('button', { class: 'btn', onclick: () => { ui.close('loadout'); import('./techniqueTree.js').then((m) => m.openTechniqueTree(game, player)); } }, '🌳 Technique Tree'),
         h('button', { class: 'btn primary', onclick: close }, 'Done'))));
-  }, { dim: true, onBack: close });
+  }, { dim: true, onBack: close, owner: player?.device });
 }

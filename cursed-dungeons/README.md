@@ -404,8 +404,8 @@ item.
 | Ranged / technique | Right click | RT | ✦ |
 | Dodge roll (i-frames) | Shift | B | ⤳ |
 | Techniques 1 / 2 / 3 | 1 / 2 / 3 | LB / RB / Y | 1 / 2 / 3 |
-| Domain Expansion | F | LT | 領域 |
-| Reverse Cursed Technique (heal) | Q | D-pad ↑ | ✚ |
+| Domain Expansion / ultimate | F | D-pad ↑ | 領域 |
+| Reverse Cursed Technique (heal; always available, a charge comes back every 18 s) | Q | LT | ✚ |
 | Artifacts | R / T | D-pad ← / → | — |
 | Interact | E | A (while a prompt shows) | Tap the prompt |
 | Inventory | I | D-pad ↓ | Pause menu |
