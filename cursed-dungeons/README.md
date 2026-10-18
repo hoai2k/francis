@@ -33,10 +33,13 @@ Play: <https://hoai2k.github.io/francis/cursed-dungeons/>
    - People with a gold **!** over their heads have a **side quest**; a
      blue **?** means a quest wants you to talk to them.
    - The **tracker** (a gold arrow, beam and footprints) always leads to
-     the tracked quest, through region gates when it is somewhere else.
-   Walk out of the valley through a red torii **region gate** to reach the
-   next region, or touch a blue **Window station** (窓) to fast travel to
-   any station you have found. **Tab / View** opens the **World Map**,
+     the tracked quest, along the roads over the borders when it is
+     somewhere else.
+   The world is **one continuous map**: follow any road out of the valley
+   and just keep walking — the next region is already there ahead of you,
+   with no gate and no loading screen (you could walk from Shibuya to the
+   Tokyo colony and on to Shinjuku). Or touch a blue **Window station**
+   (窓) to fast travel to any station you have found. **Tab / View** opens the **World Map**,
    **J / hold View** the **Quest Log**.
 4. Story chapters are **main quests**, and they play out **in the open
    world**: talk to the chapter's briefer in the right region, then walk
@@ -48,8 +51,8 @@ Play: <https://hoai2k.github.io/francis/cursed-dungeons/>
    objects at their altars (each one wakes a pack of curses) — and the
    Special Grade rises at the district's arena. Beat it for its chest,
    the chapter's rewards and a results panel; then the curtain cracks and
-   lifts. Nobody crosses the curtain while it is down (gates and Window
-   stations are shut); dying puts you back at its edge with the mission
+   lifts. Nobody crosses the curtain while it is down (the borders and
+   Window stations are shut); dying puts you back at its edge with the mission
    kept, and **Pause → Abandon mission** lifts it (walk back in to retry).
    Cleared chapters can be replayed at a higher threat (quest log, the
    World Map's 📖 Chapters, Ijichi's mission map), and each leaves a
@@ -65,8 +68,9 @@ Play: <https://hoai2k.github.io/francis/cursed-dungeons/>
 
 ### The open world
 
-Nine regions, each a big streamed voxel map, joined by gates on the roads
-(a stylised 3×3 map of Japan):
+Nine regions, each a big streamed voxel map, joined seamlessly into one
+world (a stylised 3×3 map of Japan) — walk over any border on its road and
+you are in the next region, no fade, no loading:
 
 | | West | Centre | East |
 | --- | --- | --- | --- |
@@ -139,7 +143,12 @@ Nine regions, each a big streamed voxel map, joined by gates on the roads
   the Cane Serpent, as the mini-boss). Loot chests hide in both regions.
 - **Window stations** (the sorcerers' support network) are found by
   walking up to them; then touch any station or use the World Map to fast
-  travel. Health carries over through gates.
+  travel.
+- **Borders**: the roads run straight on over every border, marked by a
+  signpost ("→ Shibuya" / "Entering Jujutsu High"). Either side of the road
+  the two regions share a strip of countryside rising into a ridge; city
+  to city the streets just carry on; Sakurajima is reached over causeways
+  across the strait.
 - Towns, camps and the school are behind barriers: roaming curses burn
   away at the line.
 - **Curses in the wild**: packs of curses roam every region outside the
@@ -183,7 +192,9 @@ Nine regions, each a big streamed voxel map, joined by gates on the roads
 ### The Culling Game
 
 The three colonies sit under barriers: a shimmering curtain on every
-edge and a lattice dome overhead; you leave only through the gates.
+edge and a lattice dome overhead. The curtain stands on the border: you
+walk through it where a road crosses it (the barrier gate, between two
+glowing pillars) and nowhere else.
 Entering one registers you as a player: Kogane, a golden shikigami,
 reads out the rules, then floats beside you and announces every score.
 
@@ -470,11 +481,25 @@ canvas), converging to 512 samples. **Save PNG** downloads the result.
 - **Textures**: block textures are 32×32 HD pixel art painted procedurally
   at start-up, each with a matching normal map and per-pixel roughness. Nothing is
   downloaded except the Three.js modules and fonts.
-- **Open world**: each region is a voxel map up to 320×320; only the
+- **Open world**: each region is a voxel map up to 352×352; only the
   chunk columns within the view radius of the players are meshed (nearest
   first, a few milliseconds per frame), far ones are dropped, and
-  collision always uses the full voxel data. The last three regions built
-  are kept in memory, so gates and dungeon exits are quick.
+  collision always uses the full voxel data.
+- **Seamless world** (`js/world/seamless.js`): the regions are tiles of one
+  map. The neighbours of the region you are in are built in the
+  background, a few milliseconds per frame (region builders are
+  generators that yield between steps), then prepared (decorations, sun
+  shafts, minimap, walkable-ground field) the same way. Near a border the
+  neighbour is drawn at its offset and its near strip meshed; collision
+  queries past the edge are answered by the neighbour, so you (and curses,
+  projectiles, co-op partners) cross physically. When the party is a few
+  blocks over the line the neighbour becomes the current region in the
+  same frame: everything that moves shifts by the tile offset, the old
+  region's systems stop and the new one's start. Sky, fog, light and
+  grading blend across the border. Both regions stamp a shared border
+  profile into their edge band (`js/world/regions/seams.js`), so terrain,
+  road and water meet exactly. Only the current region and its neighbours
+  stay in memory.
 - **Voxel world**: meshed in 16³ chunks with per-vertex ambient
   occlusion, baked coloured light and per-block roughness and emission.
   Destructible crates, barrels, cracked walls and pillars break into

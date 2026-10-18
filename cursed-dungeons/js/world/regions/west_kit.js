@@ -43,11 +43,14 @@ export function maple(R, x, z, o = {}) {
   return true;
 }
 
-export function grove(R, o = {}) {
+export function grove(R, o = {}) { const it = groveG(R, o); let r; do r = it.next(); while (!r.done); return r.value; }
+// the same, yielding every few rows (time-sliced region builds)
+export function* groveG(R, o = {}) {
   const [x0, z0, x1, z1] = o.rect ?? [3, 3, R.sx - 4, R.sz - 4];
   const step = o.step ?? 4, dens = o.density ?? 0.5;
   let n = 0;
   for (let z = z0; z <= z1; z += step) for (let x = x0; x <= x1; x += step) {
+    if (x === x0 && ((z - z0) / step) % 8 === 7) yield 'grove';
     const px = x + Math.floor(R.rnd(0, step)), pz = z + Math.floor(R.rnd(0, step));
     if (!R.chance(typeof dens === 'function' ? dens(px, pz) : dens)) continue;
     if (o.where && !o.where(px, pz)) continue;

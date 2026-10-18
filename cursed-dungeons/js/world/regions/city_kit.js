@@ -97,7 +97,9 @@ export function zebra(R, p0, p1, width = 4, block = B.marble) {
 // col (mullion spacing), lit (0..1 lit windows), band (floor height), setbacks: [[fromH, inset]…],
 // crown: 'helipad'|'antenna'|'spire'|'tank'|'pyramid'|'none', hollow, slice: { p: [x,y,z], n: [x,y,z] },
 // base: podium storeys with shop glass, round: corner chamfer }
-export function tower(R, x0, z0, w, d, h, o = {}) {
+export function tower(R, x0, z0, w, d, h, o = {}) { const it = towerG(R, x0, z0, w, d, h, o); let r; do r = it.next(); while (!r.done); return r.value; }
+// the same, yielding every few storeys (time-sliced region builds: yield* towerG(...))
+export function* towerG(R, x0, z0, w, d, h, o = {}) {
   const W = R.world, x1 = x0 + w - 1, z1 = z0 + d - 1;
   const y = o.y ?? R.hAt(x0 + (w >> 1), z0 + (d >> 1));
   const top = Math.min(R.sy - 4, y + h);
@@ -110,6 +112,7 @@ export function tower(R, x0, z0, w, d, h, o = {}) {
   const ch = o.round ?? 0;
   for (let z = z0; z <= z1; z++) for (let x = x0; x <= x1; x++) { W.column(x, z, y - 6, y - 1, B.stone); W.setRaw(x, y - 1, z, o.floor ?? B.polished); for (let yy = y; yy <= top + 8 && yy < R.sy; yy++) W.setRaw(x, yy, z, 0); }
   for (let yy = y; yy < top; yy++) {
+    if (((yy - y) & 7) === 7) yield 'tower';
     const hh = yy - y, ins = insetAt(hh), a0 = x0 + ins, a1 = x1 - ins, b0 = z0 + ins, b1 = z1 - ins;
     if (a1 - a0 < 2 || b1 - b0 < 2) break;
     const lvl = hh % fb, floor = Math.floor(hh / fb);
@@ -156,6 +159,7 @@ export function tower(R, x0, z0, w, d, h, o = {}) {
     const [px, py, pz] = o.slice.p, [nx, ny, nz] = o.slice.n;
     let cut = 0;
     for (let yy = y; yy < top + 14 && yy < R.sy; yy++) for (let z = z0; z <= z1; z++) for (let x = x0; x <= x1; x++) {
+      if (x === x0 && z === z0 && (yy & 7) === 7) yield 'slice';
       if ((x - px) * nx + (yy - py) * ny + (z - pz) * nz <= 0) continue;
       if (W.get(x, yy, z)) { W.set(x, yy, z, 0); cut++; }
     }

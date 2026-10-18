@@ -23,7 +23,7 @@
 //   * a points HUD while you are in a colony
 //   * hostile players roam the player zones (sorcerer models on curse AIs, with a name plate)
 //   * 100 points buys a new rule at a Rule Board (or as the reward of a quest: openAddRule(game, { free: true }))
-//   * leaving through a gate: Kogane reminds you of the gate rule
+//   * the barrier gates (the roads through the colony barrier, the only way out): Kogane reminds you of the gate rule
 //   * colony events (Kashimo's lightning, Kurourushi's swarm, Uro's sky, Dhruv's trails, the volcano…)
 //
 // Exports for quests (js/quests/colonies.js):
@@ -395,15 +395,8 @@ export class CullingGame {
     // the Rule Board
     const bp = L.anchors.cg_board;
     if (bp) game.interactables.push({ id: 'cg-board', pos: bp, radius: 2.6, label: 'Culling Game Rule Board · rules / add a rule', action: () => openRuleBoard(game) });
-    // gates: Kogane's gate rule
-    for (const it of game.interactables) if (String(it.id).startsWith('gate-') && !it._cg) {
-      const go = it.action; it._cg = true;
-      it.action = (p) => {
-        if (this.leaving) return; this.leaving = true;
-        this.say('Gate rule: players may leave a colony only through its gate. Your points stay with you.', 2.4);
-        setTimeout(() => { this.leaving = false; go(p); }, 900);
-      };
-    }
+    // the barrier gates (where the roads cross the colony barrier): Kogane's gate rule, said as you walk up to one
+    this.gateNear = false;
     game.addUpdater((dt) => this.update(dt));
     // registration and arrival
     const first = !d.registered, firstHere = !d.visited[L.regionId];
@@ -466,6 +459,11 @@ export class CullingGame {
     this.t += dt;
     const lead = this.lead();
     this.updateKogane(dt, lead);
+    if (lead) {
+      const near = (this.L.gates ?? []).some((gt) => gt.pos && Math.hypot(gt.pos.x - lead.pos.x, gt.pos.z - lead.pos.z) < 9);
+      if (near && !this.gateNear) this.say('Gate rule: players may leave a colony only through its barrier gate. Your points stay with you.', 2.6);
+      this.gateNear = near;
+    }
     if (this.bubT > 0) { this.bubT -= dt; if (this.bubT <= 0) this.bub.classList.remove('on'); }
     this.countKills(dt);
     this.dressNamed();

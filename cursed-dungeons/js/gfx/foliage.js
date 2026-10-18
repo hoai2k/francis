@@ -169,9 +169,7 @@ export class Foliage {
     this.scene = scene;
     this.group = new THREE.Group(); this.group.name = 'foliage';
     scene.add(this.group);
-    this.world = null; this.rules = null;
-    this.areas = new Map();       // 'ax,az' -> { data: {kind: Float32Array}, counts }
-    this.dirty = new Set();
+    this.layers = [];             // { world, rules, ox, oy, oz, areas: 'ax,az' -> {kind: Float32Array}, dirty }
     this.density = 1;             // tier density (renderer preset.foliage)
     this.userDensity = 1;         // settings multiplier
     this.enabled = true;
@@ -195,77 +193,109 @@ export class Foliage {
     }
   }
   get effectiveDensity() { return this.enabled ? this.density * this.userDensity : 0; }
-
-  populate(world, rules = {}) {
-    this.clear();
-    if (!world) return;
-    this.world = world;
+  // the main world (the region you are in); other layers are the neighbouring
+  // region tiles of the seamless world, drawn at their offset (link / unlink)
+  get world() { return this.layers[0]?.world ?? null; }
+  get rules() { return this.layers[0]?.rules ?? null; }
+  set world(v) { if (v == null) this.layers.length = 0; }
+  set rules(v) { void v; }
+  makeLayer(world, rules = {}, off = null) {
     const pal = { ...DEFAULT_PALETTE, ...(rules.palette ?? {}) };
     const blocks = { ...defaultBlocks(), ...(rules.blocks ?? {}) };
-    this.rules = { density: 1, flowerPatches: 0.62, seed: 1, ...rules, palette: pal, blocks };
     // keep foliage in sync with block edits (destruction, gates, building)
     if (!world.__foliageWrapped) {
       const orig = world.set;
-      world.set = function (x, y, z, id) { orig.call(this, x, y, z, id); this.__foliage?.invalidate(x, z); };
+      world.set = function (x, y, z, id) { orig.call(this, x, y, z, id); this.__foliage?.invalidateIn(this, x, z); };
       world.__foliageWrapped = true;
     }
     world.__foliage = this;
+    return { world, rules: { density: 1, flowerPatches: 0.62, seed: 1, ...rules, palette: pal, blocks }, ox: off?.x ?? 0, oy: off?.y ?? 0, oz: off?.z ?? 0, areas: new Map(), dirty: new Set() };
+  }
+  populate(world, rules = {}) {
+    this.clear();
+    if (!world) return;
+    this.layers.push(this.makeLayer(world, rules));
+  }
+  // show another world (a neighbouring region) offset by off = { x, y, z }; or move it
+  link(world, rules, off) {
+    let L = this.layers.find((l) => l.world === world);
+    if (!L) { L = this.makeLayer(world, rules ?? {}, off); this.layers.push(L); }
+    else if (L.ox !== off.x || L.oy !== off.y || L.oz !== off.z) { L.ox = off.x; L.oy = off.y; L.oz = off.z; this.changed = true; }
+    return L;
+  }
+  unlink(world) {
+    const i = this.layers.findIndex((l) => l.world === world);
+    if (i <= 0) return;
+    this.layers.splice(i, 1); this.changed = true;
+  }
+  // the seamless world crossed a border: `world` becomes the main layer, every layer moves by -d
+  rebase(world, d) {
+    const i = this.layers.findIndex((l) => l.world === world);
+    for (const l of this.layers) { l.ox -= d.x; l.oy -= d.y; l.oz -= d.z; }
+    if (i > 0) { const [L] = this.layers.splice(i, 1); this.layers.unshift(L); }
+    this.changed = true;
   }
   clear() {
-    if (this.world && this.world.__foliage === this) this.world.__foliage = null;
-    this.world = null; this.rules = null;
-    this.areas.clear(); this.dirty.clear();
+    for (const l of this.layers) if (l.world.__foliage === this) l.world.__foliage = null;
+    this.layers.length = 0;
     for (const k of KINDS) { const M = this.meshes[k]; M.count = 0; M.mesh.visible = false; }
   }
-  invalidate(x, z) { const k = Math.floor(x / AREA) + ',' + Math.floor(z / AREA); if (this.areas.has(k)) this.dirty.add(k); }
+  invalidateIn(world, x, z) { const L = this.layers.find((l) => l.world === world); if (!L) return; const k = Math.floor(x / AREA) + ',' + Math.floor(z / AREA); if (L.areas.has(k)) L.dirty.add(k); }
+  invalidate(x, z) { if (this.layers[0]) this.invalidateIn(this.layers[0].world, x, z); }
   setDensity(tier, user = this.userDensity) {
     if (tier === this.density && user === this.userDensity) return;
     this.density = tier; this.userDensity = user;
-    this.areas.clear(); this.changed = true;
+    for (const l of this.layers) l.areas.clear();
+    this.changed = true;
   }
 
   // per frame
   update(focus) {
-    const W = this.world;
-    if (!W || !this.rules || this.effectiveDensity <= 0) {
-      if (this.areas.size || this.changed) { this.areas.clear(); this.pack(); this.changed = false; }
+    if (!this.layers.length || this.effectiveDensity <= 0) {
+      if (this.changed || this.layers.some((l) => l.areas.size)) { for (const l of this.layers) l.areas.clear(); this.pack(); this.changed = false; }
       return;
     }
     const R = E.foliageFade.value + 10;
-    const ax0 = Math.max(0, Math.floor((focus.x - R) / AREA)), ax1 = Math.min(Math.ceil(W.sx / AREA) - 1, Math.floor((focus.x + R) / AREA));
-    const az0 = Math.max(0, Math.floor((focus.z - R) / AREA)), az1 = Math.min(Math.ceil(W.sz / AREA) - 1, Math.floor((focus.z + R) / AREA));
-    // drop far areas
-    for (const key of this.areas.keys()) {
-      const [ax, az] = key.split(',').map(Number);
-      const dx = (ax + 0.5) * AREA - focus.x, dz = (az + 0.5) * AREA - focus.z;
-      if (dx * dx + dz * dz > (R + AREA * 1.5) ** 2) { this.areas.delete(key); this.changed = true; }
-    }
-    // rebuild edited areas
-    for (const key of this.dirty) { const [ax, az] = key.split(',').map(Number); this.areas.set(key, this.buildArea(ax, az)); this.changed = true; }
-    this.dirty.clear();
-    // build missing areas nearest first, within a small time budget
-    const want = [];
-    for (let az = az0; az <= az1; az++) for (let ax = ax0; ax <= ax1; ax++) {
-      const key = ax + ',' + az; if (this.areas.has(key)) continue;
-      const dx = (ax + 0.5) * AREA - focus.x, dz = (az + 0.5) * AREA - focus.z, d2 = dx * dx + dz * dz;
-      if (d2 > (R + AREA * 0.75) ** 2) continue;
-      want.push([d2, ax, az, key]);
-    }
-    if (want.length) {
-      want.sort((a, b) => a[0] - b[0]);
-      const t0 = performance.now();
-      for (const [, ax, az, key] of want) {
-        this.areas.set(key, this.buildArea(ax, az)); this.changed = true;
-        if (performance.now() - t0 > 2.5) break;
+    const t0 = performance.now();
+    for (const L of this.layers) {
+      const W = L.world, fx = focus.x - L.ox, fz = focus.z - L.oz;
+      this.cur = L;
+      // drop far areas
+      for (const key of L.areas.keys()) {
+        const [ax, az] = key.split(',').map(Number);
+        const dx = (ax + 0.5) * AREA - fx, dz = (az + 0.5) * AREA - fz;
+        if (dx * dx + dz * dz > (R + AREA * 1.5) ** 2) { L.areas.delete(key); this.changed = true; }
+      }
+      // rebuild edited areas
+      for (const key of L.dirty) { const [ax, az] = key.split(',').map(Number); L.areas.set(key, this.buildArea(ax, az)); this.changed = true; }
+      L.dirty.clear();
+      if (fx < -R || fz < -R || fx > W.sx + R || fz > W.sz + R) continue;
+      const ax0 = Math.max(0, Math.floor((fx - R) / AREA)), ax1 = Math.min(Math.ceil(W.sx / AREA) - 1, Math.floor((fx + R) / AREA));
+      const az0 = Math.max(0, Math.floor((fz - R) / AREA)), az1 = Math.min(Math.ceil(W.sz / AREA) - 1, Math.floor((fz + R) / AREA));
+      // build missing areas nearest first, within a small time budget (shared by every layer)
+      const want = [];
+      for (let az = az0; az <= az1; az++) for (let ax = ax0; ax <= ax1; ax++) {
+        const key = ax + ',' + az; if (L.areas.has(key)) continue;
+        const dx = (ax + 0.5) * AREA - fx, dz = (az + 0.5) * AREA - fz, d2 = dx * dx + dz * dz;
+        if (d2 > (R + AREA * 0.75) ** 2) continue;
+        want.push([d2, ax, az, key]);
+      }
+      if (want.length) {
+        want.sort((a, b) => a[0] - b[0]);
+        for (const [, ax, az, key] of want) {
+          if (performance.now() - t0 > 2.5) break;
+          L.areas.set(key, this.buildArea(ax, az)); this.changed = true;
+        }
       }
     }
+    this.cur = null;
     if (this.changed) { this.pack(); this.changed = false; }
   }
   // build everything around a point right now (level load)
-  prime(focus) { const t = performance.now; void t; for (let i = 0; i < 64; i++) { const n = this.areas.size; this.update(focus); if (this.areas.size === n) break; } }
+  prime(focus) { for (let i = 0; i < 64; i++) { const n = this.layers.reduce((a, l) => a + l.areas.size, 0); this.update(focus); if (this.layers.reduce((a, l) => a + l.areas.size, 0) === n) break; } }
 
   buildArea(ax, az) {
-    const W = this.world, Rl = this.rules, dens = this.effectiveDensity * (Rl.density ?? 1);
+    const Ly = this.cur ?? this.layers[0], W = Ly.world, Rl = Ly.rules, dens = this.effectiveDensity * (Rl.density ?? 1);
     const out = { grass: [], tall: [], fern: [], flower: [] };
     const R = mulberry32(((ax * 73856093) ^ (az * 19349663) ^ (Rl.seed * 83492791)) >>> 0);
     const x0 = ax * AREA, z0 = az * AREA;
@@ -317,7 +347,7 @@ export class Foliage {
   pack() {
     for (const k of KINDS) {
       let total = 0;
-      for (const a of this.areas.values()) total += a[k].length;
+      for (const L of this.layers) for (const a of L.areas.values()) total += a[k].length;
       const count = total / 15;
       const M = this.meshes[k];
       if (count === 0) { M.count = 0; M.mesh.visible = false; if (M.mesh.geometry.attributes.iPos) M.mesh.geometry.instanceCount = 0; continue; }
@@ -333,10 +363,10 @@ export class Foliage {
       const g = M.mesh.geometry;
       const P = g.attributes.iPos.array, D = g.attributes.iData.array, Bl = g.attributes.iBlade.array, H = g.attributes.iHead.array;
       let i = 0;
-      for (const a of this.areas.values()) {
-        const src = a[k];
+      for (const L of this.layers) for (const a of L.areas.values()) {
+        const src = a[k], ox = L.ox, oy = L.oy, oz = L.oz;
         for (let o = 0; o < src.length; o += 15, i++) {
-          P[i * 4] = src[o]; P[i * 4 + 1] = src[o + 1]; P[i * 4 + 2] = src[o + 2]; P[i * 4 + 3] = src[o + 3];
+          P[i * 4] = src[o] + ox; P[i * 4 + 1] = src[o + 1] + oy; P[i * 4 + 2] = src[o + 2] + oz; P[i * 4 + 3] = src[o + 3];
           D[i * 4] = src[o + 4]; D[i * 4 + 1] = src[o + 5]; D[i * 4 + 2] = src[o + 6]; D[i * 4 + 3] = src[o + 7];
           Bl[i * 3] = src[o + 8]; Bl[i * 3 + 1] = src[o + 9]; Bl[i * 3 + 2] = src[o + 10];
           H[i * 3] = src[o + 12]; H[i * 3 + 1] = src[o + 13]; H[i * 3 + 2] = src[o + 14];

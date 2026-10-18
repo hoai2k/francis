@@ -18,14 +18,26 @@ export class Minimap {
     this.fog = null;
   }
   // ------------------------------------------------------------ open-world regions
+  // The region's painted map is kept on the level (L._miniBase), so walking back
+  // over a border or returning from a dungeon reuses it; prebuildG paints it a
+  // few rows per step (the seamless world does it while the region loads in).
   buildRegion(L) {
-    const w = L.world, W = w.sx, H = w.sz;
+    if (!L._miniBase) { const it = this.prebuildG(L); while (!it.next().done) { /* paint it all now */ } }
     this.level = L; this.region = true;
-    this.base.width = W; this.base.height = H;
-    const ctx = this.base.getContext('2d');
+    this.base = L._miniBase;
+    this.revealed = new Set();
+    const g = this.game; if (g.hud?.mini) { g.hud.mini.width = 192; g.hud.mini.height = 192; }
+  }
+  *prebuildG(L) {
+    if (L._miniBase) return L._miniBase;
+    const w = L.world, W = w.sx, H = w.sz;
+    const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+    const ctx = cv.getContext('2d');
     const img = ctx.createImageData(W, H);
     const lin = (v) => Math.pow(Math.max(0, Math.min(1, v)), 1 / 2.2) * 255;
-    for (let z = 0; z < H; z++) for (let x = 0; x < W; x++) {
+    for (let z = 0; z < H; z++) {
+      if ((z & 7) === 7) yield 'minimap';
+      for (let x = 0; x < W; x++) {
       const gy = L.groundAt ? L.groundAt(x, z) : w.sy - 1;
       let top = -1, id = 0;
       for (let y = Math.min(w.sy - 1, gy + 26); y >= 0; y--) { const b = w.get(x, y, z); if (b && b !== BARRIER && BLOCKS[b].opaque !== false || (b && BLOCKS[b].liquid)) { top = y; id = b; break; } }
@@ -35,13 +47,14 @@ export class Minimap {
       const shade = 0.62 + (top - 10) * 0.022;
       img.data[o] = lin(c.r * shade); img.data[o + 1] = lin(c.g * shade); img.data[o + 2] = lin(c.b * shade); img.data[o + 3] = 255;
       if (BLOCKS[id].liquid === 'water') { img.data[o] = 60; img.data[o + 1] = 120; img.data[o + 2] = 190; }
+      }
     }
     ctx.putImageData(img, 0, 0);
     // roads on top, a touch brighter
     ctx.strokeStyle = 'rgba(240,220,170,0.55)'; ctx.lineWidth = 2.2; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     for (const r of L.roads ?? []) { ctx.beginPath(); r.forEach(([x, z], i) => (i ? ctx.lineTo(x, z) : ctx.moveTo(x, z))); ctx.stroke(); }
-    this.revealed = new Set();
-    const g = this.game; if (g.hud?.mini) { g.hud.mini.width = 192; g.hud.mini.height = 192; }
+    L._miniBase = cv;
+    return cv;
   }
   drawRegion(canvas, full) {
     const g = this.game, L = this.level; if (!L) return;
@@ -61,6 +74,8 @@ export class Minimap {
     }
     ctx.globalAlpha = 0.95;
     ctx.drawImage(this.base, ox, oy, w.sx * scale, w.sz * scale);
+    // the neighbouring regions run on past the border (seamless world: this.links = [{ canvas, x, z }])
+    if (!full) for (const k of this.links ?? []) if (k.canvas) ctx.drawImage(k.canvas, ox + k.x * scale, oy + k.z * scale, k.canvas.width * scale, k.canvas.height * scale);
     ctx.globalAlpha = 1;
     const P = (v) => [ox + v.x * scale, oy + v.z * scale];
     const upright = (px, py, fn) => { ctx.save(); ctx.translate(px, py); if (!full) ctx.rotate(-g.rig.yaw); fn(); ctx.restore(); };
@@ -90,7 +105,8 @@ export class Minimap {
   }
   build(level) {
     const w = level.world;
-    this.level = level; this.region = false;
+    this.level = level; this.region = false; this.links = [];
+    this.base = this.ownBase ??= document.createElement('canvas');   // (a region's base canvas is its own)
     const gm = this.game; if (gm.hud?.mini && gm.hud.mini.width !== 128) { gm.hud.mini.width = 128; gm.hud.mini.height = 128; }
     const W = w.sx, H = w.sz;
     this.base.width = W; this.base.height = H;

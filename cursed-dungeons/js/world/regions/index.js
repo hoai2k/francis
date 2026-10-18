@@ -1,6 +1,7 @@
 // Region registry: the open world is nine big regions, each its own voxel map
-// (streamed by chunks around the players, see voxel.js), joined by region
-// gates on the roads and by fast travel between Window stations.
+// (streamed by chunks around the players, see voxel.js), joined
+// seamlessly over their borders (world/seamless.js) and by fast travel
+// between Window stations.
 //
 // ------------------------------------------------------------------ API
 //   registerRegion(id, def)       add or replace a region (Phase 2 region
@@ -11,6 +12,8 @@
 //   gateSide(from, to)            which edge of `from` leads to `to`
 //   routeTo(from, to)             region ids on the shortest gate route
 //   buildRegion(id)               build (or reuse the cached build of) a region -> L
+//   buildRegionSteps(id)          the same in time slices: job.step(ms) -> done (job.L)
+//   cachedRegion(id)              the cached build or null
 //   regionMeta(save, id)          what the world map knows about a region
 //
 // A definition:
@@ -31,9 +34,13 @@
 // The level object L a build returns (RegionBuilder.finish fills all of it):
 //   world, deco, shafts, biome, sunOffset, titleCam?
 //   spawn                         default arrival (Vector3 on the floor)
-//   gates:    [{ side, to, pos, arrive, radius, label }]
-//             walking up to pos (radius) offers travel to region `to`;
-//             `arrive` is where you appear when you come IN through it
+//   gates:    [{ side, to, at, pos, arrive, radius, label }]
+//             where a road leaves over the border into region `to` (no gate any
+//             more: you walk straight on, world/seamless.js); pos is on the road
+//             by the edge (the tracker leads there), `arrive` a little further in
+//   seams:    { side: { to, at, y, kind, colony } }  the shared border profile
+//             (regions/seams.js): `at` the road centre, `y` its height at the edge
+//   runtimeHooks: [fn(game, L) -> dispose]   regionRuntime.js onRegionLoad
 //   stations: [{ id, name, pos }]       Window stations (fast travel)
 //   pois:     [{ id, name, icon, pos, kind }]
 //   anchors:  { name: Vector3 }         quest anchors. Main quests look for
@@ -90,18 +97,53 @@ export function routeTo(from, to) {
 }
 
 // ------------------------------------------------------------------ building
-// The last few builds are kept (voxel data, decorations, props), so coming
-// back from a dungeon or through a gate does not regenerate the map.
+// Built regions are cached (voxel data, decorations, props), so coming back
+// from a dungeon or walking back over a border does not regenerate the map.
+// The seamless world (world/seamless.js) decides what stays: the region you
+// are in and its neighbours; far ones are dropped (dropRegionCache).
+//
+// A def.build(ctx) may return L, or a generator (function*) that yields
+// between steps and returns L: buildRegionSteps(id) runs it a slice at a time
+// (no frame hitch); buildRegion(id) runs it to the end at once.
 const cache = new Map();
-const CACHE_MAX = 3;
+const CACHE_MAX = 6;
+export function cachedRegion(id) { return cache.get(id) ?? null; }
+export function cachedRegionIds() { return [...cache.keys()]; }
 export function buildRegion(id) {
-  const def = REGIONS[id]; if (!def) throw new Error('unknown region ' + id);
   if (cache.has(id)) { const L = cache.get(id); cache.delete(id); cache.set(id, L); return L; }
+  const job = buildRegionSteps(id);
+  while (!job.done) job.step(Infinity);
+  return job.L;
+}
+// A build you can run in slices: job.step(ms) runs steps for about ms
+// milliseconds and returns true when the region is built (job.L).
+export function buildRegionSteps(id) {
+  const def = REGIONS[id]; if (!def) throw new Error('unknown region ' + id);
+  if (cache.has(id)) return { id, done: true, L: cache.get(id), step: () => true, longest: 0 };
   const seed = (def.seed ?? hash(id)) >>> 0;
-  const L = def.build({ id, def, seed });
+  let it = null, L = null;
+  const job = {
+    id, done: false, L: null, longest: 0, steps: 0, ms: 0,
+    step(ms = 4) {
+      if (job.done) return true;
+      const t0 = performance.now();
+      do {
+        const t = performance.now();
+        if (!it) { const r = def.build({ id, def, seed }); if (r && typeof r.next === 'function') it = r; else { L = r; } }
+        else { const r = it.next(); if (r.done) L = r.value; else { job.prev = job.label; job.label = r.value; } }
+        const dt = performance.now() - t; job.steps++; job.ms += dt; if (dt > job.longest) { job.longest = dt; job.longestAt = (job.prev ?? 'start') + ' -> ' + (L ? 'end' : job.label); }
+        if (L) { job.L = finishBuild(id, def, L); job.done = true; return true; }
+      } while (performance.now() - t0 < ms);
+      return false;
+    },
+  };
+  return job;
+}
+function finishBuild(id, def, L) {
   L.regionId = id; L.region = def;
   L.biome = L.biome ?? def.biome;
   L.gates ??= []; L.stations ??= []; L.pois ??= []; L.anchors ??= {}; L.people ??= []; L.roam ??= []; L.safe ??= []; L.roads ??= [];
+  L.seams ??= {}; L.runtimeHooks ??= [];
   cache.set(id, L);
   while (cache.size > CACHE_MAX) cache.delete(cache.keys().next().value);
   return L;

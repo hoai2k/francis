@@ -180,7 +180,22 @@ export const SORCERER_LOOKS = {
 
 // Other modules (one per technique) add their sorcerer's appearance here.
 // look: { paint, hair(m), hairColor, accent, emit, cape: { color, length, width, segments }, props(rig, kit) }
-export function registerLook(id, look) { SORCERER_LOOKS[id] = look; }
+export function registerLook(id, look) { SORCERER_LOOKS[id] = look; SKINS.delete(id); }
+// Painted skins are deterministic per look id: painted once, shared by every rig with that look
+// (region people, crowds of NPCs, re-entering a region over a border).
+const SKINS = new Map();
+export function skinTexture(id) {
+  let m = SKINS.get(id);
+  if (!m) {
+    const look = SORCERER_LOOKS[id] ?? SORCERER_LOOKS.yuji;
+    const S = new Skin(hashStr(id));
+    paintHumanoid(S, look.paint);
+    look.paintExtra?.(S);
+    m = S.texture();
+    SKINS.set(id, m);
+  }
+  return m;
+}
 
 // Helpers handed to look.props() for building signature props from boxes.
 export const PROP_KIT = {
@@ -203,10 +218,7 @@ const EMIT = { gojo: 0.6, sukuna: 0.8 };
 
 export function buildSorcererModel(id) {
   const look = SORCERER_LOOKS[id] ?? SORCERER_LOOKS.yuji;
-  const S = new Skin(hashStr(id));
-  paintHumanoid(S, look.paint);
-  look.paintExtra?.(S);
-  const map = S.texture();
+  const map = skinTexture(SORCERER_LOOKS[id] ? id : 'yuji');
   const material = makeCharMaterial(map, { emitStrength: look.emit ?? EMIT[id] ?? 0 });
   material.alphaTest = 0.5;
   const hm = hairMat(look.hairColor, look.hairEmissive ?? 0);

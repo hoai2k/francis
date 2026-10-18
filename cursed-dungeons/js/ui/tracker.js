@@ -36,7 +36,9 @@ function floorNear(world, x, z, y) {
 // Distance (in cells) from every reachable column to the goal, flooding out
 // from the goal's floor. From a column the walker may climb one block or drop
 // up to three on the way to the goal.
-export function distanceField(world, goal, radius = 1.5) {
+export function distanceField(world, goal, radius = 1.5) { const it = distanceFieldG(world, goal, radius); let r; do r = it.next(); while (!r.done); return r.value; }
+// the same flood, yielding every few thousand cells (the tracker spreads it over frames)
+export function* distanceFieldG(world, goal, radius = 1.5) {
   const W = world.sx, D = world.sz, n = W * D;
   const ys = new Int16Array(n).fill(-1);
   const d = new Float32Array(n).fill(Infinity);
@@ -49,7 +51,9 @@ export function distanceField(world, goal, radius = 1.5) {
     const i = z * W + x; ys[i] = y; d[i] = 0; q[qt++] = i;
   }
   const N = [[1, 0, 1], [-1, 0, 1], [0, 1, 1], [0, -1, 1], [1, 1, 1.414], [1, -1, 1.414], [-1, 1, 1.414], [-1, -1, 1.414]];
+  let pops = 0;
   while (qh < qt) {
+    if ((++pops & 2047) === 0) yield;
     const i = q[qh++ % q.length]; const x = i % W, z = (i / W) | 0, y = ys[i];
     for (const [dx, dz, c] of N) {
       const nx = x + dx, nz = z + dz; if (nx < 0 || nz < 0 || nx >= W || nz >= D) continue;
@@ -130,7 +134,20 @@ export class Tracker {
     this.reattach();
     this.group.position.copy(goal.pos);
     this.fieldWorld = g.world;
-    try { if (goal.feet !== false && g.world) this.field = distanceField(g.world, goal.pos, goal.radius ?? 1.5); } catch (e) { console.warn('tracker', e); this.field = null; }
+    // the footprint field is worked out over the next frames (a few ms each), not in one go
+    this.fieldJob = goal.feet !== false && g.world ? distanceFieldG(g.world, goal.pos, goal.radius ?? 1.5) : null;
+  }
+  // advance the footprint flood for about ms milliseconds
+  stepField(ms) {
+    if (!this.fieldJob) return;
+    const t0 = performance.now();
+    try {
+      for (;;) {
+        const r = this.fieldJob.next();
+        if (r.done) { this.field = r.value; this.fieldJob = null; this.pathT = 0; return; }
+        if (performance.now() - t0 > ms) return;
+      }
+    } catch (e) { console.warn('tracker', e); this.fieldJob = null; }
   }
   clear() { this.setGoal(null); }
   hide() { this.group.visible = false; this.feet.visible = false; this.arrow.classList.add('hidden'); this.pin.classList.add('hidden'); }
@@ -147,6 +164,7 @@ export class Tracker {
   update(dt) {
     const g = this.game, goal = this.goal;
     if (goal && this.fieldWorld !== g.world) { this.hide(); return; }   // a goal from another level (or a cutscene set is showing)
+    if (this.fieldJob) this.stepField(3);
     if (!this.visible()) { this.hide(); return; }
     const lead = this.leader(); if (!lead) { this.hide(); return; }
     this.reattach();
@@ -167,7 +185,7 @@ export class Tracker {
     this.refieldT = (this.refieldT ?? 0) - dt;
     if (this.field && !this.path.length && dist > 5 && this.refieldT <= 0 && goal.feet !== false) {
       this.refieldT = 2;
-      try { this.field = distanceField(g.world, goal.pos, goal.radius ?? 1.5); } catch (e) { /* keep the old one */ }
+      if (!this.fieldJob) this.fieldJob = distanceFieldG(g.world, goal.pos, goal.radius ?? 1.5);   // (the old field stays until the new one is ready)
     }
     if (goal.feet === false || !this.field) this.feet.visible = false; else this.drawFeet(dist, still);
     // screen: a pin over the goal, or an arrow at the edge

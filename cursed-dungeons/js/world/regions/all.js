@@ -10,4 +10,4 @@ import './kyoto.js';
 import './okinawa_coast.js';
 import './shibuya.js';
 import './shinjuku.js';
-export { REGIONS, REGION_IDS, START_REGION, region, buildRegion, neighbours, routeTo, gateSide, captureMeta, regionMeta, registerRegion, dropRegionCache } from './index.js';
+export { REGIONS, REGION_IDS, START_REGION, region, buildRegion, buildRegionSteps, cachedRegion, cachedRegionIds, neighbours, routeTo, gateSide, captureMeta, regionMeta, registerRegion, dropRegionCache } from './index.js';

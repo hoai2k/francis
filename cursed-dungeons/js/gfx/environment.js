@@ -27,6 +27,10 @@
 //     wind: 1,
 //   }
 //   game.env.setRegionLook(look, instant = false)   change the current look at runtime (merges)
+//   game.env.setBlend(biome, k)                     the seamless world (world/seamless.js): mix in the
+//                                                   neighbouring region's look by k (0..0.5 at the border)
+//                                                   as you walk towards it; null / 0 = none
+//   game.env.set(biome, { seamless: true })         cross into that region with no jump (keeps the clock)
 //   game.timeOfDay  (gfx/timeOfDay.js)              .hour, .set(h), .pin(h|null), .isNight
 //   game.foliage    (gfx/foliage.js)                .populate(world, rules) — also automatic from
 //                                                   L.foliage or biome.look.foliage when a world loads
@@ -41,7 +45,7 @@ import { TimeOfDay, hourOf } from './timeOfDay.js';
 import { U } from './materials.js';
 
 const BASE_EXPOSURE = 1.12;
-const _c = new THREE.Color(), _v = new THREE.Vector3();
+const _c = new THREE.Color(), _v = new THREE.Vector3(), _v2 = new THREE.Color();
 
 const arr3 = (a, d) => (Array.isArray(a) ? new THREE.Color(a[0], a[1], a[2]) : a != null ? new THREE.Color(a) : d.clone());
 
@@ -67,6 +71,11 @@ export class Environment {
     this.world = null;
     this.probeHour = -99; this.probeRT = null; this.pmrem = null; this.renderer = null;
     this.state = this.blank();
+    this.state2 = this.blank();
+    this.tod2 = new TimeOfDay();            // the neighbouring region's sky (blend)
+    this.freeHour = this.tod.hour;          // the running clock, even while a region pins its hour
+    this.blend = null;                      // { biome, look, k }
+    this.Sb = null;
     this.sky.setClouds({ ...this.look.clouds });
   }
 
@@ -113,18 +122,21 @@ export class Environment {
       foliage: L.foliage, shafts: L.shafts ?? true, abyss: L.abyss ?? true, wind: L.wind ?? b.wind ?? 1,
     };
   }
-  applyLook(look, { arriving = false } = {}) {
+  applyLook(look, { arriving = false, seamless = false } = {}) {
     const prevPinned = this.tod.pinned != null;
     this.look = look;
     this.tod.dayLength = look.dayLength;
     this.tod.sunAzimuth = look.sunAzimuth;
     const h = hourOf(look.timeOfDay);
     if (h != null) this.tod.pin(h);
+    else if (seamless) { this.tod.pin(null); this.tod.set(this.freeHour); }   // walking in: the clock you saw from the border
     else { this.tod.pin(null); if (look.start != null && (prevPinned || arriving)) this.tod.set(look.start); }
     this.applyUserTime();
     const c = look.clouds;
     const o = this.sky.opts;
-    if (c.coverage !== o.coverage || c.height !== o.height || c.thickness !== o.thickness || c.seed !== o.seed || !this.sky.mesh) this.sky.setClouds({ ...c });
+    // (walking over a border keeps the cloud layer you can see: rebuilding it would pop)
+    if (seamless && this.sky.mesh) { /* keep */ }
+    else if (c.coverage !== o.coverage || c.height !== o.height || c.thickness !== o.thickness || c.seed !== o.seed || !this.sky.mesh) this.sky.setClouds({ ...c });
     else Object.assign(o, c);
     this.sky.cloudTint.value.copy(c.tint != null ? new THREE.Color(c.tint) : new THREE.Color(1, 1, 1));
     E.abyss.value = look.abyss ? 1 : 0;
@@ -149,6 +161,8 @@ export class Environment {
   // Region biome or Domain Expansion look (legacy API used by main.js / domain.js).
   set(b, instant = true) {
     if (!b) return;
+    const seamless = typeof instant === 'object' && !!instant?.seamless;
+    if (typeof instant === 'object') instant = !seamless;
     if (b.__domain || !('name' in b) && b.floor && !b.look) {
       this.override = this.snapshot(b); this.ovTarget = 1;
       if (instant) this.ovK = 1;
@@ -157,11 +171,18 @@ export class Environment {
     this.ovTarget = 0; if (instant) this.ovK = 0;
     if (b !== this.biome) {
       this.biome = b;
-      this.applyLook(this.resolve(b), { arriving: true });
+      this.applyLook(this.blend?.biome === b ? this.blend.look : this.resolve(b), { arriving: !seamless, seamless });
     }
-    this.attachWorld();
-    this.update(0);
+    if (!seamless) { this.blend = null; this.attachWorld(); this.update(0); }
   }
+  // Mix in another region's look (the neighbour you are walking towards) by k in 0..1.
+  setBlend(biome, k = 0) {
+    if (!biome || k <= 0.0005) { this.blend = null; return; }
+    if (this.blend?.biome !== biome) this.blend = { biome, look: this.resolve(biome), k };
+    this.blend.k = Math.min(1, k);
+  }
+  // the seamless world made another tile current: its foliage layer is already there
+  adoptWorld(W) { this.world = W; }
   snapshot(b) {
     const g = b.grade ?? {};
     return {
@@ -202,32 +223,66 @@ export class Environment {
   }
 
   // ---------------------------------------------------------------- per frame
-  update(realDt) {
-    const g = this.game;
-    const dt = g?.paused ? 0 : realDt;
-    if (g?.gr && g.gr.quality !== this.quality) this.syncQuality();
-    this.tod.update(dt);
-    const S = this.tod.sample();
-    const look = this.look, T = look.tint, F = this.state;
+  // One region's look at one sky sample -> colours in F, the scalars returned.
+  compose(look, S, F) {
     const night = 1 - S.day;
+    const T = look.tint;
     const tk = (c, r, k = 1) => { if (r) { _c.setRGB(1 + (r.r - 1) * k, 1 + (r.g - 1) * k, 1 + (r.b - 1) * k); c.multiply(_c); } return c; };
     const tintK = look.pinned ? 1 : 1 - night * 0.45;
     tk(F.top.copy(S.top), T.skyTop, tintK); tk(F.hor.copy(S.hor), T.skyHor, tintK);
     if (look.fog.color) F.fog.copy(look.fog.color).lerp(S.fog, night * 0.6); else tk(F.fog.copy(S.fog), T.fog, tintK);
     tk(F.sun.copy(S.sun), T.sun, tintK); tk(F.hs.copy(S.hs), T.hs, tintK); tk(F.hg.copy(S.hg), T.hg, tintK);
-    let sunI = S.sunI * look.sun, hi = S.hi * look.ambient, fogD = look.fog.density * (1 + night * 0.25);
     const G = look.grade;
     F.tint.copy(S.tint).multiply(G.tint);
     if (G.warmth) F.tint.multiply(_c.setRGB(1 + G.warmth * 0.06, 1, 1 - G.warmth * 0.08));
     F.lift.copy(G.lift);
-    let sat = S.sat * G.sat, contrast = G.contrast, vignette = G.vignette;
     // split toning: cool shadows / warm highlights in the golden hour, blue nights
     F.sh.setRGB(1, 1, 1).lerp(_c.setRGB(0.96, 0.985, 1.04), S.golden).lerp(_c.setRGB(0.9, 0.95, 1.1), night * 0.8);
     F.hl.setRGB(1, 1, 1).lerp(_c.setRGB(1.06, 1.0, 0.9), S.golden);
     if (G.shadows) F.sh.multiply(G.shadows);
     if (G.highlights) F.hl.multiply(G.highlights);
-    let exposure = BASE_EXPOSURE * S.exp * look.exposure;
-    let torch = look.torch ?? S.torch;
+    return {
+      sunI: S.sunI * look.sun, hi: S.hi * look.ambient, fogD: look.fog.density * (1 + night * 0.25),
+      sat: S.sat * G.sat, contrast: G.contrast, vignette: G.vignette,
+      exposure: BASE_EXPOSURE * S.exp * look.exposure, torch: look.torch ?? S.torch,
+      fogStart: look.fog.start, fogHeight: look.fog.height, fogHD: look.fog.heightDensity, fogSun: look.fog.sun * (0.35 + 0.65 * S.day),
+      day: S.day, golden: S.golden, stars: S.stars, clouds: look.clouds.shadows ?? 0.24, wind: look.wind,
+    };
+  }
+  // the sky sample mixed between two clocks (for the sky dome, sun disc, shadows)
+  mixSample(A, Bs, k) {
+    const M = this.Sb ??= { sunDir: new THREE.Vector3(), lightDir: new THREE.Vector3(), moonDir: new THREE.Vector3(), sun: new THREE.Color(), top: new THREE.Color(), hor: new THREE.Color(), fog: new THREE.Color(), hs: new THREE.Color(), hg: new THREE.Color(), tint: new THREE.Color() };
+    for (const key of ['sunDir', 'lightDir', 'moonDir']) M[key].copy(A[key]).lerp(Bs[key], k).normalize();
+    for (const key of ['sun', 'top', 'hor', 'fog', 'hs', 'hg', 'tint']) M[key].copy(A[key]).lerp(Bs[key], k);
+    for (const key of ['sunEl', 'sunI', 'hi', 'exp', 'stars', 'torch', 'sat', 'day', 'golden']) M[key] = A[key] + (Bs[key] - A[key]) * k;
+    M.moon = k < 0.5 ? A.moon : Bs.moon;
+    return M;
+  }
+  update(realDt) {
+    const g = this.game;
+    const dt = g?.paused ? 0 : realDt;
+    if (g?.gr && g.gr.quality !== this.quality) this.syncQuality();
+    this.tod.update(dt);
+    // the free clock keeps running while a region pins its hour (what a cycling neighbour shows)
+    if (this.tod.pinned == null) this.freeHour = this.tod.hour;
+    else if (dt && this.tod.speed) { const nightNow = this.freeHour > 19.15 || this.freeHour < 5.4; this.freeHour = (this.freeHour + dt * (24 / this.tod.dayLength) * this.tod.speed * (nightNow ? this.tod.nightSpeed : 1)) % 24; }
+    let S = this.tod.sample();
+    const look = this.look, F = this.state;
+    const v = this.compose(look, S, F);
+    // the neighbouring region's look, mixed in near the border (seamless world)
+    const Bl = this.blend;
+    if (Bl && Bl.k > 0) {
+      const t2 = this.tod2, lb = Bl.look, st = this.game?.settings ?? {};
+      t2.sunAzimuth = lb.sunAzimuth;
+      const user = st.timeOfDay && st.timeOfDay !== 'auto' ? hourOf(st.timeOfDay) : null;
+      t2.hour = user ?? hourOf(lb.timeOfDay) ?? this.freeHour;
+      const S2 = t2.sample(), F2 = this.state2, k = Bl.k;
+      const v2 = this.compose(lb, S2, F2);
+      for (const key of ['top', 'hor', 'fog', 'sun', 'hs', 'hg', 'tint', 'lift', 'sh', 'hl']) F[key].lerp(F2[key], k);
+      for (const key of Object.keys(v)) v[key] += (v2[key] - v[key]) * k;
+      S = this.mixSample(S, S2, k);
+    }
+    let { sunI, hi, fogD, sat, contrast, vignette, exposure, torch } = v;
     // Domain Expansion override blend
     this.ovK += (this.ovTarget - this.ovK) * Math.min(1, realDt * 2.2);
     if (this.ovTarget === 0 && this.ovK < 0.002) this.ovK = 0;
@@ -242,13 +297,14 @@ export class Environment {
     }
     // ---- write it all out
     E.skyTop.value.copy(F.top); E.skyHor.value.copy(F.hor); E.fogColor.value.copy(F.fog);
-    E.fogDensity.value = fogD; E.fogStart.value = look.fog.start * (1 - this.ovK * 0.8); E.fogHeight.value = look.fog.height; E.fogHeightDensity.value = look.fog.heightDensity;
-    E.fogSun.value = look.fog.sun * (0.35 + 0.65 * S.day);
+    E.fogDensity.value = fogD; E.fogStart.value = v.fogStart * (1 - this.ovK * 0.8); E.fogHeight.value = v.fogHeight; E.fogHeightDensity.value = v.fogHD;
+    E.fogSun.value = v.fogSun;
     E.sunDir.value.copy(S.lightDir);
     E.sunColor.value.copy(F.sun).multiplyScalar(sunI);
     E.moon.value = S.moon ? 1 : 0;
-    E.day.value = S.day * (1 - this.ovK); E.golden.value = S.golden * (1 - this.ovK);
-    E.torch.value = torch; E.stars.value = S.stars * (1 - this.ovK);
+    E.day.value = v.day * (1 - this.ovK); E.golden.value = v.golden * (1 - this.ovK);
+    E.torch.value = torch; E.stars.value = v.stars * (1 - this.ovK);
+    if (Bl) U.wind.value = v.wind;
     this.fog.density = fogD;
     const L = this.lights;
     L.hemi.color.copy(F.hs); L.hemi.groundColor.copy(F.hg); L.hemi.intensity = hi;
@@ -257,13 +313,16 @@ export class Environment {
     Grade.tint.value.copy(F.tint); Grade.lift.value.copy(F.lift);
     Grade.saturation.value = sat; Grade.contrast.value = contrast; Grade.vignette.value = vignette;
     Grade.shadowTint.value.copy(F.sh); Grade.highlightTint.value.copy(F.hl);
-    Grade.bloomThreshold.value = 0.85 + 0.9 * S.day * (1 - this.ovK);
+    Grade.bloomThreshold.value = 0.85 + 0.9 * v.day * (1 - this.ovK);
     if (g?.gr?.renderer) g.gr.renderer.toneMappingExposure = exposure;
-    this.scene.environmentIntensity = 0.2 + 0.1 * S.day;
+    this.scene.environmentIntensity = 0.2 + 0.1 * v.day;
     // clouds, cloud shadows, sun on screen
     const P = g?.gr?.preset ?? {};
     this.sky.update(dt, S);
-    E.cloudShadow.value = this.sky.enabled && P.cloudShadows ? (look.clouds.shadows ?? 0.24) * S.day * (1 - this.ovK) : 0;
+    if (Bl) this.sky.cloudTint.value.copy(_c.set(look.clouds.tint ?? 0xffffff)).lerp(_v2.set(Bl.look.clouds.tint ?? 0xffffff), Bl.k);
+    else if (this.blendWas) this.sky.cloudTint.value.copy(_c.set(look.clouds.tint ?? 0xffffff));
+    this.blendWas = !!Bl;
+    E.cloudShadow.value = this.sky.enabled && P.cloudShadows ? v.clouds * v.day * (1 - this.ovK) : 0;
     const rig = g?.rig;
     if (rig) {
       E.focus.value.copy(rig.focus);
@@ -273,8 +332,9 @@ export class Environment {
     }
     if (this.world && this.foliage.world !== this.world && this.foliage.world === null && this.look.foliage !== false && this.game?.level?.foliage !== false) this.foliage.populate(this.world, this.game?.level?.foliage ?? this.look.foliage ?? {});
     this.foliage.update(E.focus.value);
-    // refresh the reflection probe as the sky changes
-    if (this.renderer && !this.ovK && Math.abs(this.tod.hour - this.probeHour) > (P.ssr ? 0.35 : 1.0) && Math.abs(this.tod.hour - this.probeHour) < 23.5) this.bakeProbe();
+    // refresh the reflection probe as the sky changes (and as you walk through a border's blend)
+    const bk = Bl ? Bl.k : 0;
+    if (this.renderer && !this.ovK && ((Math.abs(this.tod.hour - this.probeHour) > (P.ssr ? 0.35 : 1.0) && Math.abs(this.tod.hour - this.probeHour) < 23.5) || Math.abs(bk - (this.probeBlend ?? 0)) > 0.12)) { this.probeBlend = bk; this.bakeProbe(); }
   }
   updateSunScreen(camera, S, F) {
     _v.copy(camera.position).addScaledVector(S.sunDir, 150).project(camera);

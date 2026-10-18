@@ -136,6 +136,7 @@ export function installQuestMarkers(game, L) {
   const api = {
     get markers() { return markers; },
     refresh: build,
+    dispose: clear,   // the region is left (main.leaveRegion / clearLevel)
     guide() { game.quests?.guide(true); },
   };
   return api;

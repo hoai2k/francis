@@ -5,11 +5,12 @@
 //   import { onRegionLoad, addChest } from '../regionRuntime.js';
 //   // in a region build, before R.finish():
 //   onRegionLoad(R, (game, L) => { …set up…; return () => { …tear down… }; });
-//       fn runs after every load of the region (arriving through a gate, fast
-//       travel, coming back from a dungeon) once the game is playing in it.
-//       Use game.addUpdater(fn) for per-frame work (cleared when the level
-//       unloads); the returned dispose() runs when the region is left (polled
-//       every 0.4 s: game.level changes or the mode stops being 'world').
+//       fn runs every time the region becomes the current one (arriving by
+//       fast travel, coming back from a dungeon, or walking in over a border:
+//       world/seamless.js) once the game is playing in it. Use
+//       game.addUpdater(fn) for per-frame work (dropped when the region is
+//       left); the returned dispose() runs when the region is left.
+//   startRegionRuntime(game, L) -> stop()   (main.js) runs L's hooks
 //   addChest(R, 'sq_id', x, z, { rarity: 'rare', power: 2 })
 //       a world loot chest (opens once per save: save.data.worldChests[region:id]),
 //       drawn and made interactable automatically; returns the chest record.
@@ -18,35 +19,28 @@ import * as THREE from 'three/webgpu';
 import { rollChest, itemInfo, RARITY } from '../loot.js';
 import { toast } from '../ui/ui.js';
 
-const LOAD = Symbol('regionLoad');
-
 export function onRegionLoad(R, fn) {
-  if (!R[LOAD]) {
-    R[LOAD] = [];
-    const list = R[LOAD];
-    R.deco.extra(() => {   // called by loadWorld every time the region is (re)built into the scene
-      const g = typeof window !== 'undefined' ? window.__game : null;
-      if (!g) return null;
-      const L = g.level;
-      let tries = 0;
-      const start = () => {
-        if (g.level !== L) return;
-        if (g.state !== 'playing' || g.mode !== 'world') { if (tries++ < 600) setTimeout(start, 100); return; }
-        if (L._runtimeLive) return;
-        L._runtimeLive = true;
-        const disposers = [];
-        for (const f of list) { try { const d = f(g, L); if (typeof d === 'function') disposers.push(d); } catch (e) { console.error('region runtime', e); } }
-        const iv = setInterval(() => {
-          if (g.level === L && g.mode === 'world') return;
-          clearInterval(iv); L._runtimeLive = false;
-          for (const d of disposers) { try { d(); } catch (e) { console.warn('region runtime dispose', e); } }
-        }, 400);
-      };
-      queueMicrotask(start);
-      return null;
-    });
-  }
-  R[LOAD].push(fn);
+  (R.runtimeHooks ??= []).push(fn);
+}
+
+// Run a region's hooks now (or as soon as the game is playing in it); returns stop().
+export function startRegionRuntime(game, L) {
+  const list = L.runtimeHooks ?? [];
+  let stopped = false, timer = null;
+  const disposers = [];
+  const start = (tries = 0) => {
+    timer = null;
+    if (stopped || game.level !== L) return;
+    if (game.state !== 'playing' || game.mode !== 'world') { if (tries < 600) timer = setTimeout(() => start(tries + 1), 100); return; }
+    const prev = game.regionTag; game.regionTag = L;   // updaters added now belong to the region
+    try { for (const f of list) { try { const d = f(game, L); if (typeof d === 'function') disposers.push(d); } catch (e) { console.error('region runtime', e); } } }
+    finally { game.regionTag = prev; }
+  };
+  if (list.length) start();
+  return () => {
+    stopped = true; if (timer) clearTimeout(timer);
+    for (const d of disposers.splice(0)) { try { d(); } catch (e) { console.warn('region runtime dispose', e); } }
+  };
 }
 
 // ------------------------------------------------------------------ world chests

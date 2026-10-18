@@ -429,7 +429,7 @@ export class QuestSystem {
       default: return null;
     }
   }
-  // Point the tracker at the tracked quest: here, or the gate / station on the way to its region.
+  // Point the tracker at the tracked quest: here, or the border road on the way to its region.
   guide(force = false) {
     const g = this.game; if (!g.tracker) return;
     if (g.mode !== 'world' || g.worldMission) return;   // a running world mission drives the tracker itself
@@ -443,7 +443,7 @@ export class QuestSystem {
       const next = route?.[1];
       const gate = L.gates.find((x) => x.to === next);
       const name = REGIONS[s.region]?.name ?? s.region;
-      if (gate) { pos = gate.pos.clone(); where = next === s.region ? `${s.text} · take the road to ${name} (or fast travel)` : `${s.text} · ${name} is beyond ${REGIONS[next]?.name ?? next}: take the road there (or fast travel)`; }
+      if (gate) { pos = gate.pos.clone(); where = next === s.region ? `${s.text} · walk on into ${name}: follow the road over the border (or fast travel)` : `${s.text} · ${name} is beyond ${REGIONS[next]?.name ?? next}: follow the road on through it (or fast travel)`; }
       void gateSide;
     }
     const key = id + ':' + s.index + ':' + (pos ? `${Math.round(pos.x / 2)},${Math.round(pos.z / 2)}` : '-') + ':' + where;

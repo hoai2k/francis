@@ -133,15 +133,22 @@ export class Audio {
   levelUp() { [392, 523, 659, 784, 1046].forEach((f, i) => this.tone({ freq: f, dur: 0.4, gain: 0.1, type: 'square', filter: 3000, at: i * 0.09, rev: 0.3 })); }
 
   // ---- ambience (looping filtered noise + random events)
-  setAmbience(kind) {
+  // o.fade: seconds to crossfade from the old bed (walking over a region border)
+  setAmbience(kind, o = {}) {
     if (!this.started) { this.pendingAmb = kind; return; }
-    if (this.amb) { try { this.amb.src.stop(); } catch (e) { /* ignore */ } clearInterval(this.amb.timer); }
+    if (this.amb && this.amb.kind === kind && o.fade) return;
+    if (this.amb) {
+      const old = this.amb; clearInterval(old.timer);
+      if (o.fade && old.gain) { const t = this.ctx.currentTime; old.gain.gain.cancelScheduledValues(t); old.gain.gain.setValueAtTime(old.gain.gain.value, t); old.gain.gain.linearRampToValueAtTime(0, t + o.fade); setTimeout(() => { try { old.src.stop(); } catch (e) { /* ignore */ } }, o.fade * 1000 + 100); }
+      else { try { old.src.stop(); } catch (e) { /* ignore */ } }
+    }
     const c = this.ctx;
     const src = c.createBufferSource(); src.buffer = this.noiseBuf; src.loop = true;
     const f = c.createBiquadFilter();
     const g = c.createGain();
     const cfg = { night: ['lowpass', 500, 0.08], city: ['lowpass', 260, 0.14], forest: ['bandpass', 900, 0.06], drips: ['lowpass', 180, 0.12], void: ['lowpass', 120, 0.1] }[kind] || ['lowpass', 400, 0.08];
     f.type = cfg[0]; f.frequency.value = cfg[1]; g.gain.value = cfg[2];
+    if (o.fade) { const t = c.currentTime, v = g.gain.value; g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(v, t + o.fade); }
     src.connect(f); f.connect(g); g.connect(this.ambBus); src.start();
     const timer = setInterval(() => {
       if (!this.started || this.ctx.state !== 'running') return;
@@ -150,7 +157,7 @@ export class Audio {
       if (kind === 'drips' && Math.random() < 0.7) this.tone({ freq: 1200 + Math.random() * 1500, to: 600, dur: 0.08, gain: 0.04, type: 'sine', bus: this.ambBus, rev: 0.8 });
       if (kind === 'city' && Math.random() < 0.1) this.tone({ freq: 700, to: 690, dur: 1.4, gain: 0.02, type: 'triangle', bus: this.ambBus, rev: 0.7 });
     }, 700);
-    this.amb = { src, timer };
+    this.amb = { src, timer, gain: g, kind };
   }
 
   // ---- music: recorded tracks (assets/music/) with crossfades — the

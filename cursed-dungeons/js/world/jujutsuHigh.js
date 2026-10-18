@@ -153,23 +153,37 @@ function terrainHeight(x, z) {
 // o.embed: built to be stamped into the open jujutsu_high region
 // (world/regions/jujutsu_high.js): no invisible walls round the edge and no
 // painted backdrop (the region has real mountains there).
-export function buildJujutsuHigh(o = {}) {
+export function buildJujutsuHigh(o = {}) { const it = buildJujutsuHighG(o); let r; do r = it.next(); while (!r.done); return r.value; }
+// the same, a step at a time (time-sliced region builds)
+export function* buildJujutsuHighG(o = {}) {
   const world = new World(SX, SY, SZ);
+  yield 'jjh:157';
   const deco = new HubDeco();
+  yield 'jjh:158';
   const shafts = new LightShafts();
+  yield 'jjh:159';
   const k = new Kit(world, deco, shafts, 2018);
+  yield 'jjh:160';
   const W = world, P = deco.hub;
+  yield 'jjh:161';
   const V = (x, y, z) => new THREE.Vector3(x, y, z);
+  yield 'jjh:162';
   const rnd = (a, b) => k.rnd(a, b);
+  yield 'jjh:163';
   const top = (x, z) => W.groundBelow(x + 0.5, z + 0.5, SY - 1);
+  yield 'jjh:164';
   const isGround = (id) => id === B.grass || id === B.dirt || id === B.moss_floor;
 
   // ------------------------------------------------------------ terrain
   const H = new Int16Array(SX * SZ);
+  yield 'jjh:168';
   for (let z = 0; z < SZ; z++) for (let x = 0; x < SX; x++) H[z * SX + x] = terrainHeight(x, z);
+  yield 'jjh:169';
   // the stairs and their balustrades
   for (let z = 97; z < 119; z++) for (let x = STX0; x <= STX1; x++) H[z * SX + x] = stairTop(z) + (x === STX0 || x === STX1 ? 1 : 0);
+  yield 'jjh:171';
   const hAt = (x, z) => H[Math.max(0, Math.min(SZ - 1, z)) * SX + Math.max(0, Math.min(SX - 1, x))];
+  yield 'jjh:172';
   for (let z = 0; z < SZ; z++) for (let x = 0; x < SX; x++) {
     const h = hAt(x, z);
     const slope = Math.max(Math.abs(h - hAt(x + 1, z)), Math.abs(h - hAt(x - 1, z)), Math.abs(h - hAt(x, z + 1)), Math.abs(h - hAt(x, z - 1)));
@@ -182,13 +196,16 @@ export function buildJujutsuHigh(o = {}) {
       W.set(x, y, z, id);
     }
   }
+  yield 'jjh:184';
   // outer edges: invisible walls
   if (!o.embed) for (let i = 0; i < SX; i++) for (const z of [0, SZ - 1]) { const h = hAt(i, z); W.fill(i, h, z, i, Math.min(SY - 1, h + 8), z, B.barrier); }
   if (!o.embed) for (let i = 0; i < SZ; i++) for (const x of [0, SX - 1]) { const h = hAt(x, i); W.fill(x, h, i, x, Math.min(SY - 1, h + 8), i, B.barrier); }
 
   // ------------------------------------------------------------ paving helpers
   const setTop = (x, z, id, only = true) => { const y = top(x, z); if (!isFinite(y)) return; if (!only || isGround(W.get(x, y - 1, z))) W.set(x, y - 1, z, id); };
+  yield 'jjh:190';
   const rect = (x0, z0, x1, z1, id, alt = null, altP = 0) => { for (let z = z0; z <= z1; z++) for (let x = x0; x <= x1; x++) W.set(x, FY - 1, z, alt && k.chance(altP) ? alt : id); };
+  yield 'jjh:191';
   const pathLine = (pts, w = 3, id = B.cobble, alt = B.stone_brick) => {
     for (let i = 0; i < pts.length - 1; i++) {
       const [ax, az] = pts[i], [bx, bz] = pts[i + 1];
@@ -213,12 +230,14 @@ export function buildJujutsuHigh(o = {}) {
     if (light) W.addLight(x, y + 1.3 * s, z, 0xffb060, 3.4, 8);
     if (s >= 0.9) W.set(Math.floor(x), y, Math.floor(z), B.barrier);
   };
+  yield 'jjh:215';
   const chochin = (x, y, z, col = C.lanternRed, light = true) => {   // hanging paper lantern; y = hook height
     P.box(x, y - 0.35, z, 0.04, 0.35, 0.04, C.black);
     P.box(x, y - 0.42, z, 0.5, 0.08, 0.5, C.black); P.box(x, y - 1.02, z, 0.5, 0.08, 0.5, C.black);
     P.box(x, y - 0.95, z, 0.56, 0.54, 0.56, col, { emit: 1.8, vary: 0, sway: 0.15 });
     if (light) W.addLight(x, y - 0.8, z, 0xff7a3a, 3, 7);
   };
+  yield 'jjh:221';
   // torii: posts along x (gate faces ±z) unless along === 'z'
   const torii = (x, y, z, w, h, { along = 'x', thick = 0.55, collide = true } = {}) => {
     const at = (a, yy, b, sx, sy, sz, col, o) => along === 'x' ? P.box(x + a, yy, z + b, sx, sy, sz, col, o) : P.box(x + b, yy, z + a, sz, sy, sx, col, o);
@@ -234,20 +253,25 @@ export function buildJujutsuHigh(o = {}) {
     at(0, y + h - 0.85, 0, thick * 0.5, 0.55, thick * 0.5, C.red);                           // gakuzuka
     at(0, y + h - 1.0, 0.0, Math.min(1.1, w * 0.22), 0.9, thick * 0.7, C.black);             // plaque
   };
+  yield 'jjh:236';
   const candles = (x, y, z) => { for (let i = 0; i < 3; i++) { const a = i * 2.1, r = 0.16, hh = 0.2 + i * 0.08; P.box(x + Math.cos(a) * r, y, z + Math.sin(a) * r, 0.08, hh, 0.08, 0xefe6cc); P.box(x + Math.cos(a) * r, y + hh, z + Math.sin(a) * r, 0.05, 0.09, 0.05, 0xffb040, { emit: 4, vary: 0 }); } };
+  yield 'jjh:237';
   const bench = (x, y, z, ry = 0, len = 1.8) => {
     const c = Math.cos(ry), s = Math.sin(ry);
     P.box(x, y + 0.42, z, len, 0.1, 0.5, C.woodL, { ry });
     P.box(x - s * 0.22, y + 0.52, z - c * 0.22, len, 0.42, 0.08, C.wood, { ry });
     for (const t of [-1, 1]) P.box(x + c * t * (len / 2 - 0.15), y, z - s * t * (len / 2 - 0.15), 0.1, 0.42, 0.44, C.woodD, { ry });
   };
+  yield 'jjh:243';
   const fenceLine = (x0, z0, x1, z1, y = FY, col = C.woodD) => {
     const len = Math.hypot(x1 - x0, z1 - z0), n = Math.max(1, Math.round(len / 2));
     const ry = Math.atan2(x1 - x0, z1 - z0);
     for (let i = 0; i <= n; i++) { const t = i / n; P.box(x0 + (x1 - x0) * t, y, z0 + (z1 - z0) * t, 0.16, 1.05, 0.16, col); }
     for (const hh of [0.42, 0.85]) P.box((x0 + x1) / 2, y + hh, (z0 + z1) / 2, 0.08, 0.1, len, C.wood, { ry });
   };
+  yield 'jjh:249';
   const flatPetals = (cx, z0c, y, r, n) => { for (let i = 0; i < n; i++) { const a = k.r() * Math.PI * 2, d = Math.sqrt(k.r()) * r; P.box(cx + Math.cos(a) * d, y + 0.01, z0c + Math.sin(a) * d, 0.22, 0.02, 0.22, C.sakura[i % 5], { ry: a, vary: 0.1 }); } };
+  yield 'jjh:250';
   // sakura: voxel trunk with branches, pink canopy of swaying boxes
   const sakura = (x, z, y = null, sc = 1) => {
     y = y ?? top(x, z); if (!isFinite(y)) return;
@@ -267,6 +291,7 @@ export function buildJujutsuHigh(o = {}) {
     for (let i = 0; i < Math.round(8 * sc); i++) { const a = k.r() * Math.PI * 2, d = k.r() * R * 0.8; P.box(cx + Math.cos(a) * d, cy + 1.3 * sc + rnd(0, 0.6), cz + Math.sin(a) * d, 0.5 * sc, 0.4 * sc, 0.5 * sc, 0xffe4ec, { emit: 0.12, sway: 0.6, ry: a }); }
     flatPetals(cx, cz, y, R + 1, Math.round(22 * sc));
   };
+  yield 'jjh:269';
   // cedar (sugi): tall conical voxel tree for the ridges
   const cedar = (x, z, y, h = 9 + Math.floor(k.r() * 5)) => {
     for (let i = 0; i < h; i++) W.set(x, y + i, z, B.bark_dark);
@@ -280,6 +305,7 @@ export function buildJujutsuHigh(o = {}) {
       }
     }
   };
+  yield 'jjh:282';
   const clearAround = (x, z, r = 1) => { const y = top(x, z); for (let dz = -r; dz <= r; dz++) for (let dx = -r; dx <= r; dx++) { const yy = top(x + dx, z + dz); if (!isFinite(yy) || Math.abs(yy - y) > 1 || W.get(x + dx, yy, z + dz) || !isGround(W.get(x + dx, yy - 1, z + dz))) return false; } return true; };
 
   // ------------------------------------------------------------ building helpers
@@ -309,6 +335,7 @@ export function buildJujutsuHigh(o = {}) {
       }
     }
   };
+  yield 'jjh:311';
   // Hipped roof: rings stepping in `run` blocks per level, dark eave ring,
   // upturned corners and a gold ridge. Registered as a fading roof.
   const hipRoof = (x0, z0, x1, z1, y, o = {}) => {
@@ -335,6 +362,7 @@ export function buildJujutsuHigh(o = {}) {
     if (o.interior) W.addRoof([x0, y, z0], [x1, topY + 1, z1], o.interior);
     return topY;
   };
+  yield 'jjh:337';
   // Gable roof with the ridge along z; gable ends filled with `end` on the wall planes.
   const gableRoof = (x0, z0, x1, z1, y, o = {}) => {
     const id = o.id ?? B.roof, run = o.run ?? 2, end = o.end ?? B.plaster;
@@ -352,8 +380,11 @@ export function buildJujutsuHigh(o = {}) {
 
   // ------------------------------------------------------------ courtyard and paths
   rect(46, 48, 82, 90, B.cobble, B.stone_brick, 0.12);
+  yield 'jjh:354';
   for (let z = 45; z <= 96; z++) for (let x = 61; x <= 67; x++) W.set(x, FY - 1, z, x === 61 || x === 67 ? B.dark_brick : B.stone_brick);
+  yield 'jjh:355';
   for (let z = 66; z <= 68; z++) for (let x = 35; x <= 92; x++) if (x < 61 || x > 67) W.set(x, FY - 1, z, z === 67 ? B.stone_brick : B.cobble);
+  yield 'jjh:356';
   pathLine([[47, 50], [36, 46], [24, 44], [21, 40]], 3);       // to the shrine
   pathLine([[34, 45], [34, 35]], 2);                          // to the principal's office
   pathLine([[81, 49], [92, 44], [100, 42]], 3);               // to the pond
@@ -362,34 +393,52 @@ export function buildJujutsuHigh(o = {}) {
   // ------------------------------------------------------------ the main hall (honden)
   {
     W.fill(44, FY, 20, 84, FY + 1, 44, B.stone_brick);
+    yield 'jjh:364';
     for (let x = 44; x <= 84; x++) for (const z of [20, 44]) if (k.chance(0.3)) W.set(x, FY, z, B.mossy_brick);
+    yield 'jjh:365';
     for (let z = 21; z <= 43; z++) for (let x = 45; x <= 83; x++) W.set(x, FY + 1, z, B.floor_boards);
+    yield 'jjh:366';
     for (let x = 56; x <= 72; x++) W.set(x, FY, 45, B.stone_brick);   // front steps
     hall(47, 23, 81, 39, FY + 2, 7, { wall: B.shoji, post: B.pillar_red, bay: 3, sill: B.dark_planks, band: [5], floor: B.tatami, doors: [{ side: 's', at: 64, w: 11, h: 5 }, { side: 'w', at: 31, w: 3, h: 3 }, { side: 'e', at: 31, w: 3, h: 3 }] });
+    yield 'jjh:368';
     for (let x = 47; x <= 81; x += 4) for (let yy = FY + 2; yy <= FY + 7; yy++) W.set(x, yy, 43, B.pillar_red);   // veranda posts
     for (let x = 47; x <= 81; x++) W.set(x, FY + 8, 43, B.dark_planks);
+    yield 'jjh:370';
     for (let z = 23; z <= 43; z++) for (const x of [45, 83]) if ((z - 23) % 4 === 0) for (let yy = FY + 2; yy <= FY + 8; yy++) W.set(x, yy, z, yy === FY + 8 ? B.dark_planks : B.pillar_red);
+    yield 'jjh:371';
     hipRoof(43, 19, 85, 44, FY + 9, { run: 1, interior: [[47, FY + 2, 23], [81, FY + 8, 39]] });
+    yield 'jjh:372';
     // the altar at the back: gold, candles and a great talisman
     W.fill(60, FY + 2, 24, 68, FY + 2, 25, B.dark_planks); W.fill(61, FY + 3, 24, 67, FY + 3, 24, B.gold_trim);
+    yield 'jjh:374';
     W.fill(63, FY + 4, 24, 65, FY + 5, 24, B.talisman_wall);
+    yield 'jjh:375';
     candles(61.5, FY + 3, 25.5); candles(67.5, FY + 3, 25.5);
+    yield 'jjh:376';
     W.addLight(64.5, FY + 4, 26.5, 0xffb050, 4, 10);
+    yield 'jjh:377';
     for (const x of [52, 58, 70, 76]) deco.add('banner', x + 0.5, FY + 5, 23.98 + 0.05, { mode: 'wall', facing: [0, 1], scale: 2, sway: 0.2 });
+    yield 'jjh:378';
     for (const x of [50, 78]) for (const z of [27, 34]) toro(x + 0.5, FY + 2, z + 0.5, 0.8, true);
+    yield 'jjh:379';
     // shimenawa: a thick rope with paper shide over the entrance
     for (let i = 0; i < 12; i++) { const t = i / 11, x = 58.6 + t * 11.8, sag = Math.sin(t * Math.PI) * 0.45; P.box(x, FY + 6.4 - sag, 40.2, 1.15, 0.42, 0.42, C.rope, { rz: (t - 0.5) * 0.5, vary: 0.04 }); }
     for (const x of [61, 64.5, 68]) { const sag = Math.sin(((x - 58.6) / 11.8) * Math.PI) * 0.45; P.box(x, FY + 5.5 - sag, 40.25, 0.3, 0.8, 0.04, C.white, { sway: 0.4, vary: 0 }); }
     chochin(58.5, FY + 8.6, 41.5); chochin(70.5, FY + 8.6, 41.5);
+    yield 'jjh:383';
     for (const x of [49, 53, 75, 79]) chochin(x + 0.5, FY + 8.6, 43.5, C.lanternRed, x === 49 || x === 79);
+    yield 'jjh:384';
     // saisen box and bell rope in front of the door
     P.box(64.5, FY + 2, 41.2, 2.4, 0.9, 1.0, C.woodD); P.box(64.5, FY + 2.9, 41.2, 2.5, 0.12, 1.1, C.wood);
+    yield 'jjh:386';
     W.set(63, FY + 2, 41, B.barrier); W.set(64, FY + 2, 41, B.barrier); W.set(65, FY + 2, 41, B.barrier);
+    yield 'jjh:387';
     P.box(64.5, FY + 3.2, 41.0, 0.12, 3.6, 0.12, C.red, { sway: 0.2 }); P.box(64.5, FY + 6.6, 41.0, 0.5, 0.5, 0.5, C.gold, { emit: 0.3 });
   }
 
   // ------------------------------------------------------------ the gate, the wall and the long stairs
   torii(64.5, FY, 95.5, 7, 7.2, { thick: 0.65 });
+  yield 'jjh:392';
   for (const x of [57, 72]) { toro(x + 0.5, FY, 93.5, 1.2); }
   // komainu guardians on pedestals
   for (const s of [-1, 1]) {
@@ -399,65 +448,94 @@ export function buildJujutsuHigh(o = {}) {
     P.box(x, FY + 2.0, z + 0.35, 0.56, 0.5, 0.56, C.stone); P.box(x, FY + 2.15, z + 0.66, 0.36, 0.22, 0.12, C.stoneD);
     P.box(x - s * 0.1, FY + 2.45, z + 0.1, 0.62, 0.34, 0.4, C.stoneD);
   }
+  yield 'jjh:401';
   // tsuiji wall along the plateau's south edge
   for (const [x0, x1] of [[38, 59], [69, 90]]) for (let x = x0; x <= x1; x++) {
     const h = top(x, 97); if (!isFinite(h)) continue;
     for (let yy = FY; yy < FY + 2; yy++) W.set(x, yy, 97, yy === FY ? B.stone_brick : B.plaster);
     W.set(x, FY + 2, 97, B.roof); W.set(x, FY + 2, 96, B.dark_planks); W.set(x, FY + 2, 98, B.dark_planks);
   }
+  yield 'jjh:407';
   for (const x of [59, 69]) for (let yy = FY; yy <= FY + 3; yy++) W.set(x, yy, 97, B.stone_brick);
+  yield 'jjh:408';
   // stone lanterns down the stairs, and a second torii at the bottom
   for (let z = 100; z < 119; z += 5) for (const x of [STX0, STX1]) toro(x + 0.5, stairTop(z) + 1, z + 0.5, 0.75, z % 10 === 0);
+  yield 'jjh:410';
   for (let z = 119; z <= 131; z++) for (let x = 54; x <= 74; x++) { W.fill(x, FY - 11, z, x, FY - 1, z, 0); W.set(x, FY - 12, z, x >= 61 && x <= 67 ? B.stone_brick : k.chance(0.2) ? B.stone_brick : B.cobble); }
   torii(64.5, FY - 11, 121.5, 5, 5.2);
+  yield 'jjh:412';
   for (let x = 0; x < SX; x++) for (let z = 126; z <= 129; z++) { const y = top(x, z); if (isFinite(y) && Math.abs(y - (FY - 11)) <= 2) { W.fill(x, FY - 11, z, x, y, z, 0); W.set(x, FY - 12, z, (z === 127 && x % 4 < 2) ? B.asphalt_line : B.asphalt); } }
   // a black sedan waiting at the foot of the stairs
   {
     const cx = 56, cz = 127.5;
+    yield 'jjh:416';
     P.box(cx, FY - 11 + 0.25, cz, 4.2, 0.75, 1.8, 0x111216, { vary: 0 }); P.box(cx - 0.2, FY - 11 + 1.0, cz, 2.3, 0.62, 1.62, 0x1a2230, { vary: 0 });
+    yield 'jjh:417';
     for (const [dx, dz] of [[-1.4, -0.85], [1.4, -0.85], [-1.4, 0.85], [1.4, 0.85]]) P.box(cx + dx, FY - 11, cz + dz, 0.7, 0.55, 0.25, 0x0a0a0a);
+    yield 'jjh:418';
     P.box(cx + 2.1, FY - 11 + 0.5, cz - 0.6, 0.04, 0.16, 0.34, 0xfff2c0, { emit: 3 }); P.box(cx + 2.1, FY - 11 + 0.5, cz + 0.6, 0.04, 0.16, 0.34, 0xfff2c0, { emit: 3 });
+    yield 'jjh:419';
     for (let x = cx - 2; x <= cx + 2; x++) W.set(x, FY - 11, Math.floor(cz), B.barrier);
+    yield 'jjh:420';
     W.addLight(cx + 3, FY - 10.5, cz, 0xfff0c0, 3, 7);
   }
 
   // ------------------------------------------------------------ the dormitory (west)
   {
     const x0 = 12, z0 = 53, x1 = 34, z1 = 77, y = FY;
+    yield 'jjh:426';
     rect(x0 - 1, z0 - 1, x1 + 1, z1 + 1, B.stone_brick);
+    yield 'jjh:427';
     hall(x0, z0, x1, z1, y, 9, { wall: B.plaster, post: B.dark_planks, beam: B.dark_planks, bay: 4, band: [4], win: [2, 6], winId: B.lantern, floor: B.floor_boards, doors: [{ side: 'e', at: 65, w: 3, h: 3 }] });
+    yield 'jjh:428';
     // a second-floor balcony along the courtyard side
     for (let z = z0; z <= z1; z++) { W.set(x1 + 1, y + 4, z, B.dark_planks); if (z % 2 === 0) P.box(x1 + 1.85, y + 5, z + 0.5, 0.1, 0.8, 0.1, C.woodD); }
     P.box(x1 + 1.85, y + 5.75, (z0 + z1) / 2 + 0.5, 0.08, 0.08, z1 - z0 + 1, C.wood);
+    yield 'jjh:431';
     gableRoof(x0 - 2, z0 - 2, x1 + 2, z1 + 2, y + 9, { run: 2, end: B.plaster, ends: [z0, z1], interior: [[x0, y, z0], [x1, y + 8, z1]] });
+    yield 'jjh:432';
     // inside: futons, low tables, a shelf
     for (let z = z0 + 2; z < z1 - 1; z += 4) for (const x of [x0 + 2, x1 - 4]) { P.box(x + 1, y, z + 0.5, 2.0, 0.22, 1.1, 0xe8e0d0); P.box(x + 0.35, y + 0.22, z + 0.5, 0.5, 0.16, 0.9, 0xffffff); P.box(x + 1.3, y + 0.22, z + 0.5, 1.2, 0.08, 1.1, [0x3a5a8a, 0x8a3a4a, 0x4a7a4a][z % 3]); }
     for (let z = z0 + 4; z < z1 - 2; z += 8) { P.box(x0 + 11, y, z, 1.4, 0.45, 0.9, C.woodD); W.addLight(x0 + 11, y + 2.5, z, 0xffc080, 2.5, 7); }
     // the stash chest (your locker) and the vending machines outside
     for (let z = 57; z <= 59; z++) { W.set(35, FY, z, B.vending); W.set(35, FY + 1, z, B.vending); W.set(35, FY + 2, z, B.concrete); }
     bench(39, FY, 57.2, -Math.PI / 2, 2);
+    yield 'jjh:438';
     P.box(38.6, FY, 59.9, 0.5, 0.75, 0.5, 0x2a5a8a); P.box(38.6, FY + 0.75, 59.9, 0.52, 0.06, 0.52, 0x1a3a5a);   // recycling bin
     chochin(35.6, FY + 3.6, 62.5, C.paper); chochin(35.6, FY + 3.6, 67.5, C.paper);
+    yield 'jjh:440';
     for (const z of [55, 75]) toro(37.5, FY, z + 0.5, 0.9);
+    yield 'jjh:441';
     sakura(40, 79, FY, 1.05); sakura(40, 51, FY, 0.9);
   }
+  yield 'jjh:443';
   const stash = V(36.8, FY, 69.6);
+  yield 'jjh:444';
   {   // the chest
     const x = stash.x, z = stash.z;
+    yield 'jjh:446';
     P.box(x, FY, z, 1.2, 0.62, 0.78, 0x5a3a8a, { vary: 0 }); P.box(x, FY + 0.62, z, 1.24, 0.24, 0.82, 0x6a4a9a, { vary: 0 });
+    yield 'jjh:447';
     for (const dx of [-0.42, 0.42]) P.box(x + dx, FY, z, 0.1, 0.88, 0.84, C.gold, { emit: 0.25 });
+    yield 'jjh:448';
     P.box(x, FY + 0.42, z + 0.4, 0.18, 0.2, 0.06, C.gold, { emit: 0.6 });
+    yield 'jjh:449';
     W.set(Math.floor(x), FY, Math.floor(z), B.barrier);
   }
 
   // ------------------------------------------------------------ the training ground (east)
   {
     const x0 = 90, z0 = 47, x1 = 116, z1 = 86;
+    yield 'jjh:455';
     for (let z = z0; z <= z1; z++) for (let x = x0; x <= x1; x++) W.set(x, FY - 1, z, k.chance(0.07) ? B.sand : k.chance(0.08) ? B.grass : B.dirt);
+    yield 'jjh:456';
     for (let z = 52; z <= 58; z++) for (let x = 96; x <= 105; x++) W.set(x, FY - 1, z, x === 96 || x === 105 || z === 52 || z === 58 ? B.planks : B.sand);   // the sparring square
     fenceLine(x0, z0, x1 + 1, z0); fenceLine(x1 + 1, z0, x1 + 1, z1 + 1); fenceLine(x0, z1 + 1, x1 + 1, z1 + 1);
+    yield 'jjh:458';
     fenceLine(x0, z0, x0, 63); fenceLine(x0, 72, x0, z1 + 1);
+    yield 'jjh:459';
     for (const [x, z] of [[x0, z0], [x1, z0], [x0, z1], [x1, z1], [x0, 63], [x0, 71]]) toro(x + 0.5, FY, z + 0.5, 0.85, true);
+    yield 'jjh:460';
     // weapon racks: polearms, staves and practice swords
     for (const zc of [56, 62]) {
       P.box(114.6, FY, zc, 0.2, 1.7, 0.2, C.woodD); P.box(114.6, FY, zc + 3, 0.2, 1.7, 0.2, C.woodD);
@@ -467,24 +545,35 @@ export function buildJujutsuHigh(o = {}) {
     }
     // a storage shed and stacked crates
     hall(107, 77, 115, 84, FY, 4, { wall: B.planks, post: B.log, beam: B.dark_planks, bay: 4, floor: B.floor_boards, doors: [{ side: 'w', at: 80, w: 3, h: 3 }] });
+    yield 'jjh:469';
     hipRoof(106, 76, 116, 85, FY + 4, { run: 1, interior: [[107, FY, 77], [115, FY + 3, 84]] });
+    yield 'jjh:470';
     for (const [x, z] of [[104, 82], [105, 82], [104, 83]]) W.set(x, FY, z, B.crate);
+    yield 'jjh:471';
     W.set(104, FY + 1, 82, B.crate); W.set(93, FY, 49, B.barrel); W.set(94, FY, 49, B.barrel);
+    yield 'jjh:472';
     // benches for spectators, a drum and banners
     bench(93, FY, 76, Math.PI / 2, 2.4); bench(93, FY, 80, Math.PI / 2, 2.4);
+    yield 'jjh:474';
     P.box(110.5, FY, 51.5, 1.1, 1.0, 1.1, 0x8a2a1a); P.box(110.5, FY + 1, 51.5, 1.15, 0.08, 1.15, 0xe8dcc0);
+    yield 'jjh:475';
     for (const x of [96, 103, 110]) { P.box(x + 0.5, FY, z0 + 0.15, 0.12, 3.4, 0.12, C.woodD); P.box(x + 0.5, FY + 1.8, z0 + 0.25, 0.9, 1.6, 0.04, x === 103 ? 0x2a2a6a : 0x6a1a1a, { sway: 0.3 }); }
     // the summoning talisman post next to the dummy
     P.box(105.1, FY, 70.5, 0.22, 1.5, 0.22, C.woodD);
+    yield 'jjh:478';
     P.box(105.1, FY + 1.1, 70.62, 0.36, 0.62, 0.04, 0xfff2c8, { emit: 1.2, vary: 0 }); P.box(105.1, FY + 1.25, 70.65, 0.12, 0.3, 0.02, 0xc0202a, { emit: 0.8, vary: 0 });
+    yield 'jjh:479';
     W.addLight(105.1, FY + 1.6, 70.9, 0xffe0a0, 2, 4);
+    yield 'jjh:480';
     deco.add('paper', 103.5, FY, 70.5, { mode: 'flat', scale: 1.4 });
+    yield 'jjh:481';
     // spectators' sakura outside the fence
     sakura(88, 80, FY, 0.95); sakura(118, 52, FY, 0.8);
   }
 
   // ------------------------------------------------------------ the koi pond (north-east) and Gojo's bench
   const PC = [99, 27];
+  yield 'jjh:487';
   {
     for (let z = 15; z <= 40; z++) for (let x = 86; x <= 113; x++) {
       const nx = (x - PC[0]) / 10.5, nz = (z - PC[1]) / 9;
@@ -502,6 +591,7 @@ export function buildJujutsuHigh(o = {}) {
     for (const [x, z] of [[88, 23], [90, 33], [109, 21], [110, 31], [97, 37], [104, 17]]) { W.set(x, FY, z, B.stone); if (k.chance(0.6)) W.set(x + 1, FY, z, B.mossy_brick); if (k.chance(0.4)) W.set(x, FY + 1, z, B.stone); }
     // the vermilion arched bridge (walkable) across the middle
     const bz0 = 26, bz1 = 28;
+    yield 'jjh:504';
     for (let x = 88; x <= 110; x++) for (let z = bz0; z <= bz1; z++) {
       const lift = x <= 89 || x >= 109 ? 0 : x <= 91 || x >= 107 ? 1 : x <= 94 || x >= 104 ? 2 : 3;
       if (!lift) continue;
@@ -511,14 +601,19 @@ export function buildJujutsuHigh(o = {}) {
       if (z !== bz0 + 1) { if (x % 2 === 0) P.box(x + 0.5, FY + lift - 0.0, z + (z === bz0 ? 0.15 : 0.85), 0.14, 0.95, 0.14, C.red); P.box(x + 0.5, FY + lift + 0.85, z + (z === bz0 ? 0.15 : 0.85), 1.02, 0.12, 0.16, C.red); }
     }
     for (const x of [89, 109]) for (const z of [bz0, bz1]) P.box(x + 0.5, FY + 1, z + 0.5, 0.22, 0.25, 0.22, C.gold, { emit: 0.4 });
+    yield 'jjh:513';
     // lily pads, an island lantern, reeds and sakura
     for (let i = 0; i < 18; i++) { const a = k.r() * Math.PI * 2, r = 3 + k.r() * 5.5; const x = PC[0] + Math.cos(a) * r * 1.1, z = PC[1] + Math.sin(a) * r; if (Math.abs(z - 27.5) < 2.4) continue; if (W.get(Math.floor(x), FY - 1, Math.floor(z)) === B.water) { P.box(x, FY - 0.1, z, 0.7, 0.04, 0.7, 0x5a9a44, { ry: a, emit: 0.08 }); if (k.chance(0.25)) P.box(x + 0.15, FY - 0.06, z, 0.18, 0.14, 0.18, 0xf8c8e0, { emit: 0.15 }); } }
     W.fill(94, FY - 2, 21, 95, FY - 1, 22, B.stone); toro(95, FY, 22, 0.8);
+    yield 'jjh:516';
     for (let i = 0; i < 30; i++) { const a = i / 30 * Math.PI * 2; const x = Math.floor(PC[0] + Math.cos(a) * 11.6), z = Math.floor(PC[1] + Math.sin(a) * 10); if (k.chance(0.5) && W.get(x, FY - 1, z) === B.grass && !W.get(x, FY, z)) deco.add(k.chance(0.5) ? 'tall_grass' : 'fern', x + 0.5, FY, z + 0.5, { scale: 1.1 }); }
     for (const [x, z, s] of [[86, 18, 1.1], [112, 36, 1], [90, 41, 0.85], [113, 19, 0.9], [84, 30, 0.9]]) sakura(x, z, FY, s);
+    yield 'jjh:518';
     // Gojo's bench, looking over the training ground
     bench(100.5, FY, 43.5, 0, 2.2); W.set(100, FY, 43, B.barrier); W.set(101, FY, 43, B.barrier); W.set(99, FY, 43, B.barrier);
+    yield 'jjh:520';
     toro(97.5, FY, 43.5, 0.8); toro(104.5, FY, 43.5, 0.8);
+    yield 'jjh:521';
     P.box(102.2, FY + 0.52, 43.4, 0.3, 0.12, 0.22, 0xfff0f0); P.box(102.2, FY + 0.64, 43.4, 0.24, 0.1, 0.18, 0xf4b8c8);   // a box of sweets
   }
 
@@ -526,35 +621,57 @@ export function buildJujutsuHigh(o = {}) {
   {
     // the mound with stairs
     W.fill(13, FY, 17, 27, FY + 2, 31, B.stone_brick);
+    yield 'jjh:528';
     for (let z = 17; z <= 31; z++) for (let x = 13; x <= 27; x++) W.set(x, FY + 2, z, (x === 13 || x === 27 || z === 17 || z === 31) ? B.mossy_brick : B.cobble);
+    yield 'jjh:529';
     for (let x = 18; x <= 22; x++) { W.fill(x, FY, 32, x, FY + 1, 32, B.stone_brick); W.fill(x, FY + 2, 32, x, FY + 4, 32, 0); W.set(x, FY, 33, B.stone_brick); }
     hall(15, 19, 25, 27, FY + 3, 4, { wall: B.shoji, post: B.pillar_red, bay: 2, floor: B.shrine_floor, doors: [{ side: 's', at: 20, w: 3, h: 3 }] });
+    yield 'jjh:531';
     hipRoof(14, 18, 26, 28, FY + 7, { run: 1, interior: [[15, FY + 3, 19], [25, FY + 6, 27]] });
+    yield 'jjh:532';
     W.fill(18, FY + 3, 20, 22, FY + 3, 20, B.gold_trim); W.set(20, FY + 4, 20, B.blue_energy);
+    yield 'jjh:533';
     deco.add('talisman', 20.5, FY + 5.5, 20.03, { mode: 'wall', facing: [0, 1], scale: 1.1, emit: 0.8 });
+    yield 'jjh:534';
     candles(17.5, FY + 3, 21.5); candles(23.5, FY + 3, 21.5);
+    yield 'jjh:535';
     W.addLight(20.5, FY + 4.5, 22, 0x8ad8ff, 3, 8);
+    yield 'jjh:536';
     chochin(17.5, FY + 6.7, 28.6); chochin(23.5, FY + 6.7, 28.6);
+    yield 'jjh:537';
     toro(14.5, FY + 3, 30.5, 0.8); toro(26.5, FY + 3, 30.5, 0.8);
+    yield 'jjh:538';
     // offering bell and the "omikuji" fortune rack
     P.box(15.2, FY + 3, 29.2, 0.14, 1.4, 0.14, C.woodD); P.box(16.8, FY + 3, 29.2, 0.14, 1.4, 0.14, C.woodD); P.box(16, FY + 4.2, 29.2, 1.8, 0.1, 0.12, C.wood);
+    yield 'jjh:540';
     for (let i = 0; i < 6; i++) P.box(15.3 + i * 0.28, FY + 3.75, 29.2, 0.12, 0.4, 0.04, C.white, { sway: 0.5, vary: 0 });
+    yield 'jjh:541';
     // senbon torii up to the shrine steps
     for (const z of [38, 40.5, 43, 45.5]) torii(20.5, FY, z, 4, 3.8, { thick: 0.36 });
+    yield 'jjh:543';
     for (let z = 36; z <= 47; z++) for (let x = 19; x <= 22; x++) W.set(x, FY - 1, z, B.stone_brick);
+    yield 'jjh:544';
     sakura(27, 45, null, 0.95); sakura(9, 38, null, 0.85);
   }
+  yield 'jjh:546';
   {
     // the principal's office: plaster and dark timber, porch full of cursed dolls
     const x0 = 29, z0 = 19, x1 = 40, z1 = 30, y = FY;
+    yield 'jjh:549';
     rect(x0, z0, x1, z1 + 3, B.stone_brick);
+    yield 'jjh:550';
     hall(x0, z0, x1, z1, y, 5, { wall: B.plaster, post: B.dark_planks, bay: 3, win: [2], winId: B.lantern, floor: B.floor_boards, doors: [{ side: 's', at: 34, w: 3, h: 3 }] });
+    yield 'jjh:551';
     hipRoof(x0 - 1, z0 - 1, x1 + 1, z1 + 3, y + 5, { run: 1, interior: [[x0, y, z0], [x1, y + 4, z1]] });
+    yield 'jjh:552';
     for (let x = x0; x <= x1; x++) { W.set(x, y - 1, z1 + 1, B.floor_boards); W.set(x, y - 1, z1 + 2, B.floor_boards); }
     for (const x of [x0, x1]) for (let yy = y; yy < y + 5; yy++) W.set(x, yy, z1 + 3, B.dark_planks);
+    yield 'jjh:554';
     // a sign board by the door
     P.box(27.6, FY, 33.6, 0.14, 1.3, 0.14, C.woodD); P.box(27.6, FY + 1.0, 33.65, 0.9, 1.1, 0.08, 0xe8dcc0);
+    yield 'jjh:556';
     for (let i = 0; i < 4; i++) P.box(27.6, FY + 1.85 - i * 0.24, 33.7, 0.14, 0.14, 0.02, 0x1a1412, { vary: 0 });
+    yield 'jjh:557';
     // shelves of cursed corpses (Yaga's dolls)
     const doll = (x, yy, z, col, kind, ry = 0) => {
       const c2 = new THREE.Color(col).multiplyScalar(0.75).getHex();
@@ -566,7 +683,9 @@ export function buildJujutsuHigh(o = {}) {
       P.box(x - 0.07 * Math.cos(ry) + Math.sin(ry) * 0.17, yy + 0.43, z + Math.cos(ry) * 0.17 + 0.07 * Math.sin(ry), 0.05, 0.05, 0.02, 0x101010, { ry, vary: 0 });
       P.box(x + 0.07 * Math.cos(ry) + Math.sin(ry) * 0.17, yy + 0.43, z + Math.cos(ry) * 0.17 - 0.07 * Math.sin(ry), 0.05, 0.05, 0.02, 0x101010, { ry, vary: 0 });
     };
+    yield 'jjh:568';
     const kinds = ['bear', 'cat', 'frog', 'bear', 'cat'], cols = [0xc8a070, 0xf0e0d0, 0x6ab06a, 0x8a6a5a, 0xe8b0c0, 0x9a9ab8];
+    yield 'jjh:569';
     for (const zc of [31.2]) for (const xs of [[30.2, 32.6], [36.2, 39.2]]) {
       P.box((xs[0] + xs[1]) / 2, FY, zc + 0.05, xs[1] - xs[0] + 0.4, 0.06, 0.5, C.woodD);
       P.box((xs[0] + xs[1]) / 2, FY + 0.8, zc + 0.05, xs[1] - xs[0] + 0.4, 0.06, 0.5, C.woodD);
@@ -575,48 +694,73 @@ export function buildJujutsuHigh(o = {}) {
     }
     // inside: a desk, the sewing table and a giant doll
     P.box(34.5, FY, 22.5, 3, 0.8, 1.2, C.woodD); P.box(34.5, FY + 0.8, 22.5, 3.1, 0.08, 1.3, C.wood);
+    yield 'jjh:577';
     doll(33.6, FY + 0.88, 22.4, 0xd8b088, 'bear', 0.4); doll(35.4, FY + 0.88, 22.6, 0xf0f0f0, 'cat', -0.3);
+    yield 'jjh:578';
     P.box(38.5, FY, 21.5, 1.3, 1.2, 1.1, 0xc89a6a); P.box(38.5, FY + 1.2, 21.5, 1.4, 1.2, 1.3, 0xc89a6a); P.box(38.1, FY + 2.4, 21.5, 0.35, 0.35, 0.2, 0xa87a4a); P.box(38.9, FY + 2.4, 21.5, 0.35, 0.35, 0.2, 0xa87a4a);
+    yield 'jjh:579';
     W.addLight(34.5, FY + 3, 24.5, 0xffc080, 3, 8);
+    yield 'jjh:580';
     chochin(31.5, FY + 4.6, 32.2, C.paper); chochin(37.5, FY + 4.6, 32.2, C.paper);
   }
 
   // ------------------------------------------------------------ the briefing pavilion (map table)
   const mapTable = V(77, FY, 77);
+  yield 'jjh:585';
   {
     const x0 = 73, z0 = 73, x1 = 81, z1 = 81;
+    yield 'jjh:587';
     for (let z = z0; z <= z1; z++) for (let x = x0; x <= x1; x++) W.set(x, FY - 1, z, B.floor_boards);
+    yield 'jjh:588';
     for (const [x, z] of [[x0, z0], [x1, z0], [x0, z1], [x1, z1]]) for (let yy = FY; yy < FY + 4; yy++) W.set(x, yy, z, B.pillar_red);
+    yield 'jjh:589';
     for (let x = x0; x <= x1; x++) { W.set(x, FY + 4, z0, B.dark_planks); W.set(x, FY + 4, z1, B.dark_planks); }
     for (let z = z0; z <= z1; z++) { W.set(x0, FY + 4, z, B.dark_planks); W.set(x1, FY + 4, z, B.dark_planks); }
     hipRoof(x0 - 1, z0 - 1, x1 + 1, z1 + 1, FY + 5, { run: 1, interior: [[x0, FY, z0], [x1, FY + 4, z1]] });
+    yield 'jjh:592';
     W.fill(76, FY, 76, 77, FY, 77, B.dark_planks);
+    yield 'jjh:593';
     deco.add('paper', 77.0, FY + 1.02, 77.0, { mode: 'flat', scale: 1.9, emit: 0.35 });
+    yield 'jjh:594';
     for (const [dx, dz, c] of [[-0.5, -0.4, 0xff3a4a], [0.4, 0.2, 0xffcf4a], [0.1, -0.6, 0x6ad8ff], [-0.3, 0.5, 0xb05aff]]) P.box(77 + dx, FY + 1.02, 77 + dz, 0.12, 0.22, 0.12, c, { emit: 1.4, vary: 0 });
+    yield 'jjh:595';
     P.box(76.2, FY + 1, 77.7, 0.5, 0.06, 0.36, 0xf2f2f2); P.box(77.9, FY + 1, 76.3, 0.14, 0.32, 0.14, C.black);
+    yield 'jjh:596';
     candles(76.3, FY + 1, 76.2);
+    yield 'jjh:597';
     W.addLight(77, FY + 2.6, 77, 0xffc070, 3.5, 8);
+    yield 'jjh:598';
     chochin(x0 + 0.5, FY + 4.4, z1 + 0.5); chochin(x1 + 0.5, FY + 4.4, z1 + 0.5, C.lanternRed, false);
   }
 
   // ------------------------------------------------------------ courtyard dressing
   for (const z of [50, 58, 74, 82, 90]) for (const x of [59, 69]) toro(x + 0.5, FY, z + 0.5, 1, true);
+  yield 'jjh:603';
   for (const [x, z, s] of [[50, 52, 1.1], [79, 52, 1.05], [50, 85, 1.0], [85, 88, 0.9], [55, 72, 0.85], [73, 70, 0.8], [52, 92, 0.9], [76, 92, 0.95], [44, 60, 0.85], [84, 62, 0.85]]) sakura(x, z, FY, s);
+  yield 'jjh:604';
   // a purification fountain (temizuya) by the path
   {
     const x0 = 53, z0 = 78;
+    yield 'jjh:607';
     W.fill(x0, FY, z0, x0 + 3, FY, z0 + 1, B.stone); W.set(x0 + 1, FY, z0, B.water); W.set(x0 + 2, FY, z0, B.water); W.set(x0 + 1, FY, z0 + 1, B.water); W.set(x0 + 2, FY, z0 + 1, B.water);
+    yield 'jjh:608';
     W.fill(x0 + 1, FY - 1, z0, x0 + 2, FY - 1, z0 + 1, B.stone);
+    yield 'jjh:609';
     for (const [x, z] of [[x0 - 0.3, z0 - 0.3], [x0 + 4.3, z0 - 0.3], [x0 - 0.3, z0 + 2.3], [x0 + 4.3, z0 + 2.3]]) P.box(x, FY, z, 0.24, 3, 0.24, C.woodD);
+    yield 'jjh:610';
     P.box(x0 + 2, FY + 3, z0 + 1, 5.6, 0.18, 3.4, C.woodD); P.box(x0 + 2, FY + 3.18, z0 + 1, 4.6, 0.3, 2.6, 0x3a3a40);
+    yield 'jjh:611';
     for (let i = 0; i < 3; i++) P.box(x0 + 1.2 + i * 0.8, FY + 1.05, z0 - 0.15, 0.12, 0.05, 0.6, C.woodL);
   }
+  yield 'jjh:613';
   // benches and lawn flowers
   bench(57, FY, 60, Math.PI / 2); bench(71.5, FY, 60, -Math.PI / 2); bench(48, FY, 70.5, 0); bench(80, FY, 64.5, 0);
+  yield 'jjh:615';
   for (const [x, z] of [[47, 76], [82, 82], [86, 70], [43, 86]]) for (let i = 0; i < 5; i++) deco.add(['flower_red', 'flower_blue', 'flower_red', 'fern', 'grass'][i], x + rnd(-1.5, 1.5), FY, z + rnd(-1.5, 1.5), { scale: 0.8 });
 
   // ------------------------------------------------------------ forests on the ridges and the slopes
   const inCore = (x, z) => x >= 10 && x <= 120 && z >= 15 && z <= 98;
+  yield 'jjh:619';
   for (let z = 2; z < SZ - 2; z += 3) for (let x = 2; x < SX - 2; x += 3) {
     const px = x + Math.floor(rnd(0, 3)), pz = z + Math.floor(rnd(0, 3));
     if (inCore(px, pz)) continue;
@@ -630,9 +774,11 @@ export function buildJujutsuHigh(o = {}) {
     if (east || k.chance(0.88)) cedar(px, pz, y, east ? 7 + Math.floor(k.r() * 3) : undefined);
     else k.tree(px, pz, y, { h: 4 + Math.floor(k.r() * 2) });
   }
+  yield 'jjh:632';
   // a few cedars inside the edges of the campus
   for (const [x, z] of [[16, 50], [14, 82], [16, 92], [44, 18], [86, 14], [116, 44], [116, 90], [42, 94], [88, 94]]) { const y = top(x, z); if (clearAround(x, z)) cedar(x, z, y, 8 + Math.floor(k.r() * 4)); }
   for (const [x, z, s] of [[24, 88, 1], [30, 94, 0.9], [100, 94, 0.9], [110, 92, 1]]) if (clearAround(x, z)) sakura(x, z, top(x, z), s);
+  yield 'jjh:635';
   for (const [x, z] of [[46, 98], [82, 100], [52, 104], [77, 106], [56, 112], [72, 114]]) { const y = hAt(x, z); if (!W.get(x, y, z) && !W.get(x + 1, y, z)) for (let i = 0; i < 2; i++) W.set(x + i, y, z, k.chance(0.5) ? B.stone : B.mossy_brick); }
 
   // ------------------------------------------------------------ ground cover
@@ -681,6 +827,7 @@ export function buildJujutsuHigh(o = {}) {
     trainingGround: V(98.5, FY, 66.5), sparring: V(100.5, FY, 55.5), shrine: V(20.5, FY, 35.5), office: V(34.5, FY, 34.5),
     pond: V(91.5, FY, 40.5), gojoBench: V(100.5, FY, 44.5), mapTable: mapTable.clone(), forestEdge: V(56.5, FY, 17.5), forestWest: V(14.5, FY, 70.5),
   };
+  yield 'jjh:683';
   // NPC posts: position, facing (radians, 0 = +z) and what they do
   const npcs = {
     gojo: { pos: V(100.5, FY, 43.7), yaw: 0, pose: 'lounge' },

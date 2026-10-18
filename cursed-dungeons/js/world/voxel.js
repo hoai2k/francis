@@ -46,15 +46,36 @@ export class World {
     this.viewRadius = 84;             // blocks around each focus that are meshed when streaming
     this.loaded = new Set();          // streamed chunk columns 'kx,kz'
     this.roofIndex = null;            // chunk column -> roofs touching it
+    // Seamless open world (world/seamless.js): neighbouring region tiles. A query
+    // outside this world's x/z bounds is answered by the tile that covers it
+    // ({ w, ox, oy, oz }: that tile's origin in this world's frame); with
+    // solidEdges, a column no tile covers is an invisible wall (region edges).
+    this.adj = null;
+    this.adjBlocked = false;          // true: ignore the neighbours (a mission curtain is down)
+    this.solidEdges = false;
   }
   inBounds(x, y, z) { return x >= 0 && y >= 0 && z >= 0 && x < this.sx && y < this.sy && z < this.sz; }
   idx(x, y, z) { return (y * this.sz + z) * this.sx + x; }
   get(x, y, z) {
-    if (x < 0 || y < 0 || z < 0 || x >= this.sx || y >= this.sy || z >= this.sz) return 0;
+    if (x < 0 || z < 0 || x >= this.sx || z >= this.sz) return this.outside(x, y, z);
+    if (y < 0 || y >= this.sy) return 0;
     return this.data[(y * this.sz + z) * this.sx + x];
   }
+  // the tile that covers an outside column, or null
+  tileAt(x, z) {
+    if (this.adj && !this.adjBlocked) for (const a of this.adj) { const w = a.w, lx = x - a.ox, lz = z - a.oz; if (lx >= 0 && lz >= 0 && lx < w.sx && lz < w.sz) return a; }
+    return null;
+  }
+  outside(x, y, z) {
+    const a = this.adj ? this.tileAt(x, z) : null;
+    if (a) { const w = a.w, ly = y - a.oy; return ly < 0 || ly >= w.sy ? 0 : w.data[(ly * w.sz + (z - a.oz)) * w.sx + (x - a.ox)]; }
+    return this.solidEdges && y >= 0 && y < this.sy + 8 ? B.barrier : 0;
+  }
   set(x, y, z, id) {
-    if (!this.inBounds(x, y, z)) return;
+    if (!this.inBounds(x, y, z)) {
+      if (y >= 0 && y < this.sy + 32 && (x < 0 || z < 0 || x >= this.sx || z >= this.sz)) { const a = this.tileAt(x, z); if (a) a.w.set(x - a.ox, y - a.oy, z - a.oz, id); }
+      return;
+    }
     const i = this.idx(x, y, z);
     if (this.data[i] === id) return;
     this.data[i] = id;
@@ -126,15 +147,24 @@ export class World {
     return null;
   }
   // Collect static lights from emissive blocks (lanterns, pools) — sparse.
-  collectBlockLights() {
-    const seen = new Set();
-    for (let y = 0; y < this.sy; y++) for (let z = 0; z < this.sz; z++) for (let x = 0; x < this.sx; x++) {
-      const id = this.data[this.idx(x, y, z)]; if (!id) continue;
-      const L = BLOCKS[id].light; if (!L) continue;
+  collectBlockLights() { for (const _ of this.collectBlockLightsG()) { /* drain */ } }
+  // the same, a few layers per step (time-sliced region builds)
+  *collectBlockLightsG() {
+    const seen = new Set(), LIT = new Uint8Array(256);
+    for (let i = 0; i < BLOCKS.length; i++) if (BLOCKS[i]?.light) LIT[i] = 1;
+    const D = this.data, layer = this.sx * this.sz;
+    for (let y = 0; y < this.sy; y++) {
+      if ((y & 1) === 1) yield 'blocklights';
+      const base = y * layer;
+      for (let i = 0; i < layer; i++) {
+      const id = D[base + i]; if (!id || !LIT[id]) continue;
+      const x = i % this.sx, z = (i / this.sx) | 0;
+      const L = BLOCKS[id].light;
       // cluster pools / neon so we get one light per ~4x4 area
       const key = id + ':' + (x >> 2) + ',' + (y >> 2) + ',' + (z >> 2);
       if (seen.has(key)) continue; seen.add(key);
       this.staticLights.push({ x: x + 0.5, y: y + (BLOCKS[id].liquid ? 1.2 : 0.5), z: z + 0.5, color: new THREE.Color(L[0]), intensity: L[1], distance: L[2], block: true });
+      }
     }
   }
   bakedLightAt(x, y, z, out) {
@@ -185,7 +215,8 @@ export class World {
       this.stream([f], Infinity);
       this.viewRadius = R;
     }
-    for (const r of this.roofs) this.buildRoof(r);
+    // streaming worlds build each roof with the first chunk column it touches (stream())
+    if (!this.streaming) for (const r of this.roofs) this.buildRoof(r);
   }
   // Drop every mesh (the voxel data stays): before re-adding a cached world.
   unload() {
@@ -223,6 +254,8 @@ export class World {
       if (n >= budget || (n > 0 && budget !== Infinity && performance.now() - t0 > ms)) break;
       this.loaded.add(key);
       for (let ky = 0; ky < this.cy; ky++) { this.dirty.delete(kx + ',' + ky + ',' + kz); this.buildChunk(kx, ky, kz); }
+      const rl = this.roofs.length ? (this.roofIndex ?? this.buildRoofIndex()).get(key) : null;
+      if (rl) for (const r of rl) if (!r.mesh) this.buildRoof(r);
       n++;
     }
     return n;
@@ -253,7 +286,7 @@ export class World {
     this.buildLightGrid();
     for (const key of this.chunks.keys()) this.dirty.add(key);
     this.flush(Infinity);
-    for (const r of this.roofs) this.buildRoof(r);
+    for (const r of this.roofs) if (!this.streaming || r.mesh) this.buildRoof(r);
   }
   buildChunk(kx, ky, kz) {
     const key = kx + ',' + ky + ',' + kz;
@@ -296,7 +329,7 @@ export class World {
       this.emitBlock(mb, x, y, z, BLOCKS[id]);
     }
     if (!mb.count) return;
-    if (!r.material) r.material = this.materials.makeRoof();
+    if (!r.material) { r.material = this.materials.makeRoof(); this.onRoofMaterial?.(r); }
     r.mesh = new THREE.Mesh(mb.build(), r.material);
     r.mesh.castShadow = true; r.mesh.receiveShadow = true;
     this.group.add(r.mesh);

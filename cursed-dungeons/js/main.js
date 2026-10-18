@@ -29,6 +29,8 @@ import { openWorldMap } from './ui/worldMap.js';
 import { openQuestLog } from './ui/questLog.js';
 import { Dialogue } from './ui/dialogue.js';
 import { SpawnDirector } from './world/spawnDirector.js';
+import { SeamlessWorld } from './world/seamless.js';
+import { startRegionRuntime } from './world/regionRuntime.js';
 import { installQuestMarkers } from './story/questMarkers.js';
 import { generateLevel } from './world/levelgen.js';
 import { Mission } from './mission.js';
@@ -124,6 +126,7 @@ class Game {
     this.save.beforeWrite = () => this.rememberWorldPos();
     this.updaters = [];
     this.targetDof = 0;
+    this.seam = new SeamlessWorld(this);   // the nine regions as one continuous map (world/seamless.js)
     progress(0.45, 'Building the world…');
     await nextFrame();
     this.loadHub();
@@ -223,6 +226,9 @@ class Game {
   // ---------------------------------------------------------------- level lifecycle
   clearLevel() {
     if (this.dialogue?.active) this.dialogue.cancel();   // a line from the old region (Kogane, an NPC) never follows you to the next
+    this.regionRuntimeStop?.(); this.regionRuntimeStop = null;
+    this.questMarkers?.dispose?.(); this.questMarkers = null;
+    this.seam?.detach();                                  // every region tile off the map (the builds stay cached)
     this.wipeLeft = 0;
     this.domainSys?.end();
     if (this.world) { this.scene.remove(this.world.group); this.world.group.traverse((o) => o.geometry?.dispose()); }
@@ -282,7 +288,9 @@ class Game {
   rememberWorldPos() {
     if (this.mode !== 'world' || !this.level?.regionId || this.state !== 'playing') return;
     const p = this.players.find((q) => !q.dead) ?? this.players[0]; if (!p) return;
-    const W = this.worldSave(); W.region = this.level.regionId; W.pos = [+p.pos.x.toFixed(2), +p.pos.y.toFixed(2), +p.pos.z.toFixed(2)];
+    // (a player standing over the border is saved in the region they stand in)
+    const at = this.seam?.localize(p.pos) ?? { region: this.level.regionId, pos: p.pos };
+    const W = this.worldSave(); W.region = at.region; W.pos = [+at.pos.x.toFixed(2), +at.pos.y.toFixed(2), +at.pos.z.toFixed(2)];
   }
   // Where the party appears: opts.at (a Vector3), opts.gateFrom (the region we
   // came from: its gate), opts.station (a station id), else the region spawn.
@@ -295,23 +303,35 @@ class Game {
     return L.spawn.clone();
   }
   // Load an open-world region (world/regions/): build or reuse it, mesh the
-  // chunks round the arrival point, place the party, wire up gates, Window
-  // stations, people, quests, roaming curses, the minimap and the tracker.
+  // chunks round the arrival point, place the party, then start the region's
+  // systems (enterRegion). Walking over a border never comes here: the
+  // seamless world (world/seamless.js) swaps regions in place.
   loadRegion(id, opts = {}) {
     this.clearLevel();
     this.dialogue ??= new Dialogue(this);   // game.dialogue.say(speaker, lines, { onEnd }) (ui/dialogue.js)
     this.hubNpcs?.dispose(); this.hubNpcs = null;
     this.regionNpcs?.dispose(); this.regionNpcs = null;
     if (!REGIONS[id]) id = START_REGION;
-    const L = buildRegion(id);
+    const L = this.seam.acquire(id);
     if (L.world.meshed) L.world.unload();          // a cached build: its old meshes went with the last level
-    L.world.viewRadius = { low: 56, medium: 70, high: 86 }[this.gr.quality] ?? 96;
+    L.world.viewRadius = this.seam.viewRadius();
     const at = this.arrivalPoint(L, opts);
     this.loadWorld(L, L.biome ?? BIOMES.jujutsu_high, { focus: at });
     if (this.state === 'playing') this.audio.setMusic(L.biome?.music ?? 'hub');
     this.placePlayers(at, { keepHp: !!opts.keepHp });
     L.respawn = at.clone();
     this.hubProps = [];
+    this.seam.enter(L);
+    this.enterRegion(L);
+    if (this.state === 'playing') this.save.write();
+  }
+  // Start a region's systems: Window stations, people, quests, natural curse
+  // spawning, city crowds and interiors, its runtime hooks, the minimap and the
+  // tracker. Everything they add (updaters, interactables, scene props) belongs
+  // to the region and goes in leaveRegion.
+  enterRegion(L, { seamless = false } = {}) {
+    const id = L.regionId;
+    this.hubProps ??= [];
     this.wave = 0;
     this.mode = 'world';
     const W = this.worldSave();
@@ -319,38 +339,81 @@ class Game {
     W.discovered[id] = true;
     if (this.state === 'playing') W.region = id;   // (the title screen's backdrop must not move your save)
     try { W.meta[id] = captureMeta(L); } catch (e) { console.warn('region meta', e); }
-    // Jujutsu High: the residents, the training dummy, the shop, locker, technique tree and map table
-    if (L.hub) this.setupHub(L);
-    // gates on the roads to the neighbouring regions
-    for (const g of L.gates) {
-      if (!g.pos || !REGIONS[g.to]) continue;
-      this.interactables.push({ id: 'gate-' + g.to, pos: g.pos, radius: g.radius ?? 4, label: `${g.label ?? 'Travel to ' + REGIONS[g.to].name}${W.discovered[g.to] ? '' : ' (unexplored)'}`, action: () => this.travelTo(g.to, { gateFrom: id }) });
-    }
-    // Window stations: found by walking up to them; interact to fast travel
-    for (const s of L.stations) {
-      if (!s.pos) continue;
-      this.interactables.push({ id: 'station-' + s.id, pos: s.shrine ?? s.pos, radius: 2.6, label: `${s.name} · Window: fast travel`, action: () => { this.discoverStation(s); L.respawn = s.pos.clone(); openWorldMap(this, { station: s.id }); } });
-    }
-    let chk = 0;
-    this.addUpdater((dt) => {
-      if ((chk -= dt) > 0) return; chk = 0.5;
-      const lead = this.players.find((p) => !p.dead); if (!lead) return;
-      for (const s of L.stations) if (s.pos && !W.stations[s.id] && lead.pos.distanceTo(s.pos) < 7) { this.discoverStation(s); L.respawn = s.pos.clone(); }
-    });
-    // people (and the NPCs quests need here)
-    try { this.regionNpcs = new RegionNpcs(this, L, this.quests.npcPosts(L)); const rn = this.regionNpcs; this.addUpdater((dt) => { rn.update(dt); }); } catch (e) { console.warn('region NPCs', e); }
-    // natural curse spawning: roaming packs, curse nests, world events (world/spawnDirector.js) -> game.spawns
-    this.spawns?.dispose?.(); this.spawns = this.roaming = null;
-    try { const sp = this.spawns = this.roaming = new SpawnDirector(this, L); this.addUpdater((dt) => sp.update(dt)); } catch (e) { console.warn('spawn director', e); }
-    // region systems (city crowds, building interiors…): L.onLoad(game, L) from the region build
-    try { L.onLoad?.(this, L); } catch (e) { console.warn('region onLoad', e); }
     this.minimap.buildRegion(L);
+    this.seam?.minimapLinks();
     this.hud.mini.classList.remove('hidden');
-    try { this.questMarkers = installQuestMarkers(this, L); } catch (e) { console.warn('quest markers', e); }
-    this.quests.onRegionLoaded(L);
-    this.regionNpcs?.refreshMarks();
-    if (firstVisit && this.state === 'playing' && id !== START_REGION) setTimeout(() => toast(`Region discovered: ${REGIONS[id].name}`, 'big'), 600);
-    if (this.state === 'playing') this.save.write();
+    const steps = [
+      () => {
+        // (no gates: the roads run on into the neighbouring regions — world/seamless.js)
+        // Window stations: found by walking up to them; interact to fast travel
+        for (const s of L.stations) {
+          if (!s.pos) continue;
+          this.interactables.push({ id: 'station-' + s.id, pos: s.shrine ?? s.pos, radius: 2.6, label: `${s.name} · Window: fast travel`, action: () => { this.discoverStation(s); L.respawn = s.pos.clone(); openWorldMap(this, { station: s.id }); } });
+        }
+        let chk = 0;
+        this.addUpdater((dt) => {
+          if ((chk -= dt) > 0) return; chk = 0.5;
+          const lead = this.players.find((p) => !p.dead); if (!lead) return;
+          for (const s of L.stations) if (s.pos && !W.stations[s.id] && lead.pos.distanceTo(s.pos) < 7) { this.discoverStation(s); L.respawn = s.pos.clone(); }
+        });
+      },
+      // Jujutsu High: the residents, the training dummy, the shop, locker, technique tree and map table
+      () => { if (L.hub) this.setupHub(L); },
+      // people (and the NPCs quests need here)
+      () => { try { this.regionNpcs = new RegionNpcs(this, L, this.quests.npcPosts(L)); const rn = this.regionNpcs; this.addUpdater((dt) => { rn.update(dt); }); } catch (e) { console.warn('region NPCs', e); } },
+      // natural curse spawning: roaming packs, curse nests, world events (world/spawnDirector.js) -> game.spawns
+      () => { this.spawns?.dispose?.(); this.spawns = this.roaming = null; try { const sp = this.spawns = this.roaming = new SpawnDirector(this, L); this.addUpdater((dt) => sp.update(dt)); } catch (e) { console.warn('spawn director', e); } },
+      // region systems (city crowds, building interiors…): L.onLoad(game, L) from the region build
+      () => { try { L.onLoad?.(this, L); } catch (e) { console.warn('region onLoad', e); } },
+      () => { try { this.questMarkers = installQuestMarkers(this, L); } catch (e) { console.warn('quest markers', e); } },
+      () => { this.quests.onRegionLoaded(L); this.regionNpcs?.refreshMarks(); },
+      // the region's runtime hooks (regionRuntime.js: the Culling Game, world chests, Kyoto's leaves…)
+      () => { this.regionRuntimeStop?.(); this.regionRuntimeStop = startRegionRuntime(this, L); },
+    ];
+    const run = (f) => { const prev = this.regionTag; this.regionTag = L; try { f(); } catch (e) { console.warn('region system', e); } finally { this.regionTag = prev; } };
+    if (!seamless) for (const f of steps) run(f);
+    else {
+      // walking in over a border: one system per frame, so the crossing frame stays light
+      // (spawns are carried over by seamless.js once the director exists)
+      run(steps.shift());
+      this.enterSteps = { L, steps };
+      const tick = () => {
+        if (this.level !== L || this.enterSteps?.L !== L) return false;
+        run(this.enterSteps.steps.shift());
+        if (this.enterSteps.steps.length) return true;
+        this.enterSteps = null; this.seam?.onSystemsReady?.(L);
+        return false;
+      };
+      this.updaters.push(tick);   // (not region-tagged: it removes itself)
+    }
+    if (this.state === 'playing') {
+      if (firstVisit && id !== START_REGION) setTimeout(() => toast(`Region discovered: ${REGIONS[id].name}`, 'big'), seamless ? 200 : 600);
+      else if (seamless) toast(`${REGIONS[id].icon ?? ''} ${REGIONS[id].name}`, 'big');
+    }
+    if (seamless && this.state === 'playing') this.save.write();
+  }
+  // The seamless world crossed a border: the old region's systems go, while the
+  // party, allies, curses in the fight and projectiles carry on (seamless.js shifts them).
+  leaveRegion() {
+    const old = this.level;
+    this.enterSteps = null;
+    if (this.dialogue?.active) this.dialogue.cancel();
+    this.regionRuntimeStop?.(); this.regionRuntimeStop = null;
+    this.hubNpcs?.dispose(); this.hubNpcs = null;
+    this.regionNpcs?.dispose(); this.regionNpcs = null;
+    this.spawns?.dispose?.(); this.spawns = this.roaming = null;
+    if (this.crowd) { try { this.crowd.dispose(); } catch (e) { console.warn('crowd', e); } this.crowd = null; }
+    if (this.interiors) { this.interiors.inside = null; this.interiors = null; }
+    this.questMarkers?.dispose?.(); this.questMarkers = null;
+    this.quests?.clearSpawned();
+    this.updaters = this.updaters.filter((f) => f.__region !== old);
+    this.interactables = [];
+    for (const o of this.hubProps ?? []) this.scene.remove(o);
+    this.hubProps = [];
+    for (let i = this.enemies.length - 1; i >= 0; i--) if (this.enemies[i].isDummy) { this.scene.remove(this.enemies[i].object); this.enemies.splice(i, 1); }
+    // lights following objects that just left the scene
+    this.lights.dynamic = this.lights.dynamic.filter((d) => !d.follow || !d.follow.isObject3D || d.follow.parent === this.scene || this.players.some((p) => p.heroLight === d) || this.projectiles?.list?.some((q) => q.mesh === d.follow));
+    document.getElementById('cg-hud')?.remove();
   }
   setupHub(L) {
     const dummy = new TrainingDummy(this, L.dummy);
@@ -560,7 +623,7 @@ class Game {
     toast(`Wave ${this.wave}`);
   }
   // per-frame callbacks for technique effects; return false to finish
-  addUpdater(fn) { this.updaters.push(fn); }
+  addUpdater(fn) { if (this.regionTag && typeof fn === 'function') fn.__region = this.regionTag; this.updaters.push(fn); }
   startDomain(p, def) { return this.domainSys.start(p, def); }
   hostileTargets() { return this.allies.length ? [...this.players, ...this.allies] : this.players; }
   surfaceAt(pos) { const id = this.world.get(Math.floor(pos.x), Math.floor(pos.y - 0.1), Math.floor(pos.z)); return id ? BLOCKS[id].step : 'stone'; }
@@ -742,8 +805,10 @@ class Game {
 
   frame() {
     const now = performance.now();
+    this.frameT0 = now; this.streamedNow = 0;
     const realDt = Math.min(0.05, (now - this.last) / 1000);
     this.last = now;
+    this.profHook?.('pre');
     this.input.poll();
     const gr = this.gr;
     gr.trackFps(realDt, now / 1000);
@@ -765,6 +830,7 @@ class Game {
     if (this.ui.stack.length) { if (!cs) this.ui.update(); if (anyMap && (this.ui.isOpen('map') || this.ui.isOpen('worldmap'))) { this.ui.close('map'); this.ui.close('worldmap'); this.paused = false; } }
     else if (pausePlayer) this.pause(pausePlayer);
     else if (anyMap) this.openMap();
+    this.profHook?.('input+ui');
     let dt = realDt;
     if (this.paused) dt = 0;
     else if (this.hitstop > 0) { this.hitstop -= realDt; dt = 0; }
@@ -778,21 +844,28 @@ class Game {
       const z = this.input.takeZoom(); if (z) this.rig.zoom(z * 1.6);
       const p0 = this.players[0];
       if (settings.cameraRotate && p0) { const ip = this.input.get(p0.device); if (ip.pressed.rotL) this.rig.rotate(-1); if (ip.pressed.rotR) this.rig.rotate(1); }
+      const P = this.profHook;   // (tests: per-section timings)
+      P?.('pre');
       for (const p of this.players) p.update(dt);
+      P?.('players');
       for (let i = this.allies.length - 1; i >= 0; i--) if (!this.allies[i].update(dt)) this.allies.splice(i, 1);
       for (const r of this.selectRigs ?? []) { r.root.rotation.y += realDt * 0.8; r.animate({ dt: realDt, speed: 0, vel: new THREE.Vector3() }); }
       for (let i = this.enemies.length - 1; i >= 0; i--) {
         const e = this.enemies[i];
         if (!e.update(dt)) { this.scene.remove(e.object); this.enemies.splice(i, 1); }
       }
+      P?.('enemies');
       for (let i = this.updaters.length - 1; i >= 0; i--) if (this.updaters[i](dt, realDt) === false) this.updaters.splice(i, 1);
+      P?.('updaters');
       this.projectiles.update(dt);
       this.hazards.update(dt);
       this.updateInteract(dt);
       this.pickups.update(dt);
       this.mission?.update(dt);
       this.quests?.update(dt);
+      P?.('rest');
     }
+    this.profHook?.('pre');
     this.domainSys.update(dt, this.paused ? 0 : realDt);
     if (this.trenchFade > 0) { this.trenchFade -= dt; Trench.glow.value = Math.min(1.4, this.trenchFade / 6); }
     Grade.dofAmount.value += (this.targetDof - Grade.dofAmount.value) * Math.min(1, realDt * 4);
@@ -807,22 +880,29 @@ class Game {
       const pl = this.players[i];
       if (pl && !pl.dead && !cs) U.players.array[i].set(pl.pos.x, pl.pos.y, pl.pos.z, 1); else U.players.array[i].set(0, -999, 0, 0);
     }
+    this.profHook?.('fx+camera');
     this.lights.update(dt, this.rig.focus);
     this.world.updateRoofs(this.players, realDt);
+    this.profHook?.('lights+roofs');
     if (this.world.streaming) {   // open-world regions: mesh the chunks round the party, drop the far ones
       const fl = this.streamFocus ??= [];
       fl.length = 0; for (const p of this.players) fl.push(p.pos);
       fl.push(this.rig.focus);
-      this.world.stream(fl, this.traveling ? 8 : 1, this.traveling ? 12 : 2.5);
+      this.streamedNow = this.world.stream(fl, this.traveling ? 8 : 1, this.traveling ? 12 : 2.5);
     }
     this.world.flush(2);
+    this.profHook?.('stream');
+    this.seam?.update(realDt);   // the neighbouring regions: built in the background, drawn near the border, crossing
+    this.profHook?.('seam');
     this.env.update(realDt);
+    this.profHook?.('env');
     if (!this.paused) this.fx.ambient(dt, this.biome.particles, this.rig.focus);
     this.fx.update(dt, realDt);
     this.particles.upload();
     this.hud.update(realDt);
     this.tracker?.update(realDt);
     if (this.minimap.level && (this.frameN = (this.frameN ?? 0) + 1) % 3 === 0 && !this.hud.mini.classList.contains('hidden')) this.minimap.draw(this.hud.mini);
+    this.profHook?.('hud');
     gr.render();
     if (this.readoutOn) this.updateReadout();
   }

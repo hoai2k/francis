@@ -35,11 +35,14 @@ import { Props } from '../jujutsuHigh.js';
 import { ditherMask, occlusionAmount } from '../../gfx/materials.js';
 import { mulberry32 } from '../../util.js';
 import { neighbours, OPPOSITE, REGIONS } from './index.js';
+import { SEAM, seamSpec } from './seams.js';
 
 export { B };
 const TILE = 64;
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
 const smoothstep = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+// run a generator (a time-sliced build step) to the end
+export function drain(it) { let r; do r = it.next(); while (!r.done); return r.value; }
 
 // ------------------------------------------------------------------ noise
 // Seeded 2D value noise with fbm and ridged variants (0..1 / -1..1).
@@ -72,14 +75,23 @@ export class TiledDeco {
   get items() { return [...this.tiles.values()].flatMap((t) => t.items); }
   // extra(fn): fn() -> Object3D (or array), called on every build
   extra(fn) { this.extras.push(fn); }
-  build(world, materials, density = 1) {
-    for (const t of this.tiles.values()) t.build(world, materials, density);
-    if (this.roofDither) for (const r of world.roofs) {
-      const m = r.material; if (!m || m.userData.hubDither || !m.userData.fade) continue;
+  build(world, materials, density = 1) { drain(this.buildG(world, materials, density)); }
+  // the same, a tile / an extra per step (the seamless world prepares the next region this way)
+  *buildG(world, materials, density = 1) {
+    for (const t of this.tiles.values()) { t.build(world, materials, density); yield 'deco'; }
+    this.ditherRoofs(world);
+    for (const fn of this.extras) { const o = fn(); for (const m of [o].flat()) if (m) world.group.add(m); yield 'extra'; }
+  }
+  // roofs fade out with a dither when you walk under them (streamed roofs call this as they are built)
+  ditherRoofs(world) {
+    if (!this.roofDither) return;
+    const one = (r) => {
+      const m = r.material; if (!m || m.userData.hubDither || !m.userData.fade) return;
       m.maskNode = ditherMask(max(m.userData.fade.div(0.88), occlusionAmount()));
       m.userData.hubDither = true; m.needsUpdate = true;
-    }
-    for (const fn of this.extras) { const o = fn(); for (const m of [o].flat()) if (m) world.group.add(m); }
+    };
+    for (const r of world.roofs) one(r);
+    world.onRoofMaterial = one;
   }
 }
 export class TiledProps {
@@ -114,6 +126,9 @@ export class RegionBuilder {
     this.sx = sx; this.sy = sy; this.sz = sz;
     this.base = o.base ?? 10;
     this.world = new World(sx, sy, sz);
+    this.world.solidEdges = true;             // past the edge: a wall, or the neighbouring region (seamless.js)
+    this.runtimeHooks = [];                   // onRegionLoad (regionRuntime.js): run while the region is current
+    this.seams = {};                          // side -> { to, at, y, spec } (seams.js)
     this.deco = new TiledDeco();
     this.shafts = new LightShafts();
     this.kit = new Kit(this.world, this.deco, this.shafts, this.seed);
@@ -187,12 +202,14 @@ export class RegionBuilder {
   // ---------------------------------------------------------------- terrain
   // o.fn(x, z) natural height (default: rolling fbm hills around base, amp/scale);
   // o.falloff: cells over which the land rises away from roads/flats (default 10).
-  terrain(o = {}) {
+  terrain(o = {}) { drain(this.terrainG(o)); return this; }
+  *terrainG(o = {}) {
     const { sx, sz, noise } = this, N = sx * sz, base = this.base;
     const amp = o.amp ?? 14, scale = o.scale ?? 0.02, falloff = o.falloff ?? 10;
     const fn = o.fn ?? ((x, z) => base + amp * (noise.fbm(x * scale, z * scale, 4) * 0.5 + 0.5) - amp * 0.25);
     const Hn = new Float32Array(N);
-    for (let z = 0; z < sz; z++) for (let x = 0; x < sx; x++) Hn[z * sx + x] = fn(x, z);
+    let tY = performance.now();
+    for (let z = 0; z < sz; z++) { for (let x = 0; x < sx; x++) Hn[z * sx + x] = fn(x, z); if (performance.now() - tY > 5) { yield 'Hn'; tY = performance.now(); } }
     this.Hn = Hn;
     const nat = (x, z) => Hn[Math.max(0, Math.min(sz - 1, Math.round(z))) * sx + Math.max(0, Math.min(sx - 1, Math.round(x)))];
     // sources: cells with a fixed height (roads, flats, river banks)
@@ -223,19 +240,27 @@ export class RegionBuilder {
       if (f.y === 'auto') { let s = 0, c = 0; for (let z = f.z0; z <= f.z1; z++) for (let x = f.x0; x <= f.x1; x++) { s += nat(x, z); c++; } f.y = Math.round(s / Math.max(1, c)); }
       for (let z = f.z0; z <= f.z1; z++) for (let x = f.x0; x <= f.x1; x++) { src(x, z, f.y); if (this.in(x, z)) this.lock[this.i(x, z)] = 2; }
     }
+    yield 'common:233';
     // road profiles first (rivers dip under the roads that cross them)
-    this.plan.roads.forEach((rd) => { rd.samples = sample(rd.pts); rd.ys = profile(rd.samples, rd.y); });
+    for (let k = 0; k < this.plan.roads.length; k++) { const rd = this.plan.roads[k]; rd.samples = sample(rd.pts); rd.ys = profile(rd.samples, rd.y); if ((k & 3) === 3) yield 'profiles'; }
+    yield 'common:236';
     // rivers: banks two blocks above the water, never above a road that crosses them
+    const RG = new Map(), RC = 16;   // road samples bucketed in 16-cell squares
+    if (this.plan.rivers.length) for (const rd of this.plan.roads) rd.samples.forEach(([qx, qz], j) => { const k = Math.floor(qx / RC) + ',' + Math.floor(qz / RC); if (!RG.has(k)) RG.set(k, []); RG.get(k).push([qx, qz, rd.ys[j]]); });
+    const roadNear = (px, pz) => { const out = [], cx = Math.floor(px / RC), cz = Math.floor(pz / RC); for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) { const l = RG.get((cx + a) + ',' + (cz + b)); if (l) for (const q of l) out.push(q); } return out; };
     for (const rv of this.plan.rivers) {
       const S = sample(rv.pts);
       let ys = profile(S, 'follow', true);
       const reach = rv.width / 2 + 4;
-      ys = ys.map((y, k) => { let m = y; const [px, pz] = S[k]; for (const rd of this.plan.roads) rd.samples.forEach(([qx, qz], j) => { if (Math.abs(qx - px) < reach && Math.abs(qz - pz) < reach && Math.hypot(qx - px, qz - pz) < reach) m = Math.min(m, rd.ys[j]); }); return m; });
+      ys = ys.map((y, k) => { let m = y; const [px, pz] = S[k]; for (const [qx, qz, qy] of roadNear(px, pz)) { if (Math.abs(qx - px) < reach && Math.abs(qz - pz) < reach && Math.hypot(qx - px, qz - pz) < reach) m = Math.min(m, qy); } return m; });
       for (let i = 1; i < ys.length; i++) ys[i] = Math.min(ys[i], ys[i - 1] + 0.34);
       for (let i = ys.length - 2; i >= 0; i--) ys[i] = Math.min(ys[i], ys[i + 1] + 0.34);
       ys = ys.map((y) => Math.round(y));
       const r = rv.width / 2;
-      S.forEach(([px, pz], k) => {
+      let tY = performance.now();
+      for (let k = 0; k < S.length; k++) {
+        const [px, pz] = S[k];
+        if (performance.now() - tY > 6) { yield 'river'; tY = performance.now(); }
         const bank = ys[k];
         for (let dz = -Math.ceil(r + 2); dz <= Math.ceil(r + 2); dz++) for (let dx = -Math.ceil(r + 2); dx <= Math.ceil(r + 2); dx++) {
           const x = Math.floor(px + dx), z = Math.floor(pz + dz); if (!this.in(x, z)) continue;
@@ -243,10 +268,14 @@ export class RegionBuilder {
           if (d <= r) { const i = this.i(x, z); const cur = this.riverCells.get(i); const surf = bank - 2; if (!cur || surf < cur.surface) this.riverCells.set(i, { surface: surf, bottom: surf - rv.depth }); this.lock[i] = 3; }
           src(x, z, bank, Math.max(0, d - r));
         }
-      });
+      }
+      yield 'river';
     }
+    yield 'common:257';
     // roads last, so they win over flats and rivers (bridges)
-    this.plan.roads.forEach((rd, ri) => {
+    for (let ri = 0; ri < this.plan.roads.length; ri++) {
+      const rd = this.plan.roads[ri];
+      if ((ri & 3) === 3) yield 'roads';
       const S = rd.samples, ys = rd.ys;
       const r = rd.width / 2;
       S.forEach(([px, pz], k) => {
@@ -259,32 +288,75 @@ export class RegionBuilder {
           if (this.lock[i] !== 3) this.lock[i] = 1;
         }
       });
-    });
+    }
     // chamfer distance transform, carrying the nearest source's height
     const pass = (x, z, nx, nz, c) => { if (!this.in(nx, nz)) return; const i = z * sx + x, j = nz * sx + nx; if (dist[j] + c < dist[i]) { dist[i] = dist[j] + c; srcY[i] = srcY[j]; } };
-    for (let z = 0; z < sz; z++) for (let x = 0; x < sx; x++) { pass(x, z, x - 1, z, 1); pass(x, z, x, z - 1, 1); pass(x, z, x - 1, z - 1, 1.414); pass(x, z, x + 1, z - 1, 1.414); }
-    for (let z = sz - 1; z >= 0; z--) for (let x = sx - 1; x >= 0; x--) { pass(x, z, x + 1, z, 1); pass(x, z, x, z + 1, 1); pass(x, z, x + 1, z + 1, 1.414); pass(x, z, x - 1, z + 1, 1.414); }
+    yield 'common:275';
+    for (let z = 0; z < sz; z++) { for (let x = 0; x < sx; x++) { pass(x, z, x - 1, z, 1); pass(x, z, x, z - 1, 1); pass(x, z, x - 1, z - 1, 1.414); pass(x, z, x + 1, z - 1, 1.414); } if ((z & 31) === 31) yield 'common:276'; }
+    for (let z = sz - 1; z >= 0; z--) { for (let x = sx - 1; x >= 0; x--) { pass(x, z, x + 1, z, 1); pass(x, z, x, z + 1, 1); pass(x, z, x + 1, z + 1, 1.414); pass(x, z, x - 1, z + 1, 1.414); } if ((z & 31) === 0) yield 'common:277'; }
+    yield 'chamfer';
     for (let i = 0; i < N; i++) {
+      if ((i & 32767) === 32767) yield 'H';
       if (dist[i] >= 1e8) { this.H[i] = Hn[i]; continue; }
       const t = smoothstep(0, falloff, dist[i]);
       this.H[i] = srcY[i] + (Hn[i] - srcY[i]) * t;
     }
     this.dist = dist;
+    yield 'common:284';
+    this.stampSeams();
+    yield 'seams';
     // gates take the road height at the edge
     for (const g of this.gates) g.y ??= Math.round(this.H[this.i(Math.floor(g.edge[0]), Math.floor(g.edge[1]))]);
     this.terrainDone = true;
     return this;
   }
+  // The border bands (seams.js): every edge with a neighbour on the world map
+  // takes the shared border profile, so the two regions meet exactly.
+  stampSeams() {
+    const { sx, sz, H } = this;
+    for (const g of this.gates) {
+      if (!REGIONS[g.to] || neighbours(this.id)[g.side] !== g.to) continue;
+      const spec = seamSpec(this.id, g.to);
+      const along = g.side === 'n' || g.side === 's';
+      const len = along ? sx : sz;
+      const cell = (sAlong, d) => (g.side === 'n' ? [sAlong, d] : g.side === 's' ? [sAlong, sz - 1 - d] : g.side === 'w' ? [d, sAlong] : [sx - 1 - d, sAlong]);
+      // the road's height where it meets the edge (search a few cells along the edge for it)
+      let roadY = null;
+      for (let k = 0; k <= 6 && roadY == null; k++) for (const sg of k ? [-1, 1] : [1]) {
+        const [x, z] = cell(g.at + sg * k, 0); if (!this.in(x, z)) continue;
+        if (this.roadId[this.i(x, z)]) { roadY = Math.round(H[this.i(x, z)]); break; }
+      }
+      if (roadY == null) { const [x, z] = cell(g.at, 0); roadY = Math.round(H[this.i(Math.max(0, Math.min(sx - 1, x)), Math.max(0, Math.min(sz - 1, z)))]); }
+      const seam = this.seams[g.side] = { side: g.side, to: g.to, at: g.at, y: roadY, kind: spec.kind, colony: spec.colony, spec };
+      g.y = roadY;
+      const water = spec.water != null ? roadY + spec.water : null;   // the top water cell
+      if (water != null) this.seamWater ??= new Int16Array(sx * sz).fill(-1);
+      for (let sA = 0; sA < len; sA++) {
+        const s = sA - g.at, T = roadY + spec.P(s);
+        for (let d = 0; d < SEAM.BAND; d++) {
+          const [x, z] = cell(sA, d), i = this.i(x, z);
+          const w = smoothstep(SEAM.HARD, SEAM.BAND, d);
+          if (d < SEAM.HARD) { H[i] = T; if (this.lock[i] !== 1) this.lock[i] = 4; this.roadId[i] = 0; }
+          else if (!this.roadId[i] && this.lock[i] !== 2) H[i] = T + (H[i] - T) * w;
+          if (water != null && Math.abs(s) > SEAM.CAUSEWAY) this.seamWater[i] = Math.max(this.seamWater[i], water);
+        }
+      }
+    }
+  }
   // Fill the columns. top/sub/stone blocks; rock on slopes >= rockSlope;
   // sea: water up to this height over low ground (sand shores).
-  carve(o = {}) {
+  carve(o = {}) { drain(this.carveG(o)); return this; }
+  *carveG(o = {}) {
     const { sx, sz, world: W } = this;
     const top = o.top ?? B.grass, sub = o.sub ?? B.dirt, stone = o.stone ?? B.stone, rock = o.rock ?? B.stone, rock2 = o.rock2 ?? B.mossy_brick;
     const rockSlope = o.rockSlope ?? 2, sea = o.sea ?? -1, shore = o.shore ?? B.sand;
     const Hr = new Int16Array(sx * sz);
     for (let i = 0; i < Hr.length; i++) Hr[i] = Math.max(1, Math.min(this.sy - 8, Math.round(this.H[i])));
+    yield 'carve:Hr';
     const h = (x, z) => Hr[Math.max(0, Math.min(sz - 1, z)) * sx + Math.max(0, Math.min(sx - 1, x))];
+    const SW = this.seamWater;
     for (let z = 0; z < sz; z++) for (let x = 0; x < sx; x++) {
+      if (x === 0 && (z & 7) === 7) yield 'common:336';
       const i = z * sx + x, y = Hr[i];
       const slope = Math.max(Math.abs(y - h(x + 1, z)), Math.abs(y - h(x - 1, z)), Math.abs(y - h(x, z + 1)), Math.abs(y - h(x, z - 1)));
       const rv = this.riverCells.get(i);
@@ -304,6 +376,7 @@ export class RegionBuilder {
       if (sea > 0 && y <= sea + 1 && !isRock) t = shore;
       W.setRaw(x, y - 1, z, t);
       if (sea > 0 && y < sea) { W.column(x, z, y, sea - 1, B.water); this.lock[i] = 3; }
+      if (SW && SW[i] >= y) { if (!isRock) W.setRaw(x, y - 1, z, shore); W.column(x, z, y, SW[i], B.water); this.lock[i] = 3; }
     }
     this.Hr = Hr;
     return this;
@@ -320,6 +393,17 @@ export class RegionBuilder {
       if (this.riverCells.has(i)) continue;
       const rd = this.plan.roads[ri - 1], y = this.hAt(x, z);
       W.setRaw(x, y - 1, z, rd.alt && this.chance(rd.altP) ? rd.alt : rd.block);
+    }
+    // the road over every seam (both regions pave the same strip, so it carries across)
+    for (const sm of Object.values(this.seams)) {
+      const rid = (() => { for (let d = 0; d < 30; d++) { const [x, z] = this.seamCell(sm, sm.at, d); if (this.in(x, z) && this.roadId[this.i(x, z)]) return this.roadId[this.i(x, z)]; } return 0; })();
+      const rd = rid ? this.plan.roads[rid - 1] : null;
+      const block = rd?.block ?? (sm.kind === 'flat' ? B.asphalt : B.cobble);
+      for (let d = 0; d < SEAM.HARD + 2; d++) for (let k = -SEAM.ROAD; k <= SEAM.ROAD; k++) {
+        const [x, z] = this.seamCell(sm, sm.at + k, d); if (!this.in(x, z)) continue;
+        const y = this.hAt(x, z); W.setRaw(x, y - 1, z, block);
+        for (let yy = y; yy < y + 6; yy++) W.setRaw(x, yy, z, 0);
+      }
     }
     // centre lines (city roads) and kerbs
     for (const rd of this.plan.roads) if (rd.line || rd.edge) rd.samples?.forEach(([px, pz], k) => {
@@ -362,6 +446,8 @@ export class RegionBuilder {
     }
     return true;
   }
+  // cell (x, z) at position sAlong along a seam's edge, d cells in
+  seamCell(sm, sAlong, d) { const { sx, sz } = this; return sm.side === 'n' ? [sAlong, d] : sm.side === 's' ? [sAlong, sz - 1 - d] : sm.side === 'w' ? [d, sAlong] : [sx - 1 - d, sAlong]; }
   // can a tree / prop stand here? (no roads, flats, water, steep or reserved ground)
   freeCell(x, z, r = 1) {
     if (x < 3 || z < 3 || x > this.sx - 4 || z > this.sz - 4) return false;
@@ -374,12 +460,14 @@ export class RegionBuilder {
     return true;
   }
   // Scatter trees: o.density per cell, o.kinds [[kind, weight]…] or a list, o.where(x, z) filter, o.rect
-  forest(o = {}) {
+  forest(o = {}) { const it = this.forestG(o); let r; do r = it.next(); while (!r.done); return r.value; }
+  *forestG(o = {}) {
     const [x0, z0, x1, z1] = o.rect ?? [2, 2, this.sx - 3, this.sz - 3];
     const kinds = o.kinds ?? ['oak'], step = o.step ?? 3, dens = o.density ?? 0.4;
     const pickKind = () => { const k = kinds[Math.floor(this.r() * kinds.length)]; return Array.isArray(k) ? k[0] : k; };
     let n = 0;
     for (let z = z0; z <= z1; z += step) for (let x = x0; x <= x1; x += step) {
+      if (x === x0 && ((z - z0) / step) % 12 === 11) yield 'common:447';
       const px = x + Math.floor(this.rnd(0, step)), pz = z + Math.floor(this.rnd(0, step));
       if (!this.chance(typeof dens === 'function' ? dens(px, pz) : dens)) continue;
       if (o.where && !o.where(px, pz)) continue;
@@ -389,7 +477,12 @@ export class RegionBuilder {
     return n;
   }
   // grass / flowers on the grass, tiled
-  scatter(o = {}) { this.kit.scatter(o.x0 ?? 1, o.z0 ?? 1, o.x1 ?? this.sx - 2, o.z1 ?? this.sz - 2, { density: o.density ?? 0.12, types: o.types }); return this; }
+  scatter(o = {}) { drain(this.scatterG(o)); return this; }
+  *scatterG(o = {}) {
+    const x0 = o.x0 ?? 1, z0 = o.z0 ?? 1, x1 = o.x1 ?? this.sx - 2, z1 = o.z1 ?? this.sz - 2;
+    for (let z = z0; z <= z1; z += 48) { this.kit.scatter(x0, z, x1, Math.min(z1, z + 47), { density: o.density ?? 0.12, types: o.types }); yield 'scatter'; }
+    return this;
+  }
   // stone lantern (tōrō) with a light; s = scale
   lantern(x, z, o = {}) {
     const P = this.props, y = o.y ?? this.groundY(Math.floor(x), Math.floor(z)), s = o.s ?? 1;
@@ -505,28 +598,48 @@ export class RegionBuilder {
   }
 
   // ---------------------------------------------------------------- finish
+  // Where a road leaves the region: no gate any more (you walk straight on into
+  // the next region, world/seamless.js), just a signpost by the road: "→ Shibuya"
+  // facing in, "Entering Jujutsu High" facing whoever walks in. A colony border
+  // also gets the barrier gate: glowing pillars either side of the opening.
   buildGate(g) {
-    const W = this.world, P = this.props;
+    const P = this.props;
     const [ex, ez] = g.edge, [ix, iz] = g.inward;
-    const tx = ex + ix * 6, tz = ez + iz * 6;
-    const y = this.floor(Math.floor(tx), Math.floor(tz));
     const along = g.side === 'n' || g.side === 's' ? 'x' : 'z';
-    this.torii(tx, y, tz, 6, 6, { along, color: 0xd0391e, thick: 0.6 });
-    for (const s of [-1, 1]) this.lantern(tx + (along === 'x' ? s * 5 : ix * -1), tz + (along === 'z' ? s * 5 : iz * -1), { y, s: 1.1 });
+    const sm = this.seams[g.side];
     const toDef = REGIONS[g.to];
-    const name = g.label ?? toDef?.name ?? g.to;
+    const name = g.label ?? toDef?.name ?? g.to, here = this.def?.name ?? this.id;
+    // the post stands beside the road, SEAM.HARD + 3 cells in
+    const side = SEAM.ROAD + 2.5;
+    const px = ex + ix * (SEAM.HARD + 3) + (along === 'x' ? side : 0), pz = ez + iz * (SEAM.HARD + 3) + (along === 'z' ? side : 0);
+    const py = this.floor(Math.floor(px), Math.floor(pz));
+    P.box(px, py, pz, 0.22, 3.1, 0.22, 0x3a3e45);
+    this.world.set(Math.floor(px), py, Math.floor(pz), B.barrier);
+    const face = Math.atan2(ix, iz);   // the sign faces into the region
     this.deco.extra(() => {   // rebuilt on every load (clearLevel disposes the old geometry)
-      const sign = signMesh([`→ ${name}`], { w: 4, h: 0.9, color: toDef?.accent ?? '#ffd84a' });
-      sign.position.set(tx, y + 4.3, tz);
-      sign.rotation.y = along === 'x' ? 0 : Math.PI / 2;
-      return sign;
+      const grp = new THREE.Group();
+      const out = signMesh([`→ ${name}`], { w: 3.4, h: 0.8, color: toDef?.accent ?? '#ffd84a' });
+      const inn = signMesh([`Entering ${here}`], { w: 3.4, h: 0.8, color: this.def?.accent ?? '#ffd84a' });
+      out.position.set(0, 0, 0.03); inn.position.set(0, 0, -0.03); inn.rotation.y = Math.PI;
+      grp.add(out, inn); grp.position.set(px, py + 2.6, pz); grp.rotation.y = face;
+      return grp;
     });
-    const pos = V(ex + ix * 3.5, this.floor(Math.floor(ex + ix * 3.5), Math.floor(ez + iz * 3.5)), ez + iz * 3.5);
+    if (sm?.colony) {
+      const col = 0xffd27a;
+      for (const sg of [-1, 1]) {
+        const o = SEAM.COLONY_OPEN + 0.5;
+        const qx = ex + ix * 1.5 + (along === 'x' ? sg * o : 0), qz = ez + iz * 1.5 + (along === 'z' ? sg * o : 0);
+        const qy = this.floor(Math.floor(qx), Math.floor(qz));
+        P.box(qx, qy, qz, 0.8, 7, 0.8, 0x2a2430);
+        P.box(qx, qy + 7, qz, 1.1, 0.5, 1.1, col, { emit: 2.4, vary: 0 });
+        this.world.addLight(qx, qy + 6.5, qz, col, 3, 9);
+      }
+    }
+    const pos = V(ex + ix * 2, this.floor(Math.floor(ex + ix * 2), Math.floor(ez + iz * 2)), ez + iz * 2);
     const ax = ex + ix * 12, az = ez + iz * 12;
     g.pos = pos; g.arrive = V(ax, this.floor(Math.floor(ax), Math.floor(az)), az); g.radius = 4.2;
-    g.label = `Travel to ${name}`;
+    g.label = `Road to ${name}`;
     g.yaw = Math.atan2(ix, iz);
-    W.addLight(tx, y + 4, tz, 0xffd0a0, 3, 9);
   }
   buildStation(s) {
     const W = this.world, P = this.props, x = s.x, z = s.z;
@@ -553,22 +666,32 @@ export class RegionBuilder {
     s.shrine = V(bx, y, bz);
     this.reserve(x - 3, z - 3, x + 3, z + 3, 2);
   }
-  // Barriers round the edge of the map (6 blocks above the ground).
+  // The map's edge is a wall by itself (World.solidEdges: past the edge is the
+  // next region or an invisible wall). A colony border is walled off along its
+  // outermost column except at the road: the barrier gate (seams.js).
   edges() {
-    const W = this.world, { sx, sz } = this;
-    const wall = (x, z) => { const y = this.groundY(x, z); const y0 = isFinite(y) ? y : this.base; for (let yy = y0; yy < Math.min(this.sy, y0 + 8); yy++) if (!W.get(x, yy, z)) W.setRaw(x, yy, z, B.barrier); };
-    for (let x = 0; x < sx; x++) { wall(x, 0); wall(x, sz - 1); }
-    for (let z = 0; z < sz; z++) { wall(0, z); wall(sx - 1, z); }
+    const W = this.world;
+    for (const sm of Object.values(this.seams)) {
+      if (!sm.colony || REGIONS[this.id]?.kind !== 'colony') continue;
+      const len = sm.side === 'n' || sm.side === 's' ? this.sx : this.sz;
+      for (let a = 0; a < len; a++) {
+        if (Math.abs(a - sm.at) <= SEAM.COLONY_OPEN) continue;
+        const [x, z] = this.seamCell(sm, a, 0);
+        for (let y = 1; y < W.sy; y++) if (!W.get(x, y, z) || BLOCKS[W.get(x, y, z)].liquid) W.setRaw(x, y, z, B.barrier);
+      }
+    }
   }
   // Distant mountains in a ring round the map, plus a far ground plane.
   backdrop(o = {}) {
     const { sx, sz } = this, cx = sx / 2, cz = sz / 2, R0 = Math.hypot(sx, sz) / 2 + 30;
     const c0 = new THREE.Color(o.c0 ?? 0x2a3446), c1 = new THREE.Color(o.c1 ?? 0x7a8098), by = o.y ?? this.base - 18;
+    const nb = neighbours(this.id);
     this.deco.extra(() => {
       const pos = [], col = [], R = mulberry32(this.seed + 5);
       for (const [n, r0, r1, h0, h1] of [[22, R0, R0 + 30, 30, 60], [16, R0 + 40, R0 + 70, 46, 86]]) for (let i = 0; i < n; i++) {
         const a = (i / n) * Math.PI * 2 + R() * 0.3, r = r0 + R() * (r1 - r0), hgt = h0 + R() * (h1 - h0), w = 34 + R() * 34;
         const mx = cx + Math.cos(a) * r, mz = cz + Math.sin(a) * r, peak = [mx, by + hgt, mz];
+        if ((mx > sx && nb.e) || (mx < 0 && nb.w) || (mz > sz && nb.s) || (mz < 0 && nb.n)) continue;   // the next region is there
         for (let s = 0; s < 5; s++) {
           const b0 = a + (s / 5) * Math.PI * 2, b1 = a + ((s + 1) / 5) * Math.PI * 2;
           pos.push(mx + Math.cos(b0) * w, by, mz + Math.sin(b0) * w, ...peak, mx + Math.cos(b1) * w, by, mz + Math.sin(b1) * w);
@@ -586,14 +709,17 @@ export class RegionBuilder {
   }
   // Build gates and stations, edge walls and lights, and return the level object.
   // o: { spawn: [x, z] | Vector3, biome, sunOffset, titleCam, backdrop: false | {…}, extra: {…} }
-  finish(o = {}) {
+  finish(o = {}) { return drain(this.finishG(o)); }
+  *finishG(o = {}) {
     for (const g of this.gates) this.buildGate(g);
     for (const s of this.stations) this.buildStation(s);
     for (const fn of this.later) fn();
     this.edges();
     if (o.backdrop !== false) this.backdrop(o.backdrop ?? {});
-    this.deco.extra(() => this.props.build());
-    this.world.collectBlockLights();
+    for (const t of this.props.tiles.values()) this.deco.extra(() => t.build());   // one per tile: the seamless world builds them a few at a time
+    yield 'common:692';
+    yield* this.world.collectBlockLightsG();
+    yield 'common:694';
     const anchors = {};
     for (const [k, a] of Object.entries(this.anchors)) anchors[k] = V(a.x, a.y ?? this.floor(Math.floor(a.x), Math.floor(a.z)), a.z);
     const spawnXZ = o.spawn ?? this.stations[0]?.pos ?? [this.sx / 2, this.sz / 2];
@@ -606,6 +732,7 @@ export class RegionBuilder {
       biome: o.biome ?? this.def.biome, sunOffset: o.sunOffset ?? null,
       spawn, gates: this.gates, stations: this.stations, pois, anchors, people, lairs: this.lairs,
       roam: this.roam, safe: this.safe, nests: this.nests ?? [],
+      seams: this.seams, runtimeHooks: this.runtimeHooks,
       roads: this.plan.roads.map((r) => r.pts),
       rivers: this.plan.rivers.map((r) => r.pts),
       groundAt: (x, z) => Math.round(H[Math.max(0, Math.min(sz - 1, Math.floor(z))) * sx + Math.max(0, Math.min(sx - 1, Math.floor(x)))]),
