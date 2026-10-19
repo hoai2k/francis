@@ -33,13 +33,16 @@ export class HUD {
   show(on) { this.root.classList.toggle('hidden', !on); }
   rebuildCards() {
     this.cards.innerHTML = ''; this.cardEls = [];
-    for (const p of this.game.players) {
-      const info = SORCERERS[p.sorcerer];
+    // online: everyone in the game gets a card (the other screens' players marked 🌐)
+    this.cardList = this.game.everyone?.() ?? this.game.players;
+    this.cards.classList.toggle('multi', this.cardList.length > 1);
+    for (const p of this.cardList) {
+      const info = SORCERERS[p.sorcerer] ?? { name: '?' };
       const hpI = h('i'), hpB = h('b'), ceI = h('i');
-      const name = h('span', {}, `P${p.index + 1} · ${info.name.toUpperCase()}`); const extra = h('span', {}, '');
-      const card = h('div', { class: 'pcard', style: `--pc:${p.color}` }, h('div', { class: 'name' }, name, extra), h('div', { class: 'bar' }, hpB, hpI), h('div', { class: 'bar ce' }, ceI));
+      const name = h('span', {}, p.netName ? `${p.isRemote ? '🌐 ' : ''}${p.netName} · ${info.name}` : `P${p.index + 1} · ${info.name.toUpperCase()}`); const extra = h('span', {}, '');
+      const card = h('div', { class: 'pcard' + (p.isRemote ? ' remote' : ''), style: `--pc:${p.color}` }, h('div', { class: 'name' }, name, extra), h('div', { class: 'bar' }, hpB, hpI), h('div', { class: 'bar ce' }, ceI));
       this.cards.appendChild(card);
-      this.cardEls.push({ p, hpI, hpB, ceI, ce: card.children[2], extra, card, last: {} });
+      this.cardEls.push({ p, hpI, hpB, ceI, ce: card.children[2], extra, card, last: {}, key: `${p.netName}|${p.color}|${p.sorcerer}` });
     }
     this.abilityRows.clear();
   }
@@ -89,13 +92,14 @@ export class HUD {
     const g = this.game;
     this.t += dt;
     for (const [id, el] of this.prompts) { if (!el.dataset.seen) { el.remove(); this.prompts.delete(id); } else delete el.dataset.seen; }
-    if (this.cardEls.length !== g.players.length) this.rebuildCards();
+    const every = g.everyone?.() ?? g.players;
+    if (this.cardEls.length !== every.length || this.cardEls.some((c, i) => c.p !== every[i] || c.key !== `${c.p.netName}|${c.p.color}|${c.p.sorcerer}`)) this.rebuildCards();
     for (const c of this.cardEls) {
       const p = c.p;
       const hp = Math.max(0, p.hp / p.maxHp), ce = p.ce / p.maxCe;
       if (c.last.hp !== hp) { c.hpI.style.width = (hp * 100).toFixed(1) + '%'; c.hpB.style.width = (hp * 100).toFixed(1) + '%'; c.last.hp = hp; }
       if (c.last.ce !== ce) { c.ceI.style.width = (ce * 100).toFixed(1) + '%'; c.ce.classList.toggle('full', ce >= 1); c.last.ce = ce; }
-      const ex = p.dead ? '✖ DOWN' : p.downed ? `REVIVE ${Math.ceil(p.downT)}s` : `✚${p.healCharges}`;
+      const ex = p.dead ? '✖ DOWN' : p.downed ? (p.isRemote ? 'REVIVE' : `REVIVE ${Math.ceil(p.downT)}s`) : p.isRemote ? (p.netBusy ? '⏸ menu' : '') : `✚${p.healCharges}`;
       if (c.last.ex !== ex) { c.extra.textContent = ex; c.last.ex = ex; }
     }
     const stale = this.abilityRows.size !== g.players.length || g.players.some((p) => {
@@ -105,7 +109,7 @@ export class HUD {
     if (stale) {
       this.abBar.innerHTML = ''; this.abilityRows.clear();
       this.abBar.classList.toggle('multi', g.players.length > 1);
-      this.cards.classList.toggle('multi', g.players.length > 1);
+      this.cards.classList.toggle('multi', every.length > 1);
       for (const p of g.players) this.buildAbilities(p);
     }
     for (const { p, els } of this.abilityRows.values()) {
@@ -134,7 +138,7 @@ export class HUD {
     }
     const coins = g.run?.coins ?? g.save?.data?.coins ?? 0;
     if (this.lastCoins !== coins) { this.coins.textContent = '◆ ' + coins; this.lastCoins = coins; }
-    const canJoin = !isMobile && g.players.length < 4 && g.state === 'playing';
+    const canJoin = !isMobile && g.players.length < 4 && g.state === 'playing' && (!g.net || g.net.canAddLocal());
     this.join.classList.toggle('hidden', !canJoin);
   }
 }

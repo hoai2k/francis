@@ -4,12 +4,13 @@ import * as THREE from 'three/webgpu';
 
 export class Hazards {
   constructor(game) { this.game = game; this.list = []; }
-  add({ pos, radius = 1.2, dps = 6, dur = 4, color = 0x9aff3a, team = 'enemy', slow = 0, src = null }) {
+  add({ pos, radius = 1.2, dps = 6, dur = 4, color = 0x9aff3a, team = 'enemy', slow = 0, src = null, net = false }) {
     const g = this.game;
+    if (team === 'enemy' && !net) g.net?.onHazard?.({ pos, radius, dps, dur, color, slow });
     const gy = g.world.groundBelow(pos.x, pos.z, pos.y + 1);
     if (!isFinite(gy)) return;
     const p = new THREE.Vector3(pos.x, gy, pos.z);
-    const marker = g.markers.spawn({ pos: p, radius, dur: dur, color });
+    const marker = g.markers.spawn({ pos: p, radius, dur: dur, color, net: true });
     marker.prog.value = 1; marker.t = 0;
     marker.keep = true;
     this.list.push({ pos: p, radius, dps, t: 0, dur, color: new THREE.Color(color), team, slow, marker, src, tick: 0 });
@@ -32,7 +33,7 @@ export class Hazards {
         h.tick = 0.4;
         const targets = h.team === 'enemy' ? g.hostileTargets() : g.enemies;
         for (const t of targets) {
-          if (t.dead) continue;
+          if (t.dead || (t.isRemote && h.team === 'enemy')) continue;
           const dx = t.pos.x - h.pos.x, dz = t.pos.z - h.pos.z;
           if (dx * dx + dz * dz < h.radius * h.radius && Math.abs(t.pos.y - h.pos.y) < 1.2) {
             if (h.team === 'enemy') t.takeDamage(h.dps * 0.4, null, { dot: true, noKnock: true });

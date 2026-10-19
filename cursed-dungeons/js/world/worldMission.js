@@ -44,7 +44,7 @@ import { itemInfo } from '../loot.js';
 const tmpC = new THREE.Color();
 const FORM = 1.8, CRACK = 0.9, SHATTER = 1.5;
 // under the curtain it is night (an environment override, like a Domain's; gfx/environment.js)
-const CURTAIN_ENV = { skyTop: 0x020208, skyHorizon: 0x14102a, fog: 0x0a0818, fogDensity: 0.012, hemiSky: 0x7a80c8, hemiGround: 0x101018, hemiI: 0.85, sun: 0xa0b0ff, sunI: 0.4, grade: { tint: [0.9, 0.93, 1.1], lift: [0.0, 0.0, 0.02], sat: 0.85, contrast: 1.15, vignette: 0.55 }, __domain: true };
+export const CURTAIN_ENV = { skyTop: 0x020208, skyHorizon: 0x14102a, fog: 0x0a0818, fogDensity: 0.012, hemiSky: 0x7a80c8, hemiGround: 0x101018, hemiI: 0.85, sun: 0xa0b0ff, sunI: 0.4, grade: { tint: [0.9, 0.93, 1.1], lift: [0.0, 0.0, 0.02], sat: 0.85, contrast: 1.15, vignette: 0.55 }, __domain: true };
 
 // ------------------------------------------------------------------ the zone
 function standable(world, x, y, z) {
@@ -614,6 +614,7 @@ export class WorldMission extends Mission {
 export async function startWorldMission(game, chOrId, threat = 0) {
   const g = game, ch = typeof chOrId === 'string' ? chapter(chOrId) : chOrId;
   if (!ch) return null;
+  if (g.net?.isGuest) { toast(`Only ${g.net.hostName} can start a mission — you'll be there with them`); return null; }
   if (g.worldMission) { toast('Finish (or abandon) the mission you are in first'); return null; }
   if (g.cutscenes?.active) g.cutscenes.abort();
   g.ui.closeAll(); g.paused = false; g.last = performance.now();
@@ -636,6 +637,7 @@ async function goAndBegin(g, ch, threat, region) {
     await g.fade(true, `帳 ${ch.place}`);
     g.placePlayers(at, { keepHp: true });
     g.world.stream(g.players.map((p) => p.pos), Infinity);
+    g.net?.onTravel?.();   // (online: the guests come along)
     g.fade(false);
   }
   return begin(g, ch, threat);

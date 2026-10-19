@@ -32,6 +32,7 @@ export class Projectiles {
   // o: { pos, vel, team:'player'|'enemy', dmg, radius, gravity, life, shape, color, owner, pierce, onHit(target,p), onExpire(p), homing, trail, light }
   fire(o) {
     const mesh = this.pool.find((m) => !m.visible); if (!mesh) return null;
+    if (o.team === 'enemy' && !o.net) this.game.net?.onEnemyShot?.(o);   // hosting: every screen plays curse shots (js/online/net.js)
     mesh.geometry = this.geos[o.shape ?? 'orb'];
     mesh.material = this.mat(o.color ?? 0xffffff, o.emissive ?? 3);
     mesh.visible = true; mesh.scale.setScalar(o.scale ?? 1);
@@ -76,7 +77,7 @@ export class Projectiles {
       const targets = p.team === 'player' ? g.enemies : g.hostileTargets();
       let dead = false;
       for (const e of targets) {
-        if (e.dead || p.hit.has(e) || e.untargetable) continue;
+        if (e.dead || p.hit.has(e) || e.untargetable || (e.isRemote && p.team === 'enemy')) continue;   // (a guest's own screen plays the shot against them)
         const dx = e.pos.x - p.pos.x, dz = e.pos.z - p.pos.z, dy = p.pos.y - e.pos.y;
         if (dy < -0.3 || dy > (e.height ?? 1.8) + 0.3) continue;
         const r = (e.radius ?? 0.4) + p.radius;

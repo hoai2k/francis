@@ -36,6 +36,8 @@ export class Combat {
   damageEnemy(e, base, src, o = {}) {
     const g = this.game;
     if (!e || e.dead) return 0;
+    // online: another screen's technique replayed here is only a picture (its own screen deals the damage)
+    if (src?.isRemote || src?.owner?.isRemote) return 0;
     let dmg = base * (src?.stats?.damage ?? 1) * (o.mult ?? 1);
     if (src?.isPlayer) {
       dmg *= o.melee ? (src.stats.meleeMult ?? 1) : (src.stats.techMult ?? 1);
@@ -47,7 +49,8 @@ export class Combat {
     if (crit) dmg *= o.critMult ?? 2;
     if (o.blackFlash) dmg *= 2.5;
     dmg *= g.difficultyDamageTaken ?? 1;
-    const dealt = e.takeDamage(dmg, src, { ...o, crit });
+    // online, visiting: a curse here is the host's puppet; the host applies the hit (js/online/net.js)
+    const dealt = e.isPuppet ? e.netHit(dmg, src, { ...o, crit }) : e.takeDamage(dmg, src, { ...o, crit });
     if (dealt > 0) {
       g.stats && (g.stats.damage += dealt);
       e.lastAttacker = src; e.lastHitT = g.time;

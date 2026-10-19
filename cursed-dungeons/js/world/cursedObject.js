@@ -48,7 +48,7 @@ function parts() {
   return PARTS;
 }
 
-function buildLook(look) {
+export function buildLook(look) {
   const P = parts(), M = P.mats, grp = new THREE.Group();
   const add = (geo, mat, o = {}) => { const m = new THREE.Mesh(geo, mat); m.castShadow = !!o.shadow; m.receiveShadow = false; if (o.pos) m.position.set(...o.pos); if (o.rot) m.rotation.set(...o.rot); grp.add(m); return m; };
   const disc = add(P.disc, M.disc, { pos: [0, 0.05, 0] }); disc.renderOrder = 1;

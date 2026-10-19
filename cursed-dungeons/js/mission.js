@@ -101,9 +101,10 @@ export class Mission {
     g.onChestOpened?.(c, p);
     if (c.room.type === 'secret') { this.stats.secrets++; toast('Secret found!'); }
   }
-  completeItem(it) {
+  completeItem(it, viaNet = false) {
     if (it.done) return;
     const g = this.game;
+    if (g.net?.isGuest && !viaNet) { g.net.sendObjective?.(this.obj.items.indexOf(it)); return; }   // visiting: the host's mission (js/online/net.js)
     it.done = true; this.obj.done++;
     g.audio?.energy('heal'); g.audio?.levelUp();
     if (this.obj.type === 'rescue') {
@@ -144,6 +145,7 @@ export class Mission {
   update(dt) {
     const g = this.game, L = this.L;
     this.stats.time += dt;
+    if (g.net?.isGuest) return;   // visiting: the host runs the mission; this copy is the scenery
     for (const room of L.rooms) {
       const inside = g.players.some((p) => !p.dead && p.pos.x >= room.x0 - 1 && p.pos.x <= room.x1 + 2 && p.pos.z >= room.z0 - 1 && p.pos.z <= room.z1 + 2);
       if (inside && !room.activated) this.activate(room);

@@ -17,7 +17,8 @@ const JUMP = { v: 9.2, hold: 0.32, holdGravity: 0.42 };
 // jump slam: attack in the air after a jump dives down and hits around the landing
 const SLAM = { dmg: 22, radius: 3, knock: 8, cd: 1.2 };
 
-export const PLAYER_COLORS = ['#4fc8ff', '#ff5a6a', '#7aff7a', '#ffc94a'];
+// P1-P4 on one screen; online, up to eight people take seats 1-8 (js/online/net.js)
+export const PLAYER_COLORS = ['#4fc8ff', '#ff5a6a', '#7aff7a', '#ffc94a', '#c88aff', '#ff9a3a', '#4affd8', '#ff7ad8'];
 
 export class Player {
   constructor(game, index, device, sorcerer) {
@@ -114,8 +115,8 @@ export class Player {
   goDown() {
     const g = this.game;
     this.hp = 0;
-    const others = g.players.filter((p) => p !== this && !p.dead && !p.downed);
-    if (others.length) { this.downed = true; this.downT = 25; this.reviveProgress = 0; this.action = null; g.toast?.(`Player ${this.index + 1} is down! Stand close to revive`); }
+    const others = (g.everyone?.() ?? g.players).filter((p) => p !== this && !p.dead && !p.downed);
+    if (others.length) { this.downed = true; this.downT = 25; this.reviveProgress = 0; this.action = null; g.toast?.(`${this.netName ?? `Player ${this.index + 1}`} is down! Stand close to revive`); }
     else { this.dead = true; this.deadT = 0; g.onPlayerDied?.(this); }
     this.domainActive = false;
     g.audio?.enemyDie(true);
@@ -223,7 +224,12 @@ export class Player {
     this.game.audio?.swing(idx);
   }
   spawn(p) { this.pos.copy(p); this.vel.set(0, 0, 0); this.visY = p.y; this.safePos.copy(p); this.object.position.copy(p); }
-  input() { return this.game.input.get(this.device); }
+  input() {
+    const g = this.game;
+    // online: a player in a menu (or a conversation) stands still while the world goes on
+    if (g.net?.live && g.inputFrozen?.(this)) return g.input.get('none');
+    return g.input.get(this.device);
+  }
 
   // Determine aim direction for this frame.
   updateAim(inp) {
@@ -254,7 +260,7 @@ export class Player {
     if (this.dead) { this.animate(dt); return; }
     if (this.downed) {
       this.downT -= dt;
-      const helper = g.players.find((p) => p !== this && !p.dead && !p.downed && p.pos.distanceTo(this.pos) < 2.2);
+      const helper = (g.everyone?.() ?? g.players).find((p) => p !== this && !p.dead && !p.downed && p.pos.distanceTo(this.pos) < 2.2);
       this.reviveProgress = helper ? this.reviveProgress + dt / 2.2 : Math.max(0, this.reviveProgress - dt);
       if (this.reviveProgress >= 1) this.revive(0.4);
       else if (this.downT <= 0) { this.downed = false; this.dead = true; this.deadT = 0; g.onPlayerDied?.(this); }

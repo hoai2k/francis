@@ -34,7 +34,8 @@ export class Markers {
     this.i = 0;
   }
   // circle: radius; rect: width, length, facing; cone: radius + arc (0..1 of half-turn)
-  spawn({ pos, dur = 1, radius = 2, shape = 'circle', width = 2, length = 6, facing = 0, arc = 1, color = 0xff2020, follow = null }) {
+  spawn({ pos, dur = 1, radius = 2, shape = 'circle', width = 2, length = 6, facing = 0, arc = 1, color = 0xff2020, follow = null, net = false }) {
+    if (!net) this.onSpawn?.({ pos, dur, radius, shape, width, length, facing, arc, color, follow });   // hosting: telegraphs show on every screen
     const it = this.items[this.i]; this.i = (this.i + 1) % this.items.length;
     it.active = true; it.t = 0; it.dur = dur; it.follow = follow;
     it.col.value.set(color); it.arc.value = shape === 'cone' ? arc : 1; it.shape.value = shape === 'rect' ? 1 : 0; it.alpha.value = 1;

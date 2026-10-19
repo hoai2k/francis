@@ -196,8 +196,11 @@ export class SeamlessWorld {
     return out.sort((a, b) => a.d - b.d);
   }
   centre() {
-    const g = this.game, ps = g.players.filter((p) => !p.dead);
-    const list = ps.length ? ps : g.players;
+    const g = this.game;
+    // hosting: the party is every player in the world, the guests' sorcerers too
+    const all = g.net?.isHost ? [...g.players, ...g.net.crossingFigures()] : g.players;
+    const ps = all.filter((p) => !p.dead);
+    const list = ps.length ? ps : all;
     const c = this._c ??= new THREE.Vector3();
     if (!list.length) return c.copy(g.rig.focus);
     c.set(0, 0, 0); for (const p of list) c.add(p.pos); return c.divideScalar(list.length);
@@ -244,6 +247,7 @@ export class SeamlessWorld {
     // show / stream / blend the live neighbours
     const R = this.viewRadius(), fl = this._f; fl.length = 0;
     for (const p of g.players) fl.push(p.pos);
+    if (g.net) for (const f of g.net.figures) if (f.inWorld) fl.push(f.pos);
     fl.push(g.rig.focus);
     let blend = null, bk = 0, changed = false;
     for (const { side, d, t } of order) {
@@ -290,7 +294,7 @@ export class SeamlessWorld {
     return g.state === 'playing' && g.mode === 'world' && !g.worldMission && !g.traveling && !g.cutscenes?.active && !g.domainSys?.active && !g.paused && g.wipeLeft <= 0;
   }
   checkCross(order) {
-    if (!this.canCross()) return;
+    if (!this.canCross() || this.game.net?.isGuest) return;   // visiting: the host's screen decides (js/online/net.js)
     const c = this.centre(), w = this.L.world;
     for (const { side, t } of order) {
       if (t.state !== 'live' || !t.off) continue;

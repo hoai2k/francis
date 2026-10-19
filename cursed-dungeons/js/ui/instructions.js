@@ -122,7 +122,15 @@ export function openInstructions(game, onClose) {
         h('li', {}, h('b', {}, 'Saving. '), 'The game saves by itself. Pause → Save Code backs up your progress or moves it to another device.'))),
       sec('Playing together',
         h('p', {}, 'Up to four players share one screen: keyboard + mouse plus controllers. Press ', h('b', {}, 'Start'), ' or ', h('b', {}, 'A'), ' on a controller to join, on the select screen or any time in play. Each player rolls their own technique. Anyone can use the pause menu, but your inventory, shop, technique tree and loadout answer only to you. Pause → Drop out leaves the game for whoever presses it.'),
-        h('p', {}, h('b', {}, 'Touch. '), 'On a phone or tablet, drag on the left to move; the buttons on the right attack, jump, dodge and cast. Landscape works best.')));
+        h('p', {}, h('b', {}, 'Touch. '), 'On a phone or tablet, drag on the left to move; the buttons on the right attack, jump, dodge and cast. Landscape works best.')),
+      sec('Online',
+        h('p', {}, h('b', {}, 'Up to eight players '), 'in one world, on several screens, and every screen can bring its own local players (keyboard + controllers). Local and online players play the same: everyone has a card, a name over their head, a dot on the minimap, and can be revived.'),
+        h('ul', { class: 'tips' },
+          h('li', {}, h('b', {}, 'Host. '), 'While playing, Pause → ', h('b', {}, 'Host this world online'), ' (or title screen → Online → Host a game). Your game carries on while others join. Pause → Stop hosting closes it.'),
+          h('li', {}, h('b', {}, 'Join. '), 'Title screen → ', h('b', {}, 'Online'), ' lists the open games (Retry if the online service can\'t be reached). Pick one, choose your character (your rolled technique, the code, extra controllers join as usual), then your ', h('b', {}, 'name'), ': the default is your sorcerer\'s name, or pick a saved one or type a new one (on-screen keyboard or a real keyboard). Pressing A all the way through keeps it. You appear next to the host.'),
+          h('li', {}, h('b', {}, 'Whose world. '), 'The host\'s: their region, curses, missions, quests and story. Only the host travels, fast travels or starts a mission, and everyone comes along. Your own technique tree, loadout and inventory come with you, and what you earn (XP, coins, loot) goes to your own save.'),
+          h('li', {}, h('b', {}, 'Nothing pauses online. '), 'Menus (pause, inventory, shop, technique tree, map…) open over the running world: your sorcerer stands still and can still be hit, so find a quiet spot. Cutscenes are skipped online; the host\'s conversations show as subtitles to everyone.'),
+          h('li', {}, h('b', {}, 'Leave any time. '), 'Pause → ', h('b', {}, 'Leave <host>\'s game'), ' (Drop out for an extra local player). Nothing stops for anyone else. A dropped connection reconnects by itself; if the host stops hosting, everyone else goes back to the title screen.'))));
     el.appendChild(h('div', { class: 'panel ins-panel', role: 'dialog', 'aria-label': 'How to play', 'aria-modal': 'true' },
       h('h2', {}, 'How to Play'), body,
       h('div', { class: 'row', style: 'justify-content:space-between;margin-top:10px;align-items:center' },

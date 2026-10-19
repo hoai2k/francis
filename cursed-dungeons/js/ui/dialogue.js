@@ -32,6 +32,7 @@ export class Dialogue {
     const list = (Array.isArray(lines) ? lines : [lines]).map((l) => (typeof l === 'object' && l && 'text' in l ? l : { who: speaker, text: l }));
     const g = this.game;
     const pause = opts.pause ?? true;
+    try { g.net?.onSay?.(speaker, list, (who) => this.info(who)); } catch (e) { console.warn('online', e); }   // guests read it as subtitles
     this.cur = { list, i: -1, opts, wasPaused: g.paused, pause, typed: 0, text: '', done: true, t: 0, blipT: 0 };
     if (pause) g.paused = true;
     this.build();

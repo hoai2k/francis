@@ -356,6 +356,7 @@ function plate(text, color) {
 export function dressAsSorcerer(game, e, lookId, o = {}) {
   if (!e || e._dressed) return e;
   e._dressed = true;
+  e._look = lookId; e._plateText = o.plate === false ? null : (o.plateText ?? o.name ?? 'Player'); e._plateColor = o.plateColor ?? '#ff8a8a';   // (online: guests dress the puppet the same way)
   const rig = sorcererRig(lookId);
   game.scene.remove(e.object);
   e.rig = rig; e.object = rig.root;

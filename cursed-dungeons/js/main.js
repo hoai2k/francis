@@ -56,6 +56,14 @@ import { DomainSystem } from './domain.js';
 import { Trench } from './gfx/materials.js';
 import { isMobile } from './util.js';
 
+// Online play (js/online/, loaded only when someone opens Online or hosts). ?online=0 (or false
+// here) removes it: no Online menu items, and none of that code is ever fetched.
+const QS = new URLSearchParams(location.search);
+export const ONLINE_ENABLED = true && QS.get('online') !== '0';
+const NORENDER = QS.has('norender');   // (tests: skip drawing, headless software rendering is too slow)
+let onlineMod = null;
+export function loadOnline() { return (onlineMod ??= import('./online/net.js').catch((e) => { onlineMod = null; throw e; })); }
+
 const loadFill = document.getElementById('load-fill');
 const loadText = document.getElementById('load-text');
 const progress = (p, t) => { loadFill.style.width = (p * 100).toFixed(0) + '%'; if (t) loadText.textContent = t; };
@@ -72,7 +80,20 @@ class Game {
     this.flashMaterial = FLASH_MATERIAL;
     this.toast = toast;
     this.save = new Save();
+    this.net = null;          // the online session (js/online/net.js) while hosting or visiting, else null
+    this.onlineEnabled = ONLINE_ENABLED;
   }
+  // Menus pause the game offline. In a hosted game (host or guest) nothing pauses: the menu opens
+  // over the running world and only its player stands still (inputFrozen).
+  get paused() { return !!this._paused && !(this.net && this.net.live); }
+  set paused(v) { this._paused = !!v; }
+  // online: is this local player's input held while a menu (or a conversation) is open?
+  inputFrozen(p) {
+    if (this.dialogue?.active || this.photo) return true;
+    for (const s of this.ui.stack) if (!s.opts.passive && (!s.opts.owner || s.opts.owner === p.device || s.opts.owner === 'touch')) return true;
+    return false;
+  }
+  openOnline(opts) { return loadOnline().then((m) => m.openOnline(this, opts)).catch((e) => { console.warn('online', e); toast('Online play could not load — check your connection'); }); }
   async boot() {
     progress(0.05, 'Detecting GPU…');
     this.gr = new GameRenderer();
@@ -133,7 +154,7 @@ class Game {
     progress(0.75, 'Compiling shaders…');
     await nextFrame();
     this.gr.setScene(this.scene, this.rig.camera);
-    try { await this.gr.renderer.compileAsync(this.scene, this.rig.camera); } catch (e) { console.warn(e); }
+    if (!NORENDER) try { await this.gr.renderer.compileAsync(this.scene, this.rig.camera); } catch (e) { console.warn(e); }
     progress(1, 'Ready');
     window.addEventListener('resize', () => this.gr.resize());
     const persist = () => this.save.write();
@@ -143,6 +164,7 @@ class Game {
     setInterval(() => { if (this.state === 'playing') this.save.write(); }, 15000);
     if (!this.save.write()) setTimeout(() => toast('⚠ Your browser is blocking saves — use Pause → Save Code to keep progress', 'big'), 4000);
     document.addEventListener('visibilitychange', () => { if (document.hidden) { persist(); if (this.state === 'playing' && !this.paused && !this.ui.stack.length) this.pause(); } });
+    if (ONLINE_ENABLED && QS.has('debug')) Object.defineProperty(window, '__net', { get: () => this.net, configurable: true });
     installFullscreen();
     window.addEventListener('keydown', (e) => { if (e.code === 'F3') { settings.showFps = !settings.showFps; saveSettings(); this.setReadout(settings.showFps); } });
     // J: the quest log (any time in play, outside cutscenes)
@@ -161,7 +183,8 @@ class Game {
     this.toTitle();
   }
   // ---------------------------------------------------------------- front-end flow
-  toTitle() {
+  toTitle(msg) {
+    if (this.net) { try { this.net.close(); } catch (e) { console.warn('online', e); } this.net = null; }
     this.state = 'title';
     this.wipeLeft = 0;
     this.hud.show(false); this.touch?.show(false);
@@ -173,6 +196,7 @@ class Game {
     this.rig.cinematic({ center: tc?.center?.clone() ?? new THREE.Vector3(19, 8, 22), dur: 1e9, dist: tc?.dist ?? 34, pitch: tc?.pitch ?? 34 * Math.PI / 180, orbit: 0.05 });
     this.audio.setMusic('title');
     openTitle(this);
+    if (msg) setTimeout(() => toast(msg, 'big'), 300);
   }
   enterSelectView(slots) {
     this.state = 'select';
@@ -193,7 +217,7 @@ class Game {
     this.selectRigs = [];
     if (!keepCam) this.rig.cine = null;
   }
-  beginSession(list) {
+  beginSession(list, opts = {}) {
     for (const p of this.players) this.removePlayer(p);
     this.players = [];
     for (const l of list) this.addPlayer(l.device, l.sorcerer);
@@ -207,10 +231,10 @@ class Game {
       const W = this.worldSave(), V3 = (a) => new THREE.Vector3(a[0], a[1], a[2]);
       if (W.returnTo && REGIONS[W.returnTo.region]) { const r = W.returnTo; W.returnTo = null; this.loadRegion(r.region, { at: V3(r.pos) }); }
       else if (W.region && REGIONS[W.region] && W.pos) this.loadRegion(W.region, { at: V3(W.pos) });
-      else { this.loadRegion(START_REGION); this.cutscenes?.playOnce('arrive_hub'); }
+      else { this.loadRegion(START_REGION); if (!opts.online) this.cutscenes?.playOnce('arrive_hub'); }
       toast(REGIONS[this.level.regionId]?.name ?? 'Jujutsu High', 'big');
     };
-    if (!this.cutscenes?.playOnce('opening', { onEnd: enterWorld })) enterWorld();
+    if (opts.online || !this.cutscenes?.playOnce('opening', { onEnd: enterWorld })) enterWorld();   // (hosting from the title: no cinematic, others will be joining)
   }
   openPhotoMode() { return openPhotoMode(this); }
   removePlayer(p) { this.scene.remove(p.object); p.kit.dispose?.(); this.lights.remove(p.heroLight); }
@@ -280,6 +304,7 @@ class Game {
   // ---------------------------------------------------------------- the open world
   loadHub() { this.loadRegion(START_REGION); }
   worldSave() {
+    if (this.net?.isGuest) return this.net.guestWorld;   // visiting: the world is the host's, my save's world stays as it was
     const d = this.save.data;
     d.world ??= {};
     const W = d.world; W.discovered ??= {}; W.stations ??= {}; W.meta ??= {};
@@ -360,13 +385,13 @@ class Game {
       // Jujutsu High: the residents, the training dummy, the shop, locker, technique tree and map table
       () => { if (L.hub) this.setupHub(L); },
       // people (and the NPCs quests need here)
-      () => { try { this.regionNpcs = new RegionNpcs(this, L, this.quests.npcPosts(L)); const rn = this.regionNpcs; this.addUpdater((dt) => { rn.update(dt); }); } catch (e) { console.warn('region NPCs', e); } },
+      () => { try { this.regionNpcs = new RegionNpcs(this, L, this.net?.isGuest ? [] : this.quests.npcPosts(L)); const rn = this.regionNpcs; this.addUpdater((dt) => { rn.update(dt); }); } catch (e) { console.warn('region NPCs', e); } },
       // natural curse spawning: roaming packs, curse nests, world events (world/spawnDirector.js) -> game.spawns
-      () => { this.spawns?.dispose?.(); this.spawns = this.roaming = null; try { const sp = this.spawns = this.roaming = new SpawnDirector(this, L); this.addUpdater((dt) => sp.update(dt)); } catch (e) { console.warn('spawn director', e); } },
+      () => { this.spawns?.dispose?.(); this.spawns = this.roaming = null; if (this.net?.isGuest) return; try { const sp = this.spawns = this.roaming = new SpawnDirector(this, L); this.addUpdater((dt) => sp.update(dt)); } catch (e) { console.warn('spawn director', e); } },
       // region systems (city crowds, building interiors…): L.onLoad(game, L) from the region build
       () => { try { L.onLoad?.(this, L); } catch (e) { console.warn('region onLoad', e); } },
-      () => { try { this.questMarkers = installQuestMarkers(this, L); } catch (e) { console.warn('quest markers', e); } },
-      () => { this.quests.onRegionLoaded(L); this.regionNpcs?.refreshMarks(); },
+      () => { if (this.net?.isGuest) return; try { this.questMarkers = installQuestMarkers(this, L); } catch (e) { console.warn('quest markers', e); } },
+      () => { if (this.net?.isGuest) { this.tracker?.clear?.(); return; } this.quests.onRegionLoaded(L); this.regionNpcs?.refreshMarks(); },
       // the region's runtime hooks (regionRuntime.js: the Culling Game, world chests, Kyoto's leaves…)
       () => { this.regionRuntimeStop?.(); this.regionRuntimeStop = startRegionRuntime(this, L); },
     ];
@@ -439,12 +464,13 @@ class Game {
     this.save.write();
   }
   fastTravel(stationId) {
+    if (this.net?.isGuest) { toast(`Only ${this.net.hostName} can fast travel — you'll come along`); return; }
     if (this.worldMission) { toast('The curtain is down — finish the mission (or Pause → Abandon mission) first'); return; }
     const region = String(stationId).split(':')[0];
     if (!REGIONS[region]) return;
     if (this.mode === 'world' && this.level?.regionId === region) {
       const s = this.level.stations.find((x) => x.id === stationId);
-      if (s?.pos) { this.fade(true).then(() => { this.placePlayers(this.arrivalPoint(this.level, { station: stationId }), { keepHp: true }); this.world.stream(this.players.map((p) => p.pos), Infinity); this.fade(false); }); }
+      if (s?.pos) { this.fade(true).then(() => { this.placePlayers(this.arrivalPoint(this.level, { station: stationId }), { keepHp: true }); this.world.stream(this.players.map((p) => p.pos), Infinity); this.net?.onTravel?.(); this.fade(false); }); }
       return;
     }
     this.travelTo(region, { station: stationId });
@@ -452,6 +478,7 @@ class Game {
   // Fade out, load a region, fade in (gates, Window stations, leaving a dungeon).
   async travelTo(id, opts = {}) {
     if (this.traveling) return;
+    if (this.net?.isGuest && !opts.net) { toast(`Only ${this.net.hostName} can travel — you'll come along`); return; }
     if (this.worldMission && this.state === 'playing') { toast('The curtain is down — finish the mission (or Pause → Abandon mission) first'); return; }
     this.traveling = true;
     if (this.cutscenes?.active) this.cutscenes.abort();
@@ -459,7 +486,7 @@ class Game {
     const R = REGIONS[id];
     await this.fade(true, R ? `${R.icon} ${R.name}` : '');
     await nextFrame(); await nextFrame();
-    try { this.loadRegion(id, { keepHp: true, ...opts }); }
+    try { this.loadRegion(id, { keepHp: true, ...opts }); this.net?.onTravel?.(); }
     catch (e) { console.error('travel', e); toast('The road is blocked — back to Jujutsu High'); this.loadRegion(START_REGION); }
     await nextFrame();
     this.paused = false; this.last = performance.now();
@@ -480,12 +507,14 @@ class Game {
   enterLair(def) { this.startMission(def); }
   // Leave a dungeon: back to the entrance it was started from.
   returnToWorld() {
+    if (this.net?.isGuest) { this.net.followHost?.(true); return; }
     const W = this.worldSave(), r = W.returnTo; W.returnTo = null;
     const V3 = (a) => new THREE.Vector3(a[0], a[1], a[2]);
     if (r && REGIONS[r.region]) this.travelTo(r.region, { at: V3(r.pos), keepHp: false });
     else this.travelTo(W.region ?? START_REGION, { keepHp: false });
   }
-  startMission(def) {
+  startMission(def, viaNet = false) {
+    if (this.net?.isGuest && !viaNet) { toast(`Only ${this.net.hostName} can start a mission — you'll come along`); return; }
     if (this.cutscenes?.active) this.cutscenes.abort();
     this.ui.closeAll(); this.paused = false;
     // remember the way back out: the lair entrance (or where you stood)
@@ -498,6 +527,7 @@ class Game {
     this.returnPoint = null;
     this.regionNpcs?.dispose(); this.regionNpcs = null;
     this.clearLevel();
+    if (def.seed == null) def = { ...def, seed: (Math.random() * 1e9) | 0 };   // (online guests build the same level from it)
     const L = generateLevel(def);
     this.loadWorld(L, L.biome);
     this.audio.setMusic(L.biome.music);
@@ -509,6 +539,7 @@ class Game {
     this.mode = 'mission';
     toast(`${L.biome.name} · ${L.biome.sub}`, 'big');
     if (def.id) this.cutscenes?.playOnce('mission_' + def.id);   // a short briefing the first time
+    this.net?.onMissionStart?.(def);
   }
   completeMission() {
     const m = this.mission; if (!m || m.complete) return;
@@ -581,6 +612,7 @@ class Game {
   addPlayer(device, sorcerer) {
     const i = this.players.length;
     const p = new Player(this, i, device, sorcerer);
+    if (this.net) p.netName = this.net.defaultLocalName?.(p);
     const base = this.players[0]?.pos ?? this.level.spawn;
     p.spawn(base.clone().add(new THREE.Vector3(i ? (i - 1.5) * 1.2 : 0, 0, i ? 1.2 : 0)));
     this.scene.add(p.object);
@@ -589,6 +621,7 @@ class Game {
     return p;
   }
   spawnEnemy(kind, pos, opts = {}) {
+    if (this.net?.isGuest) return null;   // visiting: every curse is the host's (drawn here as puppets)
     const cap = this.gr.preset.enemyCap;
     if (this.enemies.filter((e) => !e.dead && !e.isDummy).length >= cap && opts.summoned) return null;
     const e = new Enemy(this, kind, pos, opts);
@@ -597,6 +630,7 @@ class Game {
     return e;
   }
   spawnWave() {
+    if (this.net?.isGuest) { toast(`Only ${this.net.hostName} can summon training curses`); return; }
     this.wave++;
     const kinds = [
       ['swarmer', 'swarmer', 'flyhead', 'flyhead', 'flyhead'],
@@ -625,7 +659,14 @@ class Game {
   // per-frame callbacks for technique effects; return false to finish
   addUpdater(fn) { if (this.regionTag && typeof fn === 'function') fn.__region = this.regionTag; this.updaters.push(fn); }
   startDomain(p, def) { return this.domainSys.start(p, def); }
-  hostileTargets() { return this.allies.length ? [...this.players, ...this.allies] : this.players; }
+  // what curses chase and hit: the party (and allies). Hosting, the guests' sorcerers too (stand-ins:
+  // a hit on one is sent to its own screen, js/online/net.js)
+  hostileTargets() {
+    const base = this.allies.length ? [...this.players, ...this.allies.filter((a) => !a.owner?.isRemote)] : this.players;
+    return this.net?.isHost ? this.net.hostTargets(base) : base;
+  }
+  // every sorcerer in the world: local players and (online) the other screens' players
+  everyone() { return this.net?.figures.length ? [...this.players, ...this.net.figures] : this.players; }
   surfaceAt(pos) { const id = this.world.get(Math.floor(pos.x), Math.floor(pos.y - 0.1), Math.floor(pos.z)); return id ? BLOCKS[id].step : 'stone'; }
   nearestEnemy(pos, range) {
     let best = null, bd = range * range;
@@ -637,6 +678,7 @@ class Game {
   shake(a) { this.rig.addTrauma(a * settings.shake); }
   slowMo(dur, scale = 0.3) { if (!settings.slowmo) return; this.slowmo = Math.max(this.slowmo, dur); this.slowmoScale = scale; }
   onEnemyKilled(e) {
+    try { this.net?.onKill?.(e); } catch (err) { console.warn('online', err); }
     this.mission?.onKill(e);
     try { this.quests?.onKill(e); } catch (err) { console.warn('quests', err); }
     const k = e.lastAttacker;
@@ -654,7 +696,7 @@ class Game {
       if (Math.random() < 0.12) this.pickups.drop('ce', e.pos, 1);
     }
   }
-  onBossKilled(b) { this.mission?.onBossKilled(b); if (this.save.addXp(150)) this.levelUp(); }
+  onBossKilled(b) { try { this.net?.onKill?.(b, 150); } catch (e) { console.warn('online', e); } this.mission?.onBossKilled(b); if (this.save.addXp(150)) this.levelUp(); }
   levelUp() {
     const d = this.save.data;
     toast(`LEVEL ${d.level}! +1 enchantment point, +2 technique points, +1 reroll`, 'big');
@@ -693,8 +735,9 @@ class Game {
 
   setReadout(on) { this.readoutOn = on; document.getElementById('readout').classList.toggle('hidden', !on); }
   pause(player = this.players[0]) {
-    if (this.paused) return;
+    if (this.paused || this.ui.isOpen('pause')) return;
     this.paused = true;
+    const net = this.net;
     // Pause is a game menu: anyone can navigate it. Its character menus
     // (inventory, tree, loadout) and Drop out act for the player who pressed
     // the button, never for whoever opened the pause menu.
@@ -706,7 +749,8 @@ class Game {
     };
     this.ui.open('pause', (el) => {
       el.appendChild(h('div', { class: 'panel menu-col', style: 'min-width:280px;text-align:center' },
-        h('h2', {}, 'Paused'),
+        h('h2', {}, net ? 'Menu' : 'Paused'),
+        net ? h('div', { class: 'hint net-sub' }, net.isGuest ? `In ${net.hostName}'s game · the world keeps going while this menu is open` : `Hosting online · ${net.playerCount()}/8 players · the world keeps going while this menu is open`) : null,
         h('button', { class: 'btn primary', 'data-autofocus': true, onclick: () => this.resume() }, 'Resume'),
         h('button', { class: 'btn', onclick: (e) => mine(e, (p) => openInventory(this, p)) }, 'Inventory'),
         h('button', { class: 'btn', onclick: (e) => mine(e, (p) => openSkills(this, p)) }, 'Technique Tree'),
@@ -718,9 +762,11 @@ class Game {
         h('button', { class: 'btn', onclick: () => openSaveCode(this) }, 'Save Code'),
         h('button', { class: 'btn', onclick: () => openSettings(this) }, 'Settings'),
         h('button', { class: 'btn', onclick: () => toggleFullscreen() }, '⛶ Fullscreen'),
-        h('button', { class: 'btn', onclick: () => { this.ui.close('pause'); this.openPhotoMode(); } }, '📷 Photo Mode'),
+        net ? null : h('button', { class: 'btn', onclick: () => { this.ui.close('pause'); this.openPhotoMode(); } }, '📷 Photo Mode'),
+        this.onlineEnabled && !net?.isGuest && this.mode === 'world' ? h('button', { class: 'btn', onclick: () => { this.resume(); if (this.net?.isHost) this.net.stopHosting(); else this.openOnline({ host: true }); } }, net?.isHost ? '⏹ Stop hosting' : '🌐 Host this world online') : null,
         this.players.length > 1 ? h('button', { class: 'btn', title: 'Leaves the game for the player who presses it', onclick: (e) => mine(e, (p) => { this.paused = false; this.last = performance.now(); this.dropOut(p); }) }, 'Drop out') : null,
-        h('button', { class: 'btn', onclick: () => { this.ui.close('pause'); this.paused = false; this.save.write(); this.toTitle(); } }, 'Quit to Title'),
+        net?.isGuest ? h('button', { class: 'btn danger', onclick: () => { this.ui.close('pause'); this.paused = false; this.save.write(); this.toTitle(`You left ${net.hostName}'s game`); } }, `Leave ${net.hostName}'s game`) : null,
+        net?.isGuest ? null : h('button', { class: 'btn', onclick: () => { this.ui.close('pause'); this.paused = false; this.save.write(); this.toTitle(); } }, 'Quit to Title'),
         this.mode === 'mission' ? h('button', { class: 'btn danger', onclick: () => { this.ui.close('pause'); this.paused = false; this.returnToWorld(); } }, 'Abandon mission') : null,
         this.worldMission ? h('button', { class: 'btn danger', onclick: () => { this.ui.close('pause'); this.paused = false; this.last = performance.now(); this.worldMission?.abandon(); } }, 'Abandon mission (lift the curtain)') : null,
       ));
@@ -738,6 +784,7 @@ class Game {
     this.removePlayer(p);
     this.players.splice(this.players.indexOf(p), 1);
     this.players.forEach((q, i) => { q.index = i; q.color = PLAYER_COLORS[i]; });
+    this.net?.onLocalPlayersChanged?.();
     // the button that confirmed "Drop out" must be let go before it can rejoin
     (this.joinBlock ??= {})[p.device] = performance.now() + 1200;
     this.hud?.rebuildCards();
@@ -746,6 +793,7 @@ class Game {
   }
   checkJoin() {
     if (isMobile || this.players.length >= 4) return;
+    const full = () => { if (!this.net || this.net.canAddLocal()) return false; if (performance.now() - (this.fullToastT ?? 0) > 3000) { this.fullToastT = performance.now(); toast(`This game is full (${this.net.maxPlayers} players)`); } return true; };
     const blocked = (id, held) => {
       const b = this.joinBlock?.[id]; if (!b) return false;
       if (performance.now() < b || held) { if (held) this.joinBlock[id] = Math.max(b, performance.now() + 200); return true; }
@@ -754,10 +802,11 @@ class Game {
     // the keyboard can drop back in with Enter after dropping out
     if (!this.players.some((p) => p.device === 'kbm')) {
       const enter = this.input.keys.has('Enter') || this.input.keys.has('NumpadEnter');
-      if (!blocked('kbm', enter) && enter && !this.ui.stack.length) {
+      if (!blocked('kbm', enter) && enter && !this.ui.stack.length && !full()) {
         const tech = SORCERER_IDS.includes(this.save.data.technique) ? this.save.data.technique : rollTechnique();
         const p = this.addPlayer('kbm', tech);
         this.fx.summonCircle(p.pos, 0x6ad8ff); toast(`Player ${p.index + 1} joined (keyboard)`); this.audio.ui('buy');
+        this.net?.onLocalPlayersChanged?.();
       }
     }
     for (const pad of this.input.pads()) {
@@ -771,10 +820,12 @@ class Game {
           p0.device = id; toast('Controller connected to Player 1'); continue;
         }
         // the keyboard player keeps P1; if P1 is idle on keyboard and this is the only pad, still add
+        if (full()) { (this.joinBlock ??= {})[id] = performance.now() + 1500; continue; }
         const pick = rollTechnique();
         const p = this.addPlayer(id, pick);
         this.fx.summonCircle(p.pos, 0x6ad8ff);
         toast(`Player ${p.index + 1} joined`);
+        this.net?.onLocalPlayersChanged?.();
         this.audio.ui('buy');
       }
     }
@@ -806,7 +857,7 @@ class Game {
   frame() {
     const now = performance.now();
     this.frameT0 = now; this.streamedNow = 0;
-    const realDt = Math.min(0.05, (now - this.last) / 1000);
+    const realDt = this.testDt ?? Math.min(0.05, (now - this.last) / 1000);
     this.last = now;
     this.profHook?.('pre');
     this.input.poll();
@@ -862,9 +913,10 @@ class Game {
       this.updateInteract(dt);
       this.pickups.update(dt);
       this.mission?.update(dt);
-      this.quests?.update(dt);
+      if (!this.net?.isGuest) this.quests?.update(dt);
       P?.('rest');
     }
+    if (this.net) { try { this.net.update(realDt, cs || this.paused ? 0 : dt); } catch (e) { this.net?.logError?.('update', e); } }
     this.profHook?.('pre');
     this.domainSys.update(dt, this.paused ? 0 : realDt);
     if (this.trenchFade > 0) { this.trenchFade -= dt; Trench.glow.value = Math.min(1.4, this.trenchFade / 6); }
@@ -887,6 +939,7 @@ class Game {
     if (this.world.streaming) {   // open-world regions: mesh the chunks round the party, drop the far ones
       const fl = this.streamFocus ??= [];
       fl.length = 0; for (const p of this.players) fl.push(p.pos);
+      if (this.net) for (const f of this.net.figures) if (f.inWorld) fl.push(f.pos);
       fl.push(this.rig.focus);
       this.streamedNow = this.world.stream(fl, this.traveling ? 8 : 1, this.traveling ? 12 : 2.5);
     }
@@ -903,7 +956,7 @@ class Game {
     this.tracker?.update(realDt);
     if (this.minimap.level && (this.frameN = (this.frameN ?? 0) + 1) % 3 === 0 && !this.hud.mini.classList.contains('hidden')) this.minimap.draw(this.hud.mini);
     this.profHook?.('hud');
-    gr.render();
+    if (!NORENDER) gr.render();
     if (this.readoutOn) this.updateReadout();
   }
   updateReadout() {

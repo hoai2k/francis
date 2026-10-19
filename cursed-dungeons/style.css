@@ -687,3 +687,47 @@ body.cs-on #cg-hud { visibility: hidden; }
 .wm-line { margin-top: 6px; font: italic 500 clamp(12px, 1.6vw, 16px) var(--font); color: #d8ccf4; text-shadow: 0 2px 0 #000; white-space: normal; }
 @keyframes wm-in { from { opacity: 0; transform: translate(-50%, -26px) scaleY(1.4); } to { opacity: 1; transform: translate(-50%, 0) scaleY(1); } }
 @media (prefers-reduced-motion: reduce) { .wm-banner { animation: none; transition: opacity .3s; } }
+
+/* ---------------------------------------------------------------- online (js/online/) */
+.net-pill { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); font: 700 12px var(--head); letter-spacing: 1px; background: rgba(8, 6, 16, .78); border: 2px solid #3a7aff; padding: 3px 10px; white-space: nowrap; pointer-events: none; z-index: 3; }
+.net-pill.warn { border-color: #ffb84a; color: #ffd27a; }
+#net-tags { position: fixed; inset: 0; pointer-events: none; z-index: 4; overflow: hidden; }
+.net-tag { position: absolute; left: 0; top: 0; display: flex; flex-direction: column; align-items: center; gap: 2px; will-change: transform; }
+.net-tag b { font: 700 13px var(--head); color: var(--pc, #fff); text-shadow: 0 2px 0 #000, 0 0 6px #000; white-space: nowrap; letter-spacing: 1px; }
+.net-tag i { display: block; width: 46px; height: 5px; background: rgba(0, 0, 0, .7); border: 1px solid #000; position: relative; }
+.net-tag i::after { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: var(--hp, 100%); background: #6aff7a; }
+#net-sub { position: fixed; left: 50%; bottom: 22%; transform: translateX(-50%); max-width: min(720px, 92vw); padding: 8px 16px; background: rgba(8, 6, 16, .82); border-left: 3px solid #ffd27a; font: 600 16px var(--font); color: #fff; text-shadow: 0 2px 0 #000; opacity: 0; transition: opacity .25s; pointer-events: none; z-index: 5; }
+#net-sub.on { opacity: 1; }
+#net-sub b { color: #ffd27a; }
+.pcard.remote { opacity: .92; border-top: 1px dashed rgba(120, 170, 255, .5); }
+.net-sub { margin: -6px 0 8px; color: #9ac8ff; }
+.select-online { font: 600 15px var(--font); letter-spacing: 1px; color: #9ac8ff; margin-bottom: 4px; text-transform: none; }
+.ol-list { display: flex; flex-direction: column; }
+.ol-msg { color: var(--dim); font-size: 14px; padding: 6px 0; }
+.ol-msg.warn { color: #ffb84a; }
+.ol-room { text-align: left; color: inherit; width: 100%; }
+.ol-names { display: flex; flex-direction: column; gap: 8px; }
+.ol-name { border-left: 4px solid var(--pc); background: #120d20; padding: 8px 10px; }
+.ol-name.ready { background: color-mix(in srgb, var(--pc) 22%, #120d20); }
+.ol-name .pn { font: 700 12px var(--head); color: var(--pc); letter-spacing: 1px; }
+.ol-pick { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
+.ol-label { flex: 1; min-height: 40px; font: 700 20px var(--head); color: #fff; background: rgba(0, 0, 0, .35); border: 2px solid rgba(255, 255, 255, .2); cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.ol-label small { font: 600 10px var(--font); color: var(--dim); letter-spacing: 1px; text-transform: uppercase; }
+.olkbd-back { position: absolute; inset: 0; z-index: 30; display: grid; place-items: center; background: rgba(5, 4, 12, .7); }
+.olkbd { width: min(520px, 96%); background: var(--panel); border: 3px solid var(--pc); padding: 14px; box-shadow: 0 10px 40px rgba(0, 0, 0, .6); }
+.olkbd h3 { margin: 0 0 8px; font: 700 16px var(--head); color: var(--pc); }
+.olkbd-in { width: 100%; box-sizing: border-box; font: 700 22px var(--head); padding: 8px 12px; border: 2px solid rgba(255, 255, 255, .3); background: rgba(0, 0, 0, .35); color: #fff; margin-bottom: 8px; }
+.olkrow { display: flex; gap: 4px; margin-top: 4px; justify-content: center; }
+.olkey { flex: 1; min-width: 0; padding: 8px 0; border: 0; background: rgba(255, 255, 255, .12); color: #fff; font: 700 16px var(--head); cursor: pointer; }
+.olkey.wide { flex: 3; } .olkey.focus { background: #ffd23a; color: #111; }
+.olkhint { display: flex; flex-wrap: wrap; gap: 4px 12px; justify-content: center; margin-top: 8px; font-size: 12px; opacity: .75; }
+.olkhint b { background: rgba(255, 255, 255, .18); padding: 0 5px; }
+.pcards.multi .pcard.remote { width: 180px; padding: 3px 6px 4px; }
+.pcard.remote .name { font-size: 10px; margin-bottom: 2px; }
+.pcard.remote .bar { height: 6px; }
+/* short touch screens (phones in landscape): only the joined slot, and the select screen scrolls */
+body.is-touch .slot:not(.joined) { display: none; }
+@media (max-height: 520px) { .select-wrap { overflow-y: auto; grid-template-rows: auto auto auto; align-content: start; gap: 6px; } }
+/* phones: other players keep their name tags and health bars; the HUD keeps to this screen's cards */
+body.is-touch .pcard.remote { display: none; }
+body.is-touch .net-pill { top: calc(50px + var(--safe-t)); font-size: 10px; }

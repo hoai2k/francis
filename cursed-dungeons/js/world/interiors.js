@@ -479,6 +479,7 @@ export class Interiors {
   }
   spawnPack(b, f, fs) {
     const g = this.game, P = b.infested.floors[f], spots = b.spots[f] ?? [];
+    if (g.net?.isGuest) return;   // visiting: the curses are the host's
     fs.spawned = true;
     const n = P.n;
     for (let i = 0; i < n; i++) {

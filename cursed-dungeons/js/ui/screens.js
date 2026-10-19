@@ -27,6 +27,7 @@ export function openTitle(game) {
       (() => { const n = nextChapter(save), A = n && arc(n.arc), R = REGIONS[save.world?.returnTo?.region ?? save.world?.region]; return h('div', { class: 'title-story' }, (R ? `${R.icon} ${save.world?.returnTo ? 'In a dungeon in' : 'In'} ${R.name} · ` : '') + (n ? `Next · Arc ${A.num}: ${A.title} · Chapter ${n.num}: ${n.title}` : 'Story complete · replay any chapter on a higher threat')); })(),
       h('div', { class: 'title-menu' },
         h('button', { class: 'btn primary', 'data-autofocus': true, onclick: () => { ui.close('title'); openSelect(game); } }, save.stats.missions || save.technique || save.world?.region ? 'Continue' : 'Play'),
+        game.onlineEnabled ? h('button', { class: 'btn', onclick: () => { ui.close('title'); game.openOnline(); } }, '🌐 Online') : null,
         h('button', { class: 'btn', onclick: () => openInstructions(game) }, 'How to Play'),
         h('button', { class: 'btn', onclick: () => openSettings(game) }, 'Settings'),
         h('button', { class: 'btn', onclick: () => toggleFullscreen() }, '⛶ Fullscreen'),
@@ -43,8 +44,11 @@ export function openTitle(game) {
 // you choose any technique.
 const SECRET_CODE = 'frannguy';
 const SPIN_PRICE = 40;
-export function openSelect(game) {
+// o (online joining, js/online/lobby.js): { header, startLabel, maxSlots, onStart(list), onBack() }
+export function openSelect(game, o = {}) {
   const ui = game.ui, d = game.save.data;
+  const back = () => { ui.close('select'); game.exitSelectView?.(); if (o.onBack) o.onBack(); else openTitle(game); };
+  const maxSlots = () => Math.max(1, Math.min(4, typeof o.maxSlots === 'function' ? o.maxSlots() : o.maxSlots ?? 4));
   if (!SORCERERS[d.technique]) { d.technique = SORCERERS[d.lastSorcerer] && d.lastSorcerer !== 'gojo' ? d.lastSorcerer : rollTechnique(); game.save.write(); }
   const slots = game.selectSlots = [{ device: game.input.lastDevice === 'touch' || isMobile ? 'touch' : game.input.lastDevice?.startsWith('pad') ? game.input.lastDevice : 'kbm', char: SORCERER_IDS.indexOf(d.technique), ready: false }];
   game.enterSelectView?.(slots);
@@ -91,13 +95,13 @@ export function openSelect(game) {
     ui.refresh('select');
   };
   const render = (el) => {
-    const top = h('div', { class: 'select-top' }, 'YOUR CURSED TECHNIQUE',
+    const top = h('div', { class: 'select-top' }, o.header ? h('div', { class: 'select-online' }, typeof o.header === 'function' ? o.header() : o.header) : null, 'YOUR CURSED TECHNIQUE',
       h('div', { class: 'spins' }, `🎲 ${d.spins ?? 0} rerolls · ◆ ${d.coins}`));
     const cards = h('div', { class: 'slots' });
     for (let i = 0; i < 4; i++) {
       const s = slots[i];
       const pc = PLAYER_COLORS[i];
-      if (!s) { cards.appendChild(h('div', { class: 'slot', style: `--pc:${pc}` }, h('div', { class: 'pn' }, `P${i + 1}`), h('div', { class: 'empty' }, isMobile ? '—' : 'Press A / Start on a controller to join'))); continue; }
+      if (!s) { cards.appendChild(h('div', { class: 'slot', style: `--pc:${pc}` }, h('div', { class: 'pn' }, `P${i + 1}`), h('div', { class: 'empty' }, isMobile ? '—' : i >= maxSlots() ? 'The game is full' : 'Press A / Start on a controller to join'))); continue; }
       const id = tech(s), info = SORCERERS[id], R = RARITIES[info.rarity ?? 'common'];
       const odds = techniqueOdds(id) * 100;
       cards.appendChild(h('div', { class: 'slot joined' + (s.ready ? ' ready' : '') + (s.spinning ? ' spinning' : '') + ` r-${info.rarity}`, style: `--pc:${pc};--rc:${R.color}` },
@@ -129,16 +133,18 @@ export function openSelect(game) {
       return h('span', { style: `color:${RARITIES[r].color}`, title: n.map((id) => SORCERERS[id].technique).join(', ') }, `${RARITIES[r].label} ${pct.toFixed(1)}%`);
     }));
     const bottom = h('div', { class: 'row', style: 'justify-content:center' },
-      h('button', { class: 'btn', onclick: () => { ui.close('select'); game.exitSelectView?.(); openTitle(game); } }, 'Back'),
-      h('button', { class: 'btn primary', 'data-autofocus': true, onclick: () => start() }, 'Enter Jujutsu High ▶'));
+      h('button', { class: 'btn', onclick: back }, 'Back'),
+      h('button', { class: 'btn primary', 'data-autofocus': true, onclick: () => start() }, o.startLabel ?? 'Enter Jujutsu High ▶'));
     el.appendChild(h('div', { class: 'select-wrap' }, top, cards, odds, codeRow, bottom));
   };
   const start = () => {
     if (slots.some((s) => s.spinning)) return;
+    if (o.onStart && slots.length > maxSlots()) { toast(`The game has room for ${maxSlots()} more player${maxSlots() > 1 ? 's' : ''} from this screen`); game.audio?.ui('back'); return; }
     ui.close('select');
     persist();
     game.exitSelectView?.();
-    game.beginSession(slots.map((s) => ({ device: s.device, sorcerer: tech(s) })));
+    const list = slots.map((s) => ({ device: s.device, sorcerer: tech(s) }));
+    if (o.onStart) o.onStart(list); else game.beginSession(list);
   };
   // gamepads: A/Start to join, X to reroll, stick to choose (with the code), B to leave
   const readPad = (pad) => ({ a: !!pad.buttons[0]?.pressed, b: !!pad.buttons[1]?.pressed, x: !!pad.buttons[2]?.pressed, s: !!pad.buttons[9]?.pressed, l: !!pad.buttons[14]?.pressed || pad.axes[0] < -0.6, r: !!pad.buttons[15]?.pressed || pad.axes[0] > 0.6 });
@@ -155,7 +161,7 @@ export function openSelect(game) {
         const b = readPad(pad);
         const p = prev[id] || {}; prev[id] = b;
         let slot = slots.find((s) => s.device === id);
-        if (!slot && (b.a && !p.a || b.s && !p.s) && slots.length < 4 && !(slots.length === 1 && slots[0].device === id)) {
+        if (!slot && (b.a && !p.a || b.s && !p.s) && slots.length < maxSlots() && !(slots.length === 1 && slots[0].device === id)) {
           slots.push({ device: id, char: SORCERER_IDS.indexOf(rollTechnique()), ready: false });
           game.audio?.ui('buy'); game.enterSelectView?.(slots); ui.refresh('select'); continue;
         }
@@ -163,15 +169,15 @@ export function openSelect(game) {
         if (b.l && !p.l) choose(slot, -1);
         if (b.r && !p.r) choose(slot, 1);
         if (b.x && !p.x) reroll(slot);
-        if (b.a && !p.a) { slot.ready = !slot.ready; ui.refresh('select'); }
+        if (b.a && !p.a) { slot.ready = !slot.ready; ui.refresh('select'); if (o.autoStartWhenReady && slots.every((s) => s.ready)) { start(); return; } }
         if (b.b && !p.b) {
-          if (slot === slots[0]) { ui.close('select'); game.exitSelectView?.(); openTitle(game); return; }
+          if (slot === slots[0]) { back(); return; }
           slots.splice(slots.indexOf(slot), 1); game.enterSelectView?.(slots); ui.refresh('select');
         }
         if (b.s && !p.s && slot === slots[0]) { start(); return; }
       }
     },
-    onBack: () => { ui.close('select'); game.exitSelectView?.(); openTitle(game); },
+    onBack: back,
   });
 }
 

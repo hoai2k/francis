@@ -299,6 +299,7 @@ export class QuestSystem {
   // ---------------------------------------------------------------- events
   onTalk(npcId) {
     const g = this.game;
+    if (g.net?.isGuest) return false;   // visiting: the quests are the host's
     // a talk step for this NPC (hand-ins first)
     for (const id of this.active()) {
       const q = QUESTS[id], s = this.current(id);

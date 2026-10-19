@@ -88,7 +88,8 @@ export class Minimap {
     for (const e of g.enemies) if (!e.dead && !e.isDummy) { const [px, py] = P(e.pos); if (!full && Math.hypot(px - cw / 2, py - ch / 2) > cw / 2) continue; ctx.fillStyle = e.questTag ? '#ff3a3a' : '#d8406a'; ctx.beginPath(); ctx.arc(px, py, e.questTag ? 3.5 : 2, 0, Math.PI * 2); ctx.fill(); }
     const marks = g.quests?.mapMarks(L.regionId, { size: [w.sx, w.sz] }) ?? [];
     for (const m of marks) { if (!m.pos) continue; const v = { x: m.pos[0] * w.sx, z: m.pos[1] * w.sz }; glyph(v, m.kind === 'giver' ? '!' : '◆', m.kind === 'giver' ? '#ffd84a' : m.tracked ? '#ffd84a' : m.main ? '#ffb84a' : '#b8a0ff', m.kind === 'giver' ? 16 : 14); }
-    for (const p of g.players) {
+    for (const p of g.everyone?.() ?? g.players) {
+      if (p.isRemote && !p.inWorld) continue;
       const [px, py] = P(p.pos);
       ctx.save(); ctx.translate(px, py); ctx.rotate(-p.facing + Math.PI);
       ctx.fillStyle = p.color; ctx.strokeStyle = '#000'; ctx.lineWidth = 1.5;
@@ -170,7 +171,8 @@ export class Minimap {
     for (const e of g.enemies) if (!e.dead && !e.isDummy) dot(e.pos.x, e.pos.z, e.isBoss ? '#ff3a3a' : e.elite ? '#ff9aff' : '#d8406a', e.isBoss ? 5 : 2);
     if (g.objectiveDone || full) { const b = L.bossRoom.center; if (g.objectiveDone) dot(b.x, b.z, '#ff3a3a', full ? 7 : 4, 's'); }
     if (g.exitPortal) dot(g.exitPortal.pos.x, g.exitPortal.pos.z, '#7affd8', full ? 7 : 4);
-    for (const p of g.players) {
+    for (const p of g.everyone?.() ?? g.players) {
+      if (p.isRemote && !p.inWorld) continue;
       const px = ox + p.pos.x * scale, py = oy + p.pos.z * scale;
       ctx.save(); ctx.translate(px, py); ctx.rotate(-p.facing + Math.PI);
       ctx.fillStyle = p.color; ctx.strokeStyle = '#000'; ctx.lineWidth = 1.5;

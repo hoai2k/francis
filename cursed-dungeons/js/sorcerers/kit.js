@@ -186,9 +186,10 @@ export class Kit {
           if (s.maxCharges) { s.chargesLeft--; s.gate = s.gateTime ?? 0.3; } else s.cdLeft = s.cd * this.cdr;
           this.p.ce -= ce;
           this.onCast?.(s);
+          this.game.net?.onAbility?.(this.p, s, 'use');   // online: every screen plays it (js/online/net.js)
         }
       }
-      if (s.onRelease && inp.released[k]) s.onRelease();
+      if (s.onRelease && inp.released[k]) { s.onRelease(); this.game.net?.onAbility?.(this.p, s, 'rel'); }
     }
     // F: a Domain Expansion, or for sorcerers without a canon domain, an
     // ultimate attack. Both need a full Cursed Energy bar.
@@ -196,8 +197,8 @@ export class Kit {
       if (this.domainLocked) this.lockedPing('domain');
       else if (this.p.ce >= this.p.maxCe && this.canCast(this.domain ?? this.ultimate)) {
         // another caster's domain can be answered with your own (domain clash: the stronger one wins)
-        if (this.domain && this.game.domain?.caster !== this.p) { if (this.game.startDomain(this.p, this.domain) !== false) this.p.ce = 0; }
-        else if (this.ultimate && this.ultimate.use() !== false) this.p.ce = 0;
+        if (this.domain && this.game.domain?.caster !== this.p) { if (this.game.startDomain(this.p, this.domain) !== false) { this.p.ce = 0; this.game.net?.onAbility?.(this.p, null, 'dom'); } }
+        else if (this.ultimate && this.ultimate.use() !== false) { this.p.ce = 0; this.game.net?.onAbility?.(this.p, null, 'ult'); }
       }
     }
     // timed buffs

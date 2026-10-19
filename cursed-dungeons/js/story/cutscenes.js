@@ -480,6 +480,8 @@ export class Cutscenes {
   play(id, { onEnd = null, opts = {} } = {}) {
     const def = getCutscene(id); if (!def) return false;
     const g = this.game;
+    // online the shared world never stops for a cinematic: skipped (it plays the next time you play alone)
+    if (g.net?.live) return false;
     // a cutscene cut short by another hands its HUD state on, so the HUD always comes back
     if (this.active) { this.active.abort(); this.restore?.(); }
     const hud = g.hud?.root, touch = g.touch?.root;

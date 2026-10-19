@@ -304,6 +304,7 @@ export class Enemy {
     const t = this.pickTarget();
     let move = tmp2.set(0, 0, 0);
     const ai = this.def.ai;
+    if ((this.state === 'windup' || this.state === 'active') && !this.action) this.state = 'idle';   // (an attack cancelled by a stun / seal)
     let skipMove = false;
     if (this.state === 'stagger') {
       if (this.stateT > this.stagger) this.state = 'idle';
