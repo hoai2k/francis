@@ -96,11 +96,11 @@
   </div>
 
   <h2 id="spawns">Custom spawns and Fossils and Archeology</h2>
-  <p>Every spawn is defined in <code>config/extinction/spawns.json</code>. Edit it and run <code>/extinction reload</code>. Entries for mods you don't have are skipped.</p>
-<pre><code>{ "entity": "fossil:triceratops", "phases": ["warning", "impact"],
+  <p>Dinosaurs spawn naturally around you until the asteroid comes, so the world is full of herds to lose. After the event only survivors spawn. Every spawn is defined in <code>config/extinction/spawns.json</code>. Edit it and run <code>/extinction reload</code>. Entries for mods you don't have are skipped.</p>
+<pre><code>{ "entity": "fossil:triceratops", "phases": ["before", "warning", "impact"],
   "weight": 14, "group": [2, 4], "max_nearby": 6, "flee": true }</code></pre>
   <ul>
-    <li><b>spawns</b>: any entity from any mod, by phase, with weight, group size, chance, land/water/air, biome limits, NBT and whether it flees the impact.</li>
+    <li><b>spawns</b>: any entity from any mod, by phase (<code>before</code> and <code>after</code> mean natural spawning outside the event), with weight, group size, chance, land/water/air, biome limits, NBT and whether it flees the impact.</li>
     <li><b>extinct / survivors</b>: who starves in the impact winter, becomes a fossil where it dies and stops spawning naturally (default: all F&amp;A creatures except real K-Pg survivors). Revive them with F&amp;A's analyzer and culture vat.</li>
     <li><b>fossils / deposits</b>: which fossil block each creature leaves, and fossil veins laid into stone, deepslate, sandstone, tuff and calcite during recovery.</li>
   </ul>

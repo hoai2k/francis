@@ -48,17 +48,21 @@ the impact).
 
 ## Custom spawns (and Fossils and Archeology)
 
+Dinosaurs **spawn naturally** around players before the event (every 30 seconds, up to 8 near each player), so the
+world is full of herds until the asteroid comes. After the event, only survivors spawn. Turn it off with
+`naturalSpawns = false` in the config.
+
 All spawns live in **`config/extinction/spawns.json`**, written with defaults the first time the game runs. Edit it and
 run `/extinction reload`. Entries for mods that aren't installed are skipped, so the same file works with or without F&A.
 
 ```json
-{ "entity": "fossil:triceratops", "phases": ["warning", "impact"], "weight": 14, "group": [2, 4], "max_nearby": 6 }
+{ "entity": "fossil:triceratops", "phases": ["before", "warning", "impact"], "weight": 14, "group": [2, 4], "max_nearby": 6 }
 ```
 
 | Field | Meaning |
 |---|---|
 | `entity` | Any entity id, from any mod (`fossil:tyrannosaurus`, `minecraft:rabbit`, ...) |
-| `phases` | `warning`, `impact`, `firestorm`, `volcanism`, `winter`, `recovery`, or `"all"` |
+| `phases` | `before` (natural spawning until the event), `warning`, `impact`, `firestorm`, `volcanism`, `winter`, `recovery`, `after` (natural spawning once it is over), or `"all"` (the six event phases) |
 | `weight`, `group`, `chance` | How often it is picked, how many come together, chance the group actually spawns |
 | `environment` | `land`, `water` or `air` |
 | `flee` | Runs away from the impact during the impact and firestorm (default `true`) |
@@ -72,6 +76,8 @@ The same file also sets:
   afterwards. Patterns: exact id, `namespace:*`, `#tag` or `*`. Default `fossil:*`.
 - `survivors`: exceptions to `extinct`, by default the F&A creatures that are real K-Pg survivors or post-date it.
 - `fossils`: which block a dead creature becomes (default `fossil:fossil_stone`, falling back to bone blocks).
+- `settings`: `natural_interval_seconds` and `natural_max_per_player` for natural spawning, `spawn_interval_seconds`
+  and `max_per_player` during the event.
 - `deposits`: fossil veins laid into the rock during recovery, as host block → fossil block maps
   (stone → `fossil:fossil_stone`, deepslate → `fossil:fossil_deepslate`, sandstone → `fossil:fossil_sandstone`, amber ore, permafrost...).
 
@@ -87,7 +93,7 @@ Clay (drops clay and iridium nuggets), and the Celestial Lure. Tektites smelt in
 
 `config/extinction-common.toml`: phase lengths, impact distance, crater size, shockwave reach and damage, tsunami
 height, ejecta rate, number of volcanoes, and switches for terrain destruction (off = a visual-only apocalypse),
-biome changes, player hazards, the mass extinction and music. `blockBudgetPerTick` and `effectRadius` trade spectacle
+biome changes, player hazards, the mass extinction, natural spawning and music. `blockBudgetPerTick` and `effectRadius` trade spectacle
 for performance. Camera shake follows the vanilla *Distortion Effects* accessibility slider.
 
 ## Building from source
