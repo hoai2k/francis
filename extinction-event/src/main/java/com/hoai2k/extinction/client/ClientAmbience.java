@@ -20,6 +20,10 @@ final class ClientAmbience {
         Player me = mc.player;
         RandomSource r = level.random;
         float p = ClientState.progress();
+        if (ClientState.catastrophe()) {
+            eventAmbience(level, me, r);
+            return;
+        }
         int t = (int) ClientState.phaseTick;
         switch (ClientState.phase) {
             case WARNING -> {
@@ -60,6 +64,41 @@ final class ClientAmbience {
                 particles(level, me, r, ParticleTypes.ASH, 3);
             }
             case RECOVERY -> particles(level, me, r, ParticleTypes.WHITE_ASH, (int) (4 * (1 - p)));
+            default -> {}
+        }
+    }
+
+    private static void eventAmbience(ClientLevel level, Player me, RandomSource r) {
+        int t = (int) ClientState.actTick;
+        switch (ClientState.evAmbient) {
+            case 1 -> particles(level, me, r, ParticleTypes.ASH, 14);
+            case 2 -> {
+                // Blizzard: snow driven sideways.
+                for (int i = 0; i < 26; i++) {
+                    double x = me.getX() + (r.nextDouble() - 0.5) * 30, z = me.getZ() + (r.nextDouble() - 0.5) * 30, y = me.getY() + r.nextDouble() * 10 - 2;
+                    if (level.canSeeSky(BlockPos.containing(x, y, z))) level.addParticle(ParticleTypes.SNOWFLAKE, x, y, z, 0.5 + r.nextDouble() * 0.3, -0.1, 0.15);
+                }
+                particles(level, me, r, ParticleTypes.WHITE_ASH, 10);
+                if (t % 60 == 0) ClientState.play(SoundEvents.ELYTRA_FLYING, 0.5F, 0.5F);
+            }
+            case 3 -> {
+                particles(level, me, r, ParticleTypes.ASH, 8);
+                for (int i = 0; i < 3; i++) {
+                    double x = me.getX() + (r.nextDouble() - 0.5) * 30, z = me.getZ() + (r.nextDouble() - 0.5) * 30, y = me.getY() + 5 + r.nextDouble() * 10;
+                    if (level.canSeeSky(BlockPos.containing(x, y, z))) level.addParticle(ParticleTypes.SMALL_FLAME, x, y, z, 0, -0.06, 0);
+                }
+                if (t % 90 == 0) ClientState.play(SoundEvents.FIRE_AMBIENT, 0.6F, 1F);
+            }
+            case 4 -> {
+                particles(level, me, r, ParticleTypes.MYCELIUM, 16);
+                particles(level, me, r, ParticleTypes.SPORE_BLOSSOM_AIR, 3);
+            }
+            case 5 -> {
+                particles(level, me, r, ParticleTypes.ELECTRIC_SPARK, 6);
+                particles(level, me, r, ParticleTypes.END_ROD, 1);
+            }
+            case 6 -> particles(level, me, r, ParticleTypes.WHITE_ASH, 12);
+            case 7 -> particles(level, me, r, ParticleTypes.ASH, 6);
             default -> {}
         }
     }

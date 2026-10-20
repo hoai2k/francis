@@ -35,7 +35,7 @@ public class CelestialLureItem extends Item {
             player.displayClientMessage(Component.translatable("extinction.lure.wrong_dimension").withStyle(ChatFormatting.RED), true);
             return InteractionResultHolder.fail(stack);
         }
-        if (mgr.data().phase.running()) {
+        if (mgr.data().busy()) {
             player.displayClientMessage(Component.translatable("extinction.lure.already").withStyle(ChatFormatting.RED), true);
             return InteractionResultHolder.fail(stack);
         }

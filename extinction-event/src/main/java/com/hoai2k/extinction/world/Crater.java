@@ -21,11 +21,12 @@ public final class Crater {
     private Crater() {}
 
     public static void enqueue(BlockQueue queue, ExtinctionData d, Runnable onDone) {
-        int R = ExtinctionConfig.CRATER_RADIUS.get();
-        int D = ExtinctionConfig.CRATER_DEPTH.get();
+        enqueue(queue, d.impact, d.impactGroundY, ExtinctionConfig.CRATER_RADIUS.get(), ExtinctionConfig.CRATER_DEPTH.get(), onDone);
+    }
+
+    /** Any crater: centre, ground height there, radius R and depth D. */
+    public static void enqueue(BlockQueue queue, BlockPos c, int baseY, int R, int D, Runnable onDone) {
         int outer = (int) Math.ceil(R * 1.45);
-        BlockPos c = d.impact;
-        int baseY = d.impactGroundY;
         List<int[]> cols = new ArrayList<>();
         for (int dx = -outer; dx <= outer; dx++)
             for (int dz = -outer; dz <= outer; dz++)

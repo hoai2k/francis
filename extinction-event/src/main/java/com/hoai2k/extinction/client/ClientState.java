@@ -4,6 +4,7 @@ import com.hoai2k.extinction.ExtinctionConfig;
 import com.hoai2k.extinction.Phase;
 import com.hoai2k.extinction.net.FxMsg;
 import com.hoai2k.extinction.net.StateMsg;
+import com.hoai2k.extinction.world.Markers;
 import com.hoai2k.extinction.world.Shockwave;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
@@ -36,6 +37,17 @@ public final class ClientState {
     public static int craterRadius = 48;
     public static int shockRadius = 640;
     public static List<Vec3> vents = List.of();
+    /** Ticks since each vent last erupted (for the eruption burst). */
+    public static float[] ventBlast = new float[0];
+
+    // The other catastrophes: which one, which act, and how that act looks.
+    public static String event = "";
+    public static int act = -1, actLength = 1;
+    public static float actTick;
+    public static float evTint, evR = 1, evG = 1, evB = 1, evFog = 0.35F, evQuake;
+    public static int evMusic, evAmbient;
+    public static List<Markers.Marker> markers = new ArrayList<>();
+    private static String musicKey = "";
 
     // Transient effects, all 0..1 unless noted.
     public static float flash, flashPrev;
@@ -62,10 +74,16 @@ public final class ClientState {
     /** True when the event's effects should show for the local player (overworld only). */
     public static boolean active() {
         Minecraft mc = Minecraft.getInstance();
-        return mc.level != null && mc.level.dimension() == Level.OVERWORLD && (phase.running() || flash > 0 || tint > 0.01F);
+        return mc.level != null && mc.level.dimension() == Level.OVERWORLD
+                && (phase.running() || catastrophe() || flash > 0 || tint > 0.01F || !markers.isEmpty());
+    }
+
+    public static boolean catastrophe() {
+        return !event.isEmpty() && act >= 0;
     }
 
     public static float progress() {
+        if (catastrophe()) return Mth.clamp(actTick / Math.max(1, actLength), 0, 1);
         return Mth.clamp(phaseTick / Math.max(1, phaseLength), 0, 1);
     }
 
@@ -81,6 +99,24 @@ public final class ClientState {
         craterRadius = m.craterRadius();
         shockRadius = m.shockRadius();
         vents = m.vents().stream().map(v -> new Vec3(v.getX() + 0.5, v.getY(), v.getZ() + 0.5)).toList();
+        if (ventBlast.length != vents.size()) {
+            ventBlast = new float[vents.size()];
+            java.util.Arrays.fill(ventBlast, 9999);
+        }
+        event = m.event();
+        act = m.act();
+        actTick = m.actTick();
+        actLength = Math.max(1, m.actLength());
+        evTint = m.tint();
+        evR = m.r();
+        evG = m.g();
+        evB = m.b();
+        evFog = m.fog();
+        evMusic = m.music();
+        evAmbient = m.ambient();
+        evQuake = m.quake();
+        markers = new ArrayList<>(m.markers());
+        if (catastrophe()) eventMusic();
         if (old != phase) onPhaseChange(old);
     }
 
@@ -91,7 +127,7 @@ public final class ClientState {
         double dist = Math.sqrt(me.distanceToSqr(m.x(), me.getY(), m.z()));
         switch (m.type()) {
             case FxMsg.FLASH -> {
-                flash = (float) Mth.clamp(1.3 - dist / 2500.0, 0.35, 1.0);
+                flash = (float) Mth.clamp(1.3 - dist / 2500.0, 0.35, 1.0) * Math.max(0.2F, Math.min(1F, m.strength()));
                 flashHold = (int) (30 * flash);
                 burn = flash;
                 // The ground shakes before the air blast arrives; at the flash itself, only a ringing silence.
@@ -117,6 +153,15 @@ public final class ClientState {
                     later(k * 14, () -> play(roll, 0.3F + 0.1F * fade, fade));
                 }
             }
+            case FxMsg.PYRO_HIT -> {
+                float i = m.strength();
+                shake = Math.max(shake, 0.8F + 1.5F * i);
+                dust = Math.max(dust, 0.6F + 0.3F * i);
+                burn = Math.max(burn, 0.7F);
+                play(SoundEvents.FIRE_AMBIENT, 0.5F, 1F);
+                play(SoundEvents.GENERIC_EXPLODE, 0.3F, 0.8F);
+                play(SoundEvents.LAVA_AMBIENT, 0.4F, 1F);
+            }
             case FxMsg.TITLE -> {
                 title = Component.translatable(m.title());
                 subtitle = m.subtitle().isEmpty() ? null : Component.translatable(m.subtitle());
@@ -126,8 +171,12 @@ public final class ClientState {
                 else if (!m.title().endsWith(".impact")) play(SoundEvents.RAID_HORN.value(), 0.5F, 0.7F);
             }
             case FxMsg.ERUPTION -> {
-                float near = (float) Mth.clamp(1 - dist / 600.0, 0, 1);
-                shake = Math.max(shake, 0.2F + near);
+                float near = (float) Mth.clamp(1 - dist / 700.0, 0, 1);
+                shake = Math.max(shake, 0.3F + 2.2F * near);
+                for (int k = 0; k < vents.size(); k++) {
+                    if (vents.get(k).distanceToSqr(m.x(), m.y(), m.z()) < 400) ventBlast[k] = 0;
+                }
+                if (near > 0.3F) play(SoundEvents.WARDEN_SONIC_BOOM, 0.4F, 0.6F * near);
                 me.level().playLocalSound(m.x(), m.y(), m.z(), SoundEvents.GENERIC_EXPLODE, SoundSource.BLOCKS, 12F, 0.35F, false);
                 me.level().playLocalSound(m.x(), m.y(), m.z(), SoundEvents.LIGHTNING_BOLT_THUNDER, SoundSource.WEATHER, 12F, 0.5F, false);
                 me.level().playLocalSound(m.x(), m.y(), m.z(), SoundEvents.LAVA_POP, SoundSource.BLOCKS, 8F, 0.5F, false);
@@ -160,6 +209,9 @@ public final class ClientState {
         if (!mc.isPaused()) {
             if (phase.running()) phaseTick++;
             if (detonated) sinceImpact++;
+            if (catastrophe()) actTick++;
+            for (Markers.Marker mk : markers) mk.age++;
+            for (int k = 0; k < ventBlast.length; k++) ventBlast[k]++;
         }
         flashPrev = flash;
         dustPrev = dust;
@@ -215,6 +267,7 @@ public final class ClientState {
         float p = progress();
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null || mc.level.dimension() != Level.OVERWORLD) return new float[]{0, tintR, tintG, tintB};
+        if (catastrophe()) return new float[]{evTint, evR, evG, evB};
         return switch (phase) {
             case WARNING -> new float[]{p > 0.7F ? (p - 0.7F) * 0.5F : 0, 0.9F, 0.55F, 0.35F};
             case IMPACT -> detonated ? new float[]{Math.min(0.7F, 0.2F + sinceImpact / 200F), 0.95F, 0.32F, 0.08F} : new float[]{0.12F, 0.9F, 0.5F, 0.3F};
@@ -228,6 +281,7 @@ public final class ClientState {
 
     /** Base rumble from the phase, plus any recent quake or blast. */
     public static float shakeNow() {
+        if (catastrophe()) return evQuake * 0.5F + shake;
         float p = progress();
         float base = switch (phase) {
             case WARNING -> p > 0.6F ? (p - 0.6F) * 0.3F : 0;
@@ -241,6 +295,25 @@ public final class ClientState {
 
     public static double shockRadiusNow() {
         return craterRadius + sinceImpact * Shockwave.SPEED;
+    }
+
+    private static void eventMusic() {
+        String key = event + act;
+        if (key.equals(musicKey) || !ExtinctionConfig.CHANGE_MUSIC.get()) return;
+        musicKey = key;
+        Holder<SoundEvent> track = switch (evMusic) {
+            case 1 -> SoundEvents.MUSIC_DRAGON;
+            case 2 -> SoundEvents.MUSIC_BIOME_BASALT_DELTAS;
+            case 3 -> SoundEvents.MUSIC_BIOME_DEEP_DARK;
+            case 4 -> SoundEvents.MUSIC_BIOME_FOREST;
+            case 5 -> SoundEvents.MUSIC_UNDER_WATER;
+            case 6 -> SoundEvents.MUSIC_END;
+            default -> null;
+        };
+        if (track == null) return;
+        Minecraft mc = Minecraft.getInstance();
+        mc.getMusicManager().stopPlaying();
+        mc.getMusicManager().startPlaying(new Music(track, 0, 0, true));
     }
 
     private static void onPhaseChange(Phase old) {

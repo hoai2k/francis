@@ -1,5 +1,6 @@
 package com.hoai2k.extinction;
 
+import com.hoai2k.extinction.event.Catastrophes;
 import com.hoai2k.extinction.spawn.SpawnRules;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.StringArgumentType;
@@ -14,7 +15,7 @@ import net.minecraft.server.level.ColumnPos;
 
 import java.util.Arrays;
 
-/** /extinction start [x z] | stop | skip | phase <name> | status | reload */
+/** /extinction start [x z] | event <name> [x z] | events | random | stop | skip | phase <name> | status | reload */
 public final class ExtinctionCommand {
     private ExtinctionCommand() {}
 
@@ -30,6 +31,21 @@ public final class ExtinctionCommand {
                             ctx.getSource().sendSuccess(() -> Component.translatable("extinction.command.started", col.x(), col.z()), true);
                             return 1;
                         })))
+                .then(Commands.literal("event").then(Commands.argument("name", StringArgumentType.word())
+                        .suggests((ctx, b) -> SharedSuggestionProvider.suggest(Catastrophes.ids(), b))
+                        .executes(ctx -> startEvent(ctx, StringArgumentType.getString(ctx, "name"), null))
+                        .then(Commands.argument("at", ColumnPosArgument.columnPos())
+                                .executes(ctx -> startEvent(ctx, StringArgumentType.getString(ctx, "name"), ColumnPosArgument.getColumnPos(ctx, "at"))))))
+                .then(Commands.literal("events").executes(ctx -> {
+                    ctx.getSource().sendSuccess(() -> Component.translatable("extinction.command.events", "asteroid, " + String.join(", ", Catastrophes.ids())), false);
+                    return 1;
+                }))
+                .then(Commands.literal("random").executes(ctx -> {
+                    ExtinctionManager m = mgr(ctx);
+                    if (m == null) return 0;
+                    String id = m.randomEvent();
+                    return id.equals("asteroid") ? startNear(ctx) : startEvent(ctx, id, null);
+                }))
                 .then(Commands.literal("stop").executes(ctx -> {
                     ExtinctionManager m = mgr(ctx);
                     if (m == null) return 0;
@@ -40,12 +56,13 @@ public final class ExtinctionCommand {
                 .then(Commands.literal("skip").executes(ctx -> {
                     ExtinctionManager m = mgr(ctx);
                     if (m == null) return 0;
-                    if (!m.data().phase.running()) {
+                    if (!m.data().busy()) {
                         ctx.getSource().sendFailure(Component.translatable("extinction.command.not_running"));
                         return 0;
                     }
                     m.skip();
-                    ctx.getSource().sendSuccess(() -> Component.translatable("extinction.command.phase", m.data().phase.id()), true);
+                    String now = m.data().catastrophe() ? m.data().event + " act " + (m.data().act + 1) : m.data().phase.id();
+                    ctx.getSource().sendSuccess(() -> Component.translatable("extinction.command.phase", now), true);
                     return 1;
                 }))
                 .then(Commands.literal("phase").then(Commands.argument("name", StringArgumentType.word())
@@ -78,6 +95,27 @@ public final class ExtinctionCommand {
                     for (String problem : r.problems) ctx.getSource().sendFailure(Component.literal(problem));
                     return 1;
                 })));
+    }
+
+    private static int startEvent(CommandContext<CommandSourceStack> ctx, String id, ColumnPos at) {
+        ExtinctionManager m = mgr(ctx);
+        if (m == null) return 0;
+        if (id.equals("asteroid")) {
+            if (at == null) return startNear(ctx);
+            m.start(ctx.getSource().getServer(), new BlockPos(at.x(), 0, at.z()));
+            return 1;
+        }
+        if (Catastrophes.get(id) == null) {
+            ctx.getSource().sendFailure(Component.translatable("extinction.command.unknown_event", id));
+            return 0;
+        }
+        boolean ok = at == null ? m.startEventNearPlayers(id) : m.startEvent(id, new BlockPos(at.x(), 0, at.z()));
+        if (!ok) {
+            ctx.getSource().sendFailure(Component.translatable("extinction.command.no_players"));
+            return 0;
+        }
+        ctx.getSource().sendSuccess(() -> Component.translatable("extinction.command.event_started", Component.translatable("extinction.event." + id)), true);
+        return 1;
     }
 
     private static int startNear(CommandContext<CommandSourceStack> ctx) {

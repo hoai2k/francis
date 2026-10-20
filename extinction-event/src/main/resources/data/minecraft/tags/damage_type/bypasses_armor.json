@@ -3,6 +3,10 @@
   "values": [
     "extinction:extinction",
     "extinction:acid_rain",
-    "extinction:impact"
+    "extinction:impact",
+    "extinction:radiation",
+    "extinction:toxic",
+    "extinction:cold",
+    "extinction:pyroclastic"
   ]
 }

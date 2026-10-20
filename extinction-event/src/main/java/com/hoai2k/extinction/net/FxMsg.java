@@ -15,6 +15,8 @@ public record FxMsg(int type, double x, double y, double z, float strength, Stri
     public static final int ERUPTION = 3;
     public static final int QUAKE = 4;
     public static final int TSUNAMI = 5;
+    public static final int PYRO_HIT = 6;
+    public static final int METEOR_STRIKE = 7;
 
     public static FxMsg at(int type, double x, double y, double z, float strength) {
         return new FxMsg(type, x, y, z, strength, "", "");

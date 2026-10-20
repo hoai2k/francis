@@ -1,0 +1,29 @@
+{
+  "has_precipitation": true,
+  "temperature": 1.2,
+  "downfall": 0.4,
+  "effects": {
+    "sky_color": 9085032,
+    "fog_color": 8032344,
+    "water_color": 6957690,
+    "water_fog_color": 2755120,
+    "grass_color": 6978112,
+    "foliage_color": 5925424,
+    "mood_sound": {
+      "sound": "minecraft:ambient.cave",
+      "tick_delay": 6000,
+      "block_search_extent": 8,
+      "offset": 2.0
+    },
+    "particle": {
+      "options": {
+        "type": "minecraft:mycelium"
+      },
+      "probability": 0.02
+    }
+  },
+  "spawners": {},
+  "spawn_costs": {},
+  "carvers": {},
+  "features": []
+}

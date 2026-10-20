@@ -33,6 +33,10 @@ public class MeteorEntity extends Entity {
     private static final EntityDataAccessor<BlockState> BLOCK = SynchedEntityData.defineId(MeteorEntity.class, EntityDataSerializers.BLOCK_STATE);
 
     private double gravity = 0.02;
+    /** Leaves a lava source where it lands (volcanic bombs). */
+    private boolean lava;
+    /** Explosion size multiplier. */
+    private float power = 1F;
 
     public MeteorEntity(EntityType<? extends MeteorEntity> type, Level level) {
         super(type, level);
@@ -48,6 +52,14 @@ public class MeteorEntity extends Entity {
         m.gravity = gravity;
         level.addFreshEntity(m);
         return m;
+    }
+
+    public void setLava(boolean lava) {
+        this.lava = lava;
+    }
+
+    public void setPower(float power) {
+        this.power = power;
     }
 
     public static BlockState randomLook(RandomSource rnd) {
@@ -112,7 +124,7 @@ public class MeteorEntity extends Entity {
 
     private void impact(ServerLevel level, Vec3 at, BlockPos blockPos) {
         boolean destroy = ExtinctionConfig.DESTROY_TERRAIN.get();
-        float power = 1.5F + size() * 1.6F;
+        float power = (1.5F + size() * 1.6F) * this.power;
         level.explode(this, DamageTypes.source(level, DamageTypes.EJECTA), null, at.x, at.y, at.z, power, destroy,
                 destroy ? Level.ExplosionInteraction.TNT : Level.ExplosionInteraction.NONE);
         if (destroy) {
@@ -124,6 +136,10 @@ public class MeteorEntity extends Entity {
                     level.setBlock(q, random.nextFloat() < 0.3F ? Blocks.MAGMA_BLOCK.defaultBlockState() : look(), Block.UPDATE_ALL);
                 }
             }
+        }
+        if (destroy && lava) {
+            BlockPos p = BlockPos.containing(at).above();
+            if (level.getBlockState(p).isAir() || level.getBlockState(p).canBeReplaced()) level.setBlock(p, Blocks.LAVA.defaultBlockState(), Block.UPDATE_ALL);
         }
         discard();
     }
@@ -142,6 +158,8 @@ public class MeteorEntity extends Entity {
     protected void readAdditionalSaveData(CompoundTag tag) {
         entityData.set(SIZE, tag.getFloat("Size"));
         gravity = tag.getDouble("Gravity");
+        lava = tag.getBoolean("Lava");
+        power = tag.contains("Power") ? tag.getFloat("Power") : 1F;
         entityData.set(BLOCK, NbtUtils.readBlockState(level().holderLookup(net.minecraft.core.registries.Registries.BLOCK), tag.getCompound("Look")));
     }
 
@@ -149,6 +167,8 @@ public class MeteorEntity extends Entity {
     protected void addAdditionalSaveData(CompoundTag tag) {
         tag.putFloat("Size", size());
         tag.putDouble("Gravity", gravity);
+        tag.putBoolean("Lava", lava);
+        tag.putFloat("Power", power);
         tag.put("Look", NbtUtils.writeBlockState(look()));
     }
 

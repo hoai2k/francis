@@ -14,6 +14,7 @@ import net.minecraft.tags.BlockTags;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.item.FallingBlockEntity;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.LiquidBlock;
@@ -26,51 +27,83 @@ import net.minecraftforge.common.Tags;
 import java.util.ArrayDeque;
 
 /**
- * The megatsunami. A wall of real water rolls out from the impact over every low-lying column near
- * a player, sweeps creatures inland, then runs off and drains away behind the front.
+ * One wave of a megatsunami. A wall of real water rolls out from the source over every low-lying
+ * column near a player, smashing trees and houses into floating wreckage and sweeping creatures
+ * inland, then runs off and drains away behind the front. Tsunamis come in trains of waves.
  */
 public final class Tsunami {
     /** Blocks per tick (9 blocks a second). */
     public static final double SPEED = 0.45;
     private static final int REACH = 120;
     private static final int LINGER_TICKS = 90;
-    private static final int BUDGET = 4000;
+    private static final int BUDGET = 4500;
 
     /** Falling water: it has no source, so it runs off and dries up by itself once the wave has passed. */
     private static final BlockState WAVE = Blocks.WATER.defaultBlockState().setValue(LiquidBlock.LEVEL, 8);
 
     private record Column(int x, int z, int fromY, int toY, int placedAt) {}
 
+    public final BlockPos center;
+    public final double inner, max, speed;
+    /** Crest height above sea level at the start; it falls to 35% by max. */
+    public final int height;
+    private int age;
+    /** Whether this wave puts the MEGATSUNAMI card on screen (only the first of a train does). */
+    public boolean announce = true;
     private final ArrayDeque<Column> wet = new ArrayDeque<>();
     private final IntOpenHashSet hit = new IntOpenHashSet();
     private final IntOpenHashSet warned = new IntOpenHashSet();
-    private int clock;
 
-    public static double frontAt(int tick) {
-        return ExtinctionConfig.CRATER_RADIUS.get() * 1.4 + tick * SPEED;
+    /** age < 0 delays the wave (the second and third waves of a train). */
+    public Tsunami(BlockPos center, double inner, double max, int height, double speed, int age) {
+        this.center = center;
+        this.inner = inner;
+        this.max = max;
+        this.height = height;
+        this.speed = speed;
+        this.age = age;
     }
 
-    public static double maxRadius() {
-        return ExtinctionConfig.SHOCKWAVE_RADIUS.get() * 0.85;
+    /** The asteroid's wave train: three waves, each smaller than the last. */
+    public static Tsunami[] impactTrain(BlockPos center) {
+        int h = ExtinctionConfig.TSUNAMI_HEIGHT.get();
+        double inner = ExtinctionConfig.CRATER_RADIUS.get() * 1.4, max = ExtinctionConfig.SHOCKWAVE_RADIUS.get() * 0.9;
+        Tsunami[] train = {
+                new Tsunami(center, inner, max, h, SPEED, 0),
+                new Tsunami(center, inner, max, (int) (h * 0.75), SPEED, -360),
+                new Tsunami(center, inner, max, (int) (h * 0.55), SPEED, -720)};
+        train[1].announce = false;
+        train[2].announce = false;
+        return train;
     }
 
-    public void reset() {
-        wet.clear();
-        hit.clear();
-        warned.clear();
+    public double front() {
+        return inner + age * speed;
+    }
+
+    public int age() {
+        return age;
+    }
+
+    public int crest(ServerLevel level) {
+        float fall = (float) Mth.clamp((front() - inner) / (max - inner), 0, 1);
+        return level.getSeaLevel() + (int) Math.round(height * (1 - 0.65 * fall));
+    }
+
+    public boolean finished() {
+        return front() > max && wet.isEmpty();
     }
 
     /** Removes the water the wave left behind, oldest first. */
     public void drain(ServerLevel level, boolean all) {
-        clock++;
         int spent = 0;
         BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
-        while (!wet.isEmpty() && spent < BUDGET && (all || clock - wet.peek().placedAt() > LINGER_TICKS)) {
+        while (!wet.isEmpty() && spent < BUDGET && (all || age - wet.peek().placedAt() > LINGER_TICKS)) {
             Column c = wet.poll();
             if (!Terrain.loaded(level, c.x(), c.z())) continue;
             for (int y = c.toY() + 1; y >= c.fromY(); y--) {
                 pos.set(c.x(), y, c.z());
-                if (level.getBlockState(pos).is(Blocks.WATER)) {
+                if (level.getBlockState(pos).is(Blocks.WATER) && !level.getFluidState(pos).isSource()) {
                     // Full updates, so any water that spread sideways recedes too instead of hanging in the air.
                     level.setBlock(pos, Blocks.AIR.defaultBlockState(), Block.UPDATE_ALL);
                     spent++;
@@ -79,25 +112,22 @@ public final class Tsunami {
         }
     }
 
-    public void tick(ServerLevel level, BlockPos c, int tick) {
-        int height = ExtinctionConfig.TSUNAMI_HEIGHT.get();
-        if (height <= 0) return;
-        double r0 = frontAt(tick - 1), r1 = frontAt(tick), max = maxRadius();
+    public void tick(ServerLevel level) {
+        age++;
+        drain(level, false);
+        if (height <= 0 || age <= 0) return;
+        double r0 = inner + (age - 1) * speed - 1.5, r1 = front();
         if (r0 > max) return;
-        int R = ExtinctionConfig.CRATER_RADIUS.get();
-        int sea = level.getSeaLevel();
+        BlockPos c = center;
+        int top = crest(level);
         boolean destroy = ExtinctionConfig.DESTROY_TERRAIN.get();
         LongOpenHashSet done = new LongOpenHashSet();
-        int spent = 0;
+        int spent = 0, wreck = 30;
         BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
         for (ServerPlayer p : Terrain.players(level)) {
             double pd = Terrain.distXZ(c, p.getX(), p.getZ());
             if (pd > r1 + REACH || pd < r0 - REACH) continue;
-            if (pd < r1 + 160 && warned.add(p.getId())) {
-                Net.to(p, FxMsg.at(FxMsg.TSUNAMI, c.getX(), sea, c.getZ(), 1));
-            }
-            float fall = (float) Mth.clamp((r1 - R) / (max - R), 0, 1);
-            int top = sea + (int) Math.round(height * (1 - 0.65 * fall));
+            if (announce && pd < r1 + 200 && warned.add(p.getId())) Net.to(p, FxMsg.at(FxMsg.TSUNAMI, c.getX(), top, c.getZ(), 1));
             if (destroy) {
                 int px = p.getBlockX(), pz = p.getBlockZ();
                 for (int x = px - REACH; x <= px + REACH && spent < BUDGET; x++) {
@@ -117,18 +147,28 @@ public final class Tsunami {
                             BlockState s = level.getBlockState(pos);
                             if (s.is(Blocks.WATER) && s.getFluidState().isSource()) continue;
                             if (Terrain.isProtected(level, pos, s)) continue;
+                            boolean wood = s.is(BlockTags.LOGS) || s.is(BlockTags.PLANKS) || s.is(BlockTags.WOODEN_FENCES) || s.is(BlockTags.WOOL);
+                            if (wood && wreck > 0 && level.random.nextFloat() < 0.35F) {
+                                // Smashed into wreckage riding the wave.
+                                FallingBlockEntity fb = FallingBlockEntity.fall(level, pos.immutable(), s);
+                                fb.dropItem = false;
+                                fb.setDeltaMovement(dx / r * 1.2, 0.6 + level.random.nextDouble() * 0.5, dz / r * 1.2);
+                                wreck--;
+                                continue;
+                            }
                             boolean weak = s.isAir() || Terrain.isPlant(s) || s.is(Blocks.WATER) || s.is(BlockTags.LEAVES)
-                                    || s.is(Tags.Blocks.GLASS_PANES) || (s.is(BlockTags.LOGS) && level.random.nextFloat() < 0.2F);
+                                    || s.is(Tags.Blocks.GLASS_PANES) || s.is(Tags.Blocks.GLASS) || (wood && level.random.nextFloat() < 0.5F)
+                                    || s.is(BlockTags.SAND) && y > floor - 1 && level.random.nextFloat() < 0.3F;
                             if (!weak) continue;
                             level.setBlock(pos, WAVE, Block.UPDATE_CLIENTS);
                             from = Math.min(from, y);
                             spent++;
                         }
                         if (from != Integer.MAX_VALUE) {
-                            wet.add(new Column(x, z, from, top, clock));
-                            if (level.random.nextFloat() < 0.03F) {
-                                level.sendParticles(ParticleTypes.SPLASH, x + 0.5, top + 1, z + 0.5, 12, 0.6, 0.4, 0.6, 0.1);
-                                level.sendParticles(ParticleTypes.CLOUD, x + 0.5, top + 1, z + 0.5, 2, 0.5, 0.5, 0.5, 0.05);
+                            wet.add(new Column(x, z, from, top, age));
+                            if (level.random.nextFloat() < 0.05F) {
+                                level.sendParticles(p, ParticleTypes.SPLASH, true, x + 0.5, top + 1, z + 0.5, 20, 0.8, 0.6, 0.8, 0.2);
+                                level.sendParticles(p, ParticleTypes.CLOUD, true, x + 0.5, top + 1.5, z + 0.5, 4, 0.8, 0.8, 0.8, 0.08);
                             }
                         }
                     }
@@ -141,15 +181,16 @@ public final class Tsunami {
     private void sweep(ServerLevel level, ServerPlayer near, BlockPos c, double r0, double r1, int top) {
         AABB box = near.getBoundingBox().inflate(REACH, 48, REACH);
         boolean hazards = ExtinctionConfig.PLAYER_HAZARDS.get();
-        for (Entity e : level.getEntities((Entity) null, box, e -> e.isAlive() && !e.isSpectator() && e.getY() < top + 2)) {
+        for (Entity e : level.getEntities((Entity) null, box, e -> e.isAlive() && !e.isSpectator() && e.getY() < top + 3)) {
             double r = Terrain.distXZ(c, e.getX(), e.getZ());
-            if (r < r0 - 8 || r >= r1 + 1) continue;
+            if (r < r0 - 10 || r >= r1 + 1) continue;
             if (e instanceof ServerPlayer sp && (!hazards || (sp.isCreative() || sp.isSpectator()))) continue;
             Vec3 dir = new Vec3(e.getX() - c.getX(), 0, e.getZ() - c.getZ()).normalize();
-            e.push(dir.x * 0.9, 0.15, dir.z * 0.9);
+            e.push(dir.x * 1.6, 0.3, dir.z * 1.6);
             e.hurtMarked = true;
             if (e instanceof LivingEntity le && hit.add(e.getId())) {
-                le.hurt(DamageTypes.source(level, DamageTypes.TSUNAMI), 6.0F);
+                le.hurt(DamageTypes.source(level, DamageTypes.TSUNAMI), 10.0F);
+                le.setAirSupply(Math.min(le.getAirSupply(), 20));
             }
         }
     }

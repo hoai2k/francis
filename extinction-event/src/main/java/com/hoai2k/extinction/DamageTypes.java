@@ -12,6 +12,11 @@ public final class DamageTypes {
     public static final ResourceKey<DamageType> IMPACT = key("impact");
     public static final ResourceKey<DamageType> SHOCKWAVE = key("shockwave");
     public static final ResourceKey<DamageType> TSUNAMI = key("tsunami");
+    public static final ResourceKey<DamageType> PYRO = key("pyroclastic");
+    public static final ResourceKey<DamageType> RADIATION = key("radiation");
+    public static final ResourceKey<DamageType> COLD = key("cold");
+    public static final ResourceKey<DamageType> TOXIC = key("toxic");
+    public static final ResourceKey<DamageType> TORNADO = key("tornado");
     public static final ResourceKey<DamageType> EJECTA = key("ejecta");
     public static final ResourceKey<DamageType> HEAT = key("heat");
     public static final ResourceKey<DamageType> ACID_RAIN = key("acid_rain");

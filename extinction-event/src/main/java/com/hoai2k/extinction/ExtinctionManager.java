@@ -17,6 +17,11 @@ import com.hoai2k.extinction.world.Shockwave;
 import com.hoai2k.extinction.world.Terrain;
 import com.hoai2k.extinction.world.Tsunami;
 import com.hoai2k.extinction.world.Volcanoes;
+import com.hoai2k.extinction.world.Markers;
+import com.hoai2k.extinction.world.Scene;
+import com.hoai2k.extinction.event.Act;
+import com.hoai2k.extinction.event.Catastrophe;
+import com.hoai2k.extinction.event.Catastrophes;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.ParticleTypes;
@@ -40,8 +45,10 @@ public final class ExtinctionManager {
 
     private final MinecraftServer server;
     private final BlockQueue queue = new BlockQueue();
-    private final Shockwave shockwave = new Shockwave();
-    private final Tsunami tsunami = new Tsunami();
+    private final Markers markers = new Markers();
+    private Scene scene;
+    /** The asteroid's shockwave while it is still travelling. */
+    private Shockwave impactBlast;
     private final SpawnDirector spawns = new SpawnDirector();
     private final ChunkSweep biomeSweep = new ChunkSweep();
     private final ChunkSweep fossilSweep = new ChunkSweep();
@@ -70,6 +77,14 @@ public final class ExtinctionManager {
 
     public ExtinctionData data() {
         return ExtinctionData.get(level());
+    }
+
+    /** The live scene for the overworld (rebuilt if the level or its saved data object changed). */
+    public Scene scene() {
+        ServerLevel level = level();
+        ExtinctionData d = data();
+        if (scene == null || scene.level != level || scene.data != d) scene = new Scene(level, d, queue, markers);
+        return scene;
     }
 
     public SpawnRules rules() {
@@ -106,7 +121,7 @@ public final class ExtinctionManager {
 
     public void stop() {
         ExtinctionData d = data();
-        tsunami.drain(level(), true);
+        scene().drainWaves();
         d.reset();
         clearRuntime();
         level().setWeatherParameters(6000, 0, false, false);
@@ -115,7 +130,118 @@ public final class ExtinctionManager {
 
     public void skip() {
         ExtinctionData d = data();
-        if (d.phase.running()) advance(d);
+        if (d.catastrophe()) nextAct(d);
+        else if (d.phase.running()) advance(d);
+    }
+
+    // ---------------------------------------------------------------- the other catastrophes
+
+    /** Starts a catastrophe aimed at center (only x and z are used). Returns false for an unknown id. */
+    public boolean startEvent(String id, BlockPos center) {
+        Catastrophe c = Catastrophes.get(id);
+        if (c == null) return false;
+        ExtinctionData d = data();
+        scene().drainWaves();
+        d.reset();
+        clearRuntime();
+        ServerLevel level = level();
+        level.getChunk(center.getX() >> 4, center.getZ() >> 4);
+        d.center = new BlockPos(center.getX(), Terrain.groundY(level, center.getX(), center.getZ()), center.getZ());
+        d.event = id;
+        d.act = 0;
+        d.actTick = 0;
+        d.setDirty();
+        c.begin(scene());
+        c.enter(scene(), 0);
+        actTitle(c.acts().get(0));
+        syncAll(d);
+        ExtinctionMod.LOG.info("Catastrophe {} started at {} {}", id, center.getX(), center.getZ());
+        return true;
+    }
+
+    /** Starts a catastrophe (or the asteroid, for "asteroid") impactDistance blocks from the first player. */
+    public boolean startEventNearPlayers(String id) {
+        List<ServerPlayer> players = Terrain.players(level());
+        if (players.isEmpty()) return false;
+        if (id.equals("asteroid")) return startNearPlayers();
+        ServerPlayer p = players.get(0);
+        double a = level().random.nextDouble() * Math.PI * 2;
+        int dist = ExtinctionConfig.IMPACT_DISTANCE.get();
+        return startEvent(id, BlockPos.containing(p.getX() + Math.cos(a) * dist, p.getY(), p.getZ() + Math.sin(a) * dist));
+    }
+
+    /** "asteroid" or a random catastrophe id. */
+    public String randomEvent() {
+        List<String> ids = new ArrayList<>();
+        ids.add("asteroid");
+        Catastrophes.ids().forEach(ids::add);
+        return ids.get(level().random.nextInt(ids.size()));
+    }
+
+    private void nextAct(ExtinctionData d) {
+        Catastrophe c = Catastrophes.get(d.event);
+        if (c == null || d.act + 1 >= c.acts().size()) {
+            finishEvent(d, c);
+            return;
+        }
+        d.act++;
+        d.actTick = 0;
+        d.setDirty();
+        c.enter(scene(), d.act);
+        actTitle(c.acts().get(d.act));
+        syncAll(d);
+    }
+
+    private void finishEvent(ExtinctionData d, Catastrophe c) {
+        if (c != null) {
+            c.end(scene());
+            titleRaw("extinction.event." + c.id + ".end", "extinction.event." + c.id + ".end.sub", 7);
+            c.reset();
+        }
+        scene().drainWaves();
+        scene().blasts.clear();
+        scene().waves.clear();
+        markers.clear();
+        d.event = "";
+        d.act = -1;
+        d.actTick = 0;
+        d.setDirty();
+        level().setWeatherParameters(12000, 0, false, false);
+        syncAll(d);
+    }
+
+    private void tickCatastrophe(ExtinctionData d, long time) {
+        ServerLevel level = level();
+        Catastrophe c = Catastrophes.get(d.event);
+        if (c == null) {
+            finishEvent(d, null);
+            return;
+        }
+        Act act = c.acts().get(Math.min(d.act, c.acts().size() - 1));
+        d.actTick++;
+        d.setDirty();
+        float p = Math.min(1F, d.actTick / (float) act.lengthTicks());
+        c.tick(scene(), d.act, d.actTick, p);
+        Earthquake.tick(level, queue, act.quake, time);
+        if (time % 100 == 0) {
+            switch (act.weather) {
+                case Act.WEATHER_CLEAR -> level.setWeatherParameters(6000, 0, false, false);
+                case Act.WEATHER_RAIN -> level.setWeatherParameters(0, 6000, true, false);
+                case Act.WEATHER_THUNDER -> level.setWeatherParameters(0, 6000, true, true);
+                default -> {}
+            }
+        }
+        if (d.act == 0 && time % 40 == 0) spawns.stampedeFrom(level, d.center, 1.6);
+        if (act.dieOff > 0 && ExtinctionConfig.MASS_EXTINCTION.get() && time % 100 == 0) spawns.dieOffNow(level, act.dieOff);
+        if (act.biome != null && ExtinctionConfig.TRANSFORM_BIOMES.get()) {
+            biomeSweep.tick(level, d.event + ":" + d.act, ExtinctionConfig.EFFECT_RADIUS.get() / 16 + 1, 4,
+                    (lvl, cp) -> biomes.shift(lvl, cp, act.biome, d.center, 0));
+        }
+        if (d.actTick >= act.lengthTicks()) nextAct(d);
+    }
+
+    private void actTitle(Act act) {
+        titleRaw(act.titleKey(), act.titleKey() + ".sub", 6);
     }
 
     public void jumpTo(Phase phase) {
@@ -129,14 +255,23 @@ public final class ExtinctionManager {
 
     private void clearRuntime() {
         queue.clear();
-        shockwave.reset();
-        tsunami.reset();
+        scene().clear();
+        impactBlast = null;
+        Catastrophes.all().forEach(Catastrophe::reset);
         biomeSweep.reset();
         fossilSweep.reset();
     }
 
     public String status() {
         ExtinctionData d = data();
+        if (d.catastrophe()) {
+            Catastrophe c = Catastrophes.get(d.event);
+            Act act = c == null ? null : c.acts().get(Math.min(d.act, c.acts().size() - 1));
+            int left = act == null ? 0 : Math.max(0, act.lengthTicks() - d.actTick) / 20;
+            return "Event: " + d.event + ", act " + (d.act + 1) + "/" + (c == null ? 0 : c.acts().size()) + " " + (act == null ? "" : act.key)
+                    + " (" + left + "s left), centre " + d.center.getX() + " " + d.center.getZ() + ", " + scene().blasts.size() + " blasts, "
+                    + scene().waves.size() + " waves, " + queue.size() + " block jobs, volcanoes " + d.volcanoes.size() + ".";
+        }
         if (!d.phase.running()) return "Phase: " + d.phase.id() + ". " + spawns.rules().summary();
         int left = Math.max(0, d.phase.lengthTicks() - d.phaseTick) / 20;
         return "Phase: " + d.phase.id() + " (" + left + "s left), impact at " + d.impact.getX() + " " + d.impact.getZ()
@@ -149,7 +284,7 @@ public final class ExtinctionManager {
 
     public void onDeath(LivingEntity e) {
         ExtinctionData d = data();
-        if (d.phase.ordinal() < Phase.IMPACT.ordinal() || !d.phase.running()) return;
+        if (!d.catastrophe() && (d.phase.ordinal() < Phase.IMPACT.ordinal() || !d.phase.running())) return;
         if (e.level() != level() || d.deaths.size() >= 256 || !spawns.rules().isExtinct(e.getType())) return;
         d.deaths.add(new ExtinctionData.Death(e.blockPosition(), String.valueOf(ForgeRegistries.ENTITY_TYPES.getKey(e.getType()))));
         d.setDirty();
@@ -178,14 +313,27 @@ public final class ExtinctionManager {
         }
         long time = level.getGameTime();
         int autoDay = ExtinctionConfig.AUTO_START_DAY.get();
-        if (autoDay >= 0 && d.phase == Phase.DORMANT && !d.autoStarted && level.getDayTime() / 24000L >= autoDay) {
-            if (startNearPlayers()) {
+        if (autoDay >= 0 && !d.busy() && !d.autoStarted && level.getDayTime() / 24000L >= autoDay) {
+            String which = ExtinctionConfig.AUTO_START_EVENT.get();
+            if (which.equals("random")) which = randomEvent();
+            if (startEventNearPlayers(Catastrophes.get(which) != null ? which : "asteroid")) {
                 d.autoStarted = true;
                 d.setDirty();
             }
         }
+        if (d.catastrophe()) {
+            tickCatastrophe(d, time);
+            scene().tickFronts();
+            markers.tick();
+            int budget = ExtinctionConfig.BLOCK_BUDGET.get();
+            queue.tick(level, budget * 2);
+            biomes.flush(level);
+            if (time % 20 == 0) syncAll(d);
+            return;
+        }
         if (!d.phase.running()) {
             if (ExtinctionConfig.NATURAL_SPAWNS.get()) spawns.natural(level, d.phase, time);
+            if (!scene().waves.isEmpty() || !scene().blasts.isEmpty()) scene().tickFronts();
             return;
         }
 
@@ -197,7 +345,11 @@ public final class ExtinctionManager {
         if (phase == Phase.IMPACT && !d.detonated && d.phaseTick >= Phase.DESCENT_TICKS) detonate(d);
         if (d.detonated) {
             d.sinceImpact++;
-            shockwave.tick(level, d.impact, d.sinceImpact);
+            if (impactBlast == null && !Shockwave.impactFinished(d.sinceImpact)) impactBlast = Shockwave.impact(d.impact, d.sinceImpact - 1);
+            if (impactBlast != null) {
+                impactBlast.tick(level);
+                if (impactBlast.finished()) impactBlast = null;
+            }
             if (d.sinceImpact == 40) title("impact");
             if (d.sinceImpact < 900 && d.sinceImpact % 3 == 0) ejectaRain(level, d);
         }
@@ -207,14 +359,10 @@ public final class ExtinctionManager {
 
         switch (phase) {
             case WARNING -> narrate(d, p);
-            case FIRESTORM -> {
-                tsunami.tick(level, d.impact, d.phaseTick);
-                tsunami.drain(level, false);
-                Firestorm.tick(level, d.impact, 1F - 0.6F * p, d.phaseTick);
-            }
+            case FIRESTORM -> Firestorm.tick(level, d.impact, 1F - 0.6F * p, d.phaseTick);
             case VOLCANISM -> {
-                tsunami.drain(level, true);
-                Volcanoes.tick(level, d, queue, d.phaseTick);
+                if (d.phaseTick == 1) scene().drainWaves();
+                Volcanoes.tick(scene(), d.phaseTick, 1.6F);
                 Atmosphere.ashFall(level, 0.3F + 0.5F * p);
                 if (p > 0.15F) Atmosphere.acidRain(level, time);
             }
@@ -232,6 +380,8 @@ public final class ExtinctionManager {
             default -> {}
         }
 
+        scene().tickFronts();
+        markers.tick();
         spawns.tick(level, phase, p, d.impact, d.detonated, time);
         shiftBiomes(level, d, p);
         // The crater opens in seconds, not minutes.
@@ -298,17 +448,22 @@ public final class ExtinctionManager {
         switch (phase) {
             case WARNING -> title("warning");
             case FIRESTORM -> {
-                tsunami.reset();
+                // A train of three waves, each smaller than the last.
+                for (Tsunami w : Tsunami.impactTrain(d.impact)) {
+                    scene().waves.add(w);
+                    markers.add(Markers.WAVE, net.minecraft.world.phys.Vec3.atCenterOf(d.impact.atY(level.getSeaLevel())), (float) w.inner,
+                            (float) w.speed, w.height, w.age(), (int) ((w.max - w.inner) / w.speed) - w.age());
+                }
                 title("firestorm");
             }
             case VOLCANISM -> {
-                if (d.volcanoes.isEmpty()) Volcanoes.create(level, d);
+                if (d.volcanoes.isEmpty()) Volcanoes.create(scene(), ExtinctionConfig.VOLCANO_COUNT.get(), 80, 130, 48, 78);
                 title("volcanism");
             }
             case WINTER -> title("winter");
             case RECOVERY -> title("recovery");
             case OVER -> {
-                tsunami.drain(level, true);
+                scene().drainWaves();
                 if (ExtinctionConfig.DESTROY_TERRAIN.get() && !d.fossilsLaid) {
                     for (ExtinctionData.Death death : new ArrayList<>(d.deaths)) FossilLayers.bury(level, death, spawns.rules(), level.random);
                     d.deaths.clear();
@@ -332,7 +487,7 @@ public final class ExtinctionManager {
         d.detonated = true;
         d.sinceImpact = 0;
         d.setDirty();
-        shockwave.reset();
+        impactBlast = Shockwave.impact(d.impact, 0);
         BlockPos at = d.impact;
         for (ServerPlayer p : level.players()) {
             Net.to(p, FxMsg.at(FxMsg.FLASH, at.getX() + 0.5, at.getY(), at.getZ() + 0.5, 1));
@@ -433,14 +588,18 @@ public final class ExtinctionManager {
     // ---------------------------------------------------------------- messages
 
     private void title(String key) {
-        FxMsg msg = FxMsg.title("extinction.title." + key, "extinction.subtitle." + key, key.equals("impact") ? 7 : 6);
+        titleRaw("extinction.title." + key, "extinction.subtitle." + key, key.equals("impact") ? 7 : 6);
+    }
+
+    private void titleRaw(String key, String sub, float seconds) {
+        FxMsg msg = FxMsg.title(key, sub, seconds);
         for (ServerPlayer p : server.getPlayerList().getPlayers()) {
             if (Net.CHANNEL.isRemotePresent(p.connection.connection)) {
                 Net.to(p, msg);
                 continue;
             }
             // Players without the mod installed still get the story in chat.
-            p.sendSystemMessage(Component.translatable("extinction.title." + key).withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD));
+            p.sendSystemMessage(Component.translatable(key).withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD));
         }
     }
 
@@ -457,10 +616,19 @@ public final class ExtinctionManager {
     }
 
     private StateMsg state(ExtinctionData d) {
+        Act act = null;
+        if (d.catastrophe()) {
+            Catastrophe c = Catastrophes.get(d.event);
+            if (c != null) act = c.acts().get(Math.min(d.act, c.acts().size() - 1));
+        }
         return new StateMsg(d.phase.ordinal(), d.phaseTick, d.phase.lengthTicks(), d.impact,
                 d.impactGroundY == Integer.MIN_VALUE ? d.impact.getY() : d.impactGroundY, d.approachYaw,
                 d.detonated, d.sinceImpact, ExtinctionConfig.CRATER_RADIUS.get(), ExtinctionConfig.SHOCKWAVE_RADIUS.get(),
-                d.volcanoes.stream().map(v -> ExtinctionConfig.DESTROY_TERRAIN.get() ? v.vent() : v.base.above(v.height)).toList());
+                d.volcanoes.stream().map(Volcanoes::vent).toList(),
+                act == null ? "" : d.event, act == null ? -1 : d.act, d.actTick, act == null ? 1 : act.lengthTicks(),
+                act == null ? 0 : act.tint, act == null ? 1 : act.r, act == null ? 1 : act.g, act == null ? 1 : act.b,
+                act == null ? 0.35F : act.fog, act == null ? 0 : act.music, act == null ? 0 : act.ambient, act == null ? 0 : act.quake,
+                List.copyOf(markers.all()));
     }
 
     private void syncAll(ExtinctionData d) {

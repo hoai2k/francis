@@ -158,6 +158,15 @@ public final class SpawnDirector {
         level.addFreshEntityWithPassengers(ent);
     }
 
+    /** Animals flee from a point (the other catastrophes' centre). */
+    public void stampedeFrom(ServerLevel level, BlockPos from, double speed) {
+        stampede(level, from, speed);
+    }
+
+    public void dieOffNow(ServerLevel level, float severity) {
+        dieOff(level, severity);
+    }
+
     /** Animals sense it coming and run for their lives, away from the impact. */
     private static void stampede(ServerLevel level, BlockPos impact, double speed) {
         for (ServerPlayer p : Terrain.players(level)) {

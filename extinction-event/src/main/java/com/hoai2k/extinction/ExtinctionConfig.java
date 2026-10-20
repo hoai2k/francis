@@ -7,6 +7,9 @@ public final class ExtinctionConfig {
     public static final ForgeConfigSpec SPEC;
 
     public static final ForgeConfigSpec.IntValue AUTO_START_DAY;
+    public static final ForgeConfigSpec.ConfigValue<String> AUTO_START_EVENT;
+    public static final ForgeConfigSpec.DoubleValue EVENT_LENGTH_SCALE;
+    public static final ForgeConfigSpec.IntValue FLOOD_HEIGHT;
     public static final ForgeConfigSpec.IntValue WARNING_SECONDS;
     public static final ForgeConfigSpec.IntValue IMPACT_SECONDS;
     public static final ForgeConfigSpec.IntValue FIRESTORM_SECONDS;
@@ -38,6 +41,12 @@ public final class ExtinctionConfig {
         b.comment("When the extinction happens and how long each phase lasts").push("timeline");
         AUTO_START_DAY = b.comment("Start the event on its own on this in-game day (-1 = only by command or Celestial Lure)")
                 .defineInRange("autoStartDay", -1, -1, 100000);
+        AUTO_START_EVENT = b.comment("Which event autoStartDay starts: asteroid (the dinosaur extinction), random, or one of",
+                        "great_dying, snowball_earth, supervolcano, gamma_ray_burst, solar_superflare, great_deluge,",
+                        "tornado_outbreak, comet_swarm, great_rift, shattered_moon")
+                .define("autoStartEvent", "asteroid");
+        EVENT_LENGTH_SCALE = b.comment("Multiplies the length of every act of the other catastrophes (not the asteroid's phases)")
+                .defineInRange("eventLengthScale", 1.0, 0.1, 20.0);
         WARNING_SECONDS = b.comment("A new star grows in the sky, animals panic, the ground trembles")
                 .defineInRange("warningSeconds", 240, 10, 36000);
         IMPACT_SECONDS = b.comment("Asteroid descent, impact flash, crater and shockwave (at least 40)")
@@ -62,7 +71,9 @@ public final class ExtinctionConfig {
         SHOCKWAVE_DAMAGE = b.comment("Damage dealt by the shockwave right at the crater rim (it fades with distance). Lethal out in the open near the crater; get underground")
                 .defineInRange("shockwaveDamage", 44.0, 0.0, 1000.0);
         TSUNAMI_HEIGHT = b.comment("Height of the megatsunami above sea level near the crater (0 = no tsunami)")
-                .defineInRange("tsunamiHeight", 26, 0, 120);
+                .defineInRange("tsunamiHeight", 48, 0, 160);
+        FLOOD_HEIGHT = b.comment("How far above sea level the Great Deluge floods the land")
+                .defineInRange("floodHeight", 34, 2, 120);
         EJECTA_PER_MINUTE = b.comment("Burning ejecta meteors per player per minute during the firestorm")
                 .defineInRange("ejectaPerMinute", 60, 0, 1200);
         VOLCANO_COUNT = b.comment("Deccan Traps volcanoes raised during the volcanism phase")

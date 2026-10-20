@@ -43,6 +43,9 @@ public final class ClientEvents {
         public static void logout(ClientPlayerNetworkEvent.LoggingOut e) {
             ClientState.phase = Phase.DORMANT;
             ClientState.detonated = false;
+            ClientState.event = "";
+            ClientState.act = -1;
+            ClientState.markers = new java.util.ArrayList<>();
             ClientState.title = null;
         }
 
@@ -67,7 +70,7 @@ public final class ClientEvents {
             float s = Mth.lerp((float) e.getPartialTick(), ClientState.tintPrev, ClientState.tint);
             if (s < 0.01F) return;
             // Thick but not blinding: the crater and the plume should stay visible through it.
-            float thick = ClientState.phase == Phase.WINTER ? 0.6F : 0.35F;
+            float thick = ClientState.catastrophe() ? ClientState.evFog : ClientState.phase == Phase.WINTER ? 0.6F : ClientState.phase == Phase.VOLCANISM ? 0.2F : 0.35F;
             float far = Mth.lerp(s * thick, e.getFarPlaneDistance(), 56F);
             e.setFarPlaneDistance(far);
             e.setNearPlaneDistance(Math.min(e.getNearPlaneDistance(), far * 0.05F));

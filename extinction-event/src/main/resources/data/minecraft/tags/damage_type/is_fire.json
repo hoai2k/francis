@@ -2,6 +2,7 @@
   "replace": false,
   "values": [
     "extinction:heat",
-    "extinction:ejecta"
+    "extinction:ejecta",
+    "extinction:pyroclastic"
   ]
 }

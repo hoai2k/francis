@@ -16,6 +16,11 @@ public class ExtinctionData extends SavedData {
     private static final String NAME = "extinction_event";
 
     public Phase phase = Phase.DORMANT;
+    /** The running catastrophe other than the asteroid ("" = none), its act and ticks into the act. */
+    public String event = "";
+    public int act = -1;
+    public int actTick;
+    public BlockPos center = BlockPos.ZERO;
     public int phaseTick;
     public BlockPos impact = BlockPos.ZERO;
     /** Ground height at the impact site, sampled when the asteroid hits. */
@@ -31,6 +36,15 @@ public class ExtinctionData extends SavedData {
     public final List<Volcano> volcanoes = new ArrayList<>();
     /** Where extinct creatures died; their fossils form there during recovery. */
     public final List<Death> deaths = new ArrayList<>();
+
+    /** True while any event (the asteroid or another catastrophe) is under way. */
+    public boolean busy() {
+        return phase.running() || catastrophe();
+    }
+
+    public boolean catastrophe() {
+        return !event.isEmpty() && act >= 0;
+    }
 
     public static ExtinctionData get(ServerLevel overworld) {
         return overworld.getDataStorage().computeIfAbsent(ExtinctionData::load, ExtinctionData::new, NAME);
@@ -64,6 +78,10 @@ public class ExtinctionData extends SavedData {
         Phase p = Phase.byId(tag.getString("phase"));
         d.phase = p == null ? Phase.DORMANT : p;
         d.phaseTick = tag.getInt("phaseTick");
+        d.event = tag.getString("event");
+        d.act = tag.contains("act") ? tag.getInt("act") : -1;
+        d.actTick = tag.getInt("actTick");
+        d.center = NbtUtils.readBlockPos(tag.getCompound("center"));
         d.impact = NbtUtils.readBlockPos(tag.getCompound("impact"));
         d.impactGroundY = tag.contains("impactGroundY") ? tag.getInt("impactGroundY") : Integer.MIN_VALUE;
         d.approachYaw = tag.getFloat("approachYaw");
@@ -89,6 +107,10 @@ public class ExtinctionData extends SavedData {
     public CompoundTag save(CompoundTag tag) {
         tag.putString("phase", phase.id());
         tag.putInt("phaseTick", phaseTick);
+        tag.putString("event", event);
+        tag.putInt("act", act);
+        tag.putInt("actTick", actTick);
+        tag.put("center", NbtUtils.writeBlockPos(center));
         tag.put("impact", NbtUtils.writeBlockPos(impact));
         if (impactGroundY != Integer.MIN_VALUE) tag.putInt("impactGroundY", impactGroundY);
         tag.putFloat("approachYaw", approachYaw);
@@ -122,6 +144,9 @@ public class ExtinctionData extends SavedData {
     public void reset() {
         phase = Phase.DORMANT;
         phaseTick = 0;
+        event = "";
+        act = -1;
+        actTick = 0;
         detonated = false;
         sinceImpact = 0;
         craterDone = false;

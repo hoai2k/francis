@@ -15,27 +15,33 @@ public class BlockQueue {
     }
 
     private final ArrayDeque<Task> tasks = new ArrayDeque<>();
+    /** Jobs that must not wait behind a big crater (rising volcanoes). */
+    private final ArrayDeque<Task> urgent = new ArrayDeque<>();
 
     public void add(Task task) {
         tasks.add(task);
     }
 
+    public void addUrgent(Task task) {
+        urgent.add(task);
+    }
+
     public void tick(ServerLevel level, int budget) {
         int spent = 0;
-        while (spent < budget && !tasks.isEmpty()) {
-            spent += Math.max(1, tasks.poll().run(level));
-        }
+        while (spent < budget && !urgent.isEmpty()) spent += Math.max(1, urgent.poll().run(level));
+        while (spent < budget && !tasks.isEmpty()) spent += Math.max(1, tasks.poll().run(level));
     }
 
     public boolean isEmpty() {
-        return tasks.isEmpty();
+        return tasks.isEmpty() && urgent.isEmpty();
     }
 
     public int size() {
-        return tasks.size();
+        return tasks.size() + urgent.size();
     }
 
     public void clear() {
         tasks.clear();
+        urgent.clear();
     }
 }

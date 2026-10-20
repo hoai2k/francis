@@ -55,7 +55,7 @@ final class CinematicOverlay {
         float left = ClientState.secondsToImpact();
         if (left > 0 && left <= 10F) countdown(g, font, w, h, left);
         if (ClientState.title != null) titleCard(g, font, w, h, pt);
-        if (!mc.options.hideGui && ClientState.phase.running() && ClientState.title == null) hud(g, font, w);
+        if (!mc.options.hideGui && (ClientState.phase.running() || ClientState.catastrophe()) && ClientState.title == null) hud(g, font, w);
     }
 
     private static void titleCard(GuiGraphics g, Font font, int w, int h, float pt) {
@@ -97,7 +97,9 @@ final class CinematicOverlay {
 
     private static void hud(GuiGraphics g, Font font, int w) {
         Component label;
-        if (ClientState.phase == Phase.WARNING) {
+        if (ClientState.catastrophe()) {
+            label = Component.translatable("extinction.hud.act", Component.translatable("extinction.event." + ClientState.event), ClientState.act + 1);
+        } else if (ClientState.phase == Phase.WARNING) {
             int secs = Math.max(0, (int) ((ClientState.phaseLength - ClientState.phaseTick) / 20) + Phase.DESCENT_TICKS / 20);
             label = Component.translatable("extinction.hud.countdown", secs / 60, String.format("%02d", secs % 60));
         } else {

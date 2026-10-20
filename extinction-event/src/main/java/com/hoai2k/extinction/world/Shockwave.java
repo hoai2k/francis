@@ -27,31 +27,61 @@ import net.minecraftforge.common.Tags;
 
 import java.util.List;
 
-/** The air blast racing out from the crater: flattens forests, shatters glass, throws debris and creatures. */
+/**
+ * A blast front racing outward from a point. BLAST is an air blast (the impact shockwave, airbursts):
+ * it flattens forests and buildings, throws debris and creatures. PYRO is a pyroclastic flow: a
+ * searing avalanche of ash and gas that burns everything it rolls over and buries it in ash.
+ */
 public final class Shockwave {
-    /** Blocks per tick (about 32 blocks a second). */
+    /** Speed of the impact shockwave, in blocks per tick (about 32 blocks a second). */
     public static final double SPEED = 1.6;
     private static final int REACH = 112;
 
+    public enum Kind { BLAST, PYRO }
+
+    public final BlockPos center;
+    public final double inner, max, damage, speed;
+    public final Kind kind;
+    private int age;
     private final IntOpenHashSet hit = new IntOpenHashSet();
 
-    public static double radiusAt(int sinceImpact) {
-        return ExtinctionConfig.CRATER_RADIUS.get() + sinceImpact * SPEED;
+    public Shockwave(BlockPos center, double inner, double max, double damage, double speed, Kind kind, int age) {
+        this.center = center;
+        this.inner = inner;
+        this.max = max;
+        this.damage = damage;
+        this.speed = speed;
+        this.kind = kind;
+        this.age = age;
     }
 
-    public boolean finished(int sinceImpact) {
-        return radiusAt(sinceImpact) > ExtinctionConfig.SHOCKWAVE_RADIUS.get();
+    /** The asteroid's shockwave, using the config's crater and shockwave sizes. */
+    public static Shockwave impact(BlockPos center, int age) {
+        return new Shockwave(center, ExtinctionConfig.CRATER_RADIUS.get(), ExtinctionConfig.SHOCKWAVE_RADIUS.get(),
+                ExtinctionConfig.SHOCKWAVE_DAMAGE.get(), SPEED, Kind.BLAST, age);
     }
 
-    public void reset() {
-        hit.clear();
+    public static boolean impactFinished(int sinceImpact) {
+        return ExtinctionConfig.CRATER_RADIUS.get() + sinceImpact * SPEED > ExtinctionConfig.SHOCKWAVE_RADIUS.get();
     }
 
-    public void tick(ServerLevel level, BlockPos c, int sinceImpact) {
-        if (finished(sinceImpact)) return;
-        double r0 = radiusAt(sinceImpact - 1), r1 = radiusAt(sinceImpact);
-        int R = ExtinctionConfig.CRATER_RADIUS.get();
-        double max = ExtinctionConfig.SHOCKWAVE_RADIUS.get();
+    public double radius(int a) {
+        return inner + a * speed;
+    }
+
+    public int age() {
+        return age;
+    }
+
+    public boolean finished() {
+        return radius(age) > max;
+    }
+
+    public void tick(ServerLevel level) {
+        age++;
+        if (finished()) return;
+        BlockPos c = center;
+        double r0 = radius(age - 1), r1 = radius(age);
         boolean destroy = ExtinctionConfig.DESTROY_TERRAIN.get();
         RandomSource rnd = level.random;
         LongOpenHashSet done = new LongOpenHashSet();
@@ -68,15 +98,17 @@ public final class Shockwave {
                         double r = Math.sqrt(dx * dx + dz * dz);
                         if (r < r0 || r >= r1) continue;
                         if (!done.add(BlockPos.asLong(x, 0, z)) || !Terrain.loaded(level, x, z)) continue;
-                        column(level, x, z, dx / r, dz / r, intensity(r, R, max), rnd, fly);
+                        float I = intensity(r, inner, max);
+                        if (kind == Kind.PYRO) pyroColumn(level, x, z, I, rnd);
+                        else column(level, x, z, r < 1 ? 1 : dx / r, r < 1 ? 0 : dz / r, I, rnd, fly);
                     }
                 }
             }
-            hitEntities(level, p, c, r0, r1, R, max);
+            hitEntities(level, p, c, r0, r1);
         }
     }
 
-    private static float intensity(double r, int R, double max) {
+    private static float intensity(double r, double R, double max) {
         double i = Mth.clamp(1 - (r - R) / (max - R), 0, 1);
         return (float) Math.pow(i, 1.3);
     }
@@ -140,6 +172,42 @@ public final class Shockwave {
         }
     }
 
+    /** Everything the flow touches burns; what is left is buried in hot ash. */
+    private static void pyroColumn(ServerLevel level, int x, int z, float I, RandomSource rnd) {
+        int top = Terrain.topY(level, x, z);
+        BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
+        for (int y = top; y > top - 14 && y > level.getMinBuildHeight(); y--) {
+            pos.set(x, y, z);
+            BlockState s = level.getBlockState(pos);
+            if (s.isAir()) continue;
+            if (Terrain.isProtected(level, pos, s)) break;
+            if (s.is(Blocks.WATER) && s.getFluidState().isSource() && rnd.nextFloat() < 0.5F * I) {
+                // Shallow water flashes to steam.
+                level.setBlock(pos, Blocks.AIR.defaultBlockState(), Block.UPDATE_CLIENTS);
+                continue;
+            }
+            if (!s.getFluidState().isEmpty()) break;
+            if (s.is(BlockTags.LEAVES) || Terrain.isPlant(s)) {
+                level.setBlock(pos, Blocks.AIR.defaultBlockState(), Block.UPDATE_CLIENTS);
+            } else if (s.is(BlockTags.LOGS) || s.is(BlockTags.PLANKS) || s.is(BlockTags.WOOL)) {
+                level.setBlock(pos, rnd.nextFloat() < 0.5F ? Blocks.AIR.defaultBlockState()
+                        : (rnd.nextBoolean() ? Blocks.BASALT : Blocks.BLACKSTONE).defaultBlockState(), Block.UPDATE_CLIENTS);
+            } else if (s.is(Tags.Blocks.GLASS) || s.is(Tags.Blocks.GLASS_PANES)) {
+                level.destroyBlock(pos, false);
+            } else {
+                if (Terrain.isGrassy(s) || s.is(Blocks.DIRT)) level.setBlock(pos, ModRegistry.SCORCHED_EARTH.get().defaultBlockState(), Block.UPDATE_CLIENTS);
+                BlockPos above = pos.above();
+                if (level.getBlockState(above).isAir()) {
+                    int layers = 1 + (int) (I * 5 * rnd.nextFloat());
+                    BlockState ash = ModRegistry.ASH_LAYER.get().defaultBlockState().setValue(net.minecraft.world.level.block.SnowLayerBlock.LAYERS, Math.min(8, layers));
+                    level.setBlock(above, rnd.nextFloat() < 0.15F ? Blocks.FIRE.defaultBlockState() : ash, Block.UPDATE_CLIENTS);
+                }
+                if (rnd.nextFloat() < 0.01F) level.sendParticles(ParticleTypes.LARGE_SMOKE, x + 0.5, y + 2, z + 0.5, 4, 1, 1, 1, 0.05);
+                break;
+            }
+        }
+    }
+
     private static boolean isNaturalGround(BlockState s) {
         return s.is(BlockTags.DIRT) || s.is(BlockTags.SAND) || s.is(Blocks.GRAVEL) || s.is(BlockTags.BASE_STONE_OVERWORLD)
                 || s.is(Blocks.CLAY) || s.is(BlockTags.TERRACOTTA) || s.is(Tags.Blocks.SANDSTONE) || s.is(Blocks.SNOW_BLOCK)
@@ -154,24 +222,33 @@ public final class Shockwave {
         fb.setDeltaMovement(nx * sp, 0.4 + I * 0.9 + rnd.nextDouble() * 0.3, nz * sp);
     }
 
-    private void hitEntities(ServerLevel level, ServerPlayer near, BlockPos c, double r0, double r1, int R, double max) {
+    private void hitEntities(ServerLevel level, ServerPlayer near, BlockPos c, double r0, double r1) {
         AABB box = near.getBoundingBox().inflate(REACH, 64, REACH);
         List<LivingEntity> list = level.getEntitiesOfClass(LivingEntity.class, box, e -> e.isAlive() && (!e.isSpectator() || e instanceof ServerPlayer));
         boolean hazards = ExtinctionConfig.PLAYER_HAZARDS.get();
         for (LivingEntity e : list) {
             double r = Terrain.distXZ(c, e.getX(), e.getZ());
             if (r < r0 - 2 || r >= r1 + 2 || !hit.add(e.getId())) continue;
-            float I = intensity(r, R, max);
+            float I = intensity(r, inner, max);
             boolean sheltered = !level.canSeeSky(e.blockPosition().above());
             float shield = sheltered ? 0.35F : 1F;
             Vec3 dir = new Vec3(e.getX() - c.getX(), 0, e.getZ() - c.getZ()).normalize();
             if (e instanceof ServerPlayer sp) {
-                Net.to(sp, FxMsg.at(FxMsg.SHOCK_HIT, c.getX(), c.getY(), c.getZ(), I));
+                Net.to(sp, FxMsg.at(kind == Kind.PYRO ? FxMsg.PYRO_HIT : FxMsg.SHOCK_HIT, c.getX(), c.getY(), c.getZ(), I));
                 if (!hazards || (sp.isCreative() || sp.isSpectator())) continue;
+            }
+            if (kind == Kind.PYRO) {
+                // Hundreds of degrees: cover barely helps.
+                float burn = (float) (damage * (0.4F + 0.6F * I) * (sheltered ? 0.6F : 1F));
+                e.hurt(DamageTypes.source(level, DamageTypes.PYRO), burn);
+                e.setSecondsOnFire(10);
+                e.push(dir.x * 0.8, 0.2, dir.z * 0.8);
+                e.hurtMarked = true;
+                continue;
             }
             e.push(dir.x * (0.6 + 5.0 * I) * shield, (0.4 + 1.8 * I) * shield, dir.z * (0.6 + 5.0 * I) * shield);
             e.hurtMarked = true;
-            float dmg = (float) (ExtinctionConfig.SHOCKWAVE_DAMAGE.get() * I * shield);
+            float dmg = (float) (damage * I * shield);
             if (dmg > 0.5F) e.hurt(DamageTypes.source(level, DamageTypes.SHOCKWAVE), dmg);
             if (I > 0.5F) e.setSecondsOnFire((int) (8 * I * shield));
             if (I > 0.25F) {

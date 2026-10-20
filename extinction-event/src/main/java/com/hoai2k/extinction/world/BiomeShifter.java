@@ -23,6 +23,11 @@ public final class BiomeShifter {
     public static final ResourceKey<Biome> ASH = key("ash_wastes");
     public static final ResourceKey<Biome> FROZEN = key("frozen_ashlands");
     public static final ResourceKey<Biome> FERN_SPIKE = key("fern_spike");
+    public static final ResourceKey<Biome> HOTHOUSE = key("hothouse");
+    public static final ResourceKey<Biome> ANOXIC = key("anoxic_sea");
+    public static final ResourceKey<Biome> GLACIAL = key("glacial");
+    public static final ResourceKey<Biome> IRRADIATED = key("irradiated");
+    public static final ResourceKey<Biome> STORM = key("storm");
 
     private final List<ChunkAccess> pending = new ArrayList<>();
 
