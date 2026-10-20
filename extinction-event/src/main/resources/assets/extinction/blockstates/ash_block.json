@@ -1,0 +1,22 @@
+{
+  "variants": {
+    "": [
+      {
+        "model": "extinction:block/ash_block",
+        "y": 0
+      },
+      {
+        "model": "extinction:block/ash_block",
+        "y": 90
+      },
+      {
+        "model": "extinction:block/ash_block",
+        "y": 180
+      },
+      {
+        "model": "extinction:block/ash_block",
+        "y": 270
+      }
+    ]
+  }
+}

@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Extinction Event</title>
+<meta name="description" content="A cinematic Minecraft Forge 1.20.1 mod that simulates the dinosaur extinction, with custom spawns for Fossils and Archeology.">
+<style>
+  :root {
+    --bg: #0f0b0a; --panel: #1b1412; --line: #3a2a24; --text: #f1e8e2; --muted: #b9a79d;
+    --accent: #e2572a; --accent2: #f4b860; --ok: #8fc97a;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  a { color: var(--accent2); }
+  .hero { position: relative; min-height: 78vh; display: flex; align-items: flex-end; overflow: hidden; }
+  .hero img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; filter: saturate(1.15); }
+  .hero::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(15,11,10,.1) 30%, var(--bg) 98%); }
+  .hero .in { position: relative; z-index: 1; padding: 0 16px 40px; max-width: 980px; margin: 0 auto; width: 100%; }
+  .tag { display: inline-block; font-size: 12px; letter-spacing: .14em; color: var(--accent2); border: 1px solid var(--accent2); padding: 2px 8px; border-radius: 3px; }
+  h1 { font-size: clamp(40px, 9vw, 84px); line-height: 1; margin: 12px 0 10px; letter-spacing: -.02em; text-shadow: 0 4px 30px rgba(0,0,0,.6); }
+  .lead { font-size: clamp(17px, 2.4vw, 21px); color: var(--text); max-width: 680px; text-shadow: 0 2px 12px rgba(0,0,0,.8); }
+  .btns { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 22px; }
+  .btn { display: inline-block; padding: 12px 20px; border-radius: 8px; text-decoration: none; font-weight: 600; }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.ghost { border: 1px solid var(--line); color: var(--text); background: rgba(0,0,0,.35); }
+  main { max-width: 980px; margin: 0 auto; padding: 8px 16px 60px; }
+  h2 { font-size: 26px; margin: 48px 0 14px; }
+  .phases { list-style: none; padding: 0; margin: 0; border-left: 2px solid var(--accent); }
+  .phases li { position: relative; padding: 0 0 18px 22px; }
+  .phases li::before { content: ""; position: absolute; left: -7px; top: 8px; width: 12px; height: 12px; border-radius: 50%; background: var(--accent); }
+  .phases b { color: var(--accent2); }
+  .gallery { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; }
+  .gallery figure { margin: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .gallery img { width: 100%; display: block; aspect-ratio: 16/9; object-fit: cover; }
+  .gallery figcaption { padding: 8px 12px; font-size: 14px; color: var(--muted); }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; }
+  .card h3 { margin: 0 0 6px; font-size: 17px; }
+  .card p { margin: 0; color: var(--muted); font-size: 15px; }
+  code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 14px; }
+  code { background: #261c19; padding: 1px 5px; border-radius: 4px; }
+  pre { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px; overflow-x: auto; }
+  pre code { background: none; padding: 0; }
+  ol li, ul li { margin-bottom: 6px; }
+  footer { color: var(--muted); font-size: 14px; border-top: 1px solid var(--line); padding-top: 18px; margin-top: 48px; }
+</style>
+</head>
+<body>
+<header class="hero">
+  <img src="poster-1.jpg" alt="The impact fireball rising over a burning horizon">
+  <div class="in">
+    <span class="tag">MINECRAFT FORGE 1.20.1 MOD</span>
+    <h1>Extinction Event</h1>
+    <p class="lead">66 million years ago a 10 km asteroid ended the age of dinosaurs. Now it ends your world: impact, shockwave, megatsunami, a sky on fire, the Deccan Traps and an impact winter. Works with Fossils and Archeology.</p>
+    <div class="btns">
+      <a class="btn primary" href="download/extinction-1.20.1-1.0.0.jar" download>⬇ Download v1.0.0 (.jar)</a>
+      <a class="btn ghost" href="#install">How to install</a>
+      <a class="btn ghost" href="#spawns">Custom spawns</a>
+    </div>
+  </div>
+</header>
+<main>
+  <h2>The end of the world, in six acts</h2>
+  <ol class="phases">
+    <li><b>Warning.</b> A new star appears and grows night after night until it has a tail. A countdown ticks, herds stampede, the ground starts to tremble, and in the last seconds all you hear is a heartbeat.</li>
+    <li><b>Impact.</b> The asteroid streaks down trailing fire, the sky brightens, then a white-out. A fireball and a mushroom plume climb 600 blocks, a curtain of molten rock arcs out, a peak-ring crater is torn open with lava in its floor, and a wall of dust races outward flattening forests and throwing blocks, animals and players.</li>
+    <li><b>Global firestorm.</b> Ejecta falls back as burning meteors that explode where they land. Forests burn and the sky glows red. A megatsunami of real water rolls over the lowlands.</li>
+    <li><b>The Deccan Traps.</b> Volcanoes rise out of the ground and erupt again and again, with lava rivers, volcanic bombs, ash columns full of lightning, fissures and acid rain.</li>
+    <li><b>Impact winter.</b> The sun goes out. Snow falls in the tropics, lakes freeze, plants die, and the dinosaurs starve. Stay by a fire or freeze.</li>
+    <li><b>The fern spike.</b> The ash washes away and ferns cover everything. Birds, mammals, crocodiles and turtles come back. Fossils, and the iridium layer, are left in the rock.</li>
+  </ol>
+
+  <h2>Screens</h2>
+  <div class="gallery">
+    <figure><img src="shot-asteroid.jpg" alt="The asteroid streaking down" loading="lazy"><figcaption>Seconds before impact</figcaption></figure>
+    <figure><img src="poster-2.jpg" alt="Burning ejecta falling, pterosaurs fleeing the plume" loading="lazy"><figcaption>Firestorm: pterosaurs flee the plume</figcaption></figure>
+    <figure><img src="poster-3.jpg" alt="A volcano erupting under acid rain" loading="lazy"><figcaption>The Deccan Traps in acid rain</figcaption></figure>
+    <figure><img src="shot-lava.jpg" alt="Lava pouring down the flank of a new volcano" loading="lazy"><figcaption>Lava pouring down a new volcano</figcaption></figure>
+    <figure><img src="shot-winter.jpg" alt="Dark snowfall over the crater rim" loading="lazy"><figcaption>Impact winter over the crater</figcaption></figure>
+  </div>
+
+  <h2 id="install">Install</h2>
+  <ol>
+    <li>Install Minecraft <b>1.20.1</b> with <b>Forge 47.x</b> (47.4.0 or newer).</li>
+    <li>Put the jar in your <code>mods</code> folder (on the server too for multiplayer; every player needs it).</li>
+    <li>Optional: add <a href="https://modrinth.com/mod/fossils-and-archeology-revival">Fossils and Archeology Revival</a> (Forge 1.20.1) for real dinosaurs, fossils and de-extinction.</li>
+    <li>In a world with cheats on, type <code>/extinction start</code>. Or craft a <b>Celestial Lure</b> (diamond in the middle, fire charges on the sides, crying obsidian in the corners) and use it to call the asteroid down where you look.</li>
+  </ol>
+
+  <div class="cards">
+    <div class="card"><h3>Commands</h3><p><code>/extinction start [x z]</code>, <code>stop</code>, <code>skip</code>, <code>phase &lt;name&gt;</code>, <code>status</code>, <code>reload</code></p></div>
+    <div class="card"><h3>Config</h3><p><code>config/extinction-common.toml</code>: phase lengths, crater size, tsunami height, ejecta rate, volcanoes, and switches for destruction, biome changes, hazards and music.</p></div>
+    <div class="card"><h3>New biomes</h3><p>Impact Crater, Scorched Lands, Ash Wastes, Frozen Ashlands and Fern Spike, each with its own sky, fog and water.</p></div>
+    <div class="card"><h3>Real geology</h3><p>Impact breccia with shocked quartz and tektites, and a K-Pg boundary clay layer that drops iridium.</p></div>
+  </div>
+
+  <h2 id="spawns">Custom spawns and Fossils and Archeology</h2>
+  <p>Every spawn is defined in <code>config/extinction/spawns.json</code>. Edit it and run <code>/extinction reload</code>. Entries for mods you don't have are skipped.</p>
+<pre><code>{ "entity": "fossil:triceratops", "phases": ["warning", "impact"],
+  "weight": 14, "group": [2, 4], "max_nearby": 6, "flee": true }</code></pre>
+  <ul>
+    <li><b>spawns</b>: any entity from any mod, by phase, with weight, group size, chance, land/water/air, biome limits, NBT and whether it flees the impact.</li>
+    <li><b>extinct / survivors</b>: who starves in the impact winter, becomes a fossil where it dies and stops spawning naturally (default: all F&amp;A creatures except real K-Pg survivors). Revive them with F&amp;A's analyzer and culture vat.</li>
+    <li><b>fossils / deposits</b>: which fossil block each creature leaves, and fossil veins laid into stone, deepslate, sandstone, tuff and calcite during recovery.</li>
+  </ul>
+
+  <footer>Independent fan project, not affiliated with Mojang, Microsoft or the Fossils and Archeology team. Source, build instructions and full docs are in the <a href="https://github.com/hoai2k/francis/tree/main/extinction-event">repository</a>.</footer>
+</main>
+</body>
+</html>

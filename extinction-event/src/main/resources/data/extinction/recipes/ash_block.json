@@ -1,0 +1,16 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "building",
+  "pattern": [
+    "AA",
+    "AA"
+  ],
+  "key": {
+    "A": {
+      "item": "extinction:ash_layer"
+    }
+  },
+  "result": {
+    "item": "extinction:ash_block"
+  }
+}

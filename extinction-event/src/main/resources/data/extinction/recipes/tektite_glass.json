@@ -1,0 +1,10 @@
+{
+  "type": "minecraft:smelting",
+  "category": "blocks",
+  "ingredient": {
+    "item": "extinction:tektite"
+  },
+  "result": "minecraft:tinted_glass",
+  "experience": 0.3,
+  "cookingtime": 200
+}

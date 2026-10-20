@@ -1,0 +1,34 @@
+modLoader="javafml"
+loaderVersion="${loader_version_range}"
+license="${mod_license}"
+issueTrackerURL="https://github.com/hoai2k/francis/issues"
+
+[[mods]]
+modId="${mod_id}"
+version="${mod_version}"
+displayName="${mod_name}"
+authors="${mod_authors}"
+displayURL="https://hoai2k.github.io/francis/extinction-event/"
+description='''${mod_description}'''
+
+[[dependencies.${mod_id}]]
+    modId="forge"
+    mandatory=true
+    versionRange="${forge_version_range}"
+    ordering="NONE"
+    side="BOTH"
+
+[[dependencies.${mod_id}]]
+    modId="minecraft"
+    mandatory=true
+    versionRange="${minecraft_version_range}"
+    ordering="NONE"
+    side="BOTH"
+
+# Optional: Fossils and Archeology Revival adds the dinosaurs, fossil blocks and revival machines.
+[[dependencies.${mod_id}]]
+    modId="fossil"
+    mandatory=false
+    versionRange="*"
+    ordering="AFTER"
+    side="BOTH"

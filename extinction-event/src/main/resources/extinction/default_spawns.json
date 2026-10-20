@@ -1,0 +1,90 @@
+{
+  "_readme": [
+    "Extinction Event custom spawns. Edit this file, then run /extinction reload (no restart needed).",
+    "Entries for mods that are not installed are skipped, so this file works with or without Fossils and Archeology Revival.",
+    "spawns: creatures that appear around players during the event.",
+    "  entity       registry id, e.g. fossil:tyrannosaurus or minecraft:rabbit",
+    "  phases       list of: warning, impact, firestorm, volcanism, winter, recovery (or \"all\")",
+    "  weight       how likely this entry is picked compared with the others (default 10)",
+    "  group        [min, max] how many spawn together (default [1, 1])",
+    "  chance       0-1, chance the group really spawns once picked (default 1)",
+    "  environment  land, water or air (default land)",
+    "  flee         true = runs away from the impact during the impact and firestorm (default true)",
+    "  max_nearby   no more spawns if this many of the same creature are within 64 blocks (default 4)",
+    "  nbt          optional SNBT merged into the entity, e.g. \"{CustomName:'\\\"Sue\\\"'}\"",
+    "  biomes       optional list of biome ids or #tags the spawn is limited to",
+    "extinct: creatures that starve during the impact winter, are fossilised where they die, and stop spawning naturally",
+    "  afterwards (bring them back with Fossils and Archeology's analyzer and culture vat). Patterns: exact id, namespace:*, #tag or *.",
+    "survivors: exceptions to extinct (real K-Pg survivors: birds, crocodilians, turtles, mammals, nautiluses, coelacanths...).",
+    "fossils: which block a dead extinct creature turns into; the first installed block in default is used otherwise.",
+    "deposits: fossil veins laid in the rock during recovery. in maps a host block (or #tag) to the block it becomes.",
+    "settings: spawn_interval_seconds, min_distance, max_distance, max_per_player, deposits_per_chunk."
+  ],
+  "settings": {
+    "spawn_interval_seconds": 5,
+    "min_distance": 24,
+    "max_distance": 56,
+    "max_per_player": 14,
+    "deposits_per_chunk": 2
+  },
+  "spawns": [
+    { "entity": "fossil:triceratops",        "phases": ["warning", "impact"], "weight": 14, "group": [2, 4], "max_nearby": 6 },
+    { "entity": "fossil:ankylosaurus",       "phases": ["warning", "impact"], "weight": 8,  "group": [1, 2] },
+    { "entity": "fossil:pachycephalosaurus", "phases": ["warning", "impact"], "weight": 8,  "group": [2, 3] },
+    { "entity": "fossil:parasaurolophus",    "phases": ["warning", "impact"], "weight": 10, "group": [3, 5], "max_nearby": 8 },
+    { "entity": "fossil:gallimimus",         "phases": ["warning", "impact", "firestorm"], "weight": 10, "group": [3, 6], "max_nearby": 8 },
+    { "entity": "fossil:therizinosaurus",    "phases": ["warning"], "weight": 4 },
+    { "entity": "fossil:velociraptor",       "phases": ["warning", "firestorm"], "weight": 6, "group": [2, 4], "chance": 0.6 },
+    { "entity": "fossil:tyrannosaurus",      "phases": ["warning", "impact"], "weight": 3, "max_nearby": 1, "chance": 0.5 },
+    { "entity": "fossil:quetzalcoatlus",     "phases": ["warning", "impact"], "weight": 6, "group": [1, 3], "environment": "air" },
+    { "entity": "fossil:pteranodon",         "phases": ["warning", "impact", "firestorm"], "weight": 5, "group": [2, 4], "environment": "air" },
+    { "entity": "fossil:mosasaurus",         "phases": ["warning", "impact"], "weight": 6, "environment": "water", "max_nearby": 2, "biomes": ["#minecraft:is_ocean"] },
+    { "entity": "fossil:plesiosaurus",       "phases": ["warning"], "weight": 4, "environment": "water", "biomes": ["#minecraft:is_ocean"] },
+
+    { "entity": "minecraft:chicken", "phases": ["winter", "recovery"], "weight": 8,  "group": [1, 3], "flee": false },
+    { "entity": "minecraft:rabbit",  "phases": ["winter", "recovery"], "weight": 12, "group": [1, 3], "flee": false },
+    { "entity": "minecraft:fox",     "phases": ["recovery"], "weight": 6, "group": [1, 2], "flee": false },
+    { "entity": "minecraft:frog",    "phases": ["recovery"], "weight": 5, "group": [1, 3], "flee": false },
+    { "entity": "minecraft:turtle",  "phases": ["recovery"], "weight": 4, "group": [1, 2], "flee": false, "biomes": ["#minecraft:is_beach"] },
+    { "entity": "minecraft:bat",     "phases": ["winter"], "weight": 4, "group": [1, 2], "environment": "air", "flee": false },
+    { "entity": "fossil:nautilus",   "phases": ["recovery"], "weight": 5, "environment": "water", "flee": false, "biomes": ["#minecraft:is_ocean"] },
+    { "entity": "fossil:coelacanth", "phases": ["recovery"], "weight": 4, "environment": "water", "flee": false, "biomes": ["#minecraft:is_ocean"] },
+    { "entity": "fossil:sturgeon",   "phases": ["recovery"], "weight": 4, "environment": "water", "flee": false },
+    { "entity": "fossil:alligator_gar", "phases": ["recovery"], "weight": 4, "environment": "water", "flee": false }
+  ],
+  "extinct": ["fossil:*"],
+  "survivors": [
+    "fossil:nautilus", "fossil:coelacanth", "fossil:sturgeon", "fossil:alligator_gar",
+    "fossil:dodo", "fossil:mammoth", "fossil:smilodon", "fossil:megaloceros", "fossil:elasmotherium", "fossil:quagga",
+    "fossil:platybelodon", "fossil:gastornis", "fossil:phorusrhacos", "fossil:titanis", "fossil:kelenken",
+    "fossil:megalodon", "fossil:aquilolamna",
+    "fossil:anu_boss", "fossil:anubite", "fossil:sentry_piglin", "fossil:friendly_piglin", "fossil:tar_slime",
+    "fossil:failuresaurus", "fossil:dinosaur_egg", "fossil:stone_tablet", "fossil:javelin", "fossil:thrown_bird_egg",
+    "fossil:toy_ball", "fossil:toy_scratching_post", "fossil:toy_tethered_log", "fossil:laser_point", "fossil:anu_dead", "fossil:anu_totem"
+  ],
+  "fossils": {
+    "default": ["fossil:fossil_stone", "minecraft:bone_block"],
+    "by_entity": {
+      "fossil:mosasaurus": "fossil:fossil_sandstone",
+      "fossil:plesiosaurus": "fossil:fossil_sandstone",
+      "fossil:ichthyosaurus": "fossil:fossil_sandstone"
+    }
+  },
+  "deposits": [
+    {
+      "in": {
+        "minecraft:stone": "fossil:fossil_stone",
+        "minecraft:deepslate": "fossil:fossil_deepslate",
+        "minecraft:sandstone": "fossil:fossil_sandstone",
+        "minecraft:red_sandstone": "fossil:fossil_red_sandstone",
+        "minecraft:tuff": "fossil:fossil_tuff",
+        "minecraft:calcite": "fossil:fossil_calcite"
+      },
+      "fallback": "minecraft:bone_block",
+      "weight": 12, "size": [3, 7], "depth": [4, 28]
+    },
+    { "in": { "#minecraft:base_stone_overworld": "fossil:amber_ore" }, "weight": 3, "size": [1, 3], "depth": [6, 40] },
+    { "in": { "minecraft:dirt": "fossil:permafrost_block", "minecraft:coarse_dirt": "fossil:permafrost_block" }, "weight": 2, "size": [2, 5], "depth": [2, 6] },
+    { "in": { "#minecraft:base_stone_overworld": "extinction:impact_breccia" }, "weight": 2, "size": [3, 6], "depth": [3, 12] }
+  ]
+}

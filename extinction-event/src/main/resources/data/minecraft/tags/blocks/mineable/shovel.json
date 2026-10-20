@@ -1,0 +1,9 @@
+{
+  "replace": false,
+  "values": [
+    "extinction:ash_layer",
+    "extinction:ash_block",
+    "extinction:scorched_earth",
+    "extinction:kpg_boundary_clay"
+  ]
+}

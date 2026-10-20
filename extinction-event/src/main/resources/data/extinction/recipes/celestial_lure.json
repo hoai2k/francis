@@ -1,0 +1,23 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "OFO",
+    "FDF",
+    "OFO"
+  ],
+  "key": {
+    "O": {
+      "item": "minecraft:crying_obsidian"
+    },
+    "F": {
+      "item": "minecraft:fire_charge"
+    },
+    "D": {
+      "item": "minecraft:diamond"
+    }
+  },
+  "result": {
+    "item": "extinction:celestial_lure"
+  }
+}
