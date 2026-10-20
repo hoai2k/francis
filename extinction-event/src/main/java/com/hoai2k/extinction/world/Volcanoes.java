@@ -79,7 +79,10 @@ public final class Volcanoes {
                     double dd = Math.sqrt(fdx * fdx + dz * dz);
                     if (dd > r || (top && dd < 3.2)) continue;
                     int x = v.base.getX() + fdx, z = v.base.getZ() + dz;
-                    if (!level.hasChunk(x >> 4, z >> 4)) level.getChunk(x >> 4, z >> 4);
+                    if (!level.hasChunk(x >> 4, z >> 4)) {
+                        level.getChunk(x >> 4, z >> 4);
+                        cost += BlockQueue.CHUNK_LOAD / 4;
+                    }
                     int y = v.base.getY() + layer;
                     pos.set(x, y, z);
                     BlockState s = level.getBlockState(pos);

@@ -36,6 +36,14 @@ final class CinematicOverlay {
             g.fill(0, 0, w, h, argb(Math.min(1F, flash * 1.2F), 1F, 0.75F + 0.25F * hot, 0.45F + 0.55F * hot));
         }
 
+        // The fireball's afterimage, burned into your eyes for a long while.
+        float burn = Mth.lerp(pt, ClientState.burnPrev, ClientState.burn);
+        if (burn > 0.01F && flash < 0.5F) {
+            int glow = argb(0.45F * burn, 1F, 0.45F, 0.1F);
+            g.fillGradient(0, 0, w, h / 2, glow, argb(0.12F * burn, 1F, 0.6F, 0.2F));
+            g.fillGradient(0, h / 2, w, h, argb(0.12F * burn, 1F, 0.6F, 0.2F), glow);
+        }
+
         float bars = Mth.lerp(pt, ClientState.letterboxPrev, ClientState.letterbox);
         if (bars > 0.01F) {
             int bh = (int) (h * 0.12F * bars);
@@ -44,6 +52,8 @@ final class CinematicOverlay {
         }
 
         Font font = mc.font;
+        float left = ClientState.secondsToImpact();
+        if (left > 0 && left <= 10F) countdown(g, font, w, h, left);
         if (ClientState.title != null) titleCard(g, font, w, h, pt);
         if (!mc.options.hideGui && ClientState.phase.running() && ClientState.title == null) hud(g, font, w);
     }
@@ -70,6 +80,19 @@ final class CinematicOverlay {
         }
         int lineW = (int) (Math.min(1, age / 40F) * Math.min(w * 0.4F, 260));
         g.fill(w / 2 - lineW / 2, (int) (h * 0.38F) + 18, w / 2 + lineW / 2, (int) (h * 0.38F) + 19, 0xC9A45C | alpha);
+    }
+
+    /** Huge red numbers for the last ten seconds. */
+    private static void countdown(GuiGraphics g, Font font, int w, int h, float left) {
+        String n = String.valueOf((int) Math.ceil(left));
+        float frac = left - (float) Math.floor(left);
+        float scale = 6 + 4 * frac;
+        int alpha = (int) (Mth.clamp(0.35F + frac, 0, 1) * 255) << 24;
+        g.pose().pushPose();
+        g.pose().translate(w / 2F, h * 0.62F, 0);
+        g.pose().scale(scale, scale, 1);
+        g.drawString(font, n, -font.width(n) / 2, -font.lineHeight / 2, 0xFF3B1E | alpha, true);
+        g.pose().popPose();
     }
 
     private static void hud(GuiGraphics g, Font font, int w) {

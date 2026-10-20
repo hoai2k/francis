@@ -21,7 +21,7 @@ Page: **https://hoai2k.github.io/francis/extinction-event/** · Jar: [`download/
 
 ## Starting the end of the world
 
-- `/extinction start` drops the asteroid `impactDistance` blocks (default 220) from you, in a random direction.
+- `/extinction start` drops the asteroid `impactDistance` blocks (default 260) from you, in a random direction.
 - `/extinction start <x> <z>` aims it at a column.
 - Or craft a **Celestial Lure** (diamond in the middle, fire charges on the sides, crying obsidian in the corners) and
   use it: the asteroid lands where you are looking. Single use, no going back.
@@ -35,7 +35,7 @@ Other commands (operators): `/extinction stop`, `/extinction skip`, `/extinction
 | Phase | Default | What happens |
 |---|---|---|
 | **Warning** | 4 min | A new star grows in the sky and gets a tail. Chat narration, a countdown, animals stampede away, tremors start, heartbeats in the last seconds. |
-| **Impact** | 75 s | The asteroid streaks in trailing fire and smoke, the sky brightens, then a white flash. A fireball and a 600-block mushroom plume rise, a curtain of molten ejecta arcs out, a peak-ring crater with an impact-melt lava pool and a breccia rim is dug, and a dust-wall shockwave races out at 32 blocks a second, flattening trees, shattering glass, hurling blocks and creatures. Ground shaking reaches you before the sonic boom. |
+| **Impact** | 75 s | A giant red countdown, then the asteroid streaks in trailing fire and smoke, the sky brightens, and everything goes white. Shafts of light blast across the sky, a pillar of fire punches into space, a fireball and a 600-block mushroom plume rise, and a curtain of molten ejecta arcs out and rains down as real burning meteors. The **thermal flash** sets everything that can see the fireball on fire. A 160-block peak-ring crater with an impact-melt lava pool is torn open, cracks rip outward from its rim, and a dust-wall shockwave races out at 32 blocks a second: it strips the topsoil, flattens forests and stone buildings, sets the land ablaze, hurls blocks and creatures, and concusses survivors. Out in the open near the crater it is lethal. Get underground. |
 | **Firestorm** | 4 min | Burning ejecta meteors rain down and explode, wildfires start everywhere, the sky glows red and sets exposed creatures alight. The **megatsunami**, a moving wall of real water, rolls over low ground and then drains away. |
 | **Deccan Traps** | 4 min | Volcanoes rise out of the ground near players and erupt again and again: lava down their flanks, volcanic bombs, ash columns with lightning. Fissures tear open with lava below, ash piles up in layers, and acid rain kills leaves and grass, rusts copper and burns anyone without a helmet. |
 | **Impact winter** | 6 min | The sun is gone. Darkness, snow in the tropics, frozen lakes, plants die. Players freeze outside unless they are near fire or wear leather. Creatures listed as extinct starve and die off. |

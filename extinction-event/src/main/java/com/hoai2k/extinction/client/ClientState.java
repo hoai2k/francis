@@ -41,6 +41,10 @@ public final class ClientState {
     public static float flash, flashPrev;
     public static float dust, dustPrev;
     public static float shake;
+    /** Ticks the impact flash stays fully white before it starts to fade. */
+    public static int flashHold;
+    /** Field-of-view kick when the blast wave hits, and the orange afterimage burned into your eyes. */
+    public static float fovPunch, burn, burnPrev;
     /** Lightning flicker in the burning or volcanic sky. */
     public static float lightning, lightningPrev;
     public static float letterbox, letterboxPrev;
@@ -88,6 +92,8 @@ public final class ClientState {
         switch (m.type()) {
             case FxMsg.FLASH -> {
                 flash = (float) Mth.clamp(1.3 - dist / 2500.0, 0.35, 1.0);
+                flashHold = (int) (30 * flash);
+                burn = flash;
                 // The ground shakes before the air blast arrives; at the flash itself, only a ringing silence.
                 play(SoundEvents.AMETHYST_BLOCK_CHIME, 0.5F, 0.6F);
                 play(SoundEvents.BEACON_DEACTIVATE, 0.5F, 0.8F);
@@ -96,13 +102,20 @@ public final class ClientState {
             }
             case FxMsg.SHOCK_HIT -> {
                 float i = m.strength();
-                shake = Math.max(shake, 0.5F + 1.6F * i);
-                dust = Math.max(dust, 0.25F + 0.6F * i);
-                play(SoundEvents.GENERIC_EXPLODE, 0.35F, 1.0F);
-                play(SoundEvents.LIGHTNING_BOLT_THUNDER, 0.45F, 1.0F);
-                play(SoundEvents.WARDEN_SONIC_BOOM, 0.55F, 0.8F);
-                later(6, () -> play(SoundEvents.GENERIC_EXPLODE, 0.25F, 0.8F));
-                later(18, () -> play(SoundEvents.LIGHTNING_BOLT_THUNDER, 0.3F, 0.7F));
+                shake = Math.max(shake, 0.9F + 3.4F * i);
+                dust = Math.max(dust, 0.35F + 0.6F * i);
+                fovPunch = Math.max(fovPunch, 0.4F + 0.6F * i);
+                play(SoundEvents.GENERIC_EXPLODE, 0.3F, 1.0F);
+                play(SoundEvents.GENERIC_EXPLODE, 0.45F, 1.0F);
+                play(SoundEvents.LIGHTNING_BOLT_THUNDER, 0.4F, 1.0F);
+                play(SoundEvents.WARDEN_SONIC_BOOM, 0.5F, 1.0F);
+                play(SoundEvents.ENDER_DRAGON_DEATH, 0.5F, 0.35F);
+                // Then the thunder of the blast rolls on and on.
+                for (int k = 1; k <= 16; k++) {
+                    float fade = 1 - k / 17F;
+                    SoundEvent roll = (k & 1) == 1 ? SoundEvents.LIGHTNING_BOLT_THUNDER : SoundEvents.GENERIC_EXPLODE;
+                    later(k * 14, () -> play(roll, 0.3F + 0.1F * fade, fade));
+                }
             }
             case FxMsg.TITLE -> {
                 title = Component.translatable(m.title());
@@ -159,7 +172,11 @@ public final class ClientState {
         }
         letterboxPrev = letterbox;
         tintPrev = tint;
-        flash = Math.max(0, flash - (flash > 0.6F ? 0.012F : 0.025F));
+        if (flashHold > 0) flashHold--;
+        else flash = Math.max(0, flash - (flash > 0.6F ? 0.012F : 0.025F));
+        burnPrev = burn;
+        burn = Math.max(0, burn - 0.0025F);
+        fovPunch = Math.max(0, fovPunch * 0.9F - 0.005F);
         dust = Math.max(0, dust - 0.01F);
         shake = Math.max(0, shake * 0.96F - 0.004F);
         if (title != null && ++titleAge > titleLength) title = null;
@@ -240,6 +257,13 @@ public final class ClientState {
         Minecraft mc = Minecraft.getInstance();
         mc.getMusicManager().stopPlaying();
         mc.getMusicManager().startPlaying(new Music(track, 0, 0, true));
+    }
+
+    /** Seconds until the asteroid hits, or -1 when it is not on its way. */
+    public static float secondsToImpact() {
+        if (phase == Phase.WARNING) return (phaseLength - phaseTick + Phase.DESCENT_TICKS) / 20F;
+        if (phase == Phase.IMPACT && !detonated) return (Phase.DESCENT_TICKS - phaseTick) / 20F;
+        return -1;
     }
 
     public static void play(SoundEvent sound, float pitch, float volume) {

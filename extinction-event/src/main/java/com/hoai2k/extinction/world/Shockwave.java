@@ -14,6 +14,8 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
+import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.item.FallingBlockEntity;
 import net.minecraft.world.level.block.Block;
@@ -53,7 +55,7 @@ public final class Shockwave {
         boolean destroy = ExtinctionConfig.DESTROY_TERRAIN.get();
         RandomSource rnd = level.random;
         LongOpenHashSet done = new LongOpenHashSet();
-        int[] fly = {48};
+        int[] fly = {100};
         for (ServerPlayer p : Terrain.players(level)) {
             double pd = Terrain.distXZ(c, p.getX(), p.getZ());
             if (pd > r1 + REACH || pd < r0 - REACH) continue;
@@ -104,19 +106,29 @@ public final class Shockwave {
                 if (rnd.nextFloat() < I * 1.5F) level.setBlock(pos, Blocks.AIR.defaultBlockState(), Block.UPDATE_CLIENTS);
             } else if (s.is(BlockTags.PLANKS) || s.is(BlockTags.WOODEN_FENCES) || s.is(BlockTags.WOOL) || s.is(BlockTags.WOODEN_SLABS)
                     || s.is(BlockTags.WOODEN_STAIRS) || s.is(BlockTags.WOODEN_DOORS) || s.is(BlockTags.WOODEN_TRAPDOORS)) {
-                if (I > 0.6F && rnd.nextFloat() < (I - 0.6F) * 1.8F) {
-                    if (rnd.nextFloat() < 0.15F && fly[0]-- > 0) throwBlock(level, pos, s, nx, nz, I, rnd);
+                if (I > 0.45F && rnd.nextFloat() < (I - 0.45F) * 2.5F) {
+                    if (rnd.nextFloat() < 0.25F && fly[0]-- > 0) throwBlock(level, pos, s, nx, nz, I, rnd);
                     else level.setBlock(pos, Blocks.AIR.defaultBlockState(), Block.UPDATE_CLIENTS);
                 } else break;
+            } else if (!isNaturalGround(s)) {
+                // Stone buildings: near the crater even these are blown apart.
+                if (I > 0.65F && rnd.nextFloat() < (I - 0.65F) * 2.6F) {
+                    if (rnd.nextFloat() < 0.3F && fly[0]-- > 0) throwBlock(level, pos, s, nx, nz, I, rnd);
+                    else level.setBlock(pos, Blocks.AIR.defaultBlockState(), Block.UPDATE_CLIENTS);
+                } else break;
+            } else if (I > 0.8F && y > top - 3 && rnd.nextFloat() < (I - 0.8F) * 2.5F) {
+                // The blast scours the topsoil off the land.
+                if (fly[0]-- > 0 && rnd.nextFloat() < 0.4F) throwBlock(level, pos, s, nx, nz, I, rnd);
+                else level.setBlock(pos, Blocks.AIR.defaultBlockState(), Block.UPDATE_CLIENTS);
             } else {
                 // First solid ground: scorch it, and near the crater rip some of it loose.
                 if (I > 0.5F && Terrain.isGrassy(s) && rnd.nextFloat() < I) {
                     level.setBlock(pos, (rnd.nextBoolean() ? ModRegistry.SCORCHED_EARTH.get() : Blocks.COARSE_DIRT).defaultBlockState(), Block.UPDATE_CLIENTS);
-                } else if (I > 0.45F && rnd.nextFloat() < I * 0.03F && fly[0]-- > 0
+                } else if (I > 0.35F && rnd.nextFloat() < I * 0.06F && fly[0]-- > 0
                         && (s.is(BlockTags.DIRT) || s.is(BlockTags.SAND) || s.is(Blocks.GRAVEL) || s.is(BlockTags.BASE_STONE_OVERWORLD))) {
                     throwBlock(level, pos, s, nx, nz, I, rnd);
                 }
-                if (I > 0.6F && rnd.nextFloat() < (I - 0.6F) * 0.2F) {
+                if (I > 0.45F && rnd.nextFloat() < (I - 0.45F) * 0.6F) {
                     BlockPos above = pos.above();
                     if (level.getBlockState(above).isAir()) level.setBlock(above, Blocks.FIRE.defaultBlockState(), Block.UPDATE_ALL);
                 }
@@ -126,6 +138,13 @@ public final class Shockwave {
                 break;
             }
         }
+    }
+
+    private static boolean isNaturalGround(BlockState s) {
+        return s.is(BlockTags.DIRT) || s.is(BlockTags.SAND) || s.is(Blocks.GRAVEL) || s.is(BlockTags.BASE_STONE_OVERWORLD)
+                || s.is(Blocks.CLAY) || s.is(BlockTags.TERRACOTTA) || s.is(Tags.Blocks.SANDSTONE) || s.is(Blocks.SNOW_BLOCK)
+                || s.is(Blocks.ICE) || s.is(Blocks.PACKED_ICE) || s.is(BlockTags.SNOW) || s.is(ModRegistry.SCORCHED_EARTH.get())
+                || s.is(Blocks.FARMLAND) || s.is(Blocks.DIRT_PATH) || s.is(Blocks.MUD);
     }
 
     private static void throwBlock(ServerLevel level, BlockPos pos, BlockState s, double nx, double nz, float I, RandomSource rnd) {
@@ -150,10 +169,16 @@ public final class Shockwave {
                 Net.to(sp, FxMsg.at(FxMsg.SHOCK_HIT, c.getX(), c.getY(), c.getZ(), I));
                 if (!hazards || (sp.isCreative() || sp.isSpectator())) continue;
             }
-            e.push(dir.x * (0.5 + 3.0 * I) * shield, (0.3 + 1.0 * I) * shield, dir.z * (0.5 + 3.0 * I) * shield);
+            e.push(dir.x * (0.6 + 5.0 * I) * shield, (0.4 + 1.8 * I) * shield, dir.z * (0.6 + 5.0 * I) * shield);
             e.hurtMarked = true;
             float dmg = (float) (ExtinctionConfig.SHOCKWAVE_DAMAGE.get() * I * shield);
             if (dmg > 0.5F) e.hurt(DamageTypes.source(level, DamageTypes.SHOCKWAVE), dmg);
+            if (I > 0.5F) e.setSecondsOnFire((int) (8 * I * shield));
+            if (I > 0.25F) {
+                // Concussed: the world spins and the ears ring.
+                e.addEffect(new MobEffectInstance(MobEffects.CONFUSION, (int) (260 * I), 0, false, false));
+                e.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN, (int) (160 * I), 2, false, false));
+            }
         }
     }
 }

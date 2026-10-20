@@ -75,10 +75,18 @@ public final class ClientEvents {
         }
 
         @SubscribeEvent
+        public static void fov(ViewportEvent.ComputeFov e) {
+            if (ClientState.fovPunch > 0.01F && ClientState.active()) {
+                float k = ClientState.fovPunch * Minecraft.getInstance().options.screenEffectScale().get().floatValue();
+                e.setFOV(e.getFOV() * (1 + 0.35 * k));
+            }
+        }
+
+        @SubscribeEvent
         public static void camera(ViewportEvent.ComputeCameraAngles e) {
             if (!ClientState.active()) return;
             Minecraft mc = Minecraft.getInstance();
-            float amount = Math.min(5F, ClientState.shakeNow() * 2.2F) * mc.options.screenEffectScale().get().floatValue();
+            float amount = Math.min(14F, ClientState.shakeNow() * 2.6F) * mc.options.screenEffectScale().get().floatValue();
             if (amount < 0.01F || mc.level == null) return;
             float t = (float) (mc.level.getGameTime() + e.getPartialTick());
             e.setYaw(e.getYaw() + amount * (Mth.sin(t * 1.9F) + 0.5F * Mth.sin(t * 4.3F)) * 0.5F);

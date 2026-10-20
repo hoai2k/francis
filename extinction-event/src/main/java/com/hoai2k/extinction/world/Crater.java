@@ -47,7 +47,7 @@ public final class Crater {
         int cost = 0;
         if (!level.hasChunk(x >> 4, z >> 4)) {
             level.getChunk(x >> 4, z >> 4);
-            cost += 200;
+            cost += BlockQueue.CHUNK_LOAD;
         }
         RandomSource rnd = level.random;
         int top = Terrain.topY(level, x, z);

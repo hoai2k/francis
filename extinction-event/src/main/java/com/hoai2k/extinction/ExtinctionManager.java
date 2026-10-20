@@ -199,6 +199,7 @@ public final class ExtinctionManager {
             d.sinceImpact++;
             shockwave.tick(level, d.impact, d.sinceImpact);
             if (d.sinceImpact == 40) title("impact");
+            if (d.sinceImpact < 900 && d.sinceImpact % 3 == 0) ejectaRain(level, d);
         }
 
         Earthquake.tick(level, queue, quake(d, p), time);
@@ -233,7 +234,9 @@ public final class ExtinctionManager {
 
         spawns.tick(level, phase, p, d.impact, d.detonated, time);
         shiftBiomes(level, d, p);
-        queue.tick(level, ExtinctionConfig.BLOCK_BUDGET.get());
+        // The crater opens in seconds, not minutes.
+        int budget = ExtinctionConfig.BLOCK_BUDGET.get();
+        queue.tick(level, d.detonated && !d.craterDone ? budget * 5 / 2 : budget);
         biomes.flush(level);
 
         if (d.phaseTick >= phase.lengthTicks()) advance(d);
@@ -341,8 +344,73 @@ public final class ExtinctionManager {
             if (e instanceof ServerPlayer sp && (sp.isCreative() || sp.isSpectator() || !ExtinctionConfig.PLAYER_HAZARDS.get())) continue;
             if (Terrain.distXZ(at, e.getX(), e.getZ()) < vapor) e.hurt(DamageTypes.source(level, DamageTypes.IMPACT), 10000F);
         }
-        if (ExtinctionConfig.DESTROY_TERRAIN.get()) Crater.enqueue(queue, d, () -> craterDone(d));
+        thermalFlash(level, at);
+        if (ExtinctionConfig.DESTROY_TERRAIN.get()) {
+            Crater.enqueue(queue, d, () -> craterDone(d));
+            radialFractures(level, d);
+        }
+        ejectaBurst(level, d);
         syncAll(d);
+    }
+
+    /** The fireball's light alone sets fire to everything that can see it. */
+    private void thermalFlash(ServerLevel level, BlockPos at) {
+        double reach = ExtinctionConfig.SHOCKWAVE_RADIUS.get() * 0.7;
+        net.minecraft.world.phys.Vec3 ball = net.minecraft.world.phys.Vec3.atCenterOf(at).add(0, 60, 0);
+        for (ServerPlayer near : Terrain.players(level)) {
+            for (LivingEntity e : level.getEntitiesOfClass(LivingEntity.class, near.getBoundingBox().inflate(96))) {
+                double dist = Terrain.distXZ(at, e.getX(), e.getZ());
+                if (dist > reach) continue;
+                if (e instanceof ServerPlayer sp && (sp.isCreative() || sp.isSpectator() || !ExtinctionConfig.PLAYER_HAZARDS.get())) continue;
+                // Only the nearest 64 blocks are checked for cover (walls, roofs, hills), so no far chunks get loaded.
+                net.minecraft.world.phys.Vec3 eye = e.getEyePosition();
+                net.minecraft.world.phys.Vec3 toward = eye.add(ball.subtract(eye).normalize().scale(64));
+                var hit = level.clip(new net.minecraft.world.level.ClipContext(eye, toward,
+                        net.minecraft.world.level.ClipContext.Block.VISUAL, net.minecraft.world.level.ClipContext.Fluid.NONE, e));
+                if (hit.getType() != net.minecraft.world.phys.HitResult.Type.MISS) continue;
+                float heat = (float) (1 - dist / reach);
+                e.setSecondsOnFire(3 + (int) (10 * heat));
+                e.hurt(DamageTypes.source(level, DamageTypes.HEAT), 2 + 6 * heat);
+            }
+        }
+    }
+
+    /** Cracks tear outward from the crater rim in every direction. */
+    private void radialFractures(ServerLevel level, ExtinctionData d) {
+        int R = ExtinctionConfig.CRATER_RADIUS.get();
+        int n = 10 + level.random.nextInt(5);
+        for (int i = 0; i < n; i++) {
+            double a = (i + level.random.nextDouble() * 0.6) / n * Math.PI * 2;
+            int len = 30 + level.random.nextInt(50);
+            double mid = R * 1.45 + len / 2.0;
+            int x = d.impact.getX() + (int) (Math.cos(a) * mid), z = d.impact.getZ() + (int) (Math.sin(a) * mid);
+            Earthquake.fissureAt(level, queue, x, z, a, len, 10 + level.random.nextInt(10));
+        }
+    }
+
+    /** Molten rock thrown out of the crater on ballistic arcs, landing all around it. */
+    private void ejectaBurst(ServerLevel level, ExtinctionData d) {
+        net.minecraft.util.RandomSource rnd = level.random;
+        int R = ExtinctionConfig.CRATER_RADIUS.get();
+        for (int i = 0; i < 70; i++) {
+            double a = rnd.nextDouble() * Math.PI * 2;
+            double dist = R * 1.5 + rnd.nextDouble() * 280;
+            double hv = 1.6 + rnd.nextDouble() * 1.6, g = 0.05, t = dist / hv;
+            net.minecraft.world.phys.Vec3 vel = new net.minecraft.world.phys.Vec3(Math.cos(a) * hv, 0.5 * g * t, Math.sin(a) * hv);
+            net.minecraft.world.phys.Vec3 from = net.minecraft.world.phys.Vec3.atCenterOf(d.impact).add(Math.cos(a) * R * 0.5, 8, Math.sin(a) * R * 0.5);
+            com.hoai2k.extinction.entity.MeteorEntity.launch(level, from, vel, 0.8F + rnd.nextFloat() * 2.2F, g,
+                    com.hoai2k.extinction.entity.MeteorEntity.randomLook(rnd));
+        }
+    }
+
+    /** For half a minute after the impact, debris falls out of the sky everywhere near the players. */
+    private void ejectaRain(ServerLevel level, ExtinctionData d) {
+        double max = ExtinctionConfig.SHOCKWAVE_RADIUS.get();
+        for (ServerPlayer p : Terrain.players(level)) {
+            double dist = Terrain.distXZ(d.impact, p.getX(), p.getZ());
+            if (dist > max || d.sinceImpact * 2.2 < dist - 60) continue;
+            if (level.random.nextFloat() < 0.7F) Firestorm.ejecta(level, p, d.impact, level.random);
+        }
     }
 
     private void craterDone(ExtinctionData d) {

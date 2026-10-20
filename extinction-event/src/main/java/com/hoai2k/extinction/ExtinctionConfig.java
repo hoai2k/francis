@@ -54,13 +54,13 @@ public final class ExtinctionConfig {
 
         b.comment("Scale of the disasters (in blocks)").push("scale");
         IMPACT_DISTANCE = b.comment("How far from the player the asteroid lands when started without a position")
-                .defineInRange("impactDistance", 220, 0, 5000);
-        CRATER_RADIUS = b.defineInRange("craterRadius", 48, 8, 160);
-        CRATER_DEPTH = b.defineInRange("craterDepth", 30, 4, 100);
+                .defineInRange("impactDistance", 260, 0, 5000);
+        CRATER_RADIUS = b.defineInRange("craterRadius", 80, 8, 200);
+        CRATER_DEPTH = b.defineInRange("craterDepth", 45, 4, 120);
         SHOCKWAVE_RADIUS = b.comment("How far the shockwave travels before it fades out")
-                .defineInRange("shockwaveRadius", 640, 32, 4000);
-        SHOCKWAVE_DAMAGE = b.comment("Damage dealt by the shockwave right at the crater rim (it fades with distance)")
-                .defineInRange("shockwaveDamage", 18.0, 0.0, 1000.0);
+                .defineInRange("shockwaveRadius", 900, 32, 4000);
+        SHOCKWAVE_DAMAGE = b.comment("Damage dealt by the shockwave right at the crater rim (it fades with distance). Lethal out in the open near the crater; get underground")
+                .defineInRange("shockwaveDamage", 44.0, 0.0, 1000.0);
         TSUNAMI_HEIGHT = b.comment("Height of the megatsunami above sea level near the crater (0 = no tsunami)")
                 .defineInRange("tsunamiHeight", 26, 0, 120);
         EJECTA_PER_MINUTE = b.comment("Burning ejecta meteors per player per minute during the firestorm")

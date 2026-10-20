@@ -27,7 +27,7 @@ final class SkyFx {
 
     /** Far objects are pulled in to this distance (keeping their angular size) so the far plane never clips them. */
     private static final double PROJECT = 400;
-    private static final int EJECTA_STREAKS = 110;
+    private static final int EJECTA_STREAKS = 180;
     private static final int SKY_STREAKS = 44;
 
     private static Matrix4f m;
@@ -36,6 +36,17 @@ final class SkyFx {
 
     static void render(RenderLevelStageEvent e) {
         if (!ClientState.active()) return;
+        try {
+            draw(e);
+        } catch (RuntimeException ex) {
+            BufferBuilder b = Tesselator.getInstance().getBuilder();
+            if (b.building()) b.end().release();
+            end();
+            com.hoai2k.extinction.ExtinctionMod.LOG.error("Extinction sky effects failed", ex);
+        }
+    }
+
+    private static void draw(RenderLevelStageEvent e) {
         float pt = e.getPartialTick();
         Camera cam = e.getCamera();
         m = e.getPoseStack().last().pose();
@@ -203,11 +214,13 @@ final class SkyFx {
     // ---------------------------------------------------------------- the impact
 
     private static void fireball(float s) {
-        if (s > 600) return;
+        if (s > 800) return;
         Vec3 c = ClientState.impact;
         float R = ClientState.craterRadius;
-        float t = s / 600F;
-        float radius = R + 260 * (float) Math.sqrt(t);
+        float t = s / 800F;
+        float radius = R + 420 * (float) Math.sqrt(t);
+        godRays(c.add(0, R * 0.6 + radius * 0.3, 0), s);
+        fireColumn(c, s);
         Vec3 at = c.add(0, radius * 0.45, 0);
         // For the first seconds the light is so bright it shows over mountains.
         boolean blinding = s < 60;
@@ -220,6 +233,50 @@ final class SkyFx {
         for (int i = 0; i < 10; i++) {
             Vec3 col = c.add(0, radius * 0.4 + i * 30 * Math.min(1, s / 120F), 0);
             projected(b, col, (radius * 0.5F) * (1 - i / 12F), 1F, 0.55F, 0.15F, 0.55F * (float) Math.pow(1 - t, 2) * (1 - i / 11F));
+        }
+        BufferUploader.drawWithShader(b.end());
+        end();
+    }
+
+    /** Shafts of light blasting out of the fireball across the whole sky. */
+    private static void godRays(Vec3 at, float s) {
+        if (s > 260) return;
+        float k = (float) Math.pow(1 - s / 260F, 1.5);
+        Vec3 rel = at.subtract(eye);
+        double d = rel.length();
+        if (d > PROJECT) rel = rel.scale(PROJECT / d);
+        float len = (float) Math.min(d, PROJECT) * 2.2F;
+        float cx = (float) rel.x, cy = (float) rel.y, cz = (float) rel.z;
+        begin(true, false);
+        BufferBuilder b = triangles();
+        int rays = 28;
+        for (int i = 0; i < rays; i++) {
+            double a = i * Math.PI * 2 / rays + hash(i, 1) * 0.2 + s * 0.0015;
+            double half = 0.02 + 0.05 * hash(i, 2);
+            float l = len * (0.5F + 0.6F * hash(i, 3));
+            float c0 = (float) Math.cos(a - half) * l, s0 = (float) Math.sin(a - half) * l;
+            float c1 = (float) Math.cos(a + half) * l, s1 = (float) Math.sin(a + half) * l;
+            float alpha = 0.55F * k * (0.5F + 0.5F * hash(i, 4));
+            b.vertex(m, cx, cy, cz).color(1F, 0.92F, 0.7F, alpha).endVertex();
+            b.vertex(m, cx + left.x() * c0 + up.x() * s0, cy + left.y() * c0 + up.y() * s0, cz + left.z() * c0 + up.z() * s0).color(1F, 0.5F, 0.15F, 0F).endVertex();
+            b.vertex(m, cx + left.x() * c1 + up.x() * s1, cy + left.y() * c1 + up.y() * s1, cz + left.z() * c1 + up.z() * s1).color(1F, 0.5F, 0.15F, 0F).endVertex();
+        }
+        BufferUploader.drawWithShader(b.end());
+        end();
+    }
+
+    /** Vaporised rock blasted straight up out of the atmosphere: a pillar of fire to space. */
+    private static void fireColumn(Vec3 c, float s) {
+        if (s > 700) return;
+        float k = s < 40 ? s / 40F : (float) Math.pow(1 - (s - 40) / 660F, 1.4);
+        float top = 200 + 2200 * Math.min(1, s / 160F);
+        begin(true, true);
+        BufferBuilder b = triangles();
+        for (int i = 0; i < 40; i++) {
+            float f = i / 39F;
+            Vec3 at = c.add(Math.sin(i * 1.3) * 8, 20 + top * f, Math.cos(i * 1.7) * 8);
+            float w = ClientState.craterRadius * (0.7F - 0.4F * f) + 30;
+            projected(b, at, w, 1F, 0.75F - 0.45F * f, 0.35F - 0.3F * f, 0.7F * k * (1 - f * 0.6F));
         }
         BufferUploader.drawWithShader(b.end());
         end();
@@ -297,7 +354,7 @@ final class SkyFx {
             if (local <= 0) continue;
             double a = hash(k, 2) * Math.PI * 2;
             float vh = 1.2F + 2.4F * hash(k, 3), vy = 2.5F + 3.5F * hash(k, 4);
-            float size = 4 + 10 * hash(k, 5);
+            float size = 5 + 16 * hash(k, 5);
             for (int j = 9; j >= 0; j--) {
                 float tt = local - j * 5;
                 if (tt < 0) continue;
@@ -319,27 +376,34 @@ final class SkyFx {
         double max = ClientState.shockRadius;
         if (r > max) return;
         float f = (float) (r / max);
-        float a = 0.7F * (float) Math.pow(1 - f, 0.6);
-        double h = 16 + 70 * (1 - f);
+        float a = 0.85F * (float) Math.pow(1 - f, 0.5);
+        double h = 30 + 170 * (1 - f);
         Vec3 c = ClientState.impact;
+        // Fade the wall as it reaches the camera, so it never reads as a flat cylinder up close.
+        double camDist = Math.abs(Math.sqrt((eye.x - c.x) * (eye.x - c.x) + (eye.z - c.z) * (eye.z - c.z)) - r);
+        a *= (float) Mth.clamp((camDist - 15) / 90, 0.0, 1.0);
+        if (a < 0.01F) return;
         begin(false, true);
         BufferBuilder b = Tesselator.getInstance().getBuilder();
         b.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR);
-        int n = 200;
+        int n = 240;
         for (int i = 0; i < n; i++) {
             double a0 = i * Math.PI * 2 / n, a1 = (i + 1) * Math.PI * 2 / n;
+            double h0 = h * (0.6 + 0.6 * hash(i, 31)), h1 = h * (0.6 + 0.6 * hash((i + 1) % n, 31));
             float x0 = (float) (c.x + Math.cos(a0) * r - eye.x), z0 = (float) (c.z + Math.sin(a0) * r - eye.z);
             float x1 = (float) (c.x + Math.cos(a1) * r - eye.x), z1 = (float) (c.z + Math.sin(a1) * r - eye.z);
-            float yb = (float) (c.y - 10 - eye.y), ym = (float) (c.y + h * 0.55 - eye.y), yt = (float) (c.y + h - eye.y);
-            // Brown dust at the bottom, a white condensation band near the top.
+            float yb = (float) (c.y - 10 - eye.y);
+            float ym0 = (float) (c.y + h0 * 0.55 - eye.y), ym1 = (float) (c.y + h1 * 0.55 - eye.y);
+            float yt0 = (float) (c.y + h0 - eye.y), yt1 = (float) (c.y + h1 - eye.y);
+            // Brown dust at the bottom, a white condensation band near the ragged top.
             b.vertex(m, x0, yb, z0).color(0.62F, 0.5F, 0.38F, a).endVertex();
             b.vertex(m, x1, yb, z1).color(0.62F, 0.5F, 0.38F, a).endVertex();
-            b.vertex(m, x1, ym, z1).color(0.85F, 0.8F, 0.74F, a * 0.8F).endVertex();
-            b.vertex(m, x0, ym, z0).color(0.85F, 0.8F, 0.74F, a * 0.8F).endVertex();
-            b.vertex(m, x0, ym, z0).color(0.95F, 0.95F, 0.95F, a * 0.8F).endVertex();
-            b.vertex(m, x1, ym, z1).color(0.95F, 0.95F, 0.95F, a * 0.8F).endVertex();
-            b.vertex(m, x1, yt, z1).color(1F, 1F, 1F, 0F).endVertex();
-            b.vertex(m, x0, yt, z0).color(1F, 1F, 1F, 0F).endVertex();
+            b.vertex(m, x1, ym1, z1).color(0.85F, 0.8F, 0.74F, a * 0.8F).endVertex();
+            b.vertex(m, x0, ym0, z0).color(0.85F, 0.8F, 0.74F, a * 0.8F).endVertex();
+            b.vertex(m, x0, ym0, z0).color(0.95F, 0.95F, 0.95F, a * 0.8F).endVertex();
+            b.vertex(m, x1, ym1, z1).color(0.95F, 0.95F, 0.95F, a * 0.8F).endVertex();
+            b.vertex(m, x1, yt1, z1).color(1F, 1F, 1F, 0F).endVertex();
+            b.vertex(m, x0, yt0, z0).color(1F, 1F, 1F, 0F).endVertex();
         }
         BufferUploader.drawWithShader(b.end());
         end();

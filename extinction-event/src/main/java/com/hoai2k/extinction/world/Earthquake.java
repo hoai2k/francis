@@ -53,9 +53,11 @@ public final class Earthquake {
         int dist = 18 + rnd.nextInt(30);
         int sx = p.getBlockX() + (int) (Math.cos(a) * dist), sz = p.getBlockZ() + (int) (Math.sin(a) * dist);
         if (!Terrain.loaded(level, sx, sz)) return;
-        double dir = rnd.nextDouble() * Math.PI;
-        int len = 12 + rnd.nextInt(19);
-        int depth = 8 + rnd.nextInt((int) (intensity * 10) + 1);
+        fissureAt(level, queue, sx, sz, rnd.nextDouble() * Math.PI, 12 + rnd.nextInt(19), 8 + rnd.nextInt((int) (intensity * 10) + 1));
+    }
+
+    /** A crack centred on (sx, sz) running along dir (radians), len blocks long and up to depth deep. */
+    public static void fissureAt(ServerLevel level, BlockQueue queue, int sx, int sz, double dir, int len, int depth) {
         for (int i = -len / 2; i <= len / 2; i++) {
             int x = sx + (int) Math.round(Math.cos(dir) * i), z = sz + (int) Math.round(Math.sin(dir) * i);
             double taper = 1 - Math.abs(i) / (len / 2.0 + 1);
