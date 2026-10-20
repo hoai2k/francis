@@ -184,7 +184,10 @@ public final class ExtinctionManager {
                 d.setDirty();
             }
         }
-        if (!d.phase.running()) return;
+        if (!d.phase.running()) {
+            if (ExtinctionConfig.NATURAL_SPAWNS.get()) spawns.natural(level, d.phase, time);
+            return;
+        }
 
         d.phaseTick++;
         d.setDirty();

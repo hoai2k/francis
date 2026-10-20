@@ -48,7 +48,7 @@ public final class SpawnDirector {
 
     public void tick(ServerLevel level, Phase phase, float progress, BlockPos impact, boolean detonated, long time) {
         if (time % rules.intervalTicks == 0) {
-            for (ServerPlayer p : Terrain.players(level)) spawnNear(level, p, phase);
+            for (ServerPlayer p : Terrain.players(level)) spawnNear(level, p, phase, rules.maxPerPlayer);
         }
         boolean stampede = (phase == Phase.WARNING && progress > 0.55F) || (phase == Phase.IMPACT && detonated) || phase == Phase.FIRESTORM;
         if (stampede && time % 40 == 0) stampede(level, impact, phase == Phase.WARNING ? 1.25 : 1.7);
@@ -63,7 +63,15 @@ public final class SpawnDirector {
         }
     }
 
-    private void spawnNear(ServerLevel level, ServerPlayer p, Phase phase) {
+    /** Natural spawning while no event runs: "before" entries until the impact, "after" entries once it is over. */
+    public void natural(ServerLevel level, Phase phase, long time) {
+        if (time % rules.naturalIntervalTicks != 0) return;
+        for (ServerPlayer p : Terrain.players(level)) {
+            if (!p.isSpectator()) spawnNear(level, p, phase, rules.naturalMaxPerPlayer);
+        }
+    }
+
+    private void spawnNear(ServerLevel level, ServerPlayer p, Phase phase, int cap) {
         RandomSource rnd = level.random;
         List<SpawnRules.Entry> pool = new ArrayList<>();
         int total = 0;
@@ -80,7 +88,7 @@ public final class SpawnDirector {
         }
         if (pool.isEmpty()) return;
         AABB area = p.getBoundingBox().inflate(64);
-        if (level.getEntitiesOfClass(LivingEntity.class, area, x -> x.getPersistentData().getBoolean(TAG)).size() >= rules.maxPerPlayer) return;
+        if (level.getEntitiesOfClass(LivingEntity.class, area, x -> x.getPersistentData().getBoolean(TAG)).size() >= cap) return;
         int roll = rnd.nextInt(total);
         SpawnRules.Entry pick = pool.get(0);
         for (SpawnRules.Entry e : pool) {

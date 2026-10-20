@@ -28,6 +28,7 @@ public final class ExtinctionConfig {
     public static final ForgeConfigSpec.BooleanValue PLAYER_HAZARDS;
     public static final ForgeConfigSpec.BooleanValue MASS_EXTINCTION;
     public static final ForgeConfigSpec.BooleanValue CHANGE_MUSIC;
+    public static final ForgeConfigSpec.BooleanValue NATURAL_SPAWNS;
     public static final ForgeConfigSpec.IntValue BLOCK_BUDGET;
     public static final ForgeConfigSpec.IntValue EFFECT_RADIUS;
 
@@ -79,6 +80,9 @@ public final class ExtinctionConfig {
                 .define("massExtinction", true);
         CHANGE_MUSIC = b.comment("Play dramatic music during the event (client side)")
                 .define("changeMusic", true);
+        NATURAL_SPAWNS = b.comment("Spawn the spawns.json creatures listed for \"before\" and \"after\" naturally around players",
+                        "when no event is running (dinosaurs roam the world until the asteroid comes)")
+                .define("naturalSpawns", true);
         b.pop();
 
         b.comment("Performance").push("performance");

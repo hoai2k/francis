@@ -40,6 +40,9 @@ public enum Phase {
     }
 
     public static Phase byId(String id) {
+        // In spawns.json, "before" and "after" are the natural world before the impact and after the event.
+        if (id.equalsIgnoreCase("before")) return DORMANT;
+        if (id.equalsIgnoreCase("after")) return OVER;
         for (Phase p : values()) if (p.id().equalsIgnoreCase(id)) return p;
         return null;
     }

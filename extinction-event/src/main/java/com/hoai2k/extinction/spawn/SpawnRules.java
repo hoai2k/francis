@@ -85,6 +85,8 @@ public final class SpawnRules {
     public int intervalTicks = 100;
     public int minDistance = 24, maxDistance = 56;
     public int maxPerPlayer = 14;
+    public int naturalIntervalTicks = 600;
+    public int naturalMaxPerPlayer = 8;
     public int depositsPerChunk = 2;
     public final List<String> problems = new ArrayList<>();
 
@@ -128,6 +130,8 @@ public final class SpawnRules {
             r.minDistance = (int) num(s, "min_distance", 24);
             r.maxDistance = Math.max(r.minDistance + 1, (int) num(s, "max_distance", 56));
             r.maxPerPlayer = (int) num(s, "max_per_player", 14);
+            r.naturalIntervalTicks = Math.max(20, (int) (num(s, "natural_interval_seconds", 30) * 20));
+            r.naturalMaxPerPlayer = (int) num(s, "natural_max_per_player", 8);
             r.depositsPerChunk = (int) num(s, "deposits_per_chunk", 2);
         }
         if (root.has("spawns")) {
