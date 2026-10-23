@@ -324,7 +324,6 @@ export class Race {
       if (n < this.lastCount && n >= 1 && n <= 3) { this.lastCount = n; this.audio.sfx('count'); tr.setStartLights(4 - n, false); this.hud?.count(n); }
       if (this.countdown <= 0) {
         this.state = 'race'; this.started = true; this.time = net ? net.raceTime() : 0;
-        this.game.input?.calibrateTilt?.();   // tilt steering: however the phone is held at GO is straight ahead
         tr.setStartLights(4, true);
         this.audio.sfx('go');
         this.hud?.count('GO!');
@@ -332,7 +331,7 @@ export class Race {
         for (const k of this.karts) {
           if (k.human) {
             if (k.gasHold > 0.3 && k.gasHold < 1.7) k.boost(1.1);
-            else if (k.gasHold >= 2.4) { k.spinTime = 0.6; }
+            else if (k.gasHold >= 2.4) { k.spinTime = 0.6; this.fx.dust(k, 0x555555, 10); this.audio.sfx('spin'); }
           } else if (!k.remote && Math.random() < (this.drivers.get(k)?.d.skill ?? 0.5) * 0.8) k.boost(0.8 + Math.random() * 0.4);
         }
       }
@@ -444,7 +443,7 @@ export class Race {
           const di = ((r.i - k.loc.i) + tr.N) % tr.N;
           if (di <= 2 && Math.abs(k.loc.lat) < tr.HW[r.i] && k.speed > 8) {
             if (r.glide) { k.launch(15, true); k.boostTime = Math.max(k.boostTime, 0.6); k.speed = Math.max(k.speed, k.topSpeed * 0.95); }
-            else { const j = JUMPS[r.kind]; k.launch(j.vy + Math.min(j.maxExtra, k.speed * j.perSpeed)); if (j.boost) k.boostTime = Math.max(k.boostTime, j.boost); }
+            else { const j = JUMPS[r.kind]; k.launch(j.vy + Math.min(j.maxExtra, k.speed * j.perSpeed)); if (j.boost) k.boost(j.boost, false); }
           }
         }
       }

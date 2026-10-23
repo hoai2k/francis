@@ -160,10 +160,11 @@ export class Kart {
 
   forward(out = new THREE.Vector3()) { return out.set(Math.sin(this.yaw), 0, Math.cos(this.yaw)); }
 
-  boost(t, instant = true) {
+  // color / size: the burst of flame (a mini-turbo's takes its sparks' colour, bigger per level)
+  boost(t, instant = true, color = null, size = 1) {
     this.boostTime = Math.max(this.boostTime, t);
     if (instant) this.speed = Math.max(this.speed, this.topSpeed * 1.12);
-    this.race.fx.boostBurst(this);
+    this.race.fx.boostBurst(this, color, size);
     if (this.human) this.race.audio.sfx('boost');
   }
 
@@ -449,7 +450,7 @@ export class Kart {
       const lvl = d.charge > DRIFT_LEVELS[2] ? 3 : d.charge > DRIFT_LEVELS[1] ? 2 : d.charge > DRIFT_LEVELS[0] ? 1 : 0;
       if (lvl > d.level) { d.level = lvl; if (this.human) this.race.audio.sfx('spark' + lvl); }
       if (!ctl.drift || absV < 8 || !on || this.offroad) {
-        if (d.level > 0 && !this.offroad) this.boost(DRIFT_BOOST[d.level - 1]);
+        if (d.level > 0 && !this.offroad) this.boost(DRIFT_BOOST[d.level - 1], true, SPARK_COLORS[d.level - 1], d.level);
         this.cancelDrift();
       }
     } else {
@@ -708,7 +709,7 @@ export class Kart {
     this.vy = vy; this.grounded = false; this.airTime = 0; this.canTrick = true; this.trickDone = false; this.launched = true;
     this.drift.queued = false;
     this.cancelDrift();
-    if (glide) { this.setGliding(true); if (this.human) this.race.audio.sfx('glide'); }
+    if (glide) { this.setGliding(true); if (this.human) this.race.audio.sfx('glide'); } else if (this.human) this.race.audio.sfx('jump');
   }
 
   syncModel(dt) {

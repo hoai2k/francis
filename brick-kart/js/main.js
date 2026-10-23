@@ -26,9 +26,6 @@ const CC = { 50: 0.8, 100: 0.92, 150: 1.06, 200: 1.22 };
 const MOBILE = isTouchDevice() && Math.min(screen.width, screen.height) < 820;
 // Online play (js/online/): on unless ONLINE_ENABLED is false or the address has ?online=0 (?online=1
 // forces it on). Its code is only loaded when someone opens Online; off, the menu item isn't there.
-// Tilt (accelerometer) steering doesn't feel right yet: touch steering is drag-only and the tilt
-// options are hidden until it does. Flip this to bring them back.
-const TILT_ENABLED = false;
 const ONLINE_ENABLED = true;
 const ONLINE = (() => { const v = new URLSearchParams(location.search).get('online'); return v === null ? ONLINE_ENABLED : v !== '0'; })();
 // the online room this browser was in during the last 10 minutes, if any ({ title, t }): the main
@@ -72,7 +69,6 @@ class Game {
     this.ui = document.getElementById('ui');
     this.hudRoot = document.getElementById('hud');
     this.flashEl = document.getElementById('flash');
-    this.applyTilt();
     this.touchRoot = document.getElementById('touch');
     this.input.buildTouch(this.touchRoot);
     this.menuEvents = [];
@@ -409,19 +405,10 @@ class Game {
       .finally(() => { this.onlineLoading = false; });
   }
 
-  // touch steering settings -> the input layer (full lock angle per style and sensitivity)
-  applyTilt() {
-    const s = this.settings, FULL = { wheel: { low: 45, med: 32, high: 22 }, turn: { low: 55, med: 40, high: 28 } };
-    this.input.steerMode = TILT_ENABLED ? s.touchSteer || 'both' : 'drag';
-    this.input.tiltCfg = { style: s.tiltStyle === 'turn' ? 'turn' : 'wheel', full: (FULL[s.tiltStyle] || FULL.wheel)[s.tiltSens] || 32, invert: !!s.tiltInvert };
-    if (this.input.steerMode !== 'drag' && this.input.tiltOn) this.input.calibrateTilt();
-  }
-
   showOptions(back) {
     const s = this.settings;
     const cyc = (key, list, dir) => { const i = list.indexOf(s[key]); s[key] = list[(i + dir + list.length) % list.length]; save(SKEY, s); };
     const vol = (key, dir) => { s[key] = Math.round(Math.max(0, Math.min(1, s[key] + dir * 0.1)) * 10) / 10; save(SKEY, s); this.audio.setVolumes(s.music, s.sfx); };
-    const tilt = (key, list, dir) => { cyc(key, list, dir); this.applyTilt(); if (s.touchSteer !== 'drag') this.input.enableTilt(); };
     const ccs = [50, 100, 150, 200], diffs = ['easy', 'normal', 'hard'], laps = [1, 2, 3, 4, 5];
     this.menu({
       title: 'Options',
@@ -431,13 +418,6 @@ class Game {
         { label: 'Laps', value: () => String(s.laps), left: () => cyc('laps', laps, -1), right: () => cyc('laps', laps, 1) },
         { label: 'Legoized', value: () => (s.lego !== false ? 'On' : 'Off'), left: () => { s.lego = s.lego === false; save(SKEY, s); }, right: () => { s.lego = s.lego === false; save(SKEY, s); } },
         { label: 'Simplified mode', value: () => (s.simple ? 'On' : 'Off'), left: () => { s.simple = !s.simple; save(SKEY, s); }, right: () => { s.simple = !s.simple; save(SKEY, s); } },
-        // phones: how steering works (dragging always works unless it's tilt only; off for now)
-        ...(TILT_ENABLED && isTouchDevice() ? [
-          { label: 'Touch steering', value: () => ({ both: 'Tilt + drag', drag: 'Drag only', tilt: 'Tilt only' }[s.touchSteer] || 'Tilt + drag'), left: () => tilt('touchSteer', ['both', 'drag', 'tilt'], -1), right: () => tilt('touchSteer', ['both', 'drag', 'tilt'], 1) },
-          { label: 'Tilt style', value: () => (s.tiltStyle === 'turn' ? 'Turn (gyro)' : 'Wheel'), left: () => tilt('tiltStyle', ['wheel', 'turn'], -1), right: () => tilt('tiltStyle', ['wheel', 'turn'], 1) },
-          { label: 'Tilt sensitivity', value: () => ({ low: 'Low', med: 'Medium', high: 'High' }[s.tiltSens] || 'Medium'), left: () => tilt('tiltSens', ['low', 'med', 'high'], -1), right: () => tilt('tiltSens', ['low', 'med', 'high'], 1) },
-          { label: 'Invert tilt', value: () => (s.tiltInvert ? 'On' : 'Off'), left: () => { s.tiltInvert = !s.tiltInvert; save(SKEY, s); this.applyTilt(); }, right: () => { s.tiltInvert = !s.tiltInvert; save(SKEY, s); this.applyTilt(); } },
-        ] : []),
         { label: 'Auto-accelerate', value: () => (s.autoGas ? 'On' : 'Off'), left: () => { s.autoGas = !s.autoGas; save(SKEY, s); }, right: () => { s.autoGas = !s.autoGas; save(SKEY, s); } },
         { label: 'Music', value: () => Math.round(s.music * 10) + '/10', left: () => vol('music', -1), right: () => vol('music', 1) },
         { label: 'Sound FX', value: () => Math.round(s.sfx * 10) + '/10', left: () => vol('sfx', -1), right: () => vol('sfx', 1) },

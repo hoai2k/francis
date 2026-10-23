@@ -371,10 +371,6 @@ you drop some.
   you're holding (and the next one beside it) and is greyed out while you have none.
   Tap it to use the item, flick it up to throw the item forward (traps, Boom Bricks)
   or flick it down to fire or drop it behind. Gas is automatic.
-- **Tilt steering** is switched off for now (`TILT_ENABLED` in `js/main.js`), along
-  with its options, until it feels right. The code is still there: Wheel or Turn
-  (gyro) style, three sensitivities and invert, with a dead zone, a gentle curve and
-  smoothing, re-centred at GO and whenever the steering finger lifts.
 - Tapping outside a popup menu (Options, How to Play, Pause) closes it.
 
 ## Multiplayer (1–8 players, split-screen)
