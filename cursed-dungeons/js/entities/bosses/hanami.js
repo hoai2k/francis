@@ -74,7 +74,7 @@ export const hanami = {
       bud.tick -= dt;
       if (bud.tick <= 0) { bud.tick = 0.8; p.takeDamage(this.dmg * 0.08, this, { dot: true, noKnock: true }); this.hp = Math.min(this.maxHp, this.hp + this.maxHp * 0.002); }
       bud.mesh.scale.setScalar(1 + Math.sin(g.time * 8) * 0.12 + (1 - bud.t / 7) * 0.6);
-      if (Math.random() < dt * 10) g.particles.glow.emit(p.pos.x, p.pos.y + 1.4, p.pos.z, (Math.random() - 0.5), 1.4, (Math.random() - 0.5), 0.5, 0.6, 2.2, 0.5, 0.1, 0, 1, 0.1, 0);
+      if (Math.random() < dt * 10) g.particles.glow.spawn({ x: p.pos.x, y: p.pos.y + 1.4, z: p.pos.z, vx: (Math.random() - 0.5), vy: 1.4, vz: (Math.random() - 0.5), life: 0.5, r: 0.6, g: 2.2, b: 0.5, size: 0.1, drag: 1, sizeEnd: 0.1 });
     }
   },
   onDeath() { for (const [, bud] of this.st.buds) bud.mesh.parent?.remove(bud.mesh); this.st.buds.clear(); },
@@ -136,7 +136,7 @@ export const hanami = {
           const from = this.pos.clone().setY(this.pos.y + 3.2);
           const a = this.facing + (k ? 0.5 : -0.5);
           g.projectiles.fire({ pos: from, vel: V(Math.sin(a) * 8, 3, Math.cos(a) * 8), team: 'enemy', dmg: 0, shape: 'orb', color: 0xff8ac0, emissive: 2.5, life: 3, homing: 2.6, target: tg, scale: 1.1, radius: 0.45,
-            trail: (pr) => { if (Math.random() < 0.6) g.particles.glow.emit(pr.pos.x, pr.pos.y, pr.pos.z, 0, 0.3, 0, 0.4, 2, 0.8, 1.4, 0.1, 0, 1, 0.05, 0); },
+            trail: (pr) => { if (Math.random() < 0.6) g.particles.glow.spawn({ pos: pr.pos, vy: 0.3, life: 0.4, r: 2, g: 0.8, b: 1.4, size: 0.1, drag: 1, sizeEnd: 0.05 }); },
             onHit: (p) => {
               p.takeDamage(self.dmg * 0.3, self, { knock: V(0, 0, 0) });
               if (self.st.buds.has(p) || p.dead) return;
@@ -198,7 +198,7 @@ export const hanami = {
         if (tg && k < 13) { const want = Math.atan2(tg.pos.x - this.pos.x, tg.pos.z - this.pos.z); this.facing += Math.max(-0.05, Math.min(0.05, ((want - this.facing + Math.PI * 3) % (Math.PI * 2)) - Math.PI)); }
         mk.mesh.rotation.z = this.facing + Math.PI; mk.offset.set(Math.sin(this.facing) * L / 2, 0.05, Math.cos(this.facing) * L / 2);
         const sh = this.rig.extras.shoulder.getWorldPosition(V());
-        for (let i = 0; i < 4; i++) { const a = Math.random() * 6.28, r = 2 + Math.random() * 2; g.particles.glow.emit(sh.x + Math.cos(a) * r, sh.y + (Math.random() - 0.5) * 2, sh.z + Math.sin(a) * r, -Math.cos(a) * r * 2, 0, -Math.sin(a) * r * 2, 0.45, 1.2, 3, 0.8, 0.16, 0, 0, 0.05, 0); }
+        for (let i = 0; i < 4; i++) { const a = Math.random() * 6.28, r = 2 + Math.random() * 2; g.particles.glow.spawn({ x: sh.x + Math.cos(a) * r, y: sh.y + (Math.random() - 0.5) * 2, z: sh.z + Math.sin(a) * r, vx: -Math.cos(a) * r * 2, vz: -Math.sin(a) * r * 2, life: 0.45, r: 1.2, g: 3, b: 0.8, size: 0.16, sizeEnd: 0.05 }); }
         yield 0.1;
       }
       g.markers.cancel(mk);

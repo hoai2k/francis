@@ -144,7 +144,7 @@ export class CursedObject {
     L.ring.visible = this.shielded();
     const f = this.flashT > 0;
     if (f !== this.flashing) { this.flashing = f; for (const m of L.body) { m.userData.mat ??= m.material; m.material = f ? parts().mats.flash : m.userData.mat; } }
-    if (Math.random() < dt * 6) this.game.particles?.glow?.emit(this.pos.x + (Math.random() - 0.5) * 2.4, this.pos.y + 0.2, this.pos.z + (Math.random() - 0.5) * 2.4, 0, 0.8 + Math.random(), 0, 1.2, 0.6, 0.15, 1.1, 0.22, -0.2, 1.4, 0.1, 0);
+    if (Math.random() < dt * 6) this.game.particles?.glow?.spawn({ x: this.pos.x + (Math.random() - 0.5) * 2.4, y: this.pos.y + 0.2, z: this.pos.z + (Math.random() - 0.5) * 2.4, vy: 0.8 + Math.random(), life: 1.2, r: 0.6, g: 0.15, b: 1.1, size: 0.22, gravity: -0.2, drag: 1.4, sizeEnd: 0.1 });
     return true;
   }
 }

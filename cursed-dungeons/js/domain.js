@@ -153,7 +153,7 @@ export class DomainSystem {
       tmpC.set(def.color ?? d.spec.rim);
       for (let i = 0; i < 6; i++) {
         const a = Math.random() * Math.PI * 2, r = 2 + Math.random() * 3;
-        g.particles.glow.emit(c.x + Math.cos(a) * r, c.y + 0.3 + Math.random() * 2.2, c.z + Math.sin(a) * r, -Math.cos(a) * r * 3 - Math.sin(a) * 3, 0.4, -Math.sin(a) * r * 3 + Math.cos(a) * 3, 0.35, tmpC.r * 3, tmpC.g * 3, tmpC.b * 3, 0.14, 0, 2.5, 0.3, 1);
+        g.particles.glow.spawn({ x: c.x + Math.cos(a) * r, y: c.y + 0.3 + Math.random() * 2.2, z: c.z + Math.sin(a) * r, vx: -Math.cos(a) * r * 3 - Math.sin(a) * 3, vy: 0.4, vz: -Math.sin(a) * r * 3 + Math.cos(a) * 3, life: 0.35, r: tmpC.r * 3, g: tmpC.g * 3, b: tmpC.b * 3, size: 0.14, drag: 2.5, sizeEnd: 0.3, shape: 'square' });
       }
       if (d.t >= CAST) this.expand(d);
       return;
@@ -255,7 +255,7 @@ export class DomainSystem {
         e._barrierFx = g.time + 0.25;
         tmpC.set(d.spec.rim);
         const wx = c.x + nx * R, wz = c.z + nz * R, wy = e.pos.y + 0.4 + Math.random() * 1.5;
-        for (let i = 0; i < 5; i++) g.particles.glow.emit(wx, wy + (Math.random() - 0.5), wz, (Math.random() - 0.5) * 2, (Math.random() - 0.5) * 2, (Math.random() - 0.5) * 2, 0.35, tmpC.r * 2.5, tmpC.g * 2.5, tmpC.b * 2.5, 0.16, 0, 3, 0.05, 1);
+        for (let i = 0; i < 5; i++) g.particles.glow.spawn({ x: wx, y: wy + (Math.random() - 0.5), z: wz, vx: (Math.random() - 0.5) * 2, vy: (Math.random() - 0.5) * 2, vz: (Math.random() - 0.5) * 2, life: 0.35, r: tmpC.r * 2.5, g: tmpC.g * 2.5, b: tmpC.b * 2.5, size: 0.16, drag: 3, sizeEnd: 0.05, shape: 'square' });
       }
     }
   }
@@ -271,7 +271,7 @@ export class DomainSystem {
       if (side === undefined) { d.proj.set(p, inn); continue; }
       if (side === inn) continue;
       tmpC.set(d.spec.rim);
-      for (let k = 0; k < 8; k++) g.particles.glow.emit(p.pos.x, p.pos.y, p.pos.z, (Math.random() - 0.5) * 4, (Math.random() - 0.5) * 4, (Math.random() - 0.5) * 4, 0.3, tmpC.r * 3, tmpC.g * 3, tmpC.b * 3, 0.14, 0, 3, 0.05, 1);
+      for (let k = 0; k < 8; k++) g.particles.glow.spawn({ pos: p.pos, vx: (Math.random() - 0.5) * 4, vy: (Math.random() - 0.5) * 4, vz: (Math.random() - 0.5) * 4, life: 0.3, r: tmpC.r * 3, g: tmpC.g * 3, b: tmpC.b * 3, size: 0.14, drag: 3, sizeEnd: 0.05, shape: 'square' });
       g.projectiles.kill(p, 'barrier');
     }
   }
@@ -288,7 +288,7 @@ export class DomainSystem {
       const x = c.x + Math.cos(a) * rr * R, z = c.z + Math.sin(a) * rr * R, h = c.y + y * R;
       const dark = Math.random() < 0.65;
       const k = dark ? 0.02 : 2.5;
-      g.particles.glow.emit(x, h, z, Math.cos(a) * (1 + Math.random() * 3), -1 - Math.random() * 2, Math.sin(a) * (1 + Math.random() * 3), 0.9 + Math.random() * 0.6, dark ? k : tmpC.r * k, dark ? k : tmpC.g * k, dark ? k : tmpC.b * k, dark ? 0.6 : 0.22, 9, 0.5, 0.4, dark ? 1 : 3);
+      g.particles.glow.spawn({ x, y: h, z, vx: Math.cos(a) * (1 + Math.random() * 3), vy: -1 - Math.random() * 2, vz: Math.sin(a) * (1 + Math.random() * 3), life: 0.9 + Math.random() * 0.6, r: dark ? k : tmpC.r * k, g: dark ? k : tmpC.g * k, b: dark ? k : tmpC.b * k, size: dark ? 0.6 : 0.22, gravity: 9, drag: 0.5, sizeEnd: 0.4, shape: dark ? 1 : 3 });
     }
   }
 

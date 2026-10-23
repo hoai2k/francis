@@ -139,7 +139,7 @@ class Spirit {
     this.object.position.set(this.pos.x, this.pos.y + (this.rig.float ?? 0), this.pos.z);
     this.object.rotation.y = this.facing;
     // violet contract aura so they read as Geto's
-    if (Math.random() < 0.4) g.particles.glow.emit(this.pos.x + (Math.random() - 0.5) * this.radius * 2, this.pos.y + Math.random() * this.height, this.pos.z + (Math.random() - 0.5) * this.radius * 2, 0, 0.6, 0, 0.6, 1.2, 0.6, 2.2, 0.12, -0.2, 1, 0.3, 0);
+    if (Math.random() < 0.4) g.particles.glow.spawn({ x: this.pos.x + (Math.random() - 0.5) * this.radius * 2, y: this.pos.y + Math.random() * this.height, z: this.pos.z + (Math.random() - 0.5) * this.radius * 2, vy: 0.6, life: 0.6, r: 1.2, g: 0.6, b: 2.2, size: 0.12, gravity: -0.2, drag: 1, sizeEnd: 0.3 });
     return true;
   }
   attack(e) {
@@ -294,7 +294,7 @@ class GetoKit extends Kit {
     const from = e.pos.clone().setY(e.pos.y + e.height * 0.5);
     for (let i = 0; i < 14; i++) {
       const k = i / 14;
-      g.particles.glow.emit(from.x, from.y, from.z, (p.pos.x - from.x) * (1.4 + k), (p.pos.y + 1.2 - from.y) * 1.5 + 1, (p.pos.z - from.z) * (1.4 + k), 0.6, 1.4, 0.7, 2.6, 0.2, 0, 0.5, 0.2, 0);
+      g.particles.glow.spawn({ x: from.x, y: from.y, z: from.z, vx: (p.pos.x - from.x) * (1.4 + k), vy: (p.pos.y + 1.2 - from.y) * 1.5 + 1, vz: (p.pos.z - from.z) * (1.4 + k), life: 0.6, r: 1.4, g: 0.7, b: 2.6, size: 0.2, drag: 0.5 });
     }
     g.particles.burst(from, { count: 18, color: BLACK, additive: false, speed: 2, life: 0.6, size: 0.5, sizeEnd: 0.1 });
     g.fx.darkRings.spawn(tmp.set(from.x, e.pos.y + 0.06, from.z), { color: 0x000000, r0: 1.8, r1: 0.1, dur: 0.4, thick: 0.35 });
@@ -304,7 +304,7 @@ class GetoKit extends Kit {
     const g = this.game;
     for (let i = 0; i < 10; i++) {
       const a = i / 10 * Math.PI * 4, y = at.y + i / 10 * h * 1.2;
-      g.particles.glow.emit(at.x + Math.cos(a) * 0.9, y, at.z + Math.sin(a) * 0.9, -Math.cos(a) * 2, 0.5, -Math.sin(a) * 2, 0.35, 1.4, 0.6, 2.4, 0.14, 0, 2, 0.2, 0);
+      g.particles.glow.spawn({ x: at.x + Math.cos(a) * 0.9, y, z: at.z + Math.sin(a) * 0.9, vx: -Math.cos(a) * 2, vy: 0.5, vz: -Math.sin(a) * 2, life: 0.35, r: 1.4, g: 0.6, b: 2.4, size: 0.14, drag: 2 });
     }
   }
   tick() {
@@ -312,7 +312,7 @@ class GetoKit extends Kit {
     const g = this.game, p = this.p;
     if (this.stock > 0 && Math.random() < 0.5) {
       const a = g.time * 3 + Math.floor(Math.random() * this.stock) / this.stock * Math.PI * 2;
-      g.particles.glow.emit(p.pos.x + Math.cos(a) * 1.1, p.pos.y + 1.3 + Math.sin(g.time * 4 + a) * 0.2, p.pos.z + Math.sin(a) * 1.1, 0, 0, 0, 0.3, 1.2, 0.5, 2.2, 0.16, 0, 0, 0.5, 0);
+      g.particles.glow.spawn({ x: p.pos.x + Math.cos(a) * 1.1, y: p.pos.y + 1.3 + Math.sin(g.time * 4 + a) * 0.2, z: p.pos.z + Math.sin(a) * 1.1, life: 0.3, r: 1.2, g: 0.5, b: 2.2, size: 0.16, sizeEnd: 0.5 });
     }
   }
   // ---------------------------------------------------------- techniques
@@ -750,7 +750,7 @@ class GetoKit extends Kit {
       const dmg = 40 + spend * 28 + rk * 10;
       this.line(p.pos, dir, L, W, (e) => { g.combat.damageEnemy(e, dmg, p, { unblockable: true, stagger: 0.8, knock: dir.clone().multiplyScalar(8), color: '#c8a0ff' }); g.fx.hitSpark(e.pos.clone().setY(e.pos.y + 1), dir, { color: VIOLET, big: true }); });
       const side = new THREE.Vector3(dir.z, 0, -dir.x);
-      for (let s = 0; s < L; s += 0.5) for (const ph of [0, Math.PI]) { const a = s * 1.4 + ph; g.particles.glow.emit(from.x + dir.x * s + side.x * Math.cos(a) * W, from.y + Math.sin(a) * W * 0.8, from.z + dir.z * s + side.z * Math.cos(a) * W, dir.x * 5, 0, dir.z * 5, 0.5, 1.6, 0.7, 2.8, 0.25, 0, 2, 0.1, 0); }
+      for (let s = 0; s < L; s += 0.5) for (const ph of [0, Math.PI]) { const a = s * 1.4 + ph; g.particles.glow.spawn({ x: from.x + dir.x * s + side.x * Math.cos(a) * W, y: from.y + Math.sin(a) * W * 0.8, z: from.z + dir.z * s + side.z * Math.cos(a) * W, vx: dir.x * 5, vz: dir.z * 5, life: 0.5, r: 1.6, g: 0.7, b: 2.8, size: 0.25, drag: 2, sizeEnd: 0.1 }); }
       g.fx.slashLine(from, dir, L, VIOLET, W * 1.4, 0.4); g.fx.slashLine(from, dir, L, 0xffffff, W * 0.4, 0.25);
       for (let s = 1; s < L; s += 1.5) g.combat.hitBlocks(tmp2.copy(from).addScaledVector(dir, s).setY(p.pos.y), dir, W, Math.PI, 50, p);
       g.fx.screenWave(from, 0.9, 0.4); g.shake(0.4); g.hitStop(0.06);
@@ -824,7 +824,7 @@ class GetoKit extends Kit {
     // every spirit is drawn back and compressed
     for (const s of mine) {
       const from = s.pos.clone().setY(s.pos.y + s.height * 0.5);
-      for (let i = 0; i < 12; i++) g.particles.glow.emit(from.x, from.y, from.z, (p.pos.x - from.x) * 2, (p.pos.y + 1.4 - from.y) * 2, (p.pos.z - from.z) * 2, 0.5, 1.6, 0.8, 2.8, 0.25, 0, 0.3, 0.2, 0);
+      for (let i = 0; i < 12; i++) g.particles.glow.spawn({ x: from.x, y: from.y, z: from.z, vx: (p.pos.x - from.x) * 2, vy: (p.pos.y + 1.4 - from.y) * 2, vz: (p.pos.z - from.z) * 2, life: 0.5, r: 1.6, g: 0.8, b: 2.8, size: 0.25, drag: 0.3 });
       s.despawn();
     }
     this.stock = 0;
@@ -854,7 +854,7 @@ class GetoKit extends Kit {
       for (let i = 0; i < 10; i++) {
         const a = Math.random() * Math.PI * 2, r = 5 + Math.random() * 7, y = hp.y + (Math.random() - 0.4) * 5;
         const sx = hp.x + Math.cos(a) * r, sz = hp.z + Math.sin(a) * r;
-        g.particles.glow.emit(sx, y, sz, (hp.x - sx) * 2.4 - Math.sin(a) * 4, (hp.y - y) * 2.4, (hp.z - sz) * 2.4 + Math.cos(a) * 4, 0.4, 1.3, 0.55, 2.6, 0.22, 0, 0.5, 0.05, 0);
+        g.particles.glow.spawn({ x: sx, y, z: sz, vx: (hp.x - sx) * 2.4 - Math.sin(a) * 4, vy: (hp.y - y) * 2.4, vz: (hp.z - sz) * 2.4 + Math.cos(a) * 4, life: 0.4, r: 1.3, g: 0.55, b: 2.6, size: 0.22, drag: 0.5, sizeEnd: 0.05 });
       }
       if (Math.random() < 0.6) { const a = Math.random() * Math.PI * 2; g.particles.burst(tmp2.set(hp.x + Math.cos(a) * 6, hp.y + (Math.random() - 0.5) * 3, hp.z + Math.sin(a) * 6), { count: 2, color: BLACK, additive: false, speed: 1, dir: tmp.set(-Math.cos(a) * 9, 0, -Math.sin(a) * 9), life: 0.6, size: 0.7, sizeEnd: 0.1 }); }
       ring -= realDt;
@@ -887,7 +887,7 @@ class GetoKit extends Kit {
       for (const ph of [0, Math.PI]) {
         const a = s * 1.4 + ph, r = W * (0.6 + 0.4 * Math.sin(s * 0.5));
         const x = from.x + dir.x * s + side.x * Math.cos(a) * r, y = from.y + Math.sin(a) * r * 0.8, z = from.z + dir.z * s + side.z * Math.cos(a) * r;
-        g.particles.glow.emit(x, y, z, dir.x * 6 + side.x * Math.cos(a) * 2, Math.sin(a) * 2, dir.z * 6 + side.z * Math.cos(a) * 2, 0.6 + Math.random() * 0.3, 1.6, 0.7, 2.8, 0.3, 0, 2, 0.1, 0);
+        g.particles.glow.spawn({ x, y, z, vx: dir.x * 6 + side.x * Math.cos(a) * 2, vy: Math.sin(a) * 2, vz: dir.z * 6 + side.z * Math.cos(a) * 2, life: 0.6 + Math.random() * 0.3, r: 1.6, g: 0.7, b: 2.8, size: 0.3, drag: 2, sizeEnd: 0.1 });
       }
       if (Math.random() < 0.4) g.particles.burst(tmp.copy(from).addScaledVector(dir, s), { count: 2, color: BLACK, additive: false, speed: 2, life: 0.7, size: 0.6, sizeEnd: 1.6 });
     }

@@ -573,7 +573,7 @@ class KashimoKit extends Kit {
       mat.emitMask.value = 2.2 + Math.random() * 0.8;
       p.rig.setGlow?.(Math.random() < 0.2 ? 0x8ae8ff : 0x2a6a8a);
       p.heroLight.color.setHex(VOLT); p.heroLight.intensity = 3.5 + Math.random() * 2;
-      for (let i = 0; i < 3; i++) g.particles.glow.emit(p.pos.x + (Math.random() - 0.5) * 0.9, p.pos.y + Math.random() * 2, p.pos.z + (Math.random() - 0.5) * 0.9, (Math.random() - 0.5) * 3, 2 + Math.random() * 2, (Math.random() - 0.5) * 3, 0.25, 0.8, 2.6, 3.2, 0.08, 0, 2, 0.1, 3);
+      for (let i = 0; i < 3; i++) g.particles.glow.spawn({ x: p.pos.x + (Math.random() - 0.5) * 0.9, y: p.pos.y + Math.random() * 2, z: p.pos.z + (Math.random() - 0.5) * 0.9, vx: (Math.random() - 0.5) * 3, vy: 2 + Math.random() * 2, vz: (Math.random() - 0.5) * 3, life: 0.25, r: 0.8, g: 2.6, b: 3.2, size: 0.08, drag: 2, sizeEnd: 0.1, shape: 'spark' });
       // arcs leap from his body to nearby curses on their own
       this.arcT -= dt;
       if (this.arcT <= 0) {
@@ -588,7 +588,7 @@ class KashimoKit extends Kit {
       this.burnT -= dt;
       const loss = Math.min(this.burnLeft * dt / 4, Math.max(0, p.hp - 1));
       p.hp -= loss;
-      if (Math.random() < 0.4) g.particles.smoke.emit(p.pos.x + (Math.random() - 0.5) * 0.6, p.pos.y + Math.random() * 1.8, p.pos.z + (Math.random() - 0.5) * 0.6, 0, 1, 0, 0.8, 0.12, 0.12, 0.14, 0.25, -0.5, 1, 2, 0);
+      if (Math.random() < 0.4) g.particles.smoke.spawn({ x: p.pos.x + (Math.random() - 0.5) * 0.6, y: p.pos.y + Math.random() * 1.8, z: p.pos.z + (Math.random() - 0.5) * 0.6, vy: 1, life: 0.8, r: 0.12, g: 0.12, b: 0.14, size: 0.25, gravity: -0.5, drag: 1, sizeEnd: 2 });
       if (Math.random() < 0.15) zap(g, p.pos.clone().setY(p.pos.y + 1), p.pos.clone().add(new THREE.Vector3((Math.random() - 0.5) * 2, 1.5, (Math.random() - 0.5) * 2)), 0x3a6a8a, 0.1, 2);
       if (Math.random() < dt * 3) g.fx.damageNumber(p.pos, loss, { color: '#7ab0c8', text: '⚡ breakdown' });
       mat.emitMask.value = 0.4; p.rig.setGlow?.(0x000000); p.heroLight.color.setHex(0xffe8d0); p.heroLight.intensity = 1.6;
@@ -609,7 +609,7 @@ class KashimoKit extends Kit {
       if (rod.t <= 0) this.removeRod();
     }
     // charged curses crackle
-    if (Math.random() < 0.35) for (const e of g.enemies) if (!e.dead && e.kCharge > 0 && Math.random() < 0.35) g.particles.glow.emit(e.pos.x + (Math.random() - 0.5) * 0.8, e.pos.y + Math.random() * e.height, e.pos.z + (Math.random() - 0.5) * 0.8, (Math.random() - 0.5) * 2, 1, (Math.random() - 0.5) * 2, 0.2, 0.8, 2.4, 3, 0.05 + e.kCharge * 0.015, 0, 2, 0.2, 3);
+    if (Math.random() < 0.35) for (const e of g.enemies) if (!e.dead && e.kCharge > 0 && Math.random() < 0.35) g.particles.glow.spawn({ x: e.pos.x + (Math.random() - 0.5) * 0.8, y: e.pos.y + Math.random() * e.height, z: e.pos.z + (Math.random() - 0.5) * 0.8, vx: (Math.random() - 0.5) * 2, vy: 1, vz: (Math.random() - 0.5) * 2, life: 0.2, r: 0.8, g: 2.4, b: 3, size: 0.05 + e.kCharge * 0.015, drag: 2, shape: 'spark' });
   }
   dispose() { super.dispose(); this.removeRod(); if (this.amberTimer) { clearTimeout(this.amberTimer); this.amberTimer = null; } this.game.fx.dimTarget = 0; this.amberT = 0; this.burnT = 0; this.speedMul = 1; }
 }

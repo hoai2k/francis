@@ -503,7 +503,7 @@ class MegumiKit extends Kit {
       deer.root.position.lerp(want, Math.min(1, dt * 3)); deer.root.position.y = this.groundAt(deer.root.position.x, deer.root.position.z, p.pos.y);
       deer.root.rotation.y = p.facing; deer.head.rotation.z = Math.sin(t * 2) * 0.1;
       tick -= dt;
-      if (Math.random() < 0.5) g.particles.glow.emit(deer.root.position.x + (Math.random() - 0.5), deer.root.position.y + 3, deer.root.position.z + (Math.random() - 0.5), 0, 0.8, 0, 0.8, 0.6, 2.2, 1.6, 0.12, 0, 1, 0.05, 1);
+      if (Math.random() < 0.5) g.particles.glow.spawn({ x: deer.root.position.x + (Math.random() - 0.5), y: deer.root.position.y + 3, z: deer.root.position.z + (Math.random() - 0.5), vy: 0.8, life: 0.8, r: 0.6, g: 2.2, b: 1.6, size: 0.12, drag: 1, sizeEnd: 0.05, shape: 'square' });
       if (tick > 0) return;
       tick = 0.5;
       for (const q of g.players) if (!q.dead && !q.downed && q.pos.distanceTo(deer.root.position) < 7) { q.heal(q.maxHp * 0.025, true); g.particles.burst(q.pos.clone().setY(q.pos.y + 1), { count: 4, color: 0x9affd8, speed: 1, up: 2, life: 0.6, size: 0.15 }); }
@@ -620,7 +620,7 @@ class MegumiKit extends Kit {
       this.during(1.8, (t, dt) => {
         el.trunk.rotation.x = -0.9 + Math.sin(t * 6) * 0.15;
         const mouth = el.root.position.clone().addScaledVector(f, 3.2).setY(el.root.position.y + 1.4);
-        for (let i = 0; i < 6; i++) { const sp = 9 + Math.random() * 6, a = (Math.random() - 0.5) * 1.1, d = new THREE.Vector3(f.x * Math.cos(a) - f.z * Math.sin(a), 0, f.x * Math.sin(a) + f.z * Math.cos(a)); g.particles.glow.emit(mouth.x, mouth.y, mouth.z, d.x * sp, 2 + Math.random() * 2, d.z * sp, 0.6, 0.6, 1.4, 2.4, 0.25, 12, 0.5, 0.7, 0); }
+        for (let i = 0; i < 6; i++) { const sp = 9 + Math.random() * 6, a = (Math.random() - 0.5) * 1.1, d = new THREE.Vector3(f.x * Math.cos(a) - f.z * Math.sin(a), 0, f.x * Math.sin(a) + f.z * Math.cos(a)); g.particles.glow.spawn({ pos: mouth, vx: d.x * sp, vy: 2 + Math.random() * 2, vz: d.z * sp, life: 0.6, r: 0.6, g: 1.4, b: 2.4, size: 0.25, gravity: 12, drag: 0.5, sizeEnd: 0.7 }); }
         if (Math.random() < 0.5) g.fx.splash(mouth.clone().addScaledVector(f, 3 + Math.random() * 5).setY(el.root.position.y), 1.2);
         tick -= dt; if (tick > 0) return;
         tick = 0.3;

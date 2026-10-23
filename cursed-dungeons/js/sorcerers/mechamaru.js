@@ -320,7 +320,7 @@ class MechamaruKit extends Kit {
     // thruster glow
     if (Math.random() < 0.3) {
       const back = tmp.set(-Math.sin(p.facing) * 0.35, 0, -Math.cos(p.facing) * 0.35);
-      g.particles.glow.emit(p.pos.x + back.x, p.pos.y + 1.2, p.pos.z + back.z, back.x, -1.2, back.z, 0.3, 0.4, 1.6, 2.2, 0.1, 0, 2, 0.1, 0);
+      g.particles.glow.spawn({ x: p.pos.x + back.x, y: p.pos.y + 1.2, z: p.pos.z + back.z, vx: back.x, vy: -1.2, vz: back.z, life: 0.3, r: 0.4, g: 1.6, b: 2.2, size: 0.1, drag: 2, sizeEnd: 0.1 });
     }
   }
   // ------------------------------------------------------------- Ultimate
@@ -347,7 +347,7 @@ class MechamaruKit extends Kit {
         // stored energy pours into the palm from all around him
         for (let i = 0; i < 6; i++) {
           const a = Math.random() * Math.PI * 2, rr = 1 + Math.random() * (3 - k * 2);
-          g.particles.glow.emit(h.x + Math.cos(a) * rr, h.y + (Math.random() - 0.5) * 2, h.z + Math.sin(a) * rr, -Math.cos(a) * rr * 4, 0, -Math.sin(a) * rr * 4, 0.25, 0.4, 1.8, 2.4, 0.12, 0, 0, 0.2, 1);
+          g.particles.glow.spawn({ x: h.x + Math.cos(a) * rr, y: h.y + (Math.random() - 0.5) * 2, z: h.z + Math.sin(a) * rr, vx: -Math.cos(a) * rr * 4, vz: -Math.sin(a) * rr * 4, life: 0.25, r: 0.4, g: 1.8, b: 2.4, size: 0.12, shape: 'square' });
         }
         g.particles.burst(h, { count: 1, color: WHITE, speed: 0, life: 0.08, size: 0.4 + k * 1.6, sizeEnd: 0.2, intensity: 4 });
         if (Math.random() < 0.3) g.fx.rings.spawn(tmp.set(p.pos.x, p.pos.y + 0.06, p.pos.z), { color: CYAN, r0: 3, r1: 0.4, dur: 0.3, thick: 0.1 });
@@ -417,7 +417,7 @@ class MechamaruKit extends Kit {
       const x = from.x + (to.x - from.x) * k, z = from.z + (to.z - from.z) * k, y = from.y + (to.y - from.y) * k + Math.sin(k * Math.PI) * height;
       if (!g.world.solidAt(x, y + 0.5, z) && !g.world.solidAt(x, y + 1.5, z)) { p.pos.set(x, y, z); p.visY = y; }
       p.vel.set(0, 0, 0);
-      g.particles.glow.emit(p.pos.x, p.pos.y + 1, p.pos.z, 0, -4, 0, 0.3, 0.4, 1.6, 2.2, 0.2, 0, 1, 0.05, 0);
+      g.particles.glow.spawn({ x: p.pos.x, y: p.pos.y + 1, z: p.pos.z, vy: -4, life: 0.3, r: 0.4, g: 1.6, b: 2.2, size: 0.2, drag: 1, sizeEnd: 0.05 });
     }, () => { p.invulnerable = false; if (p.action?.lock) p.action = null; if (!this.disposed) onLand?.(p.pos.clone()); });
   }
   // ---- Cannon
@@ -495,7 +495,7 @@ class MechamaruKit extends Kit {
       const going = t < 0.4;
       if (going) pos.addScaledVector(f, 26 * dt * (1 - t / 0.45));
       else { const b = tmp.copy(this.handPos()).sub(pos); const d = b.length(); if (d < 0.8) return false; pos.addScaledVector(b.normalize(), Math.min(d, 28 * dt)); }
-      g.particles.glow.emit(pos.x, pos.y, pos.z, -f.x * 2, 0, -f.z * 2, 0.25, 0.4, 1.6, 2.2, 0.15, 0, 1, 0.05, 0);
+      g.particles.glow.spawn({ pos: pos, vx: -f.x * 2, vz: -f.z * 2, life: 0.25, r: 0.4, g: 1.6, b: 2.2, size: 0.15, drag: 1, sizeEnd: 0.05 });
       for (const e of this.foes(pos, 1.3)) {
         const set = going ? out : back; if (set.has(e)) continue; set.add(e);
         this.hit(e, 22 + this.rank('drill') * 4, { stagger: 0.5, knock: f.clone().multiplyScalar(going ? 6 : -4) });
@@ -632,7 +632,7 @@ class MechamaruKit extends Kit {
     this.buff('stored_energy', 8, {
       onStart: () => { this.ceMul *= 0.5; this.cannonMul *= 1.4; },
       onEnd: () => { this.ceMul /= 0.5; this.cannonMul /= 1.4; },
-      onTick: () => { if (Math.random() < 0.4) g.particles.glow.emit(p.pos.x + (Math.random() - 0.5), p.pos.y + Math.random() * 2, p.pos.z + (Math.random() - 0.5), 0, 0.8, 0, 0.5, 0.4, 1.6, 2.2, 0.12, 0, 1, 0.1, 0); },
+      onTick: () => { if (Math.random() < 0.4) g.particles.glow.spawn({ x: p.pos.x + (Math.random() - 0.5), y: p.pos.y + Math.random() * 2, z: p.pos.z + (Math.random() - 0.5), vy: 0.8, life: 0.5, r: 0.4, g: 1.6, b: 2.2, size: 0.12, drag: 1, sizeEnd: 0.1 }); },
     });
   }
   reserves() {

@@ -603,7 +603,7 @@ const ash = (cg, dt, rate, col = [0.55, 0.52, 0.5]) => {
     cg.ashT -= 1;
     const x = f.x + (Math.random() - 0.5) * 40, z = f.z + (Math.random() - 0.5) * 36, y = f.y + 6 + Math.random() * 8;
     const k = 0.85 + Math.random() * 0.3;
-    part.smoke.emit(x, y, z, 0.4 + Math.random() * 0.5, -0.9 - Math.random() * 0.6, 0.2 + Math.random() * 0.4, 7 + Math.random() * 3, col[0] * k, col[1] * k, col[2] * k, 0.07 + Math.random() * 0.05, 0, 0.05, 0.9, 1);
+    part.smoke.spawn({ x, y, z, vx: 0.4 + Math.random() * 0.5, vy: -0.9 - Math.random() * 0.6, vz: 0.2 + Math.random() * 0.4, life: 7 + Math.random() * 3, r: col[0] * k, g: col[1] * k, b: col[2] * k, size: 0.07 + Math.random() * 0.05, drag: 0.05, sizeEnd: 0.9, shape: 'square' });
   }
 };
 const strike = (cg, at, { dmg = 12, color = 0x9ad8ff, delay = 0.9, radius = 2.2 } = {}) => {
@@ -684,7 +684,7 @@ const EVENTS = {
     }
     if (inside) {
       s.fx = (s.fx ?? 0) - dt;
-      if (s.fx <= 0) { s.fx = 0.15; const part = g.particles; const f = lead.pos; part?.glow.emit(f.x + (Math.random() - 0.5) * 30, f.y + 8 + Math.random() * 6, f.z + (Math.random() - 0.5) * 30, 0, -0.4, 0, 3, 0.6, 0.7, 1.6, 0.25, 0, 0.1, 0.5, 0); }
+      if (s.fx <= 0) { s.fx = 0.15; const part = g.particles; const f = lead.pos; part?.glow.spawn({ x: f.x + (Math.random() - 0.5) * 30, y: f.y + 8 + Math.random() * 6, z: f.z + (Math.random() - 0.5) * 30, vy: -0.4, life: 3, r: 0.6, g: 0.7, b: 1.6, size: 0.25, drag: 0.1, sizeEnd: 0.5 }); }
     }
   },
   // Dhruv's shikigami trails: walking on a live trail burns; a shikigami runs along each
@@ -729,9 +729,9 @@ const EVENTS = {
     // a smoke column over the crater, always
     s.smoke = (s.smoke ?? 0) + dt * 9 * (g.particles?.budget ?? 1);
     const [cx, cy, cz] = ev.crater;
-    while (s.smoke > 1) { s.smoke -= 1; const k = 0.18 + Math.random() * 0.15; g.particles?.smoke.emit(cx + (Math.random() - 0.5) * 6, cy + Math.random() * 3, cz + (Math.random() - 0.5) * 6, (Math.random() - 0.5) * 1.2, 4 + Math.random() * 3, (Math.random() - 0.5) * 1.2, 6 + Math.random() * 3, k, k * 0.9, k * 0.85, 1.6, -0.3, 0.2, 6, 0); }
+    while (s.smoke > 1) { s.smoke -= 1; const k = 0.18 + Math.random() * 0.15; g.particles?.smoke.spawn({ x: cx + (Math.random() - 0.5) * 6, y: cy + Math.random() * 3, z: cz + (Math.random() - 0.5) * 6, vx: (Math.random() - 0.5) * 1.2, vy: 4 + Math.random() * 3, vz: (Math.random() - 0.5) * 1.2, life: 6 + Math.random() * 3, r: k, g: k * 0.9, b: k * 0.85, size: 1.6, gravity: -0.3, drag: 0.2, sizeEnd: 6 }); }
     s.glow = (s.glow ?? 0) + dt * 6;
-    while (s.glow > 1) { s.glow -= 1; g.particles?.glow.emit(cx + (Math.random() - 0.5) * 5, cy, cz + (Math.random() - 0.5) * 5, (Math.random() - 0.5) * 4, 8 + Math.random() * 6, (Math.random() - 0.5) * 4, 2.5, 3, 1.1, 0.3, 0.18, 9, 0.2, 0.4, 1); }
+    while (s.glow > 1) { s.glow -= 1; g.particles?.glow.spawn({ x: cx + (Math.random() - 0.5) * 5, y: cy, z: cz + (Math.random() - 0.5) * 5, vx: (Math.random() - 0.5) * 4, vy: 8 + Math.random() * 6, vz: (Math.random() - 0.5) * 4, life: 2.5, r: 3, g: 1.1, b: 0.3, size: 0.18, gravity: 9, drag: 0.2, sizeEnd: 0.4, shape: 'square' }); }
     if (!lead) return;
     const near = Math.hypot(lead.pos.x - cx, lead.pos.z - cz) < (ev.radius ?? 70);
     s.t = (s.t ?? 4) - dt;
@@ -748,7 +748,7 @@ const EVENTS = {
           if (cg.disposed) return false;
           t += dt2;
           const k = Math.min(1, t / 1.4);
-          g.particles?.glow.emit(pos.x + (1 - k) * 6, pos.y + (1 - k) * 22, pos.z, 0, -6, 0, 0.25, 3, 1.2, 0.3, 0.5, 0, 0, 0.4, 1);
+          g.particles?.glow.spawn({ x: pos.x + (1 - k) * 6, y: pos.y + (1 - k) * 22, z: pos.z, vy: -6, life: 0.25, r: 3, g: 1.2, b: 0.3, size: 0.5, sizeEnd: 0.4, shape: 'square' });
           if (t < 1.4) return true;
           if (mk) g.markers.cancel(mk);
           g.fx?.explosion?.(pos, 0xff6a1a, 2.6);
@@ -777,7 +777,7 @@ const EVENTS = {
   steam(cg, ev, dt, lead) {
     const s = ev.st, g = cg.game;
     s.puff = (s.puff ?? 0) + dt * 14 * (g.particles?.budget ?? 1);
-    while (s.puff > 1) { s.puff -= 1; const [x, y, z] = ev.pools[Math.floor(Math.random() * ev.pools.length)]; g.particles?.smoke.emit(x + (Math.random() - 0.5) * 4, y + 0.3, z + (Math.random() - 0.5) * 4, (Math.random() - 0.5) * 0.4, 1 + Math.random() * 0.6, (Math.random() - 0.5) * 0.4, 2.5 + Math.random(), 0.9, 0.9, 0.92, 0.5, -0.2, 0.3, 2.2, 0); }
+    while (s.puff > 1) { s.puff -= 1; const [x, y, z] = ev.pools[Math.floor(Math.random() * ev.pools.length)]; g.particles?.smoke.spawn({ x: x + (Math.random() - 0.5) * 4, y: y + 0.3, z: z + (Math.random() - 0.5) * 4, vx: (Math.random() - 0.5) * 0.4, vy: 1 + Math.random() * 0.6, vz: (Math.random() - 0.5) * 0.4, life: 2.5 + Math.random(), r: 0.9, g: 0.9, b: 0.92, size: 0.5, gravity: -0.2, drag: 0.3, sizeEnd: 2.2 }); }
     if (!lead) return;
     const inPool = g.world.liquidAt(lead.pos.x, lead.pos.y + 0.3, lead.pos.z) === 'water' && inRect(ev.rect, lead.pos.x, lead.pos.z);
     if (inPool) {

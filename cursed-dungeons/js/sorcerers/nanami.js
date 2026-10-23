@@ -164,13 +164,13 @@ class NanamiKit extends Kit {
       const ex = this.exposed(e);
       this.tickMat.color.set(ex ? GOLD : 0x8a7a50);
       this.tickMesh.scale.set(ex ? 1.5 + Math.sin(g.time * 30) * 0.15 : 1, 1 / Math.max(0.5, e.height) * (ex ? 1.6 : 1), 1);
-      if (ex && Math.random() < 0.4) { const w = this.weakPoint(e); g.particles.glow.emit(w.x, w.y, w.z, (Math.random() - 0.5) * 2, 0.4, (Math.random() - 0.5) * 2, 0.3, 3, 2.4, 0.6, 0.08, 0, 2, 0.2, 1); }
+      if (ex && Math.random() < 0.4) { const w = this.weakPoint(e); g.particles.glow.spawn({ pos: w, vx: (Math.random() - 0.5) * 2, vy: 0.4, vz: (Math.random() - 0.5) * 2, life: 0.3, r: 3, g: 2.4, b: 0.6, size: 0.08, drag: 2, shape: 'square' }); }
     } else m.visible = false;
     // overtime: clocks in by itself after a long, continuous fight
     const fighting = g.enemies.some((e) => !e.dead && !e.isDummy && e.pos.distanceTo(p.pos) < 20);
     if (this.overtime) {
       this.overtimeT -= dt;
-      if (Math.random() < 0.5) g.particles.glow.emit(p.pos.x + (Math.random() - 0.5) * 0.8, p.pos.y + Math.random() * 1.8, p.pos.z + (Math.random() - 0.5) * 0.8, 0, 1, 0, 0.5, 2.6, 2, 0.5, 0.1, 0, 1, 0.2, 1);
+      if (Math.random() < 0.5) g.particles.glow.spawn({ x: p.pos.x + (Math.random() - 0.5) * 0.8, y: p.pos.y + Math.random() * 1.8, z: p.pos.z + (Math.random() - 0.5) * 0.8, vy: 1, life: 0.5, r: 2.6, g: 2, b: 0.5, size: 0.1, drag: 1, shape: 'square' });
       if (this.overtimeT <= 0) this.endOvertime();
     } else if (fighting) {
       this.workT += dt;
@@ -505,7 +505,7 @@ class NanamiKit extends Kit {
     const self = this.library.time_mgmt;
     this.buff('time_mgmt', 5, { onTick: (dt) => {
       for (const k in this.slots) { const s = this.slots[k]; if (s === self || s.empty) continue; if (s.maxCharges) s.recharge = (s.recharge ?? 0) + dt; else s.cdLeft = Math.max(0, s.cdLeft - dt); }
-      if (Math.random() < 0.3) { const a = g.time * 4; g.particles.glow.emit(p.pos.x + Math.cos(a) * 0.9, p.pos.y + 1.2, p.pos.z + Math.sin(a) * 0.9, 0, 0.3, 0, 0.4, 2.6, 2, 0.5, 0.1, 0, 1, 0.2, 1); }
+      if (Math.random() < 0.3) { const a = g.time * 4; g.particles.glow.spawn({ x: p.pos.x + Math.cos(a) * 0.9, y: p.pos.y + 1.2, z: p.pos.z + Math.sin(a) * 0.9, vy: 0.3, life: 0.4, r: 2.6, g: 2, b: 0.5, size: 0.1, drag: 1, shape: 'square' }); }
     } });
   }
   grit() {
@@ -515,7 +515,7 @@ class NanamiKit extends Kit {
     if (p.hp < p.maxHp) p.healOverTime = { left: p.maxHp * 0.15, t: 2.5 };
     this.buff('grit', 5, {
       incoming: (a) => { a *= 0.6; if (p.hp - a < 1) a = Math.max(0, p.hp - 1); return a; },
-      onTick: () => { if (Math.random() < 0.4) g.particles.glow.emit(p.pos.x + (Math.random() - 0.5) * 0.8, p.pos.y + Math.random() * 1.6, p.pos.z + (Math.random() - 0.5) * 0.8, 0, 1, 0, 0.5, 2.6, 1, 0.3, 0.1, 0, 1, 0.2, 1); },
+      onTick: () => { if (Math.random() < 0.4) g.particles.glow.spawn({ x: p.pos.x + (Math.random() - 0.5) * 0.8, y: p.pos.y + Math.random() * 1.6, z: p.pos.z + (Math.random() - 0.5) * 0.8, vy: 1, life: 0.5, r: 2.6, g: 1, b: 0.3, size: 0.1, drag: 1, shape: 'square' }); },
     });
   }
   overtimeRush() {

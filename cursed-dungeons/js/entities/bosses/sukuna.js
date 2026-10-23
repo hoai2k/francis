@@ -112,8 +112,8 @@ export function buildSukuna() {
     hoodG.rotation.x = 0.08 + Math.sin(t * 2) * 0.05 + Math.min(1, b.vel.length() / 4) * 0.35;
     if (b.lightH) { b.lightH.intensity = 3.4 + Math.sin(t * 9) * 0.4; b.lightH.offsetY = 5.2; }
     // a dark red haze rising off him, and the odd idle cut flickering in the air
-    for (let i = rate(6, dt, bud); i > 0; i--) Pt.smoke.emit(b.pos.x + rnd(0.8), b.pos.y + Math.random() * 3.2, b.pos.z + rnd(0.8), rnd(0.2), 0.6 + Math.random() * 0.4, rnd(0.2), 1.4, 0.16, 0.01, 0.02, 0.45, -0.3, 1.2, 2.4, 0);
-    for (let i = rate(5, dt, bud); i > 0; i--) Pt.glow.emit(b.pos.x + rnd(1), b.pos.y + Math.random() * 3.6, b.pos.z + rnd(1), 0, 0.5, 0, 0.8, 2.6, 0.3, 0.3, 0.08, -0.2, 1, 0.2, 0);
+    for (let i = rate(6, dt, bud); i > 0; i--) Pt.smoke.spawn({ x: b.pos.x + rnd(0.8), y: b.pos.y + Math.random() * 3.2, z: b.pos.z + rnd(0.8), vx: rnd(0.2), vy: 0.6 + Math.random() * 0.4, vz: rnd(0.2), life: 1.4, r: 0.16, g: 0.01, b: 0.02, size: 0.45, gravity: -0.3, drag: 1.2, sizeEnd: 2.4 });
+    for (let i = rate(5, dt, bud); i > 0; i--) Pt.glow.spawn({ x: b.pos.x + rnd(1), y: b.pos.y + Math.random() * 3.6, z: b.pos.z + rnd(1), vy: 0.5, life: 0.8, r: 2.6, g: 0.3, b: 0.3, size: 0.08, gravity: -0.2, drag: 1 });
     if (Math.random() < dt * 1.2) { const a = Math.random() * 6.28, at = v1.set(b.pos.x + Math.cos(a) * 2.2, b.pos.y + 1 + Math.random() * 2.5, b.pos.z + Math.sin(a) * 2.2); g.fx.slashLine(at, V(-Math.sin(a), rnd(0.3), Math.cos(a)), 1.6, 0xffe0e0, 0.06, 0.12); }
   };
   rig.fx = fx;

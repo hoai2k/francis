@@ -126,8 +126,8 @@ class HanamiKit extends Kit {
       onTick: (g, d, dt) => {
         d.tick = (d.tick ?? 0.3) - dt;
         // petals drifting and motes of light rising out of the flowers
-        for (let i = 0; i < 3; i++) { const a = Math.random() * Math.PI * 2, rr = Math.random() * d.radius; g.particles.glow.emit(d.center.x + Math.cos(a) * rr, d.center.y + 0.5 + Math.random() * 4, d.center.z + Math.sin(a) * rr, 1, -0.4, 0.5, 2, 2.4, 1.2, 1.8, 0.14, 0, 0.5, 0.8, 1); }
-        for (let i = 0; i < 2; i++) { const a = Math.random() * Math.PI * 2, rr = Math.random() * d.radius; g.particles.glow.emit(d.center.x + Math.cos(a) * rr, d.center.y + 0.3, d.center.z + Math.sin(a) * rr, 0, 1 + Math.random(), 0, 2.2, 2.6, 2.5, 1.6, 0.1, -0.2, 0.5, 0.4, 0); }
+        for (let i = 0; i < 3; i++) { const a = Math.random() * Math.PI * 2, rr = Math.random() * d.radius; g.particles.glow.spawn({ x: d.center.x + Math.cos(a) * rr, y: d.center.y + 0.5 + Math.random() * 4, z: d.center.z + Math.sin(a) * rr, vx: 1, vy: -0.4, vz: 0.5, life: 2, r: 2.4, g: 1.2, b: 1.8, size: 0.14, drag: 0.5, sizeEnd: 0.8, shape: 'square' }); }
+        for (let i = 0; i < 2; i++) { const a = Math.random() * Math.PI * 2, rr = Math.random() * d.radius; g.particles.glow.spawn({ x: d.center.x + Math.cos(a) * rr, y: d.center.y + 0.3, z: d.center.z + Math.sin(a) * rr, vy: 1 + Math.random(), life: 2.2, r: 2.6, g: 2.5, b: 1.6, size: 0.1, gravity: -0.2, drag: 0.5, sizeEnd: 0.4 }); }
         // the sap: every curse inside loses Cursed Energy continuously
         for (const e of g.enemies) if (!e.dead && !e.isDummy && g.domainSys.inside(e.pos)) {
           e.cd = (e.cd ?? 0) + dt * 0.5; e.slowT = Math.max(e.slowT ?? 0, 0.3);
@@ -298,7 +298,7 @@ class HanamiKit extends Kit {
     g.addUpdater((dt) => {
       if (e.dead) { if (e.budT > 0) { g.fx.splat(e.pos.clone().setY(e.pos.y + 0.6), BLOOM); p.gainCE(6); } e.budT = 0; return false; }
       e.budT -= dt; tick -= dt;
-      if (Math.random() < 0.5) g.particles.glow.emit(e.pos.x + (Math.random() - 0.5) * 0.6, e.pos.y + e.height * (0.4 + Math.random() * 0.4), e.pos.z + (Math.random() - 0.5) * 0.6, 0, 0.6, 0, 0.5, 1.4, 2.4, 0.8, 0.14, 0, 1, 0.4, 1);
+      if (Math.random() < 0.5) g.particles.glow.spawn({ x: e.pos.x + (Math.random() - 0.5) * 0.6, y: e.pos.y + e.height * (0.4 + Math.random() * 0.4), z: e.pos.z + (Math.random() - 0.5) * 0.6, vy: 0.6, life: 0.5, r: 1.4, g: 2.4, b: 0.8, size: 0.14, drag: 1, sizeEnd: 0.4, shape: 'square' });
       if (tick <= 0) {
         tick = 0.5 - rk * 0.06;
         const dealt = g.combat.damageEnemy(e, 7 + rk * 3, p, { stagger: 0, ceGain: 2 + rk, color: '#b8ff6a' });
@@ -327,7 +327,7 @@ class HanamiKit extends Kit {
       for (let i = 0; i < 4; i++) {
         const a = Math.random() * Math.PI * 2, rr = Math.sqrt(Math.random()) * R;
         const col = i % 2 ? [2.4, 1.2, 1.8] : [2.6, 2.4, 1.2];
-        g.particles.glow.emit(c.x + Math.cos(a) * rr, c.y + 0.15, c.z + Math.sin(a) * rr, 0, 0.5 + Math.random(), 0, 0.9, col[0], col[1], col[2], 0.16, -0.3, 1, 0.6, 1);
+        g.particles.glow.spawn({ x: c.x + Math.cos(a) * rr, y: c.y + 0.15, z: c.z + Math.sin(a) * rr, vy: 0.5 + Math.random(), life: 0.9, r: col[0], g: col[1], b: col[2], size: 0.16, gravity: -0.3, drag: 1, sizeEnd: 0.6, shape: 'square' });
       }
       if (tick <= 0) {
         tick = 0.3;
@@ -552,7 +552,7 @@ class HanamiKit extends Kit {
     const c = this.aimGround(11), R = 4.2;
     g.audio?.noise({ dur: 0.6, gain: 0.2, type: 'bandpass', freq: 1200, sweep: 400 });
     this.during(6, () => {
-      for (let i = 0; i < 2; i++) { const a = Math.random() * Math.PI * 2, r = Math.sqrt(Math.random()) * R; g.particles.glow.emit(c.x + Math.cos(a) * r, c.y + 0.3 + Math.random() * 2.2, c.z + Math.sin(a) * r, (Math.random() - 0.5) * 0.4, 0.2, (Math.random() - 0.5) * 0.4, 1.4, 2.6, 2.3, 0.8, 0.14, 0, 1, 0.3, 0); }
+      for (let i = 0; i < 2; i++) { const a = Math.random() * Math.PI * 2, r = Math.sqrt(Math.random()) * R; g.particles.glow.spawn({ x: c.x + Math.cos(a) * r, y: c.y + 0.3 + Math.random() * 2.2, z: c.z + Math.sin(a) * r, vx: (Math.random() - 0.5) * 0.4, vy: 0.2, vz: (Math.random() - 0.5) * 0.4, life: 1.4, r: 2.6, g: 2.3, b: 0.8, size: 0.14, drag: 1, sizeEnd: 0.3 }); }
     });
     this.zone(c, R, 6, 0.4, (list) => {
       for (const e of list) {
@@ -589,7 +589,7 @@ class HanamiKit extends Kit {
     const c = p.pos.clone();
     g.fx.rings.spawn(tmp.set(c.x, c.y + 0.06, c.z), { color: BLOOM, r0: 0.3, r1: 3, dur: 0.6, thick: 0.15 });
     this.during(4, () => {
-      if (Math.random() < 0.6) { const a = Math.random() * Math.PI * 2, r = 0.4 + Math.random() * 1.4, col = Math.random() < 0.5 ? [2.6, 1.4, 2.0] : [2.6, 2.5, 1.4]; g.particles.glow.emit(p.pos.x + Math.cos(a) * r, p.pos.y + 0.1, p.pos.z + Math.sin(a) * r, 0, 0.8 + Math.random(), 0, 1, col[0], col[1], col[2], 0.16, -0.3, 1, 0.5, 1); }
+      if (Math.random() < 0.6) { const a = Math.random() * Math.PI * 2, r = 0.4 + Math.random() * 1.4, col = Math.random() < 0.5 ? [2.6, 1.4, 2.0] : [2.6, 2.5, 1.4]; g.particles.glow.spawn({ x: p.pos.x + Math.cos(a) * r, y: p.pos.y + 0.1, z: p.pos.z + Math.sin(a) * r, vy: 0.8 + Math.random(), life: 1, r: col[0], g: col[1], b: col[2], size: 0.16, gravity: -0.3, drag: 1, sizeEnd: 0.5, shape: 'square' }); }
     });
   }
   petalStorm() {
@@ -600,7 +600,7 @@ class HanamiKit extends Kit {
     this.during(3, (t, dt) => {
       for (let i = 0; i < 6; i++) {
         const a = t * 7 + i / 6 * Math.PI * 2 + Math.random() * 0.4, r = 1 + Math.random() * (R - 1);
-        g.particles.glow.emit(p.pos.x + Math.cos(a) * r, p.pos.y + 0.3 + Math.random() * 2, p.pos.z + Math.sin(a) * r, -Math.sin(a) * 9, 0.3, Math.cos(a) * 9, 0.25, i % 2 ? 2.6 : 2.6, i % 2 ? 1.2 : 2.6, i % 2 ? 1.8 : 2.6, 0.16, 0, 1, 0.6, 1);
+        g.particles.glow.spawn({ x: p.pos.x + Math.cos(a) * r, y: p.pos.y + 0.3 + Math.random() * 2, z: p.pos.z + Math.sin(a) * r, vx: -Math.sin(a) * 9, vy: 0.3, vz: Math.cos(a) * 9, life: 0.25, r: i % 2 ? 2.6 : 2.6, g: i % 2 ? 1.2 : 2.6, b: i % 2 ? 1.8 : 2.6, size: 0.16, drag: 1, sizeEnd: 0.6, shape: 'square' });
       }
       tick -= dt; if (tick > 0) return; tick = 0.25;
       for (const e of this.foes(p.pos, R)) { this.hit(e, 7 + this.rank('field') * 2, { stagger: 0.15, knock: tmp.subVectors(e.pos, p.pos).setY(0).normalize().multiplyScalar(1.5), color: '#ff9ad8' }); }
@@ -620,7 +620,7 @@ class HanamiKit extends Kit {
         p.facing = this.aimAngle();
         // the land's life streams in towards the flower in Hanami's eye
         const eye = p.pos.clone().setY(p.pos.y + 2.4);
-        for (let i = 0; i < 6; i++) { const a = Math.random() * Math.PI * 2, r = 3 + Math.random() * 5; g.particles.glow.emit(eye.x + Math.cos(a) * r, p.pos.y + 0.2, eye.z + Math.sin(a) * r, -Math.cos(a) * r * 1.4, 2.2, -Math.sin(a) * r * 1.4, 0.65, 1.4, 2.6, 0.8, 0.16, 0, 1, 0.3, 1); }
+        for (let i = 0; i < 6; i++) { const a = Math.random() * Math.PI * 2, r = 3 + Math.random() * 5; g.particles.glow.spawn({ x: eye.x + Math.cos(a) * r, y: p.pos.y + 0.2, z: eye.z + Math.sin(a) * r, vx: -Math.cos(a) * r * 1.4, vy: 2.2, vz: -Math.sin(a) * r * 1.4, life: 0.65, r: 1.4, g: 2.6, b: 0.8, size: 0.16, drag: 1, sizeEnd: 0.3, shape: 'square' }); }
         if (t < CH) return;
         dir = this.fwd(); from = p.pos.clone().addScaledVector(dir, 0.8).setY(p.pos.y + 2.2);
         const grp = new THREE.Group();
@@ -678,7 +678,7 @@ class HanamiKit extends Kit {
     this.during(10, (t, dt) => {
       tree.scale.y = Math.min(1, t * 2.5) * (t > 9.6 ? Math.max(0.01, (10 - t) / 0.4) : 1);
       tree.rotation.z = Math.sin(t * 1.3) * 0.02;
-      if (Math.random() < 0.2) g.particles.glow.emit(c.x + (Math.random() - 0.5) * 4, c.y + 5, c.z + (Math.random() - 0.5) * 4, 0.6, -0.6, 0.3, 2.5, 2.4, 1.3, 1.9, 0.12, 0, 0.5, 0.8, 1);
+      if (Math.random() < 0.2) g.particles.glow.spawn({ x: c.x + (Math.random() - 0.5) * 4, y: c.y + 5, z: c.z + (Math.random() - 0.5) * 4, vx: 0.6, vy: -0.6, vz: 0.3, life: 2.5, r: 2.4, g: 1.3, b: 1.9, size: 0.12, drag: 0.5, sizeEnd: 0.8, shape: 'square' });
       cd -= dt; heal -= dt;
       if (cd <= 0) {
         const e = g.nearestEnemy(c, 8);

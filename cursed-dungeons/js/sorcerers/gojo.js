@@ -96,7 +96,7 @@ class GojoKit extends Kit {
           if (e.dead || !g.domainSys.inside(e.pos) || Math.random() > 0.35) continue;
           const hx = e.pos.x, hy = e.pos.y + e.height, hz = e.pos.z;
           const a = Math.random() * Math.PI * 2, r = 2 + Math.random() * 2;
-          g.particles.glow.emit(hx + Math.cos(a) * r, hy + 1 + Math.random() * 2, hz + Math.sin(a) * r, -Math.cos(a) * r * 2.2, -2, -Math.sin(a) * r * 2.2, 0.45, 1.6, 1.9, 2.4, 0.08, 0, 0, 0.02, 1);
+          g.particles.glow.spawn({ x: hx + Math.cos(a) * r, y: hy + 1 + Math.random() * 2, z: hz + Math.sin(a) * r, vx: -Math.cos(a) * r * 2.2, vy: -2, vz: -Math.sin(a) * r * 2.2, life: 0.45, r: 1.6, g: 1.9, b: 2.4, size: 0.08, sizeEnd: 0.02, shape: 'square' });
         }
         if (d.tick <= 0) {
           d.tick = 0.6;
@@ -126,7 +126,7 @@ class GojoKit extends Kit {
     const n = Math.floor(this.auraT); this.auraT -= n;
     for (let i = 0; i < n; i++) {
       const a = Math.random() * Math.PI * 2, r = 0.3 + Math.random() * 0.25;
-      g.particles.glow.emit(p.pos.x + Math.cos(a) * r, p.pos.y + 0.1 + Math.random() * 1.6, p.pos.z + Math.sin(a) * r, Math.cos(a) * 0.3, 1.2 + Math.random() * 1.2, Math.sin(a) * 0.3, 0.5 + Math.random() * 0.4, 0.4 + k, 1.2 + k * 1.5, 3 + k * 2, 0.12 + k * 0.1, -1, 1.5, 0.1, 0);
+      g.particles.glow.spawn({ x: p.pos.x + Math.cos(a) * r, y: p.pos.y + 0.1 + Math.random() * 1.6, z: p.pos.z + Math.sin(a) * r, vx: Math.cos(a) * 0.3, vy: 1.2 + Math.random() * 1.2, vz: Math.sin(a) * 0.3, life: 0.5 + Math.random() * 0.4, r: 0.4 + k, g: 1.2 + k * 1.5, b: 3 + k * 2, size: 0.12 + k * 0.1, gravity: -1, drag: 1.5, sizeEnd: 0.1 });
     }
     p.heroLight.color.setRGB(1 - k * 0.5, 1 - k * 0.1, 1);
     p.heroLight.intensity = 1.6 + k * 2.5;
@@ -237,9 +237,9 @@ class GojoKit extends Kit {
         const a = Math.random() * Math.PI * 2, r = 1.5 + Math.random() * R * 0.7;
         const px = d.x + Math.cos(a) * r, pz = d.z + Math.sin(a) * r, py = d.y - 1 + Math.random() * 2.5;
         const sp = 5 + Math.random() * 4;
-        g.particles.glow.emit(px, py, pz, (d.x - px) / r * sp - Math.sin(a) * 4, (d.y - py) * 1.5, (d.z - pz) / r * sp + Math.cos(a) * 4, r / sp, 0.4, 1.4, 3.5, 0.12, 0, 0, 0.3, 1);
+        g.particles.glow.spawn({ x: px, y: py, z: pz, vx: (d.x - px) / r * sp - Math.sin(a) * 4, vy: (d.y - py) * 1.5, vz: (d.z - pz) / r * sp + Math.cos(a) * 4, life: r / sp, r: 0.4, g: 1.4, b: 3.5, size: 0.12, sizeEnd: 0.3, shape: 'square' });
       }
-      if (Math.random() < 0.5) g.particles.smoke.emit(d.x + (Math.random() - 0.5) * R, d.y - 1.2, d.z + (Math.random() - 0.5) * R, 0, 1.5, 0, 0.8, 0.35, 0.3, 0.28, 0.5, 0, 1, 1.5, 0);
+      if (Math.random() < 0.5) g.particles.smoke.spawn({ x: d.x + (Math.random() - 0.5) * R, y: d.y - 1.2, z: d.z + (Math.random() - 0.5) * R, vy: 1.5, life: 0.8, r: 0.35, g: 0.3, b: 0.28, size: 0.5, drag: 1, sizeEnd: 1.5 });
       // pull
       for (const e of g.enemies) {
         if (e.dead || e.isDummy) continue;
@@ -434,7 +434,7 @@ class GojoKit extends Kit {
     this.during(0.9, (t) => {
       orb.position.copy(this.handPos()).setY(p.pos.y + 1.6);
       orb.scale.setScalar(0.2 + t * 1.2);
-      for (let i = 0; i < 4; i++) { const a = Math.random() * Math.PI * 2, rr = 2 + Math.random() * 1.5; g.particles.glow.emit(orb.position.x + Math.cos(a) * rr, orb.position.y + (Math.random() - 0.5) * 2, orb.position.z + Math.sin(a) * rr, -Math.cos(a) * rr * 3, 0, -Math.sin(a) * rr * 3, 0.3, 3, 0.4, 0.4, 0.16, 0, 0, 0.05, 1); }
+      for (let i = 0; i < 4; i++) { const a = Math.random() * Math.PI * 2, rr = 2 + Math.random() * 1.5; g.particles.glow.spawn({ x: orb.position.x + Math.cos(a) * rr, y: orb.position.y + (Math.random() - 0.5) * 2, z: orb.position.z + Math.sin(a) * rr, vx: -Math.cos(a) * rr * 3, vz: -Math.sin(a) * rr * 3, life: 0.3, r: 3, g: 0.4, b: 0.4, size: 0.16, sizeEnd: 0.05, shape: 'square' }); }
     }, () => {
       g.fx.dimTarget = 0; if (p.action?.lock) p.action = null;
       const from = orb.position.clone(); g.scene.remove(orb); g.lights.remove(light);
@@ -469,7 +469,7 @@ class GojoKit extends Kit {
       }
       g.fx.darkRings.spawn(tmp.set(c.x, this.groundAt(c.x, c.z, c.y) + 0.06, c.z), { color: 0x000000, r0: 3.5, r1: 0.3, dur: 0.3, thick: 0.3 });
       g.fx.rings.spawn(tmp.set(c.x, this.groundAt(c.x, c.z, c.y) + 0.08, c.z), { color: BLUE, r0: 4, r1: 0.2, dur: 0.35, thick: 0.15 });
-      for (let i = 0; i < 18; i++) { const a = Math.random() * Math.PI * 2, rr = 2 + Math.random() * 2; g.particles.glow.emit(c.x + Math.cos(a) * rr, c.y + (Math.random() - 0.5), c.z + Math.sin(a) * rr, -Math.cos(a) * rr * 5, 0, -Math.sin(a) * rr * 5, 0.2, 0.4, 1.3, 3.5, 0.12, 0, 0, 0.05, 1); }
+      for (let i = 0; i < 18; i++) { const a = Math.random() * Math.PI * 2, rr = 2 + Math.random() * 2; g.particles.glow.spawn({ x: c.x + Math.cos(a) * rr, y: c.y + (Math.random() - 0.5), z: c.z + Math.sin(a) * rr, vx: -Math.cos(a) * rr * 5, vz: -Math.sin(a) * rr * 5, life: 0.2, r: 0.4, g: 1.3, b: 3.5, size: 0.12, sizeEnd: 0.05, shape: 'square' }); }
       g.audio?.energy('blue');
     };
     const orb = makeOrb(BLUE, { radius: 0.22, darkCore: true });
@@ -554,7 +554,7 @@ class GojoKit extends Kit {
     this.buff('neutral_inf', 8, { onTick: (dt) => {
       tick -= dt;
       for (const pr of g.projectiles.list) if (pr.team === 'enemy' && pr.pos.distanceTo(p.pos) < 3.5) pr.vel.multiplyScalar(Math.pow(0.08, dt));
-      if (Math.random() < 0.6) { const a = Math.random() * Math.PI * 2; g.particles.glow.emit(p.pos.x + Math.cos(a) * 4.5, p.pos.y + 0.2 + Math.random() * 1.5, p.pos.z + Math.sin(a) * 4.5, -Math.cos(a) * 0.6, 0.2, -Math.sin(a) * 0.6, 0.8, 0.6, 1.2, 2, 0.1, 0, 1, 0.05, 1); }
+      if (Math.random() < 0.6) { const a = Math.random() * Math.PI * 2; g.particles.glow.spawn({ x: p.pos.x + Math.cos(a) * 4.5, y: p.pos.y + 0.2 + Math.random() * 1.5, z: p.pos.z + Math.sin(a) * 4.5, vx: -Math.cos(a) * 0.6, vy: 0.2, vz: -Math.sin(a) * 0.6, life: 0.8, r: 0.6, g: 1.2, b: 2, size: 0.1, drag: 1, sizeEnd: 0.05, shape: 'square' }); }
       if (tick > 0) return;
       tick = 0.5;
       g.fx.rings.spawn(tmp.set(p.pos.x, p.pos.y + 0.08, p.pos.z), { color: 0x9ad8ff, r0: 4.3, r1: 4.5, dur: 0.5, thick: 0.06 });
@@ -628,7 +628,7 @@ class GojoKit extends Kit {
     this.statBuff('insight', 8, { crit: 0.35 }, {
       onStart: () => { this.ceMul *= 0.5; },
       onEnd: (disposing) => { if (!disposing) this.ceMul /= 0.5; },
-      onTick: () => { if (Math.random() < 0.4) g.particles.glow.emit(p.pos.x + Math.sin(p.facing) * 0.25, p.pos.y + 1.75, p.pos.z + Math.cos(p.facing) * 0.25, (Math.random() - 0.5) * 0.4, 0.6, (Math.random() - 0.5) * 0.4, 0.4, 0.6, 1.4, 3, 0.08, 0, 1, 0.02, 1); },
+      onTick: () => { if (Math.random() < 0.4) g.particles.glow.spawn({ x: p.pos.x + Math.sin(p.facing) * 0.25, y: p.pos.y + 1.75, z: p.pos.z + Math.cos(p.facing) * 0.25, vx: (Math.random() - 0.5) * 0.4, vy: 0.6, vz: (Math.random() - 0.5) * 0.4, life: 0.4, r: 0.6, g: 1.4, b: 3, size: 0.08, drag: 1, sizeEnd: 0.02, shape: 'square' }); },
     });
   }
   skyDrop() {
@@ -697,7 +697,7 @@ class GojoKit extends Kit {
       this.stun(e, 3);
       e.flashT = 0.15;
       this.hit(e, 12, { stagger: 1, crit: false, ceGain: 0 });
-      for (let i = 0; i < 8; i++) { const a = Math.random() * Math.PI * 2, rr = 1.5 + Math.random() * 2; g.particles.glow.emit(e.pos.x + Math.cos(a) * rr, e.pos.y + e.height + 1.5, e.pos.z + Math.sin(a) * rr, -Math.cos(a) * rr * 2.5, -2.5, -Math.sin(a) * rr * 2.5, 0.45, 1.6, 1.9, 2.4, 0.08, 0, 0, 0.02, 1); }
+      for (let i = 0; i < 8; i++) { const a = Math.random() * Math.PI * 2, rr = 1.5 + Math.random() * 2; g.particles.glow.spawn({ x: e.pos.x + Math.cos(a) * rr, y: e.pos.y + e.height + 1.5, z: e.pos.z + Math.sin(a) * rr, vx: -Math.cos(a) * rr * 2.5, vy: -2.5, vz: -Math.sin(a) * rr * 2.5, life: 0.45, r: 1.6, g: 1.9, b: 2.4, size: 0.08, sizeEnd: 0.02, shape: 'square' }); }
     }
     this.during(0.55, (t, dt, k) => {
       sphere.position.set(p.pos.x, p.pos.y + 1, p.pos.z);

@@ -158,7 +158,7 @@ class TransHuman {
     this.object.position.set(this.pos.x, this.pos.y, this.pos.z);
     this.object.rotation.y = this.facing;
     for (const m of this.meshes) m.material = this.flashT > 0 ? FLASH : m.userData.baseMat;
-    if (Math.random() < 0.15) g.particles.glow.emit(this.pos.x, this.pos.y + 1.2, this.pos.z, 0, 0.5, 0, 0.5, 0.6, 1.2, 1.8, 0.1, 0, 1, 0.3, 0);
+    if (Math.random() < 0.15) g.particles.glow.spawn({ x: this.pos.x, y: this.pos.y + 1.2, z: this.pos.z, vy: 0.5, life: 0.5, r: 0.6, g: 1.2, b: 1.8, size: 0.1, drag: 1, sizeEnd: 0.3 });
     return true;
   }
   attack(e) {
@@ -303,7 +303,7 @@ class MahitoKit extends Kit {
         g.combat.damageEnemy(e, 2.5 * e.soul * dmgMul, this.p, { stagger: 0, ceGain: 0.5, color: '#7ac8f0' });
         if (!e.dead) this.checkTransfig(e);
       }
-      if (Math.random() < 0.15 * e.soul) g.particles.glow.emit(e.pos.x + (Math.random() - 0.5) * e.radius * 2, e.pos.y + Math.random() * e.height, e.pos.z + (Math.random() - 0.5) * e.radius * 2, 0, 0.6, 0, 0.5, 0.8, 1.6, 2.4, 0.1, 0, 1, 0.3, 0);
+      if (Math.random() < 0.15 * e.soul) g.particles.glow.spawn({ x: e.pos.x + (Math.random() - 0.5) * e.radius * 2, y: e.pos.y + Math.random() * e.height, z: e.pos.z + (Math.random() - 0.5) * e.radius * 2, vy: 0.6, life: 0.5, r: 0.8, g: 1.6, b: 2.4, size: 0.1, drag: 1, sizeEnd: 0.3 });
     }
   }
   // ---------------------------------------------------------- techniques
@@ -575,7 +575,7 @@ class MahitoKit extends Kit {
     const gy = g.world.groundBelow(pos.x, pos.z, p.pos.y + 2);
     if (isFinite(gy) && Math.abs(gy - p.pos.y) < 3) pos.y = gy; else pos.copy(p.pos);
     // several souls are kneaded into one body
-    for (let i = 0; i < 4; i++) { const a = i / 4 * Math.PI * 2; for (let k = 0; k < 6; k++) g.particles.glow.emit(pos.x + Math.cos(a) * 3, pos.y + 1, pos.z + Math.sin(a) * 3, -Math.cos(a) * 6, 0.5, -Math.sin(a) * 6, 0.5, 0.9, 1.4, 1.8, 0.2, 0, 1, 0.3, 0); }
+    for (let i = 0; i < 4; i++) { const a = i / 4 * Math.PI * 2; for (let k = 0; k < 6; k++) g.particles.glow.spawn({ x: pos.x + Math.cos(a) * 3, y: pos.y + 1, z: pos.z + Math.sin(a) * 3, vx: -Math.cos(a) * 6, vy: 0.5, vz: -Math.sin(a) * 6, life: 0.5, r: 0.9, g: 1.4, b: 1.8, size: 0.2, drag: 1, sizeEnd: 0.3 }); }
     const giant = new TransHuman(g, p, pos, { life: 16 + (this.humanBonus ? 5 : 0), hpMult: 5, dmgMult: 3 * (1 + this.rank('collector') * 0.15) });
     giant.object.scale.setScalar(2.2); giant.radius = 0.9; giant.height = 2.8; giant.speed = 5.5;
     g.allies.push(giant);
@@ -617,7 +617,7 @@ class MahitoKit extends Kit {
     g.audio?.tone?.({ freq: 300, to: 600, dur: 0.4, gain: 0.08, type: 'sine', rev: 0.5 });
     this.buff('perception', 8, { onTick: () => {
       // every soul nearby glows through the body
-      for (const e of g.enemies) if (!e.dead && Math.random() < 0.08 && e.pos.distanceTo(p.pos) < 18) g.particles.glow.emit(e.pos.x, e.pos.y + e.height * 0.6, e.pos.z, 0, 0.4, 0, 0.4, 0.8, 1.6, 2.4, 0.25, 0, 1, 0.4, 0);
+      for (const e of g.enemies) if (!e.dead && Math.random() < 0.08 && e.pos.distanceTo(p.pos) < 18) g.particles.glow.spawn({ x: e.pos.x, y: e.pos.y + e.height * 0.6, z: e.pos.z, vy: 0.4, life: 0.4, r: 0.8, g: 1.6, b: 2.4, size: 0.25, drag: 1, sizeEnd: 0.4 });
     } });
   }
   distortedKilling() {
@@ -635,7 +635,7 @@ class MahitoKit extends Kit {
     this.after(0.6, () => { if (p.action?.lock) p.action = null; });
     this.statBuff('distorted', 10, { meleeMult: 0.4, techMult: 0.25, armor: 0.3, speed: 0.2 }, {
       onStart: () => p.object.scale.setScalar(s0 * 1.25),
-      onTick: () => { if (Math.random() < 0.6) g.particles.glow.emit(p.pos.x + (Math.random() - 0.5) * 1.2, p.pos.y + Math.random() * 2.3, p.pos.z + (Math.random() - 0.5) * 1.2, 0, 1, 0, 0.5, 0.8, 1.6, 2.4, 0.14, 0, 1, 0.3, 1); },
+      onTick: () => { if (Math.random() < 0.6) g.particles.glow.spawn({ x: p.pos.x + (Math.random() - 0.5) * 1.2, y: p.pos.y + Math.random() * 2.3, z: p.pos.z + (Math.random() - 0.5) * 1.2, vy: 1, life: 0.5, r: 0.8, g: 1.6, b: 2.4, size: 0.14, drag: 1, sizeEnd: 0.3, shape: 'square' }); },
       onEnd: () => p.object.scale.setScalar(s0),
     });
   }

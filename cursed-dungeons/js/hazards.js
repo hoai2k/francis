@@ -27,7 +27,7 @@ export class Hazards {
       h.marker.alpha.value = Math.min(1, (h.dur - h.t) * 2) * 0.6;
       if (Math.random() < dt * 14) {
         const a = Math.random() * Math.PI * 2, r = Math.sqrt(Math.random()) * h.radius;
-        g.particles.glow.emit(h.pos.x + Math.cos(a) * r, h.pos.y + 0.1, h.pos.z + Math.sin(a) * r, 0, 0.8 + Math.random(), 0, 0.7, h.color.r * 2, h.color.g * 2, h.color.b * 2, 0.16, -0.5, 0.2, 1, 0);
+        g.particles.glow.spawn({ x: h.pos.x + Math.cos(a) * r, y: h.pos.y + 0.1, z: h.pos.z + Math.sin(a) * r, vy: 0.8 + Math.random(), life: 0.7, r: h.color.r * 2, g: h.color.g * 2, b: h.color.b * 2, size: 0.16, gravity: -0.5, drag: 0.2, sizeEnd: 1 });
       }
       if (h.tick <= 0) {
         h.tick = 0.4;

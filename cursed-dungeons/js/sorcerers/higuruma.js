@@ -396,7 +396,7 @@ class HigurumaKit extends Kit {
           g.fx.summonCircle(e.pos, GOLD);
           for (let i = 0; i < 3; i++) g.fx.rings.spawn(tmp.set(e.pos.x, e.pos.y + 0.08 + i * 0.7, e.pos.z), { color: GOLD, r0: 2.2, r1: 1.2, dur: 0.8, thick: 0.08 });
         }
-        if (Math.random() < 0.3) { const e = def; g.particles.glow.emit(e.pos.x + (Math.random() - 0.5), e.pos.y + Math.random() * e.height, e.pos.z + (Math.random() - 0.5), 0, 0.6, 0, 0.6, 2.4, 1.9, 0.6, 0.1, 0, 1, 0.3, 1); }
+        if (Math.random() < 0.3) { const e = def; g.particles.glow.spawn({ x: e.pos.x + (Math.random() - 0.5), y: e.pos.y + Math.random() * e.height, z: e.pos.z + (Math.random() - 0.5), vy: 0.6, life: 0.6, r: 2.4, g: 1.9, b: 0.6, size: 0.1, drag: 1, sizeEnd: 0.3, shape: 'square' }); }
         if (T.t > 2.6 / speed) next('plea');
         return;
       case 'plea':
@@ -556,7 +556,7 @@ class HigurumaKit extends Kit {
     const g = this.game, p = this.p;
     if (this.swordT > 0) {
       this.swordT -= dt;
-      if (Math.random() < 0.6) { const h = this.handPos(tmp); g.particles.glow.emit(h.x + (Math.random() - 0.5) * 0.6, h.y + (Math.random() - 0.5) * 0.6, h.z + (Math.random() - 0.5) * 0.6, 0, 0.6, 0, 0.4, 3, 2.6, 1.4, 0.1, 0, 1, 0.2, 1); }
+      if (Math.random() < 0.6) { const h = this.handPos(tmp); g.particles.glow.spawn({ x: h.x + (Math.random() - 0.5) * 0.6, y: h.y + (Math.random() - 0.5) * 0.6, z: h.z + (Math.random() - 0.5) * 0.6, vy: 0.6, life: 0.4, r: 3, g: 2.6, b: 1.4, size: 0.1, drag: 1, shape: 'square' }); }
       if (this.swordT <= 0) this.endSword();
     }
     this.holdConfiscated(dt);
@@ -589,7 +589,7 @@ class HigurumaKit extends Kit {
       }
       if (j.t <= 0) this.dismissJudgeman();
     }
-    if (Math.random() < 0.2) for (const e of g.enemies) if (!e.dead && e.evidence && Math.random() < 0.3) g.particles.glow.emit(e.pos.x, e.pos.y + e.height + 0.3, e.pos.z, 0, 0.4, 0, 0.5, 2.4, 1.9, 0.6, 0.08 + e.evidence * 0.02, 0, 1, 1, 1);
+    if (Math.random() < 0.2) for (const e of g.enemies) if (!e.dead && e.evidence && Math.random() < 0.3) g.particles.glow.spawn({ x: e.pos.x, y: e.pos.y + e.height + 0.3, z: e.pos.z, vy: 0.4, life: 0.5, r: 2.4, g: 1.9, b: 0.6, size: 0.08 + e.evidence * 0.02, drag: 1, sizeEnd: 1, shape: 'square' });
   }
   // ------------------------------------------------------------ gavel techniques
   // A giant gavel pivoting behind `at` swings down onto it along `face`.
@@ -849,7 +849,7 @@ class HigurumaKit extends Kit {
     g.fx.rings.spawn(tmp.set(p.pos.x, p.pos.y + 0.08, p.pos.z), { color: GOLD, r0: 1.6, r1: 1.4, dur: 1.2, thick: 0.1 });
     let used = false, b = null;
     b = this.buff('objection', 1.2, {
-      onTick: () => { if (Math.random() < 0.4) g.particles.glow.emit(p.pos.x + (Math.random() - 0.5), p.pos.y + 1 + Math.random(), p.pos.z + (Math.random() - 0.5), 0, 0.6, 0, 0.4, 2.4, 1.9, 0.6, 0.1, 0, 1, 0.2, 1); },
+      onTick: () => { if (Math.random() < 0.4) g.particles.glow.spawn({ x: p.pos.x + (Math.random() - 0.5), y: p.pos.y + 1 + Math.random(), z: p.pos.z + (Math.random() - 0.5), vy: 0.6, life: 0.4, r: 2.4, g: 1.9, b: 0.6, size: 0.1, drag: 1, shape: 'square' }); },
       incoming: (amt, src) => {
         if (used) return amt;
         used = true; b.left = 0;
@@ -920,7 +920,7 @@ class HigurumaKit extends Kit {
     this.cast(0.35, false, { type: 'raise' });
     this.statBuff('counsel', 10, { techMult: 0.25 }, {
       incoming: (amt) => amt * 0.85,
-      onTick: () => { if (Math.random() < 0.3) g.particles.glow.emit(p.pos.x + (Math.random() - 0.5) * 0.8, p.pos.y + Math.random() * 1.8, p.pos.z + (Math.random() - 0.5) * 0.8, 0, 1, 0, 0.6, 3, 2.4, 0.4, 0.1, 0, 1, 0.1, 1); } });
+      onTick: () => { if (Math.random() < 0.3) g.particles.glow.spawn({ x: p.pos.x + (Math.random() - 0.5) * 0.8, y: p.pos.y + Math.random() * 1.8, z: p.pos.z + (Math.random() - 0.5) * 0.8, vy: 1, life: 0.6, r: 3, g: 2.4, b: 0.4, size: 0.1, drag: 1, sizeEnd: 0.1, shape: 'square' }); } });
     g.fx.rings.spawn(tmp.set(p.pos.x, p.pos.y + 0.08, p.pos.z), { color: 0xffd23a, r0: 0.3, r1: 3, dur: 0.45, thick: 0.15 });
     g.toast?.('🌻 Defence Counsel');
     g.audio?.energy('infinity');

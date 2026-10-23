@@ -158,7 +158,7 @@ class ChosoKit extends Kit {
     g.addUpdater((dt) => {
       t += dt;
       const h = this.handPos();
-      for (let i = 0; i < 4; i++) { const a = Math.random() * Math.PI * 2, rr = 1.2 + Math.random(); g.particles.glow.emit(h.x + Math.cos(a) * rr, h.y + (Math.random() - 0.5) * 1.2, h.z + Math.sin(a) * rr, -Math.cos(a) * rr * 4, 0, -Math.sin(a) * rr * 4, 0.25, 2.2, 0.08, 0.15, 0.12, 0, 0, 0.3, 1); }
+      for (let i = 0; i < 4; i++) { const a = Math.random() * Math.PI * 2, rr = 1.2 + Math.random(); g.particles.glow.spawn({ x: h.x + Math.cos(a) * rr, y: h.y + (Math.random() - 0.5) * 1.2, z: h.z + Math.sin(a) * rr, vx: -Math.cos(a) * rr * 4, vz: -Math.sin(a) * rr * 4, life: 0.25, r: 2.2, g: 0.08, b: 0.15, size: 0.12, sizeEnd: 0.3, shape: 'square' }); }
       if (t < 0.5) return true;
       this.conv = 3 + this.rank('convergence') + (this.convBonus ?? 0);
       g.particles.burst(h, { count: 20, color: BLOOD, speed: 6, life: 0.4, size: 0.12, shape: 1 });
@@ -188,13 +188,13 @@ class ChosoKit extends Kit {
       this.scaleT -= dt;
       p.rig.material.userData.emitMask.value = 0.9 + Math.sin(g.time * 9) * 0.3;   // pulsing veins
       p.rig.setGlow?.(0x3a0006);
-      if (Math.random() < 0.6) g.particles.glow.emit(p.pos.x + (Math.random() - 0.5) * 0.7, p.pos.y + Math.random() * 1.8, p.pos.z + (Math.random() - 0.5) * 0.7, 0, 1.4, 0, 0.5, 2.2, 0.1, 0.15, 0.12, -1, 1, 0.1, 0);
+      if (Math.random() < 0.6) g.particles.glow.spawn({ x: p.pos.x + (Math.random() - 0.5) * 0.7, y: p.pos.y + Math.random() * 1.8, z: p.pos.z + (Math.random() - 0.5) * 0.7, vy: 1.4, life: 0.5, r: 2.2, g: 0.1, b: 0.15, size: 0.12, gravity: -1, drag: 1, sizeEnd: 0.1 });
       if (this.scaleT <= 0) {
         p.stats.attackSpeed /= this.boost.as; p.stats.meleeMult -= this.boost.mm; this.speedMul = 1;
         p.rig.material.userData.emitMask.value = 0.3; p.rig.setGlow?.(0x000000);
       }
     }
-    if (this.conv > 0 && Math.random() < 0.5) { const h = this.handPos(); g.particles.glow.emit(h.x, h.y, h.z, (Math.random() - 0.5), 0.5, (Math.random() - 0.5), 0.3, 2.4, 0.1, 0.2, 0.08 + this.conv * 0.03, 0, 1, 0.3, 0); }
+    if (this.conv > 0 && Math.random() < 0.5) { const h = this.handPos(); g.particles.glow.spawn({ pos: h, vx: (Math.random() - 0.5), vy: 0.5, vz: (Math.random() - 0.5), life: 0.3, r: 2.4, g: 0.1, b: 0.2, size: 0.08 + this.conv * 0.03, drag: 1, sizeEnd: 0.3 }); }
   }
   // ------------------------------------------------------------ blood marks
   // Every blood technique leaves blood on the curse (Blood Burst detonates it;
@@ -280,7 +280,7 @@ class ChosoKit extends Kit {
     p.facing = Math.atan2(dir.x, dir.z);
     g.audio?.charge(0.9, 0.7);
     for (let s = 2; s <= L; s += 2.5) { const c = p.pos.clone().addScaledVector(dir, s); c.y = this.groundAt(c.x, c.z, p.pos.y) + 0.07; g.fx.rings.spawn(c, { color: BLOOD, r0: W, r1: W * 0.9, dur: 0.9, thick: 0.08 }); }
-    this.during(0.9, () => { const h = this.handPos(); for (let i = 0; i < 4; i++) { const a = Math.random() * Math.PI * 2, rr = 1.5 + Math.random(); g.particles.glow.emit(h.x + Math.cos(a) * rr, h.y + (Math.random() - 0.5) * 1.5, h.z + Math.sin(a) * rr, -Math.cos(a) * rr * 4, 0, -Math.sin(a) * rr * 4, 0.25, 2.2, 0.08, 0.15, 0.16, 0, 0, 0.3, 1); } });
+    this.during(0.9, () => { const h = this.handPos(); for (let i = 0; i < 4; i++) { const a = Math.random() * Math.PI * 2, rr = 1.5 + Math.random(); g.particles.glow.spawn({ x: h.x + Math.cos(a) * rr, y: h.y + (Math.random() - 0.5) * 1.5, z: h.z + Math.sin(a) * rr, vx: -Math.cos(a) * rr * 4, vz: -Math.sin(a) * rr * 4, life: 0.25, r: 2.2, g: 0.08, b: 0.15, size: 0.16, sizeEnd: 0.3, shape: 'square' }); } });
     this.after(0.9, () => {
       if (p.dead) return;
       this.beam(dir, L, W, 120 + rk * 25 + cv * 20, { big: true, unblockable: true, knock: 10, stagger: 1.2, dur: 0.5, blocks: 80, blockR: 1.6 });
@@ -322,7 +322,7 @@ class ChosoKit extends Kit {
     if (cost > 0) { p.hp -= cost; g.fx.damageNumber(p.pos, cost, { color: '#ff4a5a', text: `-${Math.round(cost)} 🩸` }); }
     this.cast(0.4, true, { type: 'raise' });
     this.statBuff('rs_stack', 8, { attackSpeed: 0.35, meleeMult: 0.4, techMult: 0.25 }, {
-      onTick: () => { if (Math.random() < 0.7) g.particles.glow.emit(p.pos.x + (Math.random() - 0.5) * 0.9, p.pos.y + Math.random() * 2, p.pos.z + (Math.random() - 0.5) * 0.9, 0, 2.4, 0, 0.45, 2.6, 0.12, 0.2, 0.16, -1, 1, 0.1, 0); } });
+      onTick: () => { if (Math.random() < 0.7) g.particles.glow.spawn({ x: p.pos.x + (Math.random() - 0.5) * 0.9, y: p.pos.y + Math.random() * 2, z: p.pos.z + (Math.random() - 0.5) * 0.9, vy: 2.4, life: 0.45, r: 2.6, g: 0.12, b: 0.2, size: 0.16, gravity: -1, drag: 1, sizeEnd: 0.1 }); } });
     g.toast?.('❤️‍🔥 Flowing Red Scale: Stack', 'big');
     g.fx.flash(0x700010, 0.35, 0.25); g.fx.screenWave(p.pos.clone().setY(p.pos.y + 1), 0.6, 0.4);
     for (let i = 0; i < 3; i++) g.fx.rings.spawn(tmp.set(p.pos.x, p.pos.y + 0.1 + i * 0.6, p.pos.z), { color: BLOOD, r0: 0.4, r1: 3 + i, dur: 0.45 + i * 0.1, thick: 0.15 });
@@ -332,7 +332,7 @@ class ChosoKit extends Kit {
     const g = this.game, p = this.p;
     this.cast(0.45, true, { type: 'raise' });
     p.healOverTime = { left: p.maxHp * 0.1, t: 1 };
-    this.statBuff('eldest', 6, { damage: 0.2 }, { onTick: () => { if (Math.random() < 0.4) g.particles.glow.emit(p.pos.x + (Math.random() - 0.5) * 0.8, p.pos.y + Math.random() * 1.8, p.pos.z + (Math.random() - 0.5) * 0.8, 0, 1.2, 0, 0.6, 2.2, 0.3, 0.3, 0.14, 0, 1, 0.1, 0); } });
+    this.statBuff('eldest', 6, { damage: 0.2 }, { onTick: () => { if (Math.random() < 0.4) g.particles.glow.spawn({ x: p.pos.x + (Math.random() - 0.5) * 0.8, y: p.pos.y + Math.random() * 1.8, z: p.pos.z + (Math.random() - 0.5) * 0.8, vy: 1.2, life: 0.6, r: 2.2, g: 0.3, b: 0.3, size: 0.14, drag: 1, sizeEnd: 0.1 }); } });
     g.toast?.('🛡️ "I\'m the eldest brother — I won\'t fall."', 'big');
     g.fx.rings.spawn(tmp.set(p.pos.x, p.pos.y + 0.08, p.pos.z), { color: BLOOD, r0: 0.4, r1: 4, dur: 0.5, thick: 0.2 });
     g.lights.flash(p.pos.clone().setY(p.pos.y + 1.5), BLOOD, 10, 8, 0.5);
@@ -461,7 +461,7 @@ class ChosoKit extends Kit {
   bloodSense() {
     const g = this.game, p = this.p;
     this.cast(0.35);
-    this.statBuff('blood_sense', 8, { crit: 0.15 }, { onTick: () => { if (Math.random() < 0.08) for (const e of g.enemies) if (!e.dead && e.pos.distanceTo(p.pos) < 18) g.particles.glow.emit(e.pos.x, e.pos.y + e.height + 0.3, e.pos.z, 0, 0.3, 0, 0.5, 2.4, 0.1, 0.2, 0.12, 0, 1, 0.5, 1); } });
+    this.statBuff('blood_sense', 8, { crit: 0.15 }, { onTick: () => { if (Math.random() < 0.08) for (const e of g.enemies) if (!e.dead && e.pos.distanceTo(p.pos) < 18) g.particles.glow.spawn({ x: e.pos.x, y: e.pos.y + e.height + 0.3, z: e.pos.z, vy: 0.3, life: 0.5, r: 2.4, g: 0.1, b: 0.2, size: 0.12, drag: 1, sizeEnd: 0.5, shape: 'square' }); } });
     g.fx.rings.spawn(tmp.set(p.pos.x, p.pos.y + 0.08, p.pos.z), { color: BLOOD, r0: 0.4, r1: 18, dur: 0.8, thick: 0.08 });
     g.toast?.('👁️ Blood Sense');
     g.audio?.energy('infinity');
@@ -469,7 +469,7 @@ class ChosoKit extends Kit {
   brothersBond() {
     const g = this.game, p = this.p;
     this.cast(0.45, true, { type: 'raise' });
-    this.statBuff('brothers', 10, { damage: 0.15 }, { onTick: () => { if (Math.random() < 0.3) g.particles.glow.emit(p.pos.x + (Math.random() - 0.5) * 0.8, p.pos.y + Math.random() * 1.8, p.pos.z + (Math.random() - 0.5) * 0.8, 0, 1, 0, 0.6, 2.2, 0.2, 0.3, 0.12, 0, 1, 0.1, 0); } });
+    this.statBuff('brothers', 10, { damage: 0.15 }, { onTick: () => { if (Math.random() < 0.3) g.particles.glow.spawn({ x: p.pos.x + (Math.random() - 0.5) * 0.8, y: p.pos.y + Math.random() * 1.8, z: p.pos.z + (Math.random() - 0.5) * 0.8, vy: 1, life: 0.6, r: 2.2, g: 0.2, b: 0.3, size: 0.12, drag: 1, sizeEnd: 0.1 }); } });
     g.toast?.('🫂 "Eso. Kechizu. Watch your big brother."', 'big');
     g.fx.flash(0x400010, 0.2, 0.2);
     for (let i = 0; i < 2; i++) g.fx.rings.spawn(tmp.set(p.pos.x, p.pos.y + 0.1 + i * 0.5, p.pos.z), { color: i ? 0x3a8a3a : BLOOD, r0: 0.4, r1: 3.5, dur: 0.5, thick: 0.15 });

@@ -456,7 +456,7 @@ export class WorldMission extends Mission {
       const y = q < WALL ? q : WALL + Math.sin((q - WALL) * Math.PI / 2), rr = q < WALL ? 1 : Math.cos((q - WALL) * Math.PI / 2);
       const x = this.Z.x + Math.cos(a) * rr * R, z = this.Z.z + Math.sin(a) * rr * R, hy = this.Z.y + y * R;
       const dark = Math.random() < 0.65, k = dark ? 0.02 : 2.5;
-      g.particles.glow.emit(x, hy, z, Math.cos(a) * (1 + Math.random() * 3), -1 - Math.random() * 2, Math.sin(a) * (1 + Math.random() * 3), 0.9 + Math.random() * 0.6, dark ? k : tmpC.r * k, dark ? k : tmpC.g * k, dark ? k : tmpC.b * k, dark ? 0.6 : 0.22, 9, 0.5, 0.4, dark ? 1 : 3);
+      g.particles.glow.spawn({ x, y: hy, z, vx: Math.cos(a) * (1 + Math.random() * 3), vy: -1 - Math.random() * 2, vz: Math.sin(a) * (1 + Math.random() * 3), life: 0.9 + Math.random() * 0.6, r: dark ? k : tmpC.r * k, g: dark ? k : tmpC.g * k, b: dark ? k : tmpC.b * k, size: dark ? 0.6 : 0.22, gravity: 9, drag: 0.5, sizeEnd: 0.4, shape: dark ? 1 : 3 });
     }
   }
   // The curtain is a wall: nobody crosses it (players, allies, curses), either way.
@@ -483,7 +483,7 @@ export class WorldMission extends Mission {
         e._curtainFx = g.time + 0.3;
         tmpC.set(arc(this.ch.arc)?.color ?? '#7a5cff');
         const wx = cx + nx * R, wz = cz + nz * R, wy = e.pos.y + 0.4 + Math.random() * 1.5;
-        for (let i = 0; i < 5; i++) g.particles.glow.emit(wx, wy + (Math.random() - 0.5), wz, (Math.random() - 0.5) * 2, (Math.random() - 0.5) * 2, (Math.random() - 0.5) * 2, 0.35, tmpC.r * 2.5, tmpC.g * 2.5, tmpC.b * 2.5, 0.16, 0, 3, 0.05, 1);
+        for (let i = 0; i < 5; i++) g.particles.glow.spawn({ x: wx, y: wy + (Math.random() - 0.5), z: wz, vx: (Math.random() - 0.5) * 2, vy: (Math.random() - 0.5) * 2, vz: (Math.random() - 0.5) * 2, life: 0.35, r: tmpC.r * 2.5, g: tmpC.g * 2.5, b: tmpC.b * 2.5, size: 0.16, drag: 3, sizeEnd: 0.05, shape: 'square' });
         if (e.isPlayer && (this.wallMsgT ?? 0) < g.time) { this.wallMsgT = g.time + 6; toast('The curtain holds — finish the mission (or Pause → Abandon mission)'); }
       }
     }

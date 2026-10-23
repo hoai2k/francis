@@ -257,7 +257,7 @@ class DaburaKit extends Kit {
     temp(this, orb, CH, (t, dt, k) => {
       orb.position.copy(this.handPos()); orb.scale.setScalar(0.2 + k * 0.9);
       const h = orb.position;
-      for (let i = 0; i < 3; i++) { const a = Math.random() * Math.PI * 2, rr = 2 + Math.random() * 2; g.particles.glow.emit(h.x + Math.cos(a) * rr, h.y + (Math.random() - 0.5) * 2, h.z + Math.sin(a) * rr, -Math.cos(a) * rr * 3, 0, -Math.sin(a) * rr * 3, 0.3, 3, 2.8, 2, 0.14, 0, 1, 0.2, 0); }
+      for (let i = 0; i < 3; i++) { const a = Math.random() * Math.PI * 2, rr = 2 + Math.random() * 2; g.particles.glow.spawn({ x: h.x + Math.cos(a) * rr, y: h.y + (Math.random() - 0.5) * 2, z: h.z + Math.sin(a) * rr, vx: -Math.cos(a) * rr * 3, vz: -Math.sin(a) * rr * 3, life: 0.3, r: 3, g: 2.8, b: 2, size: 0.14, drag: 1 }); }
     });
     this.after(CH, () => {
       const from = this.handPos(), { dir } = aimAt(this, from, 30);
@@ -278,7 +278,7 @@ class DaburaKit extends Kit {
       orb.rotation.y += dt * 4;
       pull(this, c, R, pullK * dt * 60 * 0.1, 0);
       // matter streaming into the sphere
-      for (let i = 0; i < 3; i++) { const a = Math.random() * Math.PI * 2, rr = R * (0.5 + Math.random() * 0.5); g.particles.glow.emit(c.x + Math.cos(a) * rr, c.y + 0.3 + Math.random() * 2, c.z + Math.sin(a) * rr, -Math.cos(a) * rr * 1.8, 0.6, -Math.sin(a) * rr * 1.8, 0.5, 0.5, 0.25, 1.6, 0.16, 0, 0.5, 0.05, 0); }
+      for (let i = 0; i < 3; i++) { const a = Math.random() * Math.PI * 2, rr = R * (0.5 + Math.random() * 0.5); g.particles.glow.spawn({ x: c.x + Math.cos(a) * rr, y: c.y + 0.3 + Math.random() * 2, z: c.z + Math.sin(a) * rr, vx: -Math.cos(a) * rr * 1.8, vy: 0.6, vz: -Math.sin(a) * rr * 1.8, life: 0.5, r: 0.5, g: 0.25, b: 1.6, size: 0.16, drag: 0.5, sizeEnd: 0.05 }); }
       if (Math.random() < 0.3) g.particles.burst(orb.position, { count: 2, color: 0x0a0814, additive: false, speed: 1, life: 0.6, size: 0.5, sizeEnd: 0.1 });
       tick -= dt;
       if (tick <= 0) { tick = 0.3; for (const e of this.foes(c, R * 0.5)) { this.hit(e, dps * 0.3 * this.darkMul, { stagger: 0.15, color: '#a88aff' }); if (e.dead && this.voidHeart) p.gainCE(3); } }

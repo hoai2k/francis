@@ -186,7 +186,7 @@ export const ATTACKS = {
       if (Math.random() < 0.5) {
         // a thin aiming thread from the eye along the line
         const s = Math.random() * a.len;
-        e.game.particles.glow.emit(e.pos.x + Math.sin(e.facing) * s, e.pos.y + 1.0 + (1 - s / Math.max(1, a.len)) * 1.2, e.pos.z + Math.cos(e.facing) * s, 0, 0, 0, 0.25, 2.4, 0.9, 0.2, 0.08, 0, 1, 0.1, 0);
+        e.game.particles.glow.spawn({ x: e.pos.x + Math.sin(e.facing) * s, y: e.pos.y + 1.0 + (1 - s / Math.max(1, a.len)) * 1.2, z: e.pos.z + Math.cos(e.facing) * s, life: 0.25, r: 2.4, g: 0.9, b: 0.2, size: 0.08, drag: 1, sizeEnd: 0.1 });
       }
     },
     release: (e, a, t, fwd) => {

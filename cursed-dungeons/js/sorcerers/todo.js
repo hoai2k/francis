@@ -187,7 +187,7 @@ class TodoKit extends Kit {
     for (const e of g.enemies) {
       if (e.dead || !(e.confusedT > 0)) continue;
       e.confusedT -= dt;
-      if (Math.random() < 0.35) { const a = g.time * 6 + e.pos.x; g.particles.glow.emit(e.pos.x + Math.cos(a) * 0.5, e.pos.y + e.height + 0.3, e.pos.z + Math.sin(a) * 0.5, -Math.sin(a) * 1.2, 0.1, Math.cos(a) * 1.2, 0.35, 2.6, 2.4, 0.6, 0.12, 0, 1, 0.3, 1); }
+      if (Math.random() < 0.35) { const a = g.time * 6 + e.pos.x; g.particles.glow.spawn({ x: e.pos.x + Math.cos(a) * 0.5, y: e.pos.y + e.height + 0.3, z: e.pos.z + Math.sin(a) * 0.5, vx: -Math.sin(a) * 1.2, vy: 0.1, vz: Math.cos(a) * 1.2, life: 0.35, r: 2.6, g: 2.4, b: 0.6, size: 0.12, drag: 1, sizeEnd: 0.3, shape: 'square' }); }
     }
   }
   // ---------------------------------------------------------- techniques
@@ -487,7 +487,7 @@ class TodoKit extends Kit {
     this.cast(0.4, true);
     g.toast?.('🤝 Brother!'); g.fx.flash(0x2a1040, 0.25, 0.2); g.audio?.charge?.(0.4, 0.5);
     this.statBuff('brother_lesson', 8, { meleeMult: 0.2, speed: 0.15 }, { onTick: () => {
-      if (Math.random() < 0.4) g.particles.glow.emit(p.pos.x + (Math.random() - 0.5) * 0.8, p.pos.y + Math.random() * 1.8, p.pos.z + (Math.random() - 0.5) * 0.8, 0, 0.8, 0, 0.5, 2.2, 1, 2.6, 0.1, 0, 1, 0.2, 1);
+      if (Math.random() < 0.4) g.particles.glow.spawn({ x: p.pos.x + (Math.random() - 0.5) * 0.8, y: p.pos.y + Math.random() * 1.8, z: p.pos.z + (Math.random() - 0.5) * 0.8, vy: 0.8, life: 0.5, r: 2.2, g: 1, b: 2.6, size: 0.1, drag: 1, shape: 'square' });
     } });
   }
   elbowDrop() {
@@ -524,7 +524,7 @@ class TodoKit extends Kit {
         }
         return a * 0.5;
       },
-      onTick: () => { if (Math.random() < 0.4) g.particles.glow.emit(p.pos.x + (Math.random() - 0.5), p.pos.y + Math.random() * 1.9, p.pos.z + (Math.random() - 0.5), 0, 0.7, 0, 0.4, 2.2, 1.4, 2.4, 0.12, 0, 1, 0.05, 1); },
+      onTick: () => { if (Math.random() < 0.4) g.particles.glow.spawn({ x: p.pos.x + (Math.random() - 0.5), y: p.pos.y + Math.random() * 1.9, z: p.pos.z + (Math.random() - 0.5), vy: 0.7, life: 0.4, r: 2.2, g: 1.4, b: 2.4, size: 0.12, drag: 1, sizeEnd: 0.05, shape: 'square' }); },
     });
   }
   takadaCheer() {
@@ -532,7 +532,7 @@ class TodoKit extends Kit {
     if (p.hp < p.maxHp) this.rctHeal(0.25, 2, 0xff8ad8); else this.cast(0.5, true);
     g.toast?.('🎤 Takada-chan is cheering for you!');
     g.fx.damageNumber(p.pos.clone().setY(p.pos.y + 2), 0, { text: '♪ Takada-chan ♪', color: '#ff8ad8' });
-    for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2; g.particles.glow.emit(p.pos.x + Math.cos(a) * 1.2, p.pos.y + 2.2, p.pos.z + Math.sin(a) * 1.2, Math.cos(a) * 0.5, 1.2, Math.sin(a) * 0.5, 0.9, 2.6, 1, 2, 0.16, -0.5, 1, 0.3, 1); }
+    for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2; g.particles.glow.spawn({ x: p.pos.x + Math.cos(a) * 1.2, y: p.pos.y + 2.2, z: p.pos.z + Math.sin(a) * 1.2, vx: Math.cos(a) * 0.5, vy: 1.2, vz: Math.sin(a) * 0.5, life: 0.9, r: 2.6, g: 1, b: 2, size: 0.16, gravity: -0.5, drag: 1, sizeEnd: 0.3, shape: 'square' }); }
     this.statBuff('takada', 6, { damage: 0.15 });
   }
   blackSpark() {

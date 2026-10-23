@@ -322,7 +322,7 @@ export class Enemy {
     }
     if (this.sealT > 0) { // Prison Realm: sealed in place
       this.sealT -= dt; this.flashT -= dt;
-      if (Math.random() < 0.3) g.particles.glow.emit(this.pos.x + (Math.random() - 0.5), this.pos.y + Math.random() * this.height, this.pos.z + (Math.random() - 0.5), 0, 0.3, 0, 0.6, 1.2, 1.1, 1.8, 0.12, 0, 1, 1, 1);
+      if (Math.random() < 0.3) g.particles.glow.spawn({ x: this.pos.x + (Math.random() - 0.5), y: this.pos.y + Math.random() * this.height, z: this.pos.z + (Math.random() - 0.5), vy: 0.3, life: 0.6, r: 1.2, g: 1.1, b: 1.8, size: 0.12, drag: 1, sizeEnd: 1, shape: 'square' });
       this.rig.swap(this.flashT > 0 ? FLASH_MATERIAL : null);
       if (this.state !== 'active') this.moveBody(dt, tmp2.set(0, 0, 0));
       return true;
@@ -511,9 +511,9 @@ export class Enemy {
   // blessed (empowered) curses burn red; buried hands churn the floor; cloaked shadows shimmer
   statusFx(dt) {
     const g = this.game, Pt = g.particles, bud = Pt.budget ?? 1;
-    if (this.empowerT > 0 && Math.random() < 8 * dt * bud) Pt.glow.emit(this.pos.x + (Math.random() - 0.5) * this.radius * 2, this.pos.y + Math.random() * this.height, this.pos.z + (Math.random() - 0.5) * this.radius * 2, 0, 1.2, 0, 0.6, 2.4, 0.5, 0.2, 0.1, -0.5, 1, 0.1, 0);
-    if (this.burrowed && Math.random() < 30 * dt * bud) Pt.smoke.emit(this.pos.x + (Math.random() - 0.5) * 0.8, this.pos.y + 0.1, this.pos.z + (Math.random() - 0.5) * 0.8, (Math.random() - 0.5) * 1.5, 1.2 + Math.random(), (Math.random() - 0.5) * 1.5, 0.6, 0.22, 0.17, 0.12, 0.25, 5, 2, 1.0, 0);
-    if (this.cloaked && Math.random() < 3 * dt * bud) Pt.glow.emit(this.pos.x + (Math.random() - 0.5) * 0.6, this.pos.y + Math.random() * this.height, this.pos.z + (Math.random() - 0.5) * 0.6, 0, 0.3, 0, 0.5, 0.5, 0.25, 0.9, 0.06, 0, 1, 0.1, 0);
+    if (this.empowerT > 0 && Math.random() < 8 * dt * bud) Pt.glow.spawn({ x: this.pos.x + (Math.random() - 0.5) * this.radius * 2, y: this.pos.y + Math.random() * this.height, z: this.pos.z + (Math.random() - 0.5) * this.radius * 2, vy: 1.2, life: 0.6, r: 2.4, g: 0.5, b: 0.2, size: 0.1, gravity: -0.5, drag: 1, sizeEnd: 0.1 });
+    if (this.burrowed && Math.random() < 30 * dt * bud) Pt.smoke.spawn({ x: this.pos.x + (Math.random() - 0.5) * 0.8, y: this.pos.y + 0.1, z: this.pos.z + (Math.random() - 0.5) * 0.8, vx: (Math.random() - 0.5) * 1.5, vy: 1.2 + Math.random(), vz: (Math.random() - 0.5) * 1.5, life: 0.6, r: 0.22, g: 0.17, b: 0.12, size: 0.25, gravity: 5, drag: 2, sizeEnd: 1.0 });
+    if (this.cloaked && Math.random() < 3 * dt * bud) Pt.glow.spawn({ x: this.pos.x + (Math.random() - 0.5) * 0.6, y: this.pos.y + Math.random() * this.height, z: this.pos.z + (Math.random() - 0.5) * 0.6, vy: 0.3, life: 0.5, r: 0.5, g: 0.25, b: 0.9, size: 0.06, drag: 1, sizeEnd: 0.1 });
   }
   updateCloak() {
     if (this.def.ai !== 'ambush') return;
@@ -546,8 +546,8 @@ export class Enemy {
       if (Math.random() < 5 * dt * bud) {
         // a thread of light from the doll's core to each guarded curse
         const k = Math.random();
-        Pt.glow.emit(this.pos.x + (e.pos.x - this.pos.x) * k, this.pos.y + 1.1 + (e.pos.y - this.pos.y) * k + Math.sin(k * Math.PI) * 0.5, this.pos.z + (e.pos.z - this.pos.z) * k, 0, 0.1, 0, 0.5, 0.4, 1.6, 2.0, 0.09, 0, 1, 0.1, 0);
-        Pt.glow.emit(e.pos.x + (Math.random() - 0.5) * e.radius * 2, e.pos.y + Math.random() * e.height, e.pos.z + (Math.random() - 0.5) * e.radius * 2, 0, 0.4, 0, 0.5, 0.3, 1.2, 1.6, 0.07, 0, 1, 0.1, 0);
+        Pt.glow.spawn({ x: this.pos.x + (e.pos.x - this.pos.x) * k, y: this.pos.y + 1.1 + (e.pos.y - this.pos.y) * k + Math.sin(k * Math.PI) * 0.5, z: this.pos.z + (e.pos.z - this.pos.z) * k, vy: 0.1, life: 0.5, r: 0.4, g: 1.6, b: 2.0, size: 0.09, drag: 1, sizeEnd: 0.1 });
+        Pt.glow.spawn({ x: e.pos.x + (Math.random() - 0.5) * e.radius * 2, y: e.pos.y + Math.random() * e.height, z: e.pos.z + (Math.random() - 0.5) * e.radius * 2, vy: 0.4, life: 0.5, r: 0.3, g: 1.2, b: 1.6, size: 0.07, drag: 1, sizeEnd: 0.1 });
       }
     }
   }
@@ -697,7 +697,7 @@ export class Enemy {
       if (!p.dead && !p.downed) { p.pos.x = at.x; p.pos.z = at.z; p.vel.x = 0; p.vel.z = 0; p.knock?.set(0, 0, 0); }
       const k = 1.1 - p.coffinT;
       mesh.scale.set(1, Math.min(1, k * 7), 1);
-      if (Math.random() < 0.4) g.particles.glow.emit(at.x + (Math.random() - 0.5) * 1.2, at.y + Math.random() * 2.4, at.z + (Math.random() - 0.5) * 1.2, 0, 0.6, 0, 0.6, 1.2, 0.4, 1.8, 0.1, 0, 1, 0.1, 0);
+      if (Math.random() < 0.4) g.particles.glow.spawn({ x: at.x + (Math.random() - 0.5) * 1.2, y: at.y + Math.random() * 2.4, z: at.z + (Math.random() - 0.5) * 1.2, vy: 0.6, life: 0.6, r: 1.2, g: 0.4, b: 1.8, size: 0.1, drag: 1, sizeEnd: 0.1 });
       if (p.coffinT <= 0 || p.dead || !g.scene.children.includes(mesh)) {
         g.scene.remove(mesh);
         g.fx.debris(at.clone().setY(at.y + 1.2), 0x4a3426, 10); g.audio?.breakBlock('wood');

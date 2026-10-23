@@ -241,7 +241,7 @@ class SukunaKit extends Kit {
       p.facing = Math.atan2(p.aimDir.x, p.aimDir.z);
       bow.position.copy(this.handPos());
       bow.scale.setScalar(0.3 + t * 0.6);
-      for (let i = 0; i < 3; i++) { const a = Math.random() * Math.PI * 2; g.particles.glow.emit(bow.position.x + Math.cos(a) * 1.4, bow.position.y + (Math.random() - 0.5), bow.position.z + Math.sin(a) * 1.4, -Math.cos(a) * 4, 0.5, -Math.sin(a) * 4, 0.35, 3, 1.3, 0.3, 0.16, 0, 2, 0.2, 0); }
+      for (let i = 0; i < 3; i++) { const a = Math.random() * Math.PI * 2; g.particles.glow.spawn({ x: bow.position.x + Math.cos(a) * 1.4, y: bow.position.y + (Math.random() - 0.5), z: bow.position.z + Math.sin(a) * 1.4, vx: -Math.cos(a) * 4, vy: 0.5, vz: -Math.sin(a) * 4, life: 0.35, r: 3, g: 1.3, b: 0.3, size: 0.16, drag: 2 }); }
       if (t < 0.95) return true;
       g.scene.remove(bow); g.lights.remove(light);
       g.fx.dimTarget = 0;
@@ -421,7 +421,7 @@ class SukunaKit extends Kit {
       for (const e of this.foes(c, R)) if (!e.isBoss) e.vel.y = Math.max(e.vel.y, 12);
       const light = g.lights.flash(c.clone().setY(c.y + 3), FIRE, 26, 18, 1.4, { priority: 8 });
       this.during(1.2, (t) => {
-        for (let i = 0; i < 10; i++) { const a = Math.random() * Math.PI * 2, rr = Math.random() * R * 0.8 * (1 - t * 0.5); g.particles.glow.emit(c.x + Math.cos(a) * rr, c.y + Math.random() * 1.5, c.z + Math.sin(a) * rr, Math.cos(a) * 0.5, 9 + Math.random() * 8, Math.sin(a) * 0.5, 0.7, 3.5, 1.2, 0.3, 0.5, -2, 1, 1.4, 0); }
+        for (let i = 0; i < 10; i++) { const a = Math.random() * Math.PI * 2, rr = Math.random() * R * 0.8 * (1 - t * 0.5); g.particles.glow.spawn({ x: c.x + Math.cos(a) * rr, y: c.y + Math.random() * 1.5, z: c.z + Math.sin(a) * rr, vx: Math.cos(a) * 0.5, vy: 9 + Math.random() * 8, vz: Math.sin(a) * 0.5, life: 0.7, r: 3.5, g: 1.2, b: 0.3, size: 0.5, gravity: -2, drag: 1, sizeEnd: 1.4 }); }
       }, () => g.lights.remove?.(light));
       g.hazards.add({ pos: c.clone(), radius: R * 0.8, dps: 22, dur: 4, color: FIRE, team: 'player', src: p });
       g.fx.explosion(c.clone().setY(c.y + 1), FIRE, R); g.fx.shockwave(c, FIRE, R + 1.5); g.fx.screenWave(c, 1, 0.5);
@@ -487,7 +487,7 @@ class SukunaKit extends Kit {
       incoming: (a) => a * 0.5,
       onStart: () => { p.weaponPierce = true; },
       onEnd: () => { p.weaponPierce = before; },
-      onTick: () => { if (Math.random() < 0.5) g.particles.glow.emit(p.pos.x + (Math.random() - 0.5) * 1.1, p.pos.y + Math.random() * 1.9, p.pos.z + (Math.random() - 0.5) * 1.1, 0, 0.6, 0, 0.5, 1.6, 0.2, 0.2, 0.12, 0, 1, 0.05, 1); },
+      onTick: () => { if (Math.random() < 0.5) g.particles.glow.spawn({ x: p.pos.x + (Math.random() - 0.5) * 1.1, y: p.pos.y + Math.random() * 1.9, z: p.pos.z + (Math.random() - 0.5) * 1.1, vy: 0.6, life: 0.5, r: 1.6, g: 0.2, b: 0.2, size: 0.12, drag: 1, sizeEnd: 0.05, shape: 'square' }); },
     });
   }
   fingers() {
@@ -497,7 +497,7 @@ class SukunaKit extends Kit {
     this.statBuff('fingers', 10, { techMult: 0.3, meleeMult: 0.3 }, {
       onTick: (dt) => {
         p.ce = Math.min(p.maxCe, p.ce + 4 * dt);
-        if (Math.random() < 0.7) { const a = Math.random() * Math.PI * 2; g.particles.glow.emit(p.pos.x + Math.cos(a) * 0.4, p.pos.y + 0.1, p.pos.z + Math.sin(a) * 0.4, Math.cos(a) * 0.3, 2 + Math.random() * 2, Math.sin(a) * 0.3, 0.6, 2.4, 0.2, 0.25, 0.2, -1, 1.5, 0.1, 0); }
+        if (Math.random() < 0.7) { const a = Math.random() * Math.PI * 2; g.particles.glow.spawn({ x: p.pos.x + Math.cos(a) * 0.4, y: p.pos.y + 0.1, z: p.pos.z + Math.sin(a) * 0.4, vx: Math.cos(a) * 0.3, vy: 2 + Math.random() * 2, vz: Math.sin(a) * 0.3, life: 0.6, r: 2.4, g: 0.2, b: 0.25, size: 0.2, gravity: -1, drag: 1.5, sizeEnd: 0.1 }); }
       },
     });
   }

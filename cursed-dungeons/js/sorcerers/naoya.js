@@ -229,7 +229,7 @@ class NaoyaKit extends Kit {
     }
     // speed lines at high stacks, an afterimage trail while accelerating
     const k = this.stacks / this.maxStacks;
-    if (Math.random() < k * 0.8 || this.accelT > 0) g.particles.glow.emit(p.pos.x + (Math.random() - 0.5) * 0.5, p.pos.y + 0.2 + Math.random() * 1.6, p.pos.z + (Math.random() - 0.5) * 0.5, -p.vel.x * 0.3, 0.2, -p.vel.z * 0.3, 0.3, 1.2, 2.2, 2.6, 0.1 + k * 0.08, 0, 2, 0.2, 1);
+    if (Math.random() < k * 0.8 || this.accelT > 0) g.particles.glow.spawn({ x: p.pos.x + (Math.random() - 0.5) * 0.5, y: p.pos.y + 0.2 + Math.random() * 1.6, z: p.pos.z + (Math.random() - 0.5) * 0.5, vx: -p.vel.x * 0.3, vy: 0.2, vz: -p.vel.z * 0.3, life: 0.3, r: 1.2, g: 2.2, b: 2.6, size: 0.1 + k * 0.08, drag: 2, shape: 'square' });
     if (p.rig.material?.userData?.emitMask) p.rig.material.userData.emitMask.value = 0.2 + k;
   }
   // ------------------------------------------------------------ movement helper
@@ -621,7 +621,7 @@ class NaoyaKit extends Kit {
     g.toast?.('Zenin Pride'); g.audio?.charge(0.3, 1.2);
     g.fx.rings.spawn(tmp.set(p.pos.x, p.pos.y + 0.06, p.pos.z), { color: GOLD, r0: 0.4, r1: 3, dur: 0.4, thick: 0.18 });
     this.statBuff('zenin_pride', 8, { meleeMult: 0.2, techMult: 0.2, armor: 0.1 }, {
-      onTick: () => { if (Math.random() < 0.35) { const a = Math.random() * Math.PI * 2; g.particles.glow.emit(p.pos.x + Math.cos(a) * 0.6, p.pos.y + 0.2, p.pos.z + Math.sin(a) * 0.6, 0, 1.6, 0, 0.6, 2.6, 2.1, 1.1, 0.12, 0, 1, 0.05, 1); } },
+      onTick: () => { if (Math.random() < 0.35) { const a = Math.random() * Math.PI * 2; g.particles.glow.spawn({ x: p.pos.x + Math.cos(a) * 0.6, y: p.pos.y + 0.2, z: p.pos.z + Math.sin(a) * 0.6, vy: 1.6, life: 0.6, r: 2.6, g: 2.1, b: 1.1, size: 0.12, drag: 1, sizeEnd: 0.05, shape: 'square' }); } },
     });
   }
   counter() {
@@ -674,7 +674,7 @@ class NaoyaKit extends Kit {
     this.statBuff('cursed_spirit', 12, { lifesteal: 0.05, speed: 0.1 }, {
       onStart: () => { this.stacks = this.maxStacks; },
       onTick: () => {
-        if (Math.random() < 0.6) g.particles.glow.emit(p.pos.x + (Math.random() - 0.5) * 0.9, p.pos.y + Math.random() * 2, p.pos.z + (Math.random() - 0.5) * 0.9, 0, 0.6, 0, 0.6, 1.2, 0.5, 2, 0.18, -0.4, 1.5, 0.3, 0);
+        if (Math.random() < 0.6) g.particles.glow.spawn({ x: p.pos.x + (Math.random() - 0.5) * 0.9, y: p.pos.y + Math.random() * 2, z: p.pos.z + (Math.random() - 0.5) * 0.9, vy: 0.6, life: 0.6, r: 1.2, g: 0.5, b: 2, size: 0.18, gravity: -0.4, drag: 1.5, sizeEnd: 0.3 });
         if (Math.random() < 0.2) g.particles.burst(tmp.set(p.pos.x, p.pos.y + 1, p.pos.z), { count: 1, color: FRAME, speed: 1, life: 0.3, size: 0.1, shape: 1 });
       },
       onEnd: () => { this.spiritT = 0; this.stacks = Math.min(this.stacks, this.maxStacks); },

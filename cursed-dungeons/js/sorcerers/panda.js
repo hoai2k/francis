@@ -400,7 +400,7 @@ class PandaKit extends Kit {
         }
         return a * 0.3;
       },
-      onTick: () => { if (Math.random() < 0.5) g.particles.glow.emit(p.pos.x + (Math.random() - 0.5) * 1.6, p.pos.y + 0.5 + Math.random() * 1.5, p.pos.z + (Math.random() - 0.5) * 1.6, 0, 0.3, 0, 0.4, 1.6, 1.6, 1.6, 0.12, 0, 1, 0.1, 0); },
+      onTick: () => { if (Math.random() < 0.5) g.particles.glow.spawn({ x: p.pos.x + (Math.random() - 0.5) * 1.6, y: p.pos.y + 0.5 + Math.random() * 1.5, z: p.pos.z + (Math.random() - 0.5) * 1.6, vy: 0.3, life: 0.4, r: 1.6, g: 1.6, b: 1.6, size: 0.12, drag: 1, sizeEnd: 0.1 }); },
     });
   }
   bellyFlop() {

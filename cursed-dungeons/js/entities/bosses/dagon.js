@@ -70,8 +70,8 @@ export function buildDagon() {
     m.userData.emitMask.value = 2 + Math.sin(t * 2.2) * 0.6;
     if (b.lightH) { b.lightH.intensity = 3.4 + Math.sin(t * 1.8) * 0.5; b.lightH.offsetY = 6.5; }
     // dripping water and bubbles
-    for (let i = rate(10, dt, bud); i > 0; i--) Pt.glow.emit(b.pos.x + rnd(1.3), b.pos.y + 1 + Math.random() * 4, b.pos.z + rnd(1.3), 0, -1, 0, 0.7, 0.5, 1.4, 2.2, 0.06, 12, 0.2, 0.6, 1);
-    for (let i = rate(4, dt, bud); i > 0; i--) Pt.glow.emit(b.pos.x + rnd(1.6), b.pos.y + Math.random() * 3, b.pos.z + rnd(1.6), rnd(0.2), 0.8, rnd(0.2), 1.6, 0.8, 1.6, 2, 0.12, -0.5, 1, 0.5, 2);
+    for (let i = rate(10, dt, bud); i > 0; i--) Pt.glow.spawn({ x: b.pos.x + rnd(1.3), y: b.pos.y + 1 + Math.random() * 4, z: b.pos.z + rnd(1.3), vy: -1, life: 0.7, r: 0.5, g: 1.4, b: 2.2, size: 0.06, gravity: 12, drag: 0.2, sizeEnd: 0.6, shape: 'square' });
+    for (let i = rate(4, dt, bud); i > 0; i--) Pt.glow.spawn({ x: b.pos.x + rnd(1.6), y: b.pos.y + Math.random() * 3, z: b.pos.z + rnd(1.6), vx: rnd(0.2), vy: 0.8, vz: rnd(0.2), life: 1.6, r: 0.8, g: 1.6, b: 2, size: 0.12, gravity: -0.5, drag: 1, sizeEnd: 0.5, shape: 'ring' });
   };
   rig.fx = fx;
   return rig;
@@ -82,7 +82,7 @@ function fish(b, from, target, speed = 9, dmg = 0.4) {
   const g = b.game, col = FISH[Math.floor(Math.random() * FISH.length)];
   const a = Math.random() * Math.PI * 2;
   return g.projectiles.fire({ pos: from.clone(), vel: V(Math.cos(a) * speed * 0.6, 3 + Math.random() * 3, Math.sin(a) * speed * 0.6), team: 'enemy', dmg: b.dmg * dmg, shape: 'arrow', color: col, emissive: 2, life: 3.2, homing: 2.4, target, scale: 0.55, radius: 0.4,
-    trail: (pr) => { if (Math.random() < 0.5) g.particles.glow.emit(pr.pos.x, pr.pos.y, pr.pos.z, 0, 0.2, 0, 0.35, 0.6, 1.6, 2.4, 0.1, 0, 1, 0.05, 2); },
+    trail: (pr) => { if (Math.random() < 0.5) g.particles.glow.spawn({ pos: pr.pos, vy: 0.2, life: 0.35, r: 0.6, g: 1.6, b: 2.4, size: 0.1, drag: 1, sizeEnd: 0.05, shape: 'ring' }); },
     onHit: (p, pr) => { p.takeDamage(b.dmg * dmg, b, { knock: pr.vel.clone().setY(0).setLength(3) }); g.fx.splash(pr.pos, 0.6); },
     onExpire: (pr) => g.fx.splash(pr.pos, 0.5) });
 }
@@ -173,7 +173,7 @@ export const dagon = {
       yield 1.0;
       this.free();
       for (const s of spots) {
-        for (let i = 0; i < 30 * (g.particles.budget ?? 1); i++) g.particles.glow.emit(s.x + (Math.random() - 0.5) * 1.2, s.y + 0.3, s.z + (Math.random() - 0.5) * 1.2, (Math.random() - 0.5) * 2, 10 + Math.random() * 8, (Math.random() - 0.5) * 2, 1, 0.6, 1.6, 2.4, 0.22, 18, 0.3, 0.6, 1);
+        for (let i = 0; i < 30 * (g.particles.budget ?? 1); i++) g.particles.glow.spawn({ x: s.x + (Math.random() - 0.5) * 1.2, y: s.y + 0.3, z: s.z + (Math.random() - 0.5) * 1.2, vx: (Math.random() - 0.5) * 2, vy: 10 + Math.random() * 8, vz: (Math.random() - 0.5) * 2, life: 1, r: 0.6, g: 1.6, b: 2.4, size: 0.22, gravity: 18, drag: 0.3, sizeEnd: 0.6, shape: 'square' });
         g.fx.splash(s, 3); g.fx.shockwave(s, SEA, 2.4);
         this.hurt(s, 2, this.dmg * 0.95, 3, { up: 13 });
         yield 0.05;

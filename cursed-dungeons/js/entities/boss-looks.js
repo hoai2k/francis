@@ -251,18 +251,18 @@ export function buildJogo() {
     if (b.lightH) b.lightH.intensity = 4.2 + Math.sin(t * 11) * 0.5 + Math.sin(t * 3.7) * 0.6;
     const c = core.getWorldPosition(v1);
     // smoke column and embers out of the crater
-    for (let i = rate(7, dt, bud); i > 0; i--) Pt.smoke.emit(c.x + rnd(0.25), c.y + 0.35, c.z + rnd(0.25), rnd(0.3), 1.0 + Math.random() * 0.8, rnd(0.3), 2.4, 0.12, 0.1, 0.09, 0.6, -0.35, 0.7, 3.4, 0);
-    for (let i = rate(16, dt, bud); i > 0; i--) { const h = Math.random(); Pt.glow.emit(c.x + rnd(0.2), c.y + 0.3, c.z + rnd(0.2), rnd(1.4), 3 + Math.random() * 3.5, rnd(1.4), 1 + Math.random() * 0.6, 3.2, 1.1 + h * 0.8, 0.25, 0.09 + h * 0.06, 7, 0.4, 0.4, 1); }
+    for (let i = rate(7, dt, bud); i > 0; i--) Pt.smoke.spawn({ x: c.x + rnd(0.25), y: c.y + 0.35, z: c.z + rnd(0.25), vx: rnd(0.3), vy: 1.0 + Math.random() * 0.8, vz: rnd(0.3), life: 2.4, r: 0.12, g: 0.1, b: 0.09, size: 0.6, gravity: -0.35, drag: 0.7, sizeEnd: 3.4 });
+    for (let i = rate(16, dt, bud); i > 0; i--) { const h = Math.random(); Pt.glow.spawn({ x: c.x + rnd(0.2), y: c.y + 0.3, z: c.z + rnd(0.2), vx: rnd(1.4), vy: 3 + Math.random() * 3.5, vz: rnd(1.4), life: 1 + Math.random() * 0.6, r: 3.2, g: 1.1 + h * 0.8, b: 0.25, size: 0.09 + h * 0.06, gravity: 7, drag: 0.4, sizeEnd: 0.4, shape: 'square' }); }
     erupt -= dt;
     if (erupt <= 0) {   // small eruption: a burst of embers, a puff and a flash
       erupt = 2.5 + Math.random() * 3;
-      for (let i = 0; i < 24 * bud; i++) Pt.glow.emit(c.x, c.y + 0.3, c.z, rnd(3), 5 + Math.random() * 5, rnd(3), 1.3, 3.5, 1.4, 0.3, 0.14, 9, 0.3, 0.3, 1);
-      for (let i = 0; i < 6 * bud; i++) Pt.smoke.emit(c.x + rnd(0.3), c.y + 0.4, c.z + rnd(0.3), rnd(0.8), 2 + Math.random(), rnd(0.8), 2.0, 0.1, 0.08, 0.07, 0.8, -0.2, 1.2, 3.2, 0);
+      for (let i = 0; i < 24 * bud; i++) Pt.glow.spawn({ x: c.x, y: c.y + 0.3, z: c.z, vx: rnd(3), vy: 5 + Math.random() * 5, vz: rnd(3), life: 1.3, r: 3.5, g: 1.4, b: 0.3, size: 0.14, gravity: 9, drag: 0.3, sizeEnd: 0.3, shape: 'square' });
+      for (let i = 0; i < 6 * bud; i++) Pt.smoke.spawn({ x: c.x + rnd(0.3), y: c.y + 0.4, z: c.z + rnd(0.3), vx: rnd(0.8), vy: 2 + Math.random(), vz: rnd(0.8), life: 2.0, r: 0.1, g: 0.08, b: 0.07, size: 0.8, gravity: -0.2, drag: 1.2, sizeEnd: 3.2 });
       g.lights.flash(c, 0xff7a2a, 6, 7, 0.35);
     }
     // heat shimmer embers rising off the body and fists
-    for (let i = rate(5, dt, bud); i > 0; i--) { const hnd = Math.random() < 0.5 ? rig.handR : rig.handL; hnd.getWorldPosition(v2); Pt.glow.emit(v2.x + rnd(0.3), v2.y + rnd(0.2), v2.z + rnd(0.3), rnd(0.3), 0.8 + Math.random(), rnd(0.3), 0.9, 3, 0.9, 0.2, 0.08, -0.5, 1, 0.3, 1); }
-    if (Math.random() < 3 * dt) Pt.smoke.emit(b.pos.x + rnd(0.9), b.pos.y + 0.2, b.pos.z + rnd(0.9), 0, 0.5, 0, 1.6, 0.06, 0.05, 0.05, 0.5, -0.2, 1, 2.5, 0);
+    for (let i = rate(5, dt, bud); i > 0; i--) { const hnd = Math.random() < 0.5 ? rig.handR : rig.handL; hnd.getWorldPosition(v2); Pt.glow.spawn({ x: v2.x + rnd(0.3), y: v2.y + rnd(0.2), z: v2.z + rnd(0.3), vx: rnd(0.3), vy: 0.8 + Math.random(), vz: rnd(0.3), life: 0.9, r: 3, g: 0.9, b: 0.2, size: 0.08, gravity: -0.5, drag: 1, sizeEnd: 0.3, shape: 'square' }); }
+    if (Math.random() < 3 * dt) Pt.smoke.spawn({ x: b.pos.x + rnd(0.9), y: b.pos.y + 0.2, z: b.pos.z + rnd(0.9), vy: 0.5, life: 1.6, r: 0.06, g: 0.05, b: 0.05, size: 0.5, gravity: -0.2, drag: 1, sizeEnd: 2.5 });
   };
   rig.fx = fx;
   return rig;
@@ -419,14 +419,14 @@ export function buildHanami() {
     for (let i = rate(4, dt, bud); i > 0; i--) {
       const tp = tips[Math.random() < 0.5 ? 0 : 1]; tp.localToWorld(v1.set(rnd(0.15), 0.6 + Math.random() * 0.25, rnd(0.15)));
       const pink = Math.random() < 0.35, k = 0.8 + Math.random() * 0.4;
-      Pt.smoke.emit(v1.x, v1.y, v1.z, rnd(0.8), 0.2 + Math.random() * 0.3, rnd(0.8), 3.4, pink ? 1.0 * k : 0.32 * k, pink ? 0.62 * k : 0.7 * k, pink ? 0.8 * k : 0.22 * k, 0.13, 0.5, 0.9, 0.8, 1);
+      Pt.smoke.spawn({ pos: v1, vx: rnd(0.8), vy: 0.2 + Math.random() * 0.3, vz: rnd(0.8), life: 3.4, r: pink ? 1.0 * k : 0.32 * k, g: pink ? 0.62 * k : 0.7 * k, b: pink ? 0.8 * k : 0.22 * k, size: 0.13, gravity: 0.5, drag: 0.9, sizeEnd: 0.8, shape: 'square' });
     }
-    for (let i = rate(7, dt, bud); i > 0; i--) Pt.glow.emit(b.pos.x + rnd(1.6), b.pos.y + Math.random() * 4.5, b.pos.z + rnd(1.6), rnd(0.2), 0.3 + Math.random() * 0.4, rnd(0.2), 1.8, 0.35, 1.0, 0.25, 0.09, -0.1, 1, 0.4, 0);
+    for (let i = rate(7, dt, bud); i > 0; i--) Pt.glow.spawn({ x: b.pos.x + rnd(1.6), y: b.pos.y + Math.random() * 4.5, z: b.pos.z + rnd(1.6), vx: rnd(0.2), vy: 0.3 + Math.random() * 0.4, vz: rnd(0.2), life: 1.8, r: 0.35, g: 1.0, b: 0.25, size: 0.09, gravity: -0.1, drag: 1, sizeEnd: 0.4 });
     if (b.lightH) { b.lightH.intensity = 3.6 + Math.sin(t * 1.5) * 0.6; b.lightH.offsetY = 6.8; }   // above the canopy, not on the head
     unveilK = Math.max(0, Math.min(1, unveilK + (unveilOn ? dt * 2 : -dt * 2)));
     unveil.scale.setScalar(0.01 + unveilK * 0.99); if (unveilK <= 0) unveil.visible = false;
     for (const d of drape) d.visible = unveilK < 0.5;
-    if (unveilK > 0.5) for (let i = rate(10, dt, bud); i > 0; i--) { unveil.localToWorld(v1.set(2.9 * PX, 0.9 * PX, 0)); Pt.glow.emit(v1.x + rnd(0.4), v1.y + rnd(0.4), v1.z + rnd(0.4), rnd(1), rnd(1), rnd(1), 0.6, 1.2, 2.6, 0.8, 0.14, 0, 2, 0.1, 0); }
+    if (unveilK > 0.5) for (let i = rate(10, dt, bud); i > 0; i--) { unveil.localToWorld(v1.set(2.9 * PX, 0.9 * PX, 0)); Pt.glow.spawn({ x: v1.x + rnd(0.4), y: v1.y + rnd(0.4), z: v1.z + rnd(0.4), vx: rnd(1), vy: rnd(1), vz: rnd(1), life: 0.6, r: 1.2, g: 2.6, b: 0.8, size: 0.14, drag: 2, sizeEnd: 0.1 }); }
   };
   rig.fx = fx;
   return rig;
@@ -560,9 +560,9 @@ export function buildMahito() {
     for (let i = rate(5 * k, dt, bud); i > 0; i--) {
       if (Math.random() < 0.5) (Math.random() < 0.5 ? rig.handR : rig.handL).getWorldPosition(v1);
       else v1.set(b.pos.x + rnd(1), b.pos.y + Math.random() * 3.5 * k, b.pos.z + rnd(1));
-      Pt.glow.emit(v1.x + rnd(0.2), v1.y, v1.z + rnd(0.2), rnd(0.25), 0.5 + Math.random() * 0.6, rnd(0.25), 1.3, 0.35, 0.75, 1.3, 0.12, -0.3, 1.2, 0.3, 0);
+      Pt.glow.spawn({ x: v1.x + rnd(0.2), y: v1.y, z: v1.z + rnd(0.2), vx: rnd(0.25), vy: 0.5 + Math.random() * 0.6, vz: rnd(0.25), life: 1.3, r: 0.35, g: 0.75, b: 1.3, size: 0.12, gravity: -0.3, drag: 1.2, sizeEnd: 0.3 });
     }
-    if (Math.random() < 2.5 * dt * k) Pt.smoke.emit(b.pos.x + rnd(0.8), b.pos.y + 0.1, b.pos.z + rnd(0.8), 0, 0.4, 0, 1.6, 0.05, 0.06, 0.09, 0.6, -0.15, 1, 2.6, 0);
+    if (Math.random() < 2.5 * dt * k) Pt.smoke.spawn({ x: b.pos.x + rnd(0.8), y: b.pos.y + 0.1, z: b.pos.z + rnd(0.8), vy: 0.4, life: 1.6, r: 0.05, g: 0.06, b: 0.09, size: 0.6, gravity: -0.15, drag: 1, sizeEnd: 2.6 });
   };
   rig.fx = fx;
   return rig;

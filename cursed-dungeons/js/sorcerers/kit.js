@@ -417,7 +417,9 @@ export class Kit {
       tick -= dt;
       if (Math.random() < (o.particles ?? 0.6)) {
         const a = Math.random() * Math.PI * 2, r = Math.sqrt(Math.random()) * R;
-        g.particles.glow.emit(c.x + Math.cos(a) * r, c.y + 0.1, c.z + Math.sin(a) * r, 0, 1 + Math.random(), 0, 0.6, ...new THREE.Color(col).toArray(), 0.18, 0, 1, 0.05, 0);
+        const x = c.x + Math.cos(a) * r, y = c.y + 0.1, z = c.z + Math.sin(a) * r, vy = 1 + Math.random();
+        const [cr, cg, cb] = new THREE.Color(col).toArray();
+        g.particles.glow.spawn({ x, y, z, vy, life: 0.6, r: cr, g: cg, b: cb, size: 0.18, drag: 1, sizeEnd: 0.05 });
       }
       if (tick <= 0) {
         tick = every;

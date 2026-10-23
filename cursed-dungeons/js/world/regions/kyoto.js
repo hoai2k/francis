@@ -529,7 +529,7 @@ function* build(ctx) {
       while (acc > 1) {
         acc -= 1;
         const c = MAPLE_COLS[Math.floor(Math.random() * MAPLE_COLS.length)], col = new THREE.Color(c);
-        part.smoke.emit(f.x + (Math.random() - 0.5) * 36, f.y + 4 + Math.random() * 6, f.z + (Math.random() - 0.5) * 30, 0.6 + Math.random() * 0.5, -0.6 - Math.random() * 0.3, 0.2 + Math.random() * 0.3, 6 + Math.random() * 3, col.r * 1.1, col.g * 1.1, col.b * 1.1, 0.09, 0, 0.05, 0.9, 1);
+        part.smoke.spawn({ x: f.x + (Math.random() - 0.5) * 36, y: f.y + 4 + Math.random() * 6, z: f.z + (Math.random() - 0.5) * 30, vx: 0.6 + Math.random() * 0.5, vy: -0.6 - Math.random() * 0.3, vz: 0.2 + Math.random() * 0.3, life: 6 + Math.random() * 3, r: col.r * 1.1, g: col.g * 1.1, b: col.b * 1.1, size: 0.09, drag: 0.05, sizeEnd: 0.9, shape: 'square' });
       }
     });
   });

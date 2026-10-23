@@ -47,7 +47,7 @@ export const mahito = {
       p.object.scale.set(1 + Math.sin(g.time * 9) * 0.22 * k, 1 - Math.sin(g.time * 9) * 0.18 * k, 1 + Math.cos(g.time * 7) * 0.22 * k);
       p.slowT = Math.max(p.slowT ?? 0, 0.2);
       if (w.tick <= 0) { w.tick = 0.5; p.takeDamage(this.dmg * 0.1, this, { dot: true, noKnock: true }); }
-      if (Math.random() < dt * 12) g.particles.glow.emit(p.pos.x + (Math.random() - 0.5) * 0.6, p.pos.y + Math.random() * 1.6, p.pos.z + (Math.random() - 0.5) * 0.6, 0, 0.8, 0, 0.6, 0.6, 1.4, 2.2, 0.12, 0, 1, 0.1, 0);
+      if (Math.random() < dt * 12) g.particles.glow.spawn({ x: p.pos.x + (Math.random() - 0.5) * 0.6, y: p.pos.y + Math.random() * 1.6, z: p.pos.z + (Math.random() - 0.5) * 0.6, vy: 0.8, life: 0.6, r: 0.6, g: 1.4, b: 2.2, size: 0.12, drag: 1, sizeEnd: 0.1 });
       if (w.t <= 0 || p.dead || p.downed) { p.object.scale.set(1, 1, 1); this.st.warped.delete(p); }
     }
   },
@@ -60,7 +60,7 @@ export const mahito = {
       const reach = 6 + this.phase;
       g.markers.spawn({ pos: this.gy(this.pos), shape: 'rect', width: 2.2, length: reach, facing: this.facing, dur: 0.75, color: 0x7ad8ff });
       this.callout('Idle Transfiguration');
-      for (let i = 0; i < 10; i++) { const h = this.rig.handR.getWorldPosition(V()); g.particles.glow.emit(h.x, h.y, h.z, (Math.random() - 0.5) * 2, (Math.random() - 0.5) * 2, (Math.random() - 0.5) * 2, 0.4, 0.8, 1.6, 2.6, 0.18, 0, 3, 0.05, 0); }
+      for (let i = 0; i < 10; i++) { const h = this.rig.handR.getWorldPosition(V()); g.particles.glow.spawn({ pos: h, vx: (Math.random() - 0.5) * 2, vy: (Math.random() - 0.5) * 2, vz: (Math.random() - 0.5) * 2, life: 0.4, r: 0.8, g: 1.6, b: 2.6, size: 0.18, drag: 3, sizeEnd: 0.05 }); }
       yield 0.75;
       const dir = this.fwd();
       const hit = yield* this.dash(dir, 30, 7, 1.1, this.dmg * 0.9, 3, { blocks: false });

@@ -92,7 +92,14 @@ await page.addInitScript((seed) => {
 
 const t0 = Date.now();
 await page.goto(base + '?norender&online=0');
-await page.waitForFunction(() => window.__game?.state === 'title', null, { timeout: 120000 });
+try {
+  await page.waitForFunction(() => window.__game?.state === 'title', null, { timeout: 120000 });
+} catch (e) {
+  console.error('the game never reached the title screen: ' + e.message);
+  for (const err of errors) console.error(err);
+  console.error('loading text: ' + await page.textContent('#load-text').catch(() => '?'));
+  await browser.close(); server.close(); process.exit(1);
+}
 console.log(`booted (${((Date.now() - t0) / 1000).toFixed(1)} s)`);
 
 // ---------------------------------------------------------------- in-page driver
@@ -114,7 +121,7 @@ await page.evaluate(async () => {
   const mix = (n) => { const s = Number.isFinite(n) ? Math.round(n * 1e4) : -7; T.hash = Math.imul(T.hash ^ s, 16777619) >>> 0; };
   for (const pool of [g.particles.glow, g.particles.smoke]) {
     const emit = pool.emit.bind(pool);
-    pool.emit = (...a) => { T.emits = (T.emits ?? 0) + 1; for (let i = 0; i < 11; i++) mix(a[i]); return emit(...a); };
+    pool.emit = (...a) => { T.emits = (T.emits ?? 0) + 1; for (let i = 0; i < 15; i++) mix(a[i] ?? 0); return emit(...a); };
   }
   T.press = (k) => { T.inp.pressed[k] = true; T.inp.held[k] = true; };
   T.step = (n = 1) => {

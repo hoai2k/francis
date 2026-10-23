@@ -219,7 +219,7 @@ class MaiKit extends Kit {
       const k = Math.min(1, t / 1.1);
       for (let i = 0; i < 5; i++) {   // cursed energy threads weaving the bullet
         const a = Math.random() * Math.PI * 2, rr = 0.4 + (1 - k) * 1.6 + Math.random() * 0.6;
-        g.particles.glow.emit(h.x + Math.cos(a) * rr, h.y + (Math.random() - 0.5) * 1.4 * (1 - k), h.z + Math.sin(a) * rr, -Math.cos(a) * rr * 3, 0, -Math.sin(a) * rr * 3, 0.32, 0.8, 1.8, 2.2, 0.1, 0, 0, 0.2, 1);
+        g.particles.glow.spawn({ x: h.x + Math.cos(a) * rr, y: h.y + (Math.random() - 0.5) * 1.4 * (1 - k), z: h.z + Math.sin(a) * rr, vx: -Math.cos(a) * rr * 3, vz: -Math.sin(a) * rr * 3, life: 0.32, r: 0.8, g: 1.8, b: 2.2, size: 0.1, shape: 'square' });
       }
       g.particles.burst(h, { count: 1, color: CONSTRUCT, speed: 0, life: 0.08, size: 0.2 + k * 0.5, sizeEnd: 0.1, intensity: 3 });
       if (t < 1.15) return true;
@@ -256,7 +256,7 @@ class MaiKit extends Kit {
     const g = this.game, c = this.smokeAt, R = this.smokeR;
     for (let i = 0; i < 3; i++) {
       const a = Math.random() * Math.PI * 2, rr = Math.sqrt(Math.random()) * R;
-      g.particles.smoke.emit(c.x + Math.cos(a) * rr, c.y + 0.2 + Math.random() * 1.6, c.z + Math.sin(a) * rr, (Math.random() - 0.5) * 0.4, 0.3, (Math.random() - 0.5) * 0.4, 1.6, 0.42, 0.42, 0.46, 1.2, 0, 1, 2.6, 0);
+      g.particles.smoke.spawn({ x: c.x + Math.cos(a) * rr, y: c.y + 0.2 + Math.random() * 1.6, z: c.z + Math.sin(a) * rr, vx: (Math.random() - 0.5) * 0.4, vy: 0.3, vz: (Math.random() - 0.5) * 0.4, life: 1.6, r: 0.42, g: 0.42, b: 0.46, size: 1.2, drag: 1, sizeEnd: 2.6 });
     }
     for (const e of g.enemies) if (!e.dead && this.inSmoke(e.pos)) e.slowT = 0.3;
   }
@@ -478,7 +478,7 @@ class MaiKit extends Kit {
     g.audio?.charge(0.5, 1.2); g.fx.dimTarget = 0.3;
     this.during(0.5, () => {
       const h = this.handPos();
-      for (let i = 0; i < 3; i++) { const a = Math.random() * Math.PI * 2, rr = 0.8 + Math.random() * 0.6; g.particles.glow.emit(h.x + Math.cos(a) * rr, h.y + (Math.random() - 0.5), h.z + Math.sin(a) * rr, -Math.cos(a) * rr * 4, 0, -Math.sin(a) * rr * 4, 0.25, 0.8, 1.8, 2.2, 0.1, 0, 0, 0.2, 1); }
+      for (let i = 0; i < 3; i++) { const a = Math.random() * Math.PI * 2, rr = 0.8 + Math.random() * 0.6; g.particles.glow.spawn({ x: h.x + Math.cos(a) * rr, y: h.y + (Math.random() - 0.5), z: h.z + Math.sin(a) * rr, vx: -Math.cos(a) * rr * 4, vz: -Math.sin(a) * rr * 4, life: 0.25, r: 0.8, g: 1.8, b: 2.2, size: 0.1, shape: 'square' }); }
     }, () => {
       g.fx.dimTarget = 0; if (p.action?.lock) p.action = null;
       const from = this.handPos(), dir = p.aimDir.clone(), dmg = (60 + empty * 25 + this.rank('construct') * 15);
@@ -536,7 +536,7 @@ class MaiKit extends Kit {
     this.cast(0.35, true);
     g.toast?.('Zenin Pride'); g.fx.shockwave(p.pos, BRASS, 3); g.audio?.charge(0.3, 1);
     this.statBuff('zenin_pride', 8, { crit: 0.2, speed: 0.15, meleeMult: 0.15 }, {
-      onTick: () => { if (Math.random() < 0.3) g.particles.glow.emit(p.pos.x + (Math.random() - 0.5), p.pos.y + Math.random() * 1.8, p.pos.z + (Math.random() - 0.5), 0, 0.5, 0, 0.5, 2, 1.6, 0.6, 0.1, 0, 1, 0.1, 0); },
+      onTick: () => { if (Math.random() < 0.3) g.particles.glow.spawn({ x: p.pos.x + (Math.random() - 0.5), y: p.pos.y + Math.random() * 1.8, z: p.pos.z + (Math.random() - 0.5), vy: 0.5, life: 0.5, r: 2, g: 1.6, b: 0.6, size: 0.1, drag: 1, sizeEnd: 0.1 }); },
     });
   }
 }

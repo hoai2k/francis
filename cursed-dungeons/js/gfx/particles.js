@@ -3,6 +3,8 @@
 // stage integrates its motion analytically from the game-time uniform, so
 // the CPU never touches live particles. Two pools: additive glow and
 // alpha-blended smoke/dust. A ring buffer recycles the oldest slots.
+// Call sites use pool.spawn({ ... }) (named fields) or particles.burst();
+// emit() is the positional fast path underneath.
 import * as THREE from 'three/webgpu';
 import {
   instancedDynamicBufferAttribute, vec3, vec4, float, uv, exp, max, step, mix, smoothstep, length, pow, clamp, select, sin,
@@ -56,6 +58,15 @@ export class ParticlePool {
     a3[o] = gravity; a3[o + 1] = drag; a3[o + 2] = sizeEnd; a3[o + 3] = shape;
     if (i < this.dirtyMin) this.dirtyMin = i;
     if (i > this.dirtyMax) this.dirtyMax = i;
+  }
+  // The named form of emit(), for call sites:
+  //   spawn({ x, y, z (or pos), vx, vy, vz, life, r, g, b, size, gravity, drag, sizeEnd, shape })
+  // r, g, b are linear (the glow pool's go above 1 for bloom); velocity, gravity and drag default
+  // to 0, sizeEnd (the size multiplier at death) to 0.2, shape to 'soft' (a SHAPE name or number).
+  spawn(o) {
+    const p = o.pos;
+    this.emit(p ? p.x : o.x, p ? p.y : o.y, p ? p.z : o.z, o.vx ?? 0, o.vy ?? 0, o.vz ?? 0, o.life, o.r, o.g, o.b, o.size,
+      o.gravity ?? 0, o.drag ?? 0, o.sizeEnd ?? 0.2, SHAPE[o.shape] ?? o.shape ?? 0, o.time);
   }
   upload() {
     if (this.dirtyMax < 0) return;

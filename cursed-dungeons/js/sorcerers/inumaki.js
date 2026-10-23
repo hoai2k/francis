@@ -238,7 +238,7 @@ class InumakiKit extends Kit {
     this.cast(0.35);
     this.say('Fall', true);
     const list = this.foes(at, R);
-    for (let i = 0; i < 14; i++) { const a = Math.random() * Math.PI * 2, rr = Math.random() * R; g.particles.glow.emit(at.x + Math.cos(a) * rr, at.y + 3 + Math.random() * 2, at.z + Math.sin(a) * rr, 0, -20, 0, 0.2, 1.6, 1.2, 3, 0.16, 0, 0, 0.6, 1); }
+    for (let i = 0; i < 14; i++) { const a = Math.random() * Math.PI * 2, rr = Math.random() * R; g.particles.glow.spawn({ x: at.x + Math.cos(a) * rr, y: at.y + 3 + Math.random() * 2, z: at.z + Math.sin(a) * rr, vy: -20, life: 0.2, r: 1.6, g: 1.2, b: 3, size: 0.16, sizeEnd: 0.6, shape: 'square' }); }
     for (const e of list) {
       const air = e.pos.y > this.groundAt(e.pos.x, e.pos.z, e.pos.y) + 0.6;
       this.hit(e, (30 + this.rank('crush') * 8) * this.mult * (air ? 1.5 : 1), { stagger: 0.8, unblockable: true });
@@ -350,7 +350,7 @@ class InumakiKit extends Kit {
     this.cast(0.4, true);
     this.say('Explode', true);
     for (const e of list) { e.cancelAttack?.(); this.slow(e, 1); }
-    this.during(0.8, () => { for (const e of list) if (!e.dead && Math.random() < 0.6) g.particles.glow.emit(e.pos.x + (Math.random() - 0.5) * 0.6, e.pos.y + Math.random() * e.height, e.pos.z + (Math.random() - 0.5) * 0.6, 0, 1.5, 0, 0.3, 2.2, 1.6, 3.2, 0.14, 0, 1, 0.1, 1); });
+    this.during(0.8, () => { for (const e of list) if (!e.dead && Math.random() < 0.6) g.particles.glow.spawn({ x: e.pos.x + (Math.random() - 0.5) * 0.6, y: e.pos.y + Math.random() * e.height, z: e.pos.z + (Math.random() - 0.5) * 0.6, vy: 1.5, life: 0.3, r: 2.2, g: 1.6, b: 3.2, size: 0.14, drag: 1, sizeEnd: 0.1, shape: 'square' }); });
     for (const e of list) g.fx.rings.spawn(tmp.set(e.pos.x, e.pos.y + 0.08, e.pos.z), { color: VOICE, r0: 2.6, r1: 2.4, dur: 0.8, thick: 0.08 });
     g.audio?.charge(0.4, 1.4);
     this.after(0.8, () => {
@@ -371,7 +371,7 @@ class InumakiKit extends Kit {
     this.say('Be crushed flat', true);
     g.fx.rings.spawn(tmp.set(at.x, at.y + 0.07, at.z), { color: VOICE, r0: R, r1: R * 0.97, dur: 0.6, thick: 0.12 });
     g.fx.rings.spawn(tmp.set(at.x, at.y + 0.08, at.z), { color: VOICE, r0: R, r1: 0.3, dur: 0.6, thick: 0.2 });
-    this.during(0.6, () => { for (let i = 0; i < 3; i++) { const a = Math.random() * Math.PI * 2, rr = Math.random() * R; g.particles.glow.emit(at.x + Math.cos(a) * rr, at.y + 5 + Math.random() * 2, at.z + Math.sin(a) * rr, 0, -14, 0, 0.35, 1.6, 1.2, 3, 0.2, 0, 0, 0.6, 1); } });
+    this.during(0.6, () => { for (let i = 0; i < 3; i++) { const a = Math.random() * Math.PI * 2, rr = Math.random() * R; g.particles.glow.spawn({ x: at.x + Math.cos(a) * rr, y: at.y + 5 + Math.random() * 2, z: at.z + Math.sin(a) * rr, vy: -14, life: 0.35, r: 1.6, g: 1.2, b: 3, size: 0.2, sizeEnd: 0.6, shape: 'square' }); } });
     this.strainBy(30 * this.weight(this.foes(at, R)));
     this.after(0.6, () => {
       for (const e of this.foes(at, R)) {
@@ -418,7 +418,7 @@ class InumakiKit extends Kit {
     this.cast(0.3);
     this.say('Stay back', false);
     this.buff('stay_back', 4, {
-      onTick: () => { if (Math.random() < 0.35) g.particles.glow.emit(p.pos.x + (Math.random() - 0.5), p.pos.y + 0.5 + Math.random() * 1.4, p.pos.z + (Math.random() - 0.5), 0, 0.5, 0, 0.4, 1.6, 1.2, 3, 0.1, 0, 1, 0.1, 1); },
+      onTick: () => { if (Math.random() < 0.35) g.particles.glow.spawn({ x: p.pos.x + (Math.random() - 0.5), y: p.pos.y + 0.5 + Math.random() * 1.4, z: p.pos.z + (Math.random() - 0.5), vy: 0.5, life: 0.4, r: 1.6, g: 1.2, b: 3, size: 0.1, drag: 1, sizeEnd: 0.1, shape: 'square' }); },
       incoming: (amt, src) => {
         if (src && src.pos && !src.dead && !src.isPlayer && g.enemies.includes(src) && src.pos.distanceTo(p.pos) < 7 && this.muteT <= 0) {
           this.hit(src, 8 * this.mult, { stagger: 0.8, knock: tmp.subVectors(src.pos, p.pos).setY(0).normalize().multiplyScalar(src.isBoss ? 4 : 14) });
@@ -442,7 +442,7 @@ class InumakiKit extends Kit {
   unzip() {
     const g = this.game, p = this.p;
     this.cast(0.5, true, { type: 'raise' });
-    this.statBuff('unzip', 8, { techMult: 0.4 }, { onTick: () => { if (Math.random() < 0.5) { const m = this.mouth(); g.particles.glow.emit(m.x + (Math.random() - 0.5) * 0.3, m.y + (Math.random() - 0.5) * 0.2, m.z + (Math.random() - 0.5) * 0.3, 0, 0.6, 0, 0.4, 2.2, 1.6, 3.2, 0.1, 0, 1, 0.1, 1); } } });
+    this.statBuff('unzip', 8, { techMult: 0.4 }, { onTick: () => { if (Math.random() < 0.5) { const m = this.mouth(); g.particles.glow.spawn({ x: m.x + (Math.random() - 0.5) * 0.3, y: m.y + (Math.random() - 0.5) * 0.2, z: m.z + (Math.random() - 0.5) * 0.3, vy: 0.6, life: 0.4, r: 2.2, g: 1.6, b: 3.2, size: 0.1, drag: 1, sizeEnd: 0.1, shape: 'square' }); } } });
     g.lights.flash(this.mouth(), VOICE, 8, 6, 0.6, { priority: 5 });
     g.particles.burst(this.mouth(), { count: 24, color: VOICE, speed: 2, life: 0.7, size: 0.14, sizeEnd: 0.02 });
     g.toast?.('🐍 The snake-and-fangs seal is bared');
@@ -500,7 +500,7 @@ class InumakiKit extends Kit {
     this.cast(0.4);
     this.say('Get crushed', true);
     // the air above folds down
-    for (let i = 0; i < 18; i++) { const a = Math.random() * Math.PI * 2, rr = Math.random() * R; g.particles.glow.emit(at.x + Math.cos(a) * rr, at.y + 4 + Math.random() * 2, at.z + Math.sin(a) * rr, 0, -18, 0, 0.25, 1.6, 1.2, 3, 0.18, 0, 0, 0.6, 1); }
+    for (let i = 0; i < 18; i++) { const a = Math.random() * Math.PI * 2, rr = Math.random() * R; g.particles.glow.spawn({ x: at.x + Math.cos(a) * rr, y: at.y + 4 + Math.random() * 2, z: at.z + Math.sin(a) * rr, vy: -18, life: 0.25, r: 1.6, g: 1.2, b: 3, size: 0.18, sizeEnd: 0.6, shape: 'square' }); }
     g.fx.rings.spawn(tmp.set(at.x, at.y + 0.08, at.z), { color: VOICE, r0: R * 1.4, r1: 0.3, dur: 0.25, thick: 0.2 });
     this.strainBy(20 * this.weight(g.combat.query(at, tmp.set(0, 0, 1), R, Math.PI)));
     setTimeout(() => {

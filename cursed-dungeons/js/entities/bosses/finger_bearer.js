@@ -74,8 +74,8 @@ export function buildFingerBearer() {
     rig.head.rotation.z = Math.sin(t * 0.9) * 0.12;   // an unsettling tilt
     if (b.lightH) { b.lightH.intensity = 3.4 + pulseT * 5; b.lightH.offsetY = 6.5; }
     // a dark miasma and motes drawn toward the finger
-    for (let i = rate(6, dt, bud); i > 0; i--) Pt.smoke.emit(b.pos.x + rnd(1.2), b.pos.y + Math.random() * 4.5, b.pos.z + rnd(1.2), rnd(0.2), 0.5, rnd(0.2), 1.6, 0.06, 0.02, 0.08, 0.5, -0.2, 1.2, 2.6, 0);
-    for (let i = rate(6, dt, bud); i > 0; i--) { finger.getWorldPosition(v1); const a = Math.random() * 6.28, r = 1.4; Pt.glow.emit(v1.x + Math.cos(a) * r, v1.y + rnd(0.8), v1.z + Math.sin(a) * r, -Math.cos(a) * r * 1.6, 0, -Math.sin(a) * r * 1.6, 0.6, 2.2, 0.4, 0.8, 0.08, 0, 0.5, 0.1, 0); }
+    for (let i = rate(6, dt, bud); i > 0; i--) Pt.smoke.spawn({ x: b.pos.x + rnd(1.2), y: b.pos.y + Math.random() * 4.5, z: b.pos.z + rnd(1.2), vx: rnd(0.2), vy: 0.5, vz: rnd(0.2), life: 1.6, r: 0.06, g: 0.02, b: 0.08, size: 0.5, gravity: -0.2, drag: 1.2, sizeEnd: 2.6 });
+    for (let i = rate(6, dt, bud); i > 0; i--) { finger.getWorldPosition(v1); const a = Math.random() * 6.28, r = 1.4; Pt.glow.spawn({ x: v1.x + Math.cos(a) * r, y: v1.y + rnd(0.8), z: v1.z + Math.sin(a) * r, vx: -Math.cos(a) * r * 1.6, vz: -Math.sin(a) * r * 1.6, life: 0.6, r: 2.2, g: 0.4, b: 0.8, size: 0.08, drag: 0.5, sizeEnd: 0.1 }); }
   };
   rig.fx = fx;
   return rig;

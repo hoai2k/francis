@@ -224,11 +224,11 @@ class TojiKit extends Kit {
     this.rampageT = Math.max(0, this.rampageT - dt);
     this.preyT = Math.max(0, (this.preyT ?? 0) - dt);
     if (this.prey && (this.prey.dead || this.preyT <= 0)) this.prey = null;
-    if (this.prey && Math.random() < 0.5) { const e = this.prey; g.particles.glow.emit(e.pos.x + (Math.random() - 0.5) * e.radius, e.pos.y + e.height + 0.3, e.pos.z + (Math.random() - 0.5) * e.radius, 0, 0.8, 0, 0.4, 2.4, 0.3, 0.3, 0.16, 0, 1, 0.3, 1); }
+    if (this.prey && Math.random() < 0.5) { const e = this.prey; g.particles.glow.spawn({ x: e.pos.x + (Math.random() - 0.5) * e.radius, y: e.pos.y + e.height + 0.3, z: e.pos.z + (Math.random() - 0.5) * e.radius, vy: 0.8, life: 0.4, r: 2.4, g: 0.3, b: 0.3, size: 0.16, drag: 1, sizeEnd: 0.3, shape: 'square' }); }
     // the unseen strike is ready again: a faint green glint in the hand
     if (this.unseen && !this.unseenUsed && g.time - (this.lastHurtT ?? -9) > 3 && Math.random() < 0.2) g.particles.burst(this.handPos(), { count: 1, color: GREEN, speed: 1, life: 0.3, size: 0.1, shape: 1 });
     for (const e of g.enemies) if (e.swarmedT > 0) e.swarmedT -= dt;
-    if (this.rampage && Math.random() < 0.5) g.particles.glow.emit(p.pos.x + (Math.random() - 0.5) * 0.8, p.pos.y + Math.random() * 1.8, p.pos.z + (Math.random() - 0.5) * 0.8, 0, 1.2, 0, 0.4, 1.4, 2.2, 0.8, 0.12, 0, 1, 0.2, 1);
+    if (this.rampage && Math.random() < 0.5) g.particles.glow.spawn({ x: p.pos.x + (Math.random() - 0.5) * 0.8, y: p.pos.y + Math.random() * 1.8, z: p.pos.z + (Math.random() - 0.5) * 0.8, vy: 1.2, life: 0.4, r: 1.4, g: 2.2, b: 0.8, size: 0.12, drag: 1, shape: 'square' });
   }
   // ---------------------------------------------------------- techniques
   spear() {
@@ -276,7 +276,7 @@ class TojiKit extends Kit {
       const hand = tmp.set(p.pos.x, p.pos.y + 1.2, p.pos.z);
       for (let i = 1; i <= 10; i++) {
         const k = i / 10 * R;
-        g.particles.glow.emit(hand.x + Math.sin(a) * k, hand.y - i * 0.04, hand.z + Math.cos(a) * k, 0, 0, 0, 0.12, 1.6, 1.7, 1.8, 0.09, 0, 0, 1, 1);
+        g.particles.glow.spawn({ x: hand.x + Math.sin(a) * k, y: hand.y - i * 0.04, z: hand.z + Math.cos(a) * k, life: 0.12, r: 1.6, g: 1.7, b: 1.8, size: 0.09, sizeEnd: 1, shape: 'square' });
       }
       g.particles.burst(tmp2.set(hand.x + Math.sin(a) * R, hand.y - 0.4, hand.z + Math.cos(a) * R), { count: 2, color: GREEN, speed: 1, life: 0.25, size: 0.2, shape: 1 });
       return t < 0.4;
@@ -380,7 +380,7 @@ class TojiKit extends Kit {
     // the hunter's stare: green motes rush in toward Toji
     for (let i = 0; i < 40; i++) {
       const a = Math.random() * Math.PI * 2, r = 2 + Math.random() * 3;
-      g.particles.glow.emit(p.pos.x + Math.cos(a) * r, p.pos.y + 0.3 + Math.random() * 2, p.pos.z + Math.sin(a) * r, -Math.cos(a) * r * 2, 0, -Math.sin(a) * r * 2, 0.5, 1.4, 2.4, 0.8, 0.14, 0, 1, 0.2, 1);
+      g.particles.glow.spawn({ x: p.pos.x + Math.cos(a) * r, y: p.pos.y + 0.3 + Math.random() * 2, z: p.pos.z + Math.sin(a) * r, vx: -Math.cos(a) * r * 2, vz: -Math.sin(a) * r * 2, life: 0.5, r: 1.4, g: 2.4, b: 0.8, size: 0.14, drag: 1, shape: 'square' });
     }
     // 1) cut down the escorts, one blink each — a soul cut, no armor
     escorts.forEach((e, i) => later(650 + i * 170, () => {
@@ -446,7 +446,7 @@ class TojiKit extends Kit {
   // a chain drawn from a to b out of glowing links
   chainFx(a, b, life = 0.25) {
     const g = this.game, n = Math.max(4, Math.round(a.distanceTo(b) * 2.5));
-    for (let i = 0; i <= n; i++) { const k = i / n; g.particles.glow.emit(a.x + (b.x - a.x) * k, a.y + (b.y - a.y) * k - Math.sin(k * Math.PI) * 0.3, a.z + (b.z - a.z) * k, 0, 0, 0, life, 1.6, 1.7, 1.8, 0.09, 0, 0, 1, 1); }
+    for (let i = 0; i <= n; i++) { const k = i / n; g.particles.glow.spawn({ x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k - Math.sin(k * Math.PI) * 0.3, z: a.z + (b.z - a.z) * k, life, r: 1.6, g: 1.7, b: 1.8, size: 0.09, sizeEnd: 1, shape: 'square' }); }
   }
   spearThrow() {
     const g = this.game, p = this.p, rk = this.rank('spear');
@@ -571,7 +571,7 @@ class TojiKit extends Kit {
     this.during(3, (t, dt) => {
       a += dt * Math.PI * 4;
       const hand = tmp.set(p.pos.x, p.pos.y + 1.2, p.pos.z);
-      for (let i = 1; i <= 8; i++) { const k = i / 8 * R; g.particles.glow.emit(hand.x + Math.sin(a) * k, hand.y - i * 0.03, hand.z + Math.cos(a) * k, 0, 0, 0, 0.1, 1.6, 1.7, 1.8, 0.09, 0, 0, 1, 1); }
+      for (let i = 1; i <= 8; i++) { const k = i / 8 * R; g.particles.glow.spawn({ x: hand.x + Math.sin(a) * k, y: hand.y - i * 0.03, z: hand.z + Math.cos(a) * k, life: 0.1, r: 1.6, g: 1.7, b: 1.8, size: 0.09, sizeEnd: 1, shape: 'square' }); }
       g.particles.burst(tmp2.set(hand.x + Math.sin(a) * R, hand.y - 0.3, hand.z + Math.cos(a) * R), { count: 1, color: GREEN, speed: 1, life: 0.2, size: 0.2, shape: 1 });
       tick -= dt;
       if (tick <= 0) {
@@ -700,7 +700,7 @@ class TojiKit extends Kit {
         if (left <= 0) this.buffs.get('senses') && (this.buffs.get('senses').left = Math.min(this.buffs.get('senses').left, 0.01));
         return 0;
       },
-      onTick: () => { if (Math.random() < 0.3) g.particles.glow.emit(p.pos.x + (Math.random() - 0.5), p.pos.y + 1.6 + Math.random() * 0.3, p.pos.z + (Math.random() - 0.5), 0, 0.4, 0, 0.4, 1.4, 2.2, 0.8, 0.1, 0, 1, 0.2, 1); },
+      onTick: () => { if (Math.random() < 0.3) g.particles.glow.spawn({ x: p.pos.x + (Math.random() - 0.5), y: p.pos.y + 1.6 + Math.random() * 0.3, z: p.pos.z + (Math.random() - 0.5), vy: 0.4, life: 0.4, r: 1.4, g: 2.2, b: 0.8, size: 0.1, drag: 1, shape: 'square' }); },
     });
   }
   ironBody() {
@@ -718,7 +718,7 @@ class TojiKit extends Kit {
         }
         return a * 0.45;
       },
-      onTick: () => { if (Math.random() < 0.4) g.particles.glow.emit(p.pos.x + (Math.random() - 0.5) * 0.9, p.pos.y + Math.random() * 1.8, p.pos.z + (Math.random() - 0.5) * 0.9, 0, 0.6, 0, 0.4, 2, 2, 1.6, 0.1, 0, 1, 0.1, 1); },
+      onTick: () => { if (Math.random() < 0.4) g.particles.glow.spawn({ x: p.pos.x + (Math.random() - 0.5) * 0.9, y: p.pos.y + Math.random() * 1.8, z: p.pos.z + (Math.random() - 0.5) * 0.9, vy: 0.6, life: 0.4, r: 2, g: 2, b: 1.6, size: 0.1, drag: 1, sizeEnd: 0.1, shape: 'square' }); },
     });
   }
   afterimage() {

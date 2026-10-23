@@ -132,7 +132,7 @@ class NobaraKit extends Kit {
   tick(dt) {
     // show nails sticking out of curses as tiny sparks
     if (Math.random() < 0.3) for (const e of this.game.enemies) if (!e.dead && e.nails) {
-      if (Math.random() < 0.3) this.game.particles.glow.emit(e.pos.x + (Math.random() - 0.5) * 0.6, e.pos.y + e.height * (0.3 + Math.random() * 0.5), e.pos.z + (Math.random() - 0.5) * 0.6, 0, 0.2, 0, 0.3, 2, 1.2, 0.5, 0.06 + e.nails * 0.01, 0, 1, 1, 0);
+      if (Math.random() < 0.3) this.game.particles.glow.spawn({ x: e.pos.x + (Math.random() - 0.5) * 0.6, y: e.pos.y + e.height * (0.3 + Math.random() * 0.5), z: e.pos.z + (Math.random() - 0.5) * 0.6, vy: 0.2, life: 0.3, r: 2, g: 1.2, b: 0.5, size: 0.06 + e.nails * 0.01, drag: 1, sizeEnd: 1 });
     }
   }
   // -------------------------------------------------------------- ultimate
@@ -175,7 +175,7 @@ class NobaraKit extends Kit {
       // her blood (and the curse's) streams into the doll
       if (tgt && !tgt.dead && Math.random() < 0.7) {
         const from = tgt.pos, to = doll.position;
-        g.particles.glow.emit(from.x, from.y + tgt.height * 0.6, from.z, (to.x - from.x) * 1.5, 2 + (to.y - from.y) * 1.5, (to.z - from.z) * 1.5, 0.6, 1.6, 0.05, 0.08, 0.14, 4, 0, 0.05, 1);
+        g.particles.glow.spawn({ x: from.x, y: from.y + tgt.height * 0.6, z: from.z, vx: (to.x - from.x) * 1.5, vy: 2 + (to.y - from.y) * 1.5, vz: (to.z - from.z) * 1.5, life: 0.6, r: 1.6, g: 0.05, b: 0.08, size: 0.14, gravity: 4, sizeEnd: 0.05, shape: 'square' });
       }
       if (strikes < times.length && t >= times[strikes]) {
         strikes++;
@@ -520,7 +520,7 @@ class NobaraKit extends Kit {
         });
         return a;
       },
-      onTick: () => { if (Math.random() < 0.3) for (const e of g.enemies) if (!e.dead && e.nails && Math.random() < 0.3) g.particles.glow.emit(e.pos.x, e.pos.y + e.height * 0.6, e.pos.z, 0, 0.8, 0, 0.4, 1.6, 0.05, 0.08, 0.14, 0, 1, 0.05, 1); },
+      onTick: () => { if (Math.random() < 0.3) for (const e of g.enemies) if (!e.dead && e.nails && Math.random() < 0.3) g.particles.glow.spawn({ x: e.pos.x, y: e.pos.y + e.height * 0.6, z: e.pos.z, vy: 0.8, life: 0.4, r: 1.6, g: 0.05, b: 0.08, size: 0.14, drag: 1, sizeEnd: 0.05, shape: 'square' }); },
     });
   }
   makeDoll() {

@@ -248,7 +248,7 @@ class YukiKit extends Kit {
           mesh.lookAt(tmp2.set(p.pos.x + Math.cos(G.ang + 0.4) * 1.9, pos.y, p.pos.z + Math.sin(G.ang + 0.4) * 1.9));
         }
       }
-      if (Math.random() < 0.5) g.particles.glow.emit(pos.x, pos.y, pos.z, 0, 0.2, 0, 0.5, 0.9, 0.5, 1.6, 0.12, 0, 1, 0.1, 0);
+      if (Math.random() < 0.5) g.particles.glow.spawn({ pos: pos, vy: 0.2, life: 0.5, r: 0.9, g: 0.5, b: 1.6, size: 0.12, drag: 1, sizeEnd: 0.1 });
       if (G.life <= 0) { this.dismissGaruda(); return false; }
       return true;
     });
@@ -321,7 +321,7 @@ class YukiKit extends Kit {
         const a = Math.random() * Math.PI * 2, rr = 1.5 + Math.random() * R;
         const px = c.x + Math.cos(a) * rr, pz = c.z + Math.sin(a) * rr, py = c.y + (Math.random() - 0.5) * 1.5;
         const sp = 7 + Math.random() * 5, col = Math.random() < 0.5 ? [2.2, 1.3, 0.3] : [1.2, 0.6, 2.2];
-        g.particles.glow.emit(px, py, pz, (c.x - px) / rr * sp - Math.sin(a) * 7, (c.y - py), (c.z - pz) / rr * sp + Math.cos(a) * 7, rr / sp, col[0], col[1], col[2], 0.14, 0, 0, 0.3, 1);
+        g.particles.glow.spawn({ x: px, y: py, z: pz, vx: (c.x - px) / rr * sp - Math.sin(a) * 7, vy: (c.y - py), vz: (c.z - pz) / rr * sp + Math.cos(a) * 7, life: rr / sp, r: col[0], g: col[1], b: col[2], size: 0.14, sizeEnd: 0.3, shape: 'square' });
       }
       for (const e of g.enemies) {
         if (e.dead || e.isDummy) continue;
@@ -449,7 +449,7 @@ class YukiKit extends Kit {
       const h = tmp.set(p.pos.x, p.pos.y + 1.3, p.pos.z);
       for (let i = 0; i < 6; i++) {
         const a = Math.random() * Math.PI * 2, rr = 2 + Math.random() * (R - 2) * (1 - k * 0.6);
-        g.particles.glow.emit(h.x + Math.cos(a) * rr, h.y + (Math.random() - 0.3) * 2, h.z + Math.sin(a) * rr, -Math.cos(a) * rr * 2.5, 0, -Math.sin(a) * rr * 2.5, 0.35, 2.2, 1.6, 0.5, 0.15, 0, 0, 0.2, 1);
+        g.particles.glow.spawn({ x: h.x + Math.cos(a) * rr, y: h.y + (Math.random() - 0.3) * 2, z: h.z + Math.sin(a) * rr, vx: -Math.cos(a) * rr * 2.5, vz: -Math.sin(a) * rr * 2.5, life: 0.35, r: 2.2, g: 1.6, b: 0.5, size: 0.15, shape: 'square' });
       }
       g.shake(0.04 + k * 0.1);
     }, () => {
@@ -506,7 +506,7 @@ class YukiKit extends Kit {
     this.cast(0.4, true);
     g.toast?.('Virtual Mass: Overload'); g.fx.shockwave(p.pos, GOLD, 4); g.audio?.charge(0.4, 0.6);
     this.statBuff('mass_overload', 8, { meleeMult: 0.35, armor: 0.15, speed: -0.1 }, {
-      onTick: () => { if (Math.random() < 0.5) g.particles.glow.emit(p.pos.x + (Math.random() - 0.5), p.pos.y + Math.random() * 2, p.pos.z + (Math.random() - 0.5), 0, 0.6, 0, 0.5, 2, 1.3, 0.3, 0.14, 0, 1, 0.1, 0); },
+      onTick: () => { if (Math.random() < 0.5) g.particles.glow.spawn({ x: p.pos.x + (Math.random() - 0.5), y: p.pos.y + Math.random() * 2, z: p.pos.z + (Math.random() - 0.5), vy: 0.6, life: 0.5, r: 2, g: 1.3, b: 0.3, size: 0.14, drag: 1, sizeEnd: 0.1 }); },
     });
   }
   massThrow() {
@@ -595,7 +595,7 @@ class YukiKit extends Kit {
         mesh.position.set(p.pos.x + Math.cos(ang) * 1.1, p.pos.y + 1 + Math.sin(ang * 2) * 0.4, p.pos.z + Math.sin(ang) * 1.1);
         mesh.lookAt(tmp.set(p.pos.x + Math.cos(ang + 0.5) * 1.1, mesh.position.y, p.pos.z + Math.sin(ang + 0.5) * 1.1));
         const u = mesh.userData; u.wings[0].rotation.z = Math.sin(ang * 3) * 0.5; u.wings[1].rotation.z = -Math.sin(ang * 3) * 0.5;
-        if (Math.random() < 0.5) g.particles.glow.emit(mesh.position.x, mesh.position.y, mesh.position.z, 0, 0.2, 0, 0.4, 0.9, 0.5, 1.6, 0.12, 0, 1, 0.1, 0);
+        if (Math.random() < 0.5) g.particles.glow.spawn({ pos: mesh.position, vy: 0.2, life: 0.4, r: 0.9, g: 0.5, b: 1.6, size: 0.12, drag: 1, sizeEnd: 0.1 });
       },
       onEnd: () => { this.untemp(mesh); g.fx.blinkPuff(p.pos, VOID); },
     });
@@ -664,7 +664,7 @@ class YukiKit extends Kit {
       orb.scale.setScalar(1 + t * 0.6 + Math.sin(t * 25) * 0.05);
       this.pull(c, R, dt);
       if (ring <= 0) { ring = 0.25; g.fx.darkRings.spawn(tmp.set(c.x, c.y + 0.07, c.z), { color: 0x000000, r0: R, r1: 0.5, dur: 0.5, thick: 0.25 }); }
-      for (let i = 0; i < 3; i++) { const a = Math.random() * Math.PI * 2, rr = 1 + Math.random() * R; g.particles.glow.emit(c.x + Math.cos(a) * rr, c.y + 1.2, c.z + Math.sin(a) * rr, -Math.cos(a) * rr * 2, 0, -Math.sin(a) * rr * 2, 0.5, 1.2, 0.6, 2.2, 0.12, 0, 0, 0.2, 1); }
+      for (let i = 0; i < 3; i++) { const a = Math.random() * Math.PI * 2, rr = 1 + Math.random() * R; g.particles.glow.spawn({ x: c.x + Math.cos(a) * rr, y: c.y + 1.2, z: c.z + Math.sin(a) * rr, vx: -Math.cos(a) * rr * 2, vz: -Math.sin(a) * rr * 2, life: 0.5, r: 1.2, g: 0.6, b: 2.2, size: 0.12, shape: 'square' }); }
     }, () => {
       this.untemp(orb);
       this.blast(c, 3.2, (40 + this.rank('black_hole') * 10) * this.massMul, { color: VOID, knock: 6, stagger: 0.8 });
@@ -687,7 +687,7 @@ class YukiKit extends Kit {
         for (const e of this.foes(c, R)) e.slowT = Math.max(e.slowT ?? 0, 0.3);
         for (const pr of [...g.projectiles.list]) if (pr.team === 'enemy' && Math.hypot(pr.pos.x - c.x, pr.pos.z - c.z) < R) { g.particles.burst(pr.pos, { count: 6, color: VOID, speed: 2, life: 0.3, size: 0.15 }); g.projectiles.kill(pr, 'cut'); }
         if (tick <= 0) { tick = 0.5; for (const e of this.foes(c, R)) this.hit(e, 9 + this.rank('black_hole') * 3, { stagger: 0.2, ceGain: 0.4 }); }
-        if (Math.random() < 0.6) { const a = Math.random() * Math.PI * 2; g.particles.glow.emit(c.x + Math.cos(a) * R, c.y + 0.3, c.z + Math.sin(a) * R, -Math.cos(a) * 3, 0.4, -Math.sin(a) * 3, 0.6, 1.4, 0.8, 0.3, 0.14, 0, 1, 0.1, 0); }
+        if (Math.random() < 0.6) { const a = Math.random() * Math.PI * 2; g.particles.glow.spawn({ x: c.x + Math.cos(a) * R, y: c.y + 0.3, z: c.z + Math.sin(a) * R, vx: -Math.cos(a) * 3, vy: 0.4, vz: -Math.sin(a) * 3, life: 0.6, r: 1.4, g: 0.8, b: 0.3, size: 0.14, drag: 1, sizeEnd: 0.1 }); }
       },
     });
   }
@@ -708,7 +708,7 @@ class YukiKit extends Kit {
       if (ring <= 0) { ring = 0.16; g.fx.darkRings.spawn(tmp.set(c.x, c.y + 0.07, c.z), { color: 0x000000, r0: R, r1: 0.6, dur: 0.5, thick: 0.35 }); }
       for (let i = 0; i < 8; i++) {
         const a = Math.random() * Math.PI * 2, rr = 1.2 + Math.random() * R, px = top.x + Math.cos(a) * rr, pz = top.z + Math.sin(a) * rr, sp = 6 + Math.random() * 4;
-        g.particles.glow.emit(px, top.y + (Math.random() - 0.5), pz, (top.x - px) / rr * sp - Math.sin(a) * 5, 0, (top.z - pz) / rr * sp + Math.cos(a) * 5, rr / sp, 1.4, 0.7, 2.2, 0.12, 0, 0, 0.3, 1);
+        g.particles.glow.spawn({ x: px, y: top.y + (Math.random() - 0.5), z: pz, vx: (top.x - px) / rr * sp - Math.sin(a) * 5, vz: (top.z - pz) / rr * sp + Math.cos(a) * 5, life: rr / sp, r: 1.4, g: 0.7, b: 2.2, size: 0.12, sizeEnd: 0.3, shape: 'square' });
       }
       for (const pr of [...g.projectiles.list]) if (pr.team === 'enemy' && pr.pos.distanceTo(top) < R) g.projectiles.kill(pr, 'cut');
       if (tick <= 0) { tick = 0.25; g.combat.aoe(c, 3, 10 + rk * 3, p, { stagger: 0.2, ceGain: 0, blocks: false }); }

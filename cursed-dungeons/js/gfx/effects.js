@@ -147,9 +147,9 @@ export class Effects {
   curseSmoke(e, color) {
     const c = color ? new THREE.Color(color) : null;
     const x = e.pos.x + (Math.random() - 0.5) * e.radius * 1.6, z = e.pos.z + (Math.random() - 0.5) * e.radius * 1.6, y = e.pos.y + Math.random() * e.height;
-    if (c) this.p.glow.emit(x, y, z, 0, 0.6 + Math.random() * 0.5, 0, 0.9, c.r * 1.5, c.g * 1.5, c.b * 1.5, 0.35, -0.5, 1.5, 0.2, 0);
-    else if (Math.random() < 0.5) this.p.smoke.emit(x, y, z, (Math.random() - 0.5) * 0.3, 0.5 + Math.random() * 0.4, (Math.random() - 0.5) * 0.3, 1.2, 0.08, 0.02, 0.12, 0.35, -0.3, 1.2, 2.2, 0);
-    else this.p.glow.emit(x, y, z, 0, 0.5, 0, 1.0, 0.45, 0.12, 0.7, 0.3, -0.3, 1.5, 0.1, 0);
+    if (c) this.p.glow.spawn({ x, y, z, vy: 0.6 + Math.random() * 0.5, life: 0.9, r: c.r * 1.5, g: c.g * 1.5, b: c.b * 1.5, size: 0.35, gravity: -0.5, drag: 1.5 });
+    else if (Math.random() < 0.5) this.p.smoke.spawn({ x, y, z, vx: (Math.random() - 0.5) * 0.3, vy: 0.5 + Math.random() * 0.4, vz: (Math.random() - 0.5) * 0.3, life: 1.2, r: 0.08, g: 0.02, b: 0.12, size: 0.35, gravity: -0.3, drag: 1.2, sizeEnd: 2.2 });
+    else this.p.glow.spawn({ x, y, z, vy: 0.5, life: 1.0, r: 0.45, g: 0.12, b: 0.7, size: 0.3, gravity: -0.3, drag: 1.5, sizeEnd: 0.1 });
   }
   curseDeath(pos, h = 1.5, color = 0x7a3aa8) {
     this.p.burst(pos, { count: 26, color: 0x151018, additive: false, speed: 3.5, life: 0.9, size: 0.55, drag: 3, sizeEnd: 2.4, up: 0.6 });
@@ -222,11 +222,11 @@ export class Effects {
     for (let i = 0; i < n; i++) {
       const x = focus.x + (Math.random() - 0.5) * 34, z = focus.z + (Math.random() - 0.5) * 34;
       const y = focus.y + Math.random() * 5 + 0.5;
-      if (kind === 'fireflies') this.p.glow.emit(x, y, z, (Math.random() - 0.5) * 0.6, 0.2, (Math.random() - 0.5) * 0.6, 3 + Math.random() * 3, 2.2, 2.6, 0.8, 0.09, 0, 0.1, 1, 0);
-      else if (kind === 'embers') this.p.glow.emit(x, focus.y + Math.random(), z, (Math.random() - 0.5) * 0.8, 1 + Math.random(), (Math.random() - 0.5) * 0.8, 3 + Math.random() * 2, 3, 1.1, 0.3, 0.07, -0.2, 0.3, 0.2, 1);
-      else if (kind === 'spores') this.p.glow.emit(x, y, z, (Math.random() - 0.5) * 0.3, 0.15, (Math.random() - 0.5) * 0.3, 4 + Math.random() * 3, 0.9, 0.5, 1.6, 0.08, 0, 0.2, 1, 0);
-      else if (kind === 'motes') { const c = E.sunColor.value; this.p.glow.emit(x, y, z, (Math.random() - 0.5) * 0.4, 0.05 + Math.random() * 0.1, (Math.random() - 0.5) * 0.4, 4 + Math.random() * 3, 0.35 + c.r * 0.12, 0.33 + c.g * 0.1, 0.25 + c.b * 0.08, 0.05, 0, 0.15, 1, 0); }
-      else if (kind === 'drips') this.p.glow.emit(x, focus.y + 7, z, 0, -2, 0, 0.9, 0.5, 0.8, 1.0, 0.05, 12, 0, 1, 1);
+      if (kind === 'fireflies') this.p.glow.spawn({ x, y, z, vx: (Math.random() - 0.5) * 0.6, vy: 0.2, vz: (Math.random() - 0.5) * 0.6, life: 3 + Math.random() * 3, r: 2.2, g: 2.6, b: 0.8, size: 0.09, drag: 0.1, sizeEnd: 1 });
+      else if (kind === 'embers') this.p.glow.spawn({ x, y: focus.y + Math.random(), z, vx: (Math.random() - 0.5) * 0.8, vy: 1 + Math.random(), vz: (Math.random() - 0.5) * 0.8, life: 3 + Math.random() * 2, r: 3, g: 1.1, b: 0.3, size: 0.07, gravity: -0.2, drag: 0.3, shape: 'square' });
+      else if (kind === 'spores') this.p.glow.spawn({ x, y, z, vx: (Math.random() - 0.5) * 0.3, vy: 0.15, vz: (Math.random() - 0.5) * 0.3, life: 4 + Math.random() * 3, r: 0.9, g: 0.5, b: 1.6, size: 0.08, drag: 0.2, sizeEnd: 1 });
+      else if (kind === 'motes') { const c = E.sunColor.value; this.p.glow.spawn({ x, y, z, vx: (Math.random() - 0.5) * 0.4, vy: 0.05 + Math.random() * 0.1, vz: (Math.random() - 0.5) * 0.4, life: 4 + Math.random() * 3, r: 0.35 + c.r * 0.12, g: 0.33 + c.g * 0.1, b: 0.25 + c.b * 0.08, size: 0.05, drag: 0.15, sizeEnd: 1 }); }
+      else if (kind === 'drips') this.p.glow.spawn({ x, y: focus.y + 7, z, vy: -2, life: 0.9, r: 0.5, g: 0.8, b: 1.0, size: 0.05, gravity: 12, sizeEnd: 1, shape: 'square' });
     }
   }
 

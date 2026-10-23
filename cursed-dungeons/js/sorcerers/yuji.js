@@ -349,7 +349,7 @@ class YujiKit extends Kit {
       this.hit(t, dmg, { melee: true, unblockable: true, stagger: 1.1, knock: tmp.subVectors(t.pos, p.pos).setY(0).normalize().multiplyScalar(6), color: '#bfe8ff' });
       if (!t.isBoss) this.stun(t, 1);
       // the soul is knocked half out of the body
-      for (let i = 0; i < 24; i++) g.particles.glow.emit(at.x, at.y, at.z, (Math.random() - 0.5) * 3 + Math.sin(p.facing) * 4, (Math.random() - 0.2) * 3, (Math.random() - 0.5) * 3 + Math.cos(p.facing) * 4, 0.7, 1.6, 2, 2.4, 0.18, 0, 2, 0.4, 0);
+      for (let i = 0; i < 24; i++) g.particles.glow.spawn({ pos: at, vx: (Math.random() - 0.5) * 3 + Math.sin(p.facing) * 4, vy: (Math.random() - 0.2) * 3, vz: (Math.random() - 0.5) * 3 + Math.cos(p.facing) * 4, life: 0.7, r: 1.6, g: 2, b: 2.4, size: 0.18, drag: 2, sizeEnd: 0.4 });
       g.fx.flash(0xbfe8ff, 0.3, 0.15); g.fx.screenWave(at, 1, 0.45); g.fx.chroma(0.8);
       g.fx.hitSpark(at, null, { color: 0xffffff, big: true });
       g.hitStop(0.1); g.shake(0.55); g.audio?.impact(1.9, 'crit');
@@ -396,7 +396,7 @@ class YujiKit extends Kit {
         }
         return a * 0.4;
       },
-      onTick: () => { if (Math.random() < 0.5) g.particles.glow.emit(p.pos.x + (Math.random() - 0.5), p.pos.y + Math.random() * 1.8, p.pos.z + (Math.random() - 0.5), 0, 0.8, 0, 0.4, 2, 0.6, 0.4, 0.12, 0, 1, 0.05, 1); },
+      onTick: () => { if (Math.random() < 0.5) g.particles.glow.spawn({ x: p.pos.x + (Math.random() - 0.5), y: p.pos.y + Math.random() * 1.8, z: p.pos.z + (Math.random() - 0.5), vy: 0.8, life: 0.4, r: 2, g: 0.6, b: 0.4, size: 0.12, drag: 1, sizeEnd: 0.05, shape: 'square' }); },
     });
   }
   sprint() {
@@ -440,7 +440,7 @@ class YujiKit extends Kit {
     p.action = { type: 'cast', both: true, dur: 0.75, elapsed: 0, t: 0, moveScale: 0.1, lock: true, hold: true, cancelable: false, faceAim: true };
     g.audio?.charge?.(0.4, 0.4);
     // Convergence: the blood compresses between the palms
-    this.during(0.4, () => { const h = this.handPos(); for (let i = 0; i < 3; i++) { const a = Math.random() * Math.PI * 2; g.particles.glow.emit(h.x + Math.cos(a) * 0.8, h.y + (Math.random() - 0.5) * 0.6, h.z + Math.sin(a) * 0.8, -Math.cos(a) * 3, 0, -Math.sin(a) * 3, 0.25, 1.6, 0.05, 0.08, 0.1, 0, 0, 0.03, 1); } }, () => {
+    this.during(0.4, () => { const h = this.handPos(); for (let i = 0; i < 3; i++) { const a = Math.random() * Math.PI * 2; g.particles.glow.spawn({ x: h.x + Math.cos(a) * 0.8, y: h.y + (Math.random() - 0.5) * 0.6, z: h.z + Math.sin(a) * 0.8, vx: -Math.cos(a) * 3, vz: -Math.sin(a) * 3, life: 0.25, r: 1.6, g: 0.05, b: 0.08, size: 0.1, sizeEnd: 0.03, shape: 'square' }); } }, () => {
       const f = this.fwd(), from = this.handPos(), L = 26;
       this.line(p.pos, f, L, 0.55, (e) => { this.hit(e, 72, { stagger: 0.9, unblockable: true, knock: f.clone().multiplyScalar(5), color: '#ff4a4a' }); g.fx.splat(e.pos.clone().setY(e.pos.y + 1), 0xa00010); });
       g.fx.slashLine(from, f, L, 0xd0101a, 0.45, 0.35); g.fx.slashLine(from, f, L, 0xffb0b0, 0.12, 0.25);
@@ -456,7 +456,7 @@ class YujiKit extends Kit {
     g.fx.flash(0x400008, 0.25, 0.2); g.audio?.charge?.(0.4, 0.5);
     g.toast?.('Flowing Red Scale');
     this.statBuff('red_scale', 8, { speed: 0.25, meleeMult: 0.2, attackSpeed: 0.15 }, { onTick: () => {
-      if (Math.random() < 0.5) g.particles.glow.emit(p.pos.x + (Math.random() - 0.5) * 0.5, p.pos.y + 1 + Math.random() * 0.8, p.pos.z + (Math.random() - 0.5) * 0.5, 0, 0.4, 0, 0.5, 1.4, 0.04, 0.06, 0.1, 0, 1, 0.05, 1);
+      if (Math.random() < 0.5) g.particles.glow.spawn({ x: p.pos.x + (Math.random() - 0.5) * 0.5, y: p.pos.y + 1 + Math.random() * 0.8, z: p.pos.z + (Math.random() - 0.5) * 0.5, vy: 0.4, life: 0.5, r: 1.4, g: 0.04, b: 0.06, size: 0.1, drag: 1, sizeEnd: 0.05, shape: 'square' });
     } });
   }
   supernova() {

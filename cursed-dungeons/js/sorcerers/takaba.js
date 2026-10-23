@@ -260,7 +260,7 @@ class TakabaKit extends Kit {
       this.blast(c, 3, 40 * this.gm, { color: 0xffa040, knock: 6, stagger: 0.8 });
       g.particles.burst(c.clone().setY(c.y + 1), { count: 20, color: 0x2a2a2a, additive: false, speed: 3, up: 2, life: 1.2, size: 0.8, sizeEnd: 2.5, drag: 2 });
       // smoking afros
-      for (const e of list) if (!e.dead) { const a = mesh(GEO.sphere, mat(0x1a1210, { roughness: 1 }), (e.radius ?? 0.5) + 0.3); temp(this, a, 3, () => { if (e.dead) return false; a.position.set(e.pos.x, e.pos.y + (e.height ?? 1.5) + 0.1, e.pos.z); if (Math.random() < 0.1) g.particles.smoke.emit(a.position.x, a.position.y + 0.5, a.position.z, 0, 1, 0, 1, 0.3, 0.3, 0.3, 0.3, -0.2, 1, 1, 0); }); this.slow(e, 3); }
+      for (const e of list) if (!e.dead) { const a = mesh(GEO.sphere, mat(0x1a1210, { roughness: 1 }), (e.radius ?? 0.5) + 0.3); temp(this, a, 3, () => { if (e.dead) return false; a.position.set(e.pos.x, e.pos.y + (e.height ?? 1.5) + 0.1, e.pos.z); if (Math.random() < 0.1) g.particles.smoke.spawn({ x: a.position.x, y: a.position.y + 0.5, z: a.position.z, vy: 1, life: 1, r: 0.3, g: 0.3, b: 0.3, size: 0.3, gravity: -0.2, drag: 1, sizeEnd: 1 }); }); this.slow(e, 3); }
     });
   }
   rubber() {

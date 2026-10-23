@@ -273,7 +273,7 @@ function jawFor(o, rest, wide, t, chatter = 0) {
   if (o.state === 'stagger') return wide * 0.8;
   return rest + Math.sin(t * 2.1) * rest * 0.35 + (chatter ? Math.max(0, Math.sin(t * 23)) * chatter * (Math.sin(t * 0.9) > 0.6 ? 1 : 0) : 0);
 }
-const drip = (Pt, x, y, z, r, g, b, s = 0.07) => Pt.glow.emit(x, y, z, rnd(0.1), -0.3, rnd(0.1), 0.7, r, g, b, s, 11, 0.3, 0.04, 0);
+const drip = (Pt, x, y, z, r, g, b, s = 0.07) => Pt.glow.spawn({ x, y, z, vx: rnd(0.1), vy: -0.3, vz: rnd(0.1), life: 0.7, r, g, b, size: s, gravity: 11, drag: 0.3, sizeEnd: 0.04 });
 
 // =====================================================================
 // GRADE 4 — gaping one-eyed maw (swarmer)
@@ -407,7 +407,7 @@ function imp(K) {
     tail.rotation.y = Math.sin(t * 5) * 0.5; tail.rotation.x = Math.sin(t * 3.3) * 0.2;
     twitch -= dt; if (twitch <= 0) { twitch = 0.6 + Math.random() * 2; tw = rnd(0.45); }
     tw = damp(tw, 0, 7, dt); H.rotation.z = tw;
-    if (Math.random() < 1.2 * dt * (Pt.budget ?? 1)) { tail.localToWorld(v1.set(0, -3 * PX, -7.8 * PX)); Pt.glow.emit(v1.x, v1.y, v1.z, rnd(0.2), 0.5, rnd(0.2), 0.6, 1.4, 0.4, 1.2, 0.08, -0.2, 1, 0.2, 0); }
+    if (Math.random() < 1.2 * dt * (Pt.budget ?? 1)) { tail.localToWorld(v1.set(0, -3 * PX, -7.8 * PX)); Pt.glow.spawn({ pos: v1, vx: rnd(0.2), vy: 0.5, vz: rnd(0.2), life: 0.6, r: 1.4, g: 0.4, b: 1.2, size: 0.08, gravity: -0.2, drag: 1 }); }
   };
   return rig;
 }
@@ -470,7 +470,7 @@ function spitter(K) {
     sac.scale.set(k, k * (1 + Math.sin(t * 3.2 + 1) * 0.04), k);
     stepEye(E, dt, 0.4); H.rotation.z = E.x * 0.25;
     for (let i = rate(2.2 + charge * 10, dt, bud); i > 0; i--) { H.localToWorld(v1.set(rnd(2.5) * PX, 1.6 * PX, (h2 + 0.6) * PX)); drip(Pt, v1.x, v1.y, v1.z, 0.6, 1.4, 0.2, 0.08); }
-    if (Math.random() < 1.2 * dt * bud) { T.localToWorld(v1.set(rnd(2) * PX, (9 + rnd(4)) * PX, -4.5 * PX)); Pt.glow.emit(v1.x, v1.y, v1.z, rnd(0.2), 0.6, rnd(0.2), 0.9, 0.5, 1.3, 0.2, 0.12, -0.3, 1, 0.3, 0); }
+    if (Math.random() < 1.2 * dt * bud) { T.localToWorld(v1.set(rnd(2) * PX, (9 + rnd(4)) * PX, -4.5 * PX)); Pt.glow.spawn({ pos: v1, vx: rnd(0.2), vy: 0.6, vz: rnd(0.2), life: 0.9, r: 0.5, g: 1.3, b: 0.2, size: 0.12, gravity: -0.3, drag: 1, sizeEnd: 0.3 }); }
   };
   return rig;
 }
@@ -552,7 +552,7 @@ function tank(K) {
     gust = damp(gust, Math.min(1, Math.hypot(o.vel.x, o.vel.z) / 2), 4, dt);
     tali.rotation.x = -0.15 - gust * 0.6 - Math.abs(Math.sin(t * 7.3)) * 0.12 * (0.4 + gust);
     tali.rotation.z = Math.sin(t * 3.1) * 0.08;
-    if (b > 0.97 && Math.random() < 0.5) { H.localToWorld(v1.set(0, 2 * PX, (h2 + 2) * PX)); Pt.smoke.emit(v1.x, v1.y, v1.z, rnd(0.2), 0.2, rnd(0.2), 1, 0.09, 0.07, 0.07, 0.25, -0.2, 1.4, 1.4, 0); }
+    if (b > 0.97 && Math.random() < 0.5) { H.localToWorld(v1.set(0, 2 * PX, (h2 + 2) * PX)); Pt.smoke.spawn({ pos: v1, vx: rnd(0.2), vy: 0.2, vz: rnd(0.2), life: 1, r: 0.09, g: 0.07, b: 0.07, size: 0.25, gravity: -0.2, drag: 1.4, sizeEnd: 1.4 }); }
     mat.userData.emitMask.value = 2.4 + Math.sin(o.game.time * 2) * 0.5;
   };
   return rig;
@@ -615,7 +615,7 @@ function blob(K) {
     jaw.rotation.x = 0.12 + Math.sin(t * 2.6) * 0.08 + w * 0.5 + Math.sin(t * 31) * 0.05 * w;
     stepEye(E, dt, 1); pupils.position.set(E.x * 0.45 * PX, E.y * 0.45 * PX, 0);
     const k = 1 + Math.sin(t * 4.4) * 0.07 + w * 0.25 * (1 + Math.sin(t * 30) * 0.3); tum.scale.set(k, k * 1.1, k);
-    if (Math.random() < (1.5 + w * 12) * dt * bud) { H.localToWorld(v1.set(rnd(7) * PX, (Hs * (0.4 + Math.random() * 0.6)) * PX, rnd(7) * PX)); Pt.glow.emit(v1.x, v1.y, v1.z, rnd(0.3), 0.8 + w, rnd(0.3), 0.5, 2.2, 0.8, 0.2, 0.08, -0.5, 1, 0.1, 1); }
+    if (Math.random() < (1.5 + w * 12) * dt * bud) { H.localToWorld(v1.set(rnd(7) * PX, (Hs * (0.4 + Math.random() * 0.6)) * PX, rnd(7) * PX)); Pt.glow.spawn({ pos: v1, vx: rnd(0.3), vy: 0.8 + w, vz: rnd(0.3), life: 0.5, r: 2.2, g: 0.8, b: 0.2, size: 0.08, gravity: -0.5, drag: 1, sizeEnd: 0.1, shape: 'square' }); }
     if (Math.random() < 1.2 * dt * bud) { jaw.localToWorld(v1.set(3.8 * PX, -5.5 * PX, 6 * PX)); drip(Pt, v1.x, v1.y, v1.z, 0.9, 0.5, 0.45); }
   };
   return rig;
@@ -704,7 +704,7 @@ function teleporter(K) {
     jerk -= dt; if (jerk <= 0) { jerk = 1.5 + Math.random() * 3; jz = (Math.random() < 0.5 ? -1 : 1) * (0.35 + Math.random() * 0.35); }
     H.rotation.z = damp(H.rotation.z, o.state === 'windup' ? 0 : jz + Math.sin(t * 0.8) * 0.05, jerk > 1.3 ? 20 : 3, dt);
     ring.rotation.y += dt * 0.9; ring.position.y = (17 + Math.sin(t * 1.3) * 1.2) * PX;
-    for (let i = rate(5, dt, bud); i > 0; i--) { robe2.localToWorld(v1.set(rnd(4) * PX, -6 * PX, rnd(3) * PX)); Math.random() < 0.6 ? Pt.smoke.emit(v1.x, v1.y, v1.z, rnd(0.2), -0.1, rnd(0.2), 1.0, 0.06, 0.02, 0.1, 0.3, -0.4, 1.2, 1.6, 0) : Pt.glow.emit(v1.x, v1.y, v1.z, rnd(0.2), 0.2, rnd(0.2), 0.8, 1.0, 0.3, 1.6, 0.08, -0.4, 1, 0.1, 0); }
+    for (let i = rate(5, dt, bud); i > 0; i--) { robe2.localToWorld(v1.set(rnd(4) * PX, -6 * PX, rnd(3) * PX)); Math.random() < 0.6 ? Pt.smoke.spawn({ pos: v1, vx: rnd(0.2), vy: -0.1, vz: rnd(0.2), life: 1.0, r: 0.06, g: 0.02, b: 0.1, size: 0.3, gravity: -0.4, drag: 1.2, sizeEnd: 1.6 }) : Pt.glow.spawn({ pos: v1, vx: rnd(0.2), vy: 0.2, vz: rnd(0.2), life: 0.8, r: 1.0, g: 0.3, b: 1.6, size: 0.08, gravity: -0.4, drag: 1, sizeEnd: 0.1 }); }
   };
   return rig;
 }
@@ -792,7 +792,7 @@ function summoner(K) {
     const cast = o.state === 'windup' ? 1 : 0;
     for (const a of xa) { a.g.rotation.z = a.sx * (Math.sin(t * 4.2 + a.sx) * 0.25 + cast * 0.5); a.g.rotation.x = Math.sin(t * 3.1 + a.sx * 2) * 0.3 - cast * 0.6; }
     orbs.position.y = Math.sin(t * 1.8) * 1.5 * PX;
-    if (Math.random() < (1.5 + cast * 8) * dt * bud) { T.localToWorld(v1.set(rnd(1) * PX, 4.6 * PX, 5.5 * PX)); Pt.glow.emit(v1.x, v1.y, v1.z, rnd(0.4), 0.4 + cast, rnd(0.4), 0.8, 1.6, 0.4, 1.2, 0.09, -0.2, 1, 0.1, 0); }
+    if (Math.random() < (1.5 + cast * 8) * dt * bud) { T.localToWorld(v1.set(rnd(1) * PX, 4.6 * PX, 5.5 * PX)); Pt.glow.spawn({ pos: v1, vx: rnd(0.4), vy: 0.4 + cast, vz: rnd(0.4), life: 0.8, r: 1.6, g: 0.4, b: 1.2, size: 0.09, gravity: -0.2, drag: 1, sizeEnd: 0.1 }); }
   };
   return rig;
 }
@@ -953,7 +953,7 @@ function transfigured(K) {
     jerk -= dt; if (jerk <= 0) { jerk = 0.4 + Math.random() * 1.6; jz = 0.35 + rnd(0.3); }
     H.rotation.z = damp(H.rotation.z, jz, 14, dt);
     tie.rotation.x = 0.1 + Math.sin(t * 3.3) * 0.2 + mvOf(o) * 0.3; tie.rotation.z = Math.sin(t * 2.1) * 0.15;
-    if (Math.random() < 1.2 * dt * bud) { T.localToWorld(v1.set(1.5 * PX, (3 + Math.random() * 6) * PX, 3 * PX)); Pt.glow.emit(v1.x, v1.y, v1.z, rnd(0.1), 0.4, rnd(0.1), 0.7, 0.4, 1.6, 1.2, 0.07, -0.2, 1, 0.1, 0); }
+    if (Math.random() < 1.2 * dt * bud) { T.localToWorld(v1.set(1.5 * PX, (3 + Math.random() * 6) * PX, 3 * PX)); Pt.glow.spawn({ pos: v1, vx: rnd(0.1), vy: 0.4, vz: rnd(0.1), life: 0.7, r: 0.4, g: 1.6, b: 1.2, size: 0.07, gravity: -0.2, drag: 1, sizeEnd: 0.1 }); }
     mat.userData.emitMask.value = 2.2 + surge * 0.6;
   };
   return rig;
@@ -1047,7 +1047,7 @@ function embryo(K) {
     H.rotation.x = Math.sin(t * 1.7) * 0.06 - 0.05; H.rotation.z = 0.22 + Math.sin(t * 1.1) * 0.08 + Math.sin(t * 37) * 0.06 * w;
     const tw = Math.sin(t * 2.3) > 0.85 ? 1 : 0; lids.scale.set(1, 1 + tw * 0.15 + w * 0.2, 1 + tw * 0.4 + w * 0.6);
     cord.rotation.y = Math.sin(t * 2.4) * 0.4; cord.rotation.x = Math.sin(t * 1.9) * 0.15;
-    if (Math.random() < (1.4 + w * 14) * dt * bud) { sac.localToWorld(v1.set(rnd(4) * PX, (2 + rnd(3)) * PX, rnd(4) * PX)); Pt.glow.emit(v1.x, v1.y, v1.z, rnd(0.3), 0.6 + w, rnd(0.3), 0.6, 1.8, 0.5, 1.2, 0.08, -0.3, 1, 0.1, 0); }
+    if (Math.random() < (1.4 + w * 14) * dt * bud) { sac.localToWorld(v1.set(rnd(4) * PX, (2 + rnd(3)) * PX, rnd(4) * PX)); Pt.glow.spawn({ pos: v1, vx: rnd(0.3), vy: 0.6 + w, vz: rnd(0.3), life: 0.6, r: 1.8, g: 0.5, b: 1.2, size: 0.08, gravity: -0.3, drag: 1, sizeEnd: 0.1 }); }
     mat.userData.emitMask.value = 2.4 + w * 2;
   };
   return rig;
@@ -1117,7 +1117,7 @@ function grasshopper(K) {
     for (const a of ants) a.a.rotation.z = -a.sx * (0.35 + Math.sin(t * 3 + a.sx) * 0.12) - air * a.sx * 0.3;
     for (const m of mands) m.m.rotation.y = m.sx * (0.1 + Math.abs(Math.sin(t * 7)) * 0.15 + w * 0.6);
     abd.rotation.x = Math.sin(t * 2.6) * 0.06 + air * 0.25;
-    if (air && Math.random() < 20 * dt * bud) Pt.smoke.emit(o.pos.x + rnd(0.3), o.pos.y + 0.4 + (o.liftOff ?? 0), o.pos.z + rnd(0.3), 0, 0, 0, 0.5, 0.25, 0.3, 0.12, 0.2, 0, 2, 0.9, 0);
+    if (air && Math.random() < 20 * dt * bud) Pt.smoke.spawn({ x: o.pos.x + rnd(0.3), y: o.pos.y + 0.4 + (o.liftOff ?? 0), z: o.pos.z + rnd(0.3), life: 0.5, r: 0.25, g: 0.3, b: 0.12, size: 0.2, drag: 2, sizeEnd: 0.9 });
   };
   return rig;
 }
@@ -1192,8 +1192,8 @@ function gravekeeper(K) {
     bell.rotation.z = Math.sin(t * 2.8) * 0.25 + Math.sin(t * 19) * 0.2 * w; bell.rotation.x = Math.sin(t * 2.1) * 0.15;
     skirt.rotation.x = 0.04 + mv * 0.2 + Math.sin(t * 1.7) * 0.04;
     H.rotation.z = Math.sin(t * 0.9) * 0.12;
-    if (Math.random() < (2 + w * 14) * dt * bud) { cof.localToWorld(v1.set(rnd(4) * PX, (2 + Math.random() * 13) * PX, -4 * PX)); Pt.glow.emit(v1.x, v1.y, v1.z, rnd(0.2), 0.3 + w * 0.6, rnd(0.2), 1.0, 1.1, 0.4, 1.8, 0.1, -0.3, 1, 0.1, 0); }
-    if (Math.random() < 2.5 * dt * bud) { skirt.localToWorld(v1.set(rnd(4) * PX, -6.8 * PX, rnd(3) * PX)); Pt.smoke.emit(v1.x, v1.y, v1.z, rnd(0.2), 0.1, rnd(0.2), 1.0, 0.05, 0.03, 0.08, 0.3, -0.3, 1.2, 1.5, 0); }
+    if (Math.random() < (2 + w * 14) * dt * bud) { cof.localToWorld(v1.set(rnd(4) * PX, (2 + Math.random() * 13) * PX, -4 * PX)); Pt.glow.spawn({ pos: v1, vx: rnd(0.2), vy: 0.3 + w * 0.6, vz: rnd(0.2), life: 1.0, r: 1.1, g: 0.4, b: 1.8, size: 0.1, gravity: -0.3, drag: 1, sizeEnd: 0.1 }); }
+    if (Math.random() < 2.5 * dt * bud) { skirt.localToWorld(v1.set(rnd(4) * PX, -6.8 * PX, rnd(3) * PX)); Pt.smoke.spawn({ pos: v1, vx: rnd(0.2), vy: 0.1, vz: rnd(0.2), life: 1.0, r: 0.05, g: 0.03, b: 0.08, size: 0.3, gravity: -0.3, drag: 1.2, sizeEnd: 1.5 }); }
   };
   return rig;
 }
@@ -1259,7 +1259,7 @@ function lantern(K) {
     stalk.rotation.z = Math.sin(t * 1.3) * 0.04;
     tongue.rotation.x = Math.sin(t * 2.2) * 0.25; tongue.rotation.z = Math.sin(t * 1.6) * 0.2;
     mat.userData.emitMask.value = 1.2 + w * 3 + lock * Math.abs(Math.sin(t * 30)) * 1.5 + Math.sin(t * 7) * 0.1;
-    if (Math.random() < (1.5 + w * 20) * dt * bud) { H.localToWorld(v1.set(rnd(6) * PX, (h2 + rnd(5)) * PX, rnd(6) * PX)); const k = w ? -1 : 1; Pt.glow.emit(v1.x, v1.y, v1.z, rnd(0.2) * k, 0.4 * k, rnd(0.2) * k, 0.8, 2.2, 1.2, 0.3, 0.07, -0.2, 1, 0.1, 0); }
+    if (Math.random() < (1.5 + w * 20) * dt * bud) { H.localToWorld(v1.set(rnd(6) * PX, (h2 + rnd(5)) * PX, rnd(6) * PX)); const k = w ? -1 : 1; Pt.glow.spawn({ pos: v1, vx: rnd(0.2) * k, vy: 0.4 * k, vz: rnd(0.2) * k, life: 0.8, r: 2.2, g: 1.2, b: 0.3, size: 0.07, gravity: -0.2, drag: 1, sizeEnd: 0.1 }); }
   };
   return rig;
 }
@@ -1318,7 +1318,7 @@ function burrower(K) {
     palm.rotation.z = Math.sin(t * 13) * 0.05 * mv; palm.rotation.x = dig * 0.35;
     cord.rotation.y = Math.sin(t * 3) * 0.5;
     stepEye(E, dt, 0.4);
-    if (o.state === 'recover' && o.action?.kind === 'emerge' && Math.random() < 20 * dt * bud) Pt.smoke.emit(o.pos.x + rnd(0.6), o.pos.y + 0.2, o.pos.z + rnd(0.6), rnd(1), 1.2, rnd(1), 0.6, 0.25, 0.2, 0.15, 0.3, 4, 2, 1.2, 0);
+    if (o.state === 'recover' && o.action?.kind === 'emerge' && Math.random() < 20 * dt * bud) Pt.smoke.spawn({ x: o.pos.x + rnd(0.6), y: o.pos.y + 0.2, z: o.pos.z + rnd(0.6), vx: rnd(1), vy: 1.2, vz: rnd(1), life: 0.6, r: 0.25, g: 0.2, b: 0.15, size: 0.3, gravity: 4, drag: 2, sizeEnd: 1.2 });
   };
   return rig;
 }
@@ -1385,7 +1385,7 @@ function serpent(K) {
     H.rotation.y = -Math.sin(t * f) * amp * 0.4; H.rotation.x = -w * 0.25;
     if (Math.random() < (3 + dash * 30) * dt * bud) {
       const i = Math.floor(Math.random() * segs.length), c = new THREE.Color(RAINBOW[i]);
-      segs[i].localToWorld(v1.set(rnd(3) * PX, 3 * PX, -2.8 * PX)); Pt.glow.emit(v1.x, v1.y, v1.z, rnd(0.3), 0.5, rnd(0.3), 0.7, c.r * 2, c.g * 2, c.b * 2, 0.08, -0.3, 1, 0.1, 0);
+      segs[i].localToWorld(v1.set(rnd(3) * PX, 3 * PX, -2.8 * PX)); Pt.glow.spawn({ pos: v1, vx: rnd(0.3), vy: 0.5, vz: rnd(0.3), life: 0.7, r: c.r * 2, g: c.g * 2, b: c.b * 2, size: 0.08, gravity: -0.3, drag: 1, sizeEnd: 0.1 });
     }
   };
   return rig;
@@ -1515,7 +1515,7 @@ function maw(K) {
     up.rotation.x = damp(up.rotation.x, -open, o.state === 'recover' && k === 'chomp' ? 40 : 10, dt);
     const b = 1 + Math.sin(t * 1.6) * 0.02; base.scale.set(b, 1, b);
     stepEye(E, dt);
-    if (Math.random() < (1 + w * 10) * dt * bud) { up.localToWorld(v1.set(rnd(4) * PX, 0, 8 * PX)); Pt.glow.emit(v1.x, v1.y, v1.z, rnd(0.3), 0.6, rnd(0.3), 0.6, 2.2, 0.8, 0.3, 0.08, -0.3, 1, 0.1, 0); }
+    if (Math.random() < (1 + w * 10) * dt * bud) { up.localToWorld(v1.set(rnd(4) * PX, 0, 8 * PX)); Pt.glow.spawn({ pos: v1, vx: rnd(0.3), vy: 0.6, vz: rnd(0.3), life: 0.6, r: 2.2, g: 0.8, b: 0.3, size: 0.08, gravity: -0.3, drag: 1, sizeEnd: 0.1 }); }
     if (Math.random() < 0.8 * dt * bud) { up.localToWorld(v1.set(rnd(6) * PX, -2 * PX, 14.6 * PX)); drip(Pt, v1.x, v1.y, v1.z, 0.9, 0.5, 0.5); }
   };
   return rig;
@@ -1581,7 +1581,7 @@ function doll(K) {
     H.rotation.z = Math.sin(t * 0.8) * 0.18;
     const guard = o.guarding ? 1 : 0;
     mat.userData.emitMask.value = 2.4 + guard * 1.2 + Math.sin(t * 5) * 0.3 * guard;
-    if (Math.random() < (0.8 + guard * 4) * dt * bud) { T.localToWorld(v1.set(rnd(1) * PX, 5.6 * PX, 4 * PX)); Pt.glow.emit(v1.x, v1.y, v1.z, rnd(0.3), 0.5, rnd(0.3), 0.6, 0.4, 1.6, 2.0, 0.08, -0.2, 1, 0.1, 0); }
+    if (Math.random() < (0.8 + guard * 4) * dt * bud) { T.localToWorld(v1.set(rnd(1) * PX, 5.6 * PX, 4 * PX)); Pt.glow.spawn({ pos: v1, vx: rnd(0.3), vy: 0.5, vz: rnd(0.3), life: 0.6, r: 0.4, g: 1.6, b: 2.0, size: 0.08, gravity: -0.2, drag: 1, sizeEnd: 0.1 }); }
   };
   return rig;
 }
@@ -1630,8 +1630,8 @@ function ashspirit(K) {
     stepEye(E, dt, 0.4); eyeG.rotation.y = E.x; eyeG.rotation.x = E.y;
     cone.rotation.y = Math.sin(t * 40) * 0.02 * (1 + w * 4); cone.scale.y = 1 + w * 0.15 + Math.sin(t * 3) * 0.03;
     H.rotation.z = Math.sin(t * 37) * 0.04 * w;
-    if (Math.random() < (3 + w * 8) * dt * bud) { cone.localToWorld(v1.set(rnd(1) * PX, 7.6 * PX, rnd(1) * PX)); Pt.smoke.emit(v1.x, v1.y, v1.z, rnd(0.2), 1.0 + w, rnd(0.2), 1.6, 0.06, 0.05, 0.05, 0.35, -0.3, 0.8, 2.6, 0); }
-    if (Math.random() < (4 + w * 30) * dt * bud) { cone.localToWorld(v1.set(rnd(1) * PX, 7.6 * PX, rnd(1) * PX)); Pt.glow.emit(v1.x, v1.y, v1.z, rnd(1.2), 2.5 + Math.random() * 2 + w * 2, rnd(1.2), 0.9, 2.6, 1.0, 0.2, 0.07, 6, 0.5, 0.2, 1); }
+    if (Math.random() < (3 + w * 8) * dt * bud) { cone.localToWorld(v1.set(rnd(1) * PX, 7.6 * PX, rnd(1) * PX)); Pt.smoke.spawn({ pos: v1, vx: rnd(0.2), vy: 1.0 + w, vz: rnd(0.2), life: 1.6, r: 0.06, g: 0.05, b: 0.05, size: 0.35, gravity: -0.3, drag: 0.8, sizeEnd: 2.6 }); }
+    if (Math.random() < (4 + w * 30) * dt * bud) { cone.localToWorld(v1.set(rnd(1) * PX, 7.6 * PX, rnd(1) * PX)); Pt.glow.spawn({ pos: v1, vx: rnd(1.2), vy: 2.5 + Math.random() * 2 + w * 2, vz: rnd(1.2), life: 0.9, r: 2.6, g: 1.0, b: 0.2, size: 0.07, gravity: 6, drag: 0.5, shape: 'square' }); }
     if (Math.random() < 1.5 * dt * bud) { rig.armR.localToWorld(v1.set(0, -11.5 * PX, 0)); drip(Pt, v1.x, v1.y, v1.z, 2.4, 0.8, 0.1, 0.08); }
     mat.userData.emitMask.value = 2.6 + w * 2 + Math.sin(t * 6) * 0.3;
   };
@@ -1709,7 +1709,7 @@ function healer(K) {
     for (const a of xa) { a.g.rotation.z = a.sx * (Math.sin(t * 1.3 + a.y) * 0.15 - w * 0.6); a.g.rotation.x = Math.sin(t * 1.1 + a.y + a.sx) * 0.2 - w * 0.4; }
     lid.position.y = damp(lid.position.y, (7.8 + w * 1.9) * PX, 10, dt);
     lotus.rotation.y += dt * 0.3; const k = 1 + Math.sin(t * 1.4) * 0.05 + w * 0.15; lotus.scale.set(k, 1, k);
-    if (Math.random() < (2 + w * 25) * dt * bud) { const a = Math.random() * 6.283, r = w ? 3 : 0.8; Pt.glow.emit(o.pos.x + Math.cos(a) * r, o.pos.y + 0.6 + Math.random() * 2, o.pos.z + Math.sin(a) * r, -Math.cos(a) * w, 0.5, -Math.sin(a) * w, 1.0, 0.5, 1.8, 0.6, 0.09, -0.3, 1, 0.1, 0); }
+    if (Math.random() < (2 + w * 25) * dt * bud) { const a = Math.random() * 6.283, r = w ? 3 : 0.8; Pt.glow.spawn({ x: o.pos.x + Math.cos(a) * r, y: o.pos.y + 0.6 + Math.random() * 2, z: o.pos.z + Math.sin(a) * r, vx: -Math.cos(a) * w, vy: 0.5, vz: -Math.sin(a) * w, life: 1.0, r: 0.5, g: 1.8, b: 0.6, size: 0.09, gravity: -0.3, drag: 1, sizeEnd: 0.1 }); }
     if (Math.random() < 0.8 * dt * bud) { lotus.localToWorld(v1.set(2 * PX, -5 * PX, 1.4 * PX)); drip(Pt, v1.x, v1.y, v1.z, 0.5, 0.9, 0.3, 0.06); }
     mat.userData.emitMask.value = 2.4 + w * 2.2;
   };
@@ -1761,7 +1761,7 @@ function shadow(K) {
     for (const q of tend) { q.g.rotation.x = -0.9 + Math.sin(t * 2.6 + q.ph) * 0.25; q.g.rotation.z = q.rz + Math.sin(t * 2 + q.ph) * 0.2; }
     jerk -= dt; if (jerk <= 0) { jerk = 0.6 + Math.random() * 2.4; jz = rnd(0.6); }
     H.rotation.z = damp(H.rotation.z, o.state === 'windup' ? 0 : jz, 22, dt);
-    if (!o.cloaked && Math.random() < 4 * dt * bud) Pt.smoke.emit(o.pos.x + rnd(0.4), o.pos.y + 0.1, o.pos.z + rnd(0.4), rnd(0.2), 0.4, rnd(0.2), 1.0, 0.04, 0.02, 0.07, 0.35, -0.2, 1.2, 1.8, 0);
+    if (!o.cloaked && Math.random() < 4 * dt * bud) Pt.smoke.spawn({ x: o.pos.x + rnd(0.4), y: o.pos.y + 0.1, z: o.pos.z + rnd(0.4), vx: rnd(0.2), vy: 0.4, vz: rnd(0.2), life: 1.0, r: 0.04, g: 0.02, b: 0.07, size: 0.35, gravity: -0.2, drag: 1.2, sizeEnd: 1.8 });
   };
   return rig;
 }
@@ -1844,9 +1844,9 @@ export function decorateElite(rig, color, affix, radius = 0.5) {
     base?.(dt, o);
     const t = rig.t, Pt = o.game.particles, bud = Pt.budget ?? 1;
     em.rotation.y += dt * 2.2; em.position.y = topY + Math.sin(t * 2.4) * 0.8 * PX;
-    if (Math.random() < 2.5 * dt * bud) { em.getWorldPosition(v1); Pt.glow.emit(v1.x + rnd(0.1), v1.y, v1.z + rnd(0.1), rnd(0.3), 0.5, rnd(0.3), 0.6, c.r * 2, c.g * 2, c.b * 2, 0.08, -0.4, 1, 0.1, 0); }
-    if (affix === 'swift' && Math.hypot(o.vel.x, o.vel.z) > 2 && Math.random() < 10 * dt * bud) Pt.glow.emit(o.pos.x + rnd(0.3), o.pos.y + Math.random() * o.height, o.pos.z + rnd(0.3), -o.vel.x * 0.2, 0, -o.vel.z * 0.2, 0.35, c.r * 1.6, c.g * 1.6, c.b * 1.6, 0.12, 0, 2, 0.02, 0);
+    if (Math.random() < 2.5 * dt * bud) { em.getWorldPosition(v1); Pt.glow.spawn({ x: v1.x + rnd(0.1), y: v1.y, z: v1.z + rnd(0.1), vx: rnd(0.3), vy: 0.5, vz: rnd(0.3), life: 0.6, r: c.r * 2, g: c.g * 2, b: c.b * 2, size: 0.08, gravity: -0.4, drag: 1, sizeEnd: 0.1 }); }
+    if (affix === 'swift' && Math.hypot(o.vel.x, o.vel.z) > 2 && Math.random() < 10 * dt * bud) Pt.glow.spawn({ x: o.pos.x + rnd(0.3), y: o.pos.y + Math.random() * o.height, z: o.pos.z + rnd(0.3), vx: -o.vel.x * 0.2, vz: -o.vel.z * 0.2, life: 0.35, r: c.r * 1.6, g: c.g * 1.6, b: c.b * 1.6, size: 0.12, drag: 2, sizeEnd: 0.02 });
     if (affix === 'vampiric' && Math.random() < 2 * dt * bud) drip(Pt, o.pos.x + rnd(o.radius), o.pos.y + o.height * (0.5 + Math.random() * 0.4), o.pos.z + rnd(o.radius), 1.6, 0.1, 0.2, 0.08);
-    if (affix === 'shadow' && Math.random() < 4 * dt * bud) Pt.smoke.emit(o.pos.x + rnd(o.radius), o.pos.y + 0.1, o.pos.z + rnd(o.radius), 0, 0.5, 0, 1.2, 0.05, 0.02, 0.09, 0.4, -0.3, 1.2, 2, 0);
+    if (affix === 'shadow' && Math.random() < 4 * dt * bud) Pt.smoke.spawn({ x: o.pos.x + rnd(o.radius), y: o.pos.y + 0.1, z: o.pos.z + rnd(o.radius), vy: 0.5, life: 1.2, r: 0.05, g: 0.02, b: 0.09, size: 0.4, gravity: -0.3, drag: 1.2, sizeEnd: 2 });
   };
 }

@@ -155,7 +155,7 @@ export class Player {
       art.cdLeft = Math.max(0, art.cdLeft - dt);
       if (inp.pressed['art' + (i + 1)] && art.cdLeft <= 0 && this.dodgeT <= 0 && !(this.action && this.action.lock)) { art.cdLeft = art.cd * (1 - this.stats.cdr); useArtifact(g, this, art); }
     });
-    if (this.barrierT > 0 && Math.random() < 0.4) g.particles.glow.emit(this.pos.x + (Math.random() - 0.5) * 1.2, this.pos.y + Math.random() * 2, this.pos.z + (Math.random() - 0.5) * 1.2, 0, 0.5, 0, 0.6, 2, 1.8, 0.8, 0.1, 0, 1, 1, 1);
+    if (this.barrierT > 0 && Math.random() < 0.4) g.particles.glow.spawn({ x: this.pos.x + (Math.random() - 0.5) * 1.2, y: this.pos.y + Math.random() * 2, z: this.pos.z + (Math.random() - 0.5) * 1.2, vy: 0.5, life: 0.6, r: 2, g: 1.8, b: 0.8, size: 0.1, drag: 1, sizeEnd: 1, shape: 'square' });
     // attack in the air after a jump: a jump slam
     this.slamCd = Math.max(0, (this.slamCd ?? 0) - dt);
     if (this.attackBuffer > 0 && this.canSlam()) { this.attackBuffer = 0; this.startSlam(); }

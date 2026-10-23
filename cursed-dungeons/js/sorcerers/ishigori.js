@@ -334,7 +334,7 @@ class IshigoriKit extends Kit {
     const light = g.lights.attach(ball, BLAST, 10, 16, { offsetY: 0, priority: 6 });
     temp(this, ball, CH, (t, dt, k) => {
       ball.position.copy(this.handPos()); ball.scale.setScalar(0.3 + k * 1.6);
-      for (let i = 0; i < 4; i++) { const a = Math.random() * Math.PI * 2, rr = 3 + Math.random() * 2; const h = ball.position; g.particles.glow.emit(h.x + Math.cos(a) * rr, h.y + (Math.random() - 0.5) * 3, h.z + Math.sin(a) * rr, -Math.cos(a) * rr * 3, 0, -Math.sin(a) * rr * 3, 0.3, 1, 2.4, 3, 0.18, 0, 1, 0.2, 0); }
+      for (let i = 0; i < 4; i++) { const a = Math.random() * Math.PI * 2, rr = 3 + Math.random() * 2; const h = ball.position; g.particles.glow.spawn({ x: h.x + Math.cos(a) * rr, y: h.y + (Math.random() - 0.5) * 3, z: h.z + Math.sin(a) * rr, vx: -Math.cos(a) * rr * 3, vz: -Math.sin(a) * rr * 3, life: 0.3, r: 1, g: 2.4, b: 3, size: 0.18, drag: 1 }); }
       g.shake(0.05 + k * 0.15);
     }, () => g.lights.remove(light));
     this.after(CH, () => {

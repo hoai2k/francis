@@ -148,7 +148,7 @@ class UraumeKit extends Kit {
     for (const e of g.enemies) {
       if (!e.chill || e.dead) continue;
       if (g.time - e.chillT > 3) { e.chill = 0; continue; }
-      if (Math.random() < 0.15 * e.chill) g.particles.glow.emit(e.pos.x + (Math.random() - 0.5) * 0.6, e.pos.y + Math.random() * e.height, e.pos.z + (Math.random() - 0.5) * 0.6, 0, -0.3, 0, 0.6, 1.4, 2, 2.6, 0.08, 0, 1, 0.5, 1);
+      if (Math.random() < 0.15 * e.chill) g.particles.glow.spawn({ x: e.pos.x + (Math.random() - 0.5) * 0.6, y: e.pos.y + Math.random() * e.height, z: e.pos.z + (Math.random() - 0.5) * 0.6, vy: -0.3, life: 0.6, r: 1.4, g: 2, b: 2.6, size: 0.08, drag: 1, sizeEnd: 0.5, shape: 'square' });
     }
   }
   // One spike of ice bursting out of the floor.
@@ -221,7 +221,7 @@ class UraumeKit extends Kit {
       const from = this.handPos();
       for (let i = 0; i < 10; i++) {
         const a = p.facing + (Math.random() - 0.5) * arc * 2, sp = 8 + Math.random() * 6;
-        g.particles.glow.emit(from.x, from.y - 0.2, from.z, Math.sin(a) * sp, (Math.random() - 0.4) * 1.5, Math.cos(a) * sp, range / sp, 1.6, 2.2, 2.8, 0.25, -1, 1.2, 2.2, 0);
+        g.particles.glow.spawn({ x: from.x, y: from.y - 0.2, z: from.z, vx: Math.sin(a) * sp, vy: (Math.random() - 0.4) * 1.5, vz: Math.cos(a) * sp, life: range / sp, r: 1.6, g: 2.2, b: 2.8, size: 0.25, gravity: -1, drag: 1.2, sizeEnd: 2.2 });
       }
       if (tick <= 0) {
         tick = 0.15;
@@ -291,7 +291,7 @@ class UraumeKit extends Kit {
       t += realDt;
       if (phase === 0) {
         // the cold gathers: frost spirals in towards Uraume's breath
-        for (let i = 0; i < 10; i++) { const a = Math.random() * Math.PI * 2, r = 3 + Math.random() * 6; g.particles.glow.emit(c.x + Math.cos(a) * r, c.y + 0.3 + Math.random() * 2.5, c.z + Math.sin(a) * r, -Math.cos(a) * r * 1.4 - Math.sin(a) * 3, 0.3, -Math.sin(a) * r * 1.4 + Math.cos(a) * 3, 0.6, 1.6, 2.2, 2.8, 0.14, 0, 2.5, 0.3, 1); }
+        for (let i = 0; i < 10; i++) { const a = Math.random() * Math.PI * 2, r = 3 + Math.random() * 6; g.particles.glow.spawn({ x: c.x + Math.cos(a) * r, y: c.y + 0.3 + Math.random() * 2.5, z: c.z + Math.sin(a) * r, vx: -Math.cos(a) * r * 1.4 - Math.sin(a) * 3, vy: 0.3, vz: -Math.sin(a) * r * 1.4 + Math.cos(a) * 3, life: 0.6, r: 1.6, g: 2.2, b: 2.8, size: 0.14, drag: 2.5, sizeEnd: 0.3, shape: 'square' }); }
         if (t < CHARGE) return true;
         phase = 1;
         g.fx.flash(0xe0f6ff, 0.75, 0.35); g.fx.screenWave(c.clone().setY(c.y + 1), 1.6, 0.8); g.fx.chroma(1.2);
@@ -304,7 +304,7 @@ class UraumeKit extends Kit {
         // a white wall of frost sweeps outward; everything it passes freezes
         waveR = Math.min(R, ((t - CHARGE) / WAVE) * R);
         g.fx.rings.spawn(tmp.set(c.x, c.y + 0.08, c.z), { color: FROST, r0: Math.max(0.1, waveR - 0.4), r1: waveR + 0.4, dur: 0.12, thick: 0.25 });
-        for (let i = 0; i < 24; i++) { const a = Math.random() * Math.PI * 2; g.particles.glow.emit(c.x + Math.cos(a) * waveR, c.y + 0.2 + Math.random() * 1.5, c.z + Math.sin(a) * waveR, Math.cos(a) * 4, 1.5, Math.sin(a) * 4, 0.6, 1.8, 2.3, 2.8, 0.3, -0.5, 1.5, 1.4, 0); }
+        for (let i = 0; i < 24; i++) { const a = Math.random() * Math.PI * 2; g.particles.glow.spawn({ x: c.x + Math.cos(a) * waveR, y: c.y + 0.2 + Math.random() * 1.5, z: c.z + Math.sin(a) * waveR, vx: Math.cos(a) * 4, vy: 1.5, vz: Math.sin(a) * 4, life: 0.6, r: 1.8, g: 2.3, b: 2.8, size: 0.3, gravity: -0.5, drag: 1.5, sizeEnd: 1.4 }); }
         if (this.glacier) this.glacier.userData.reveal(waveR);
         for (const e of g.enemies) {
           if (e.dead || e.isDummy || frozen.has(e) || Math.hypot(e.pos.x - c.x, e.pos.z - c.z) > waveR + e.radius) continue;
@@ -438,8 +438,8 @@ class UraumeKit extends Kit {
     const c = this.aimGround(12), R = 5;
     g.audio?.noise({ dur: 5, gain: 0.25, type: 'highpass', freq: 1200, sweep: 2000, attack: 0.5, rev: 0.4 });
     this.during(5, () => {
-      for (let i = 0; i < 5; i++) { const a = Math.random() * Math.PI * 2, r = Math.sqrt(Math.random()) * R; g.particles.glow.emit(c.x + Math.cos(a) * r - 2, c.y + 4 + Math.random() * 2, c.z + Math.sin(a) * r, 5, -6, 1.5, 0.8, 2, 2.4, 2.8, 0.12, 0, 0.5, 0.6, 1); }
-      if (Math.random() < 0.15) g.particles.smoke.emit(c.x + (Math.random() - 0.5) * R * 2, c.y + 1, c.z + (Math.random() - 0.5) * R * 2, 2, 0, 0.5, 1.5, 0.75, 0.82, 0.9, 1.4, 0, 1, 3, 0);
+      for (let i = 0; i < 5; i++) { const a = Math.random() * Math.PI * 2, r = Math.sqrt(Math.random()) * R; g.particles.glow.spawn({ x: c.x + Math.cos(a) * r - 2, y: c.y + 4 + Math.random() * 2, z: c.z + Math.sin(a) * r, vx: 5, vy: -6, vz: 1.5, life: 0.8, r: 2, g: 2.4, b: 2.8, size: 0.12, drag: 0.5, sizeEnd: 0.6, shape: 'square' }); }
+      if (Math.random() < 0.15) g.particles.smoke.spawn({ x: c.x + (Math.random() - 0.5) * R * 2, y: c.y + 1, z: c.z + (Math.random() - 0.5) * R * 2, vx: 2, vz: 0.5, life: 1.5, r: 0.75, g: 0.82, b: 0.9, size: 1.4, drag: 1, sizeEnd: 3 });
     });
     this.zone(c, R, 5, 0.5, (list) => { for (const e of list) { this.hit(e, 6 + this.rank('frost_calm') * 2, { stagger: 0.05, color: '#9ae0ff' }); this.chill(e, 1); } }, { color: FROST, particles: 0.3 });
   }
@@ -449,7 +449,7 @@ class UraumeKit extends Kit {
     g.fx.flash(0xc0e8ff, 0.2, 0.15); g.audio?.tone({ freq: 1800, to: 2600, dur: 0.3, gain: 0.06, type: 'triangle', rev: 0.4 });
     g.fx.rings.spawn(tmp.set(p.pos.x, p.pos.y + 0.06, p.pos.z), { color: ICE, r0: 2.5, r1: 0.4, dur: 0.4, thick: 0.15 });
     this.statBuff('rime', 8, { armor: 0.3 }, {
-      onTick: () => { if (Math.random() < 0.5) { const a = Math.random() * Math.PI * 2; g.particles.glow.emit(p.pos.x + Math.cos(a) * 0.55, p.pos.y + Math.random() * 1.9, p.pos.z + Math.sin(a) * 0.55, 0, -0.2, 0, 0.6, 1.6, 2.2, 2.8, 0.1, 0, 1, 0.4, 1); } },
+      onTick: () => { if (Math.random() < 0.5) { const a = Math.random() * Math.PI * 2; g.particles.glow.spawn({ x: p.pos.x + Math.cos(a) * 0.55, y: p.pos.y + Math.random() * 1.9, z: p.pos.z + Math.sin(a) * 0.55, vy: -0.2, life: 0.6, r: 1.6, g: 2.2, b: 2.8, size: 0.1, drag: 1, sizeEnd: 0.4, shape: 'square' }); } },
     });
   }
   glacialSpike() {
@@ -499,7 +499,7 @@ class UraumeKit extends Kit {
     this.during(4, (tt, dt) => {
       if (t.dead) return false;
       if (!t.isBoss) t.sealT = Math.max(t.sealT ?? 0, 0.2);
-      if (Math.random() < 0.6) g.particles.glow.emit(t.pos.x + (Math.random() - 0.5) * t.radius * 3, t.pos.y + Math.random() * t.height, t.pos.z + (Math.random() - 0.5) * t.radius * 3, 0, 0.3, 0, 0.6, 1.8, 2.3, 2.8, 0.14, 0, 1, 0.3, 1);
+      if (Math.random() < 0.6) g.particles.glow.spawn({ x: t.pos.x + (Math.random() - 0.5) * t.radius * 3, y: t.pos.y + Math.random() * t.height, z: t.pos.z + (Math.random() - 0.5) * t.radius * 3, vy: 0.3, life: 0.6, r: 1.8, g: 2.3, b: 2.8, size: 0.14, drag: 1, sizeEnd: 0.3, shape: 'square' });
       tick -= dt; if (tick > 0) return; tick = 0.5;
       this.hit(t, 6, { stagger: 0, knock: new THREE.Vector3(), crit: false, color: '#e0f6ff', frozenNow: true });
     }, () => {
@@ -653,7 +653,7 @@ class UraumeKit extends Kit {
     g.toast?.('Banquet for the King'); g.audio?.energy('heal');
     g.fx.rings.spawn(tmp.set(p.pos.x, p.pos.y + 0.06, p.pos.z), { color: 0xc0405a, r0: 0.4, r1: 3, dur: 0.4, thick: 0.18 });
     this.statBuff('feast', 10, { techMult: 0.15, meleeMult: 0.15 }, {
-      onTick: () => { if (Math.random() < 0.3) g.particles.glow.emit(p.pos.x + (Math.random() - 0.5) * 0.8, p.pos.y + 0.2 + Math.random() * 1.6, p.pos.z + (Math.random() - 0.5) * 0.8, 0, 0.6, 0, 0.6, 2.4, 0.8, 1.2, 0.1, 0, 1, 0.3, 1); },
+      onTick: () => { if (Math.random() < 0.3) g.particles.glow.spawn({ x: p.pos.x + (Math.random() - 0.5) * 0.8, y: p.pos.y + 0.2 + Math.random() * 1.6, z: p.pos.z + (Math.random() - 0.5) * 0.8, vy: 0.6, life: 0.6, r: 2.4, g: 0.8, b: 1.2, size: 0.1, drag: 1, sizeEnd: 0.3, shape: 'square' }); },
     });
   }
 }

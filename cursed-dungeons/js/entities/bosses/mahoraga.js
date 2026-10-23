@@ -108,9 +108,9 @@ export function buildMahoraga() {
     m.userData.emitMask.value = 0.6 + pulse * 2;
     for (const w of wings) w.g.rotation.y = w.sx * Math.sin(t * 2.4 + w.ph) * 0.12;
     if (b.lightH) { b.lightH.intensity = 3 + pulse * 6; b.lightH.offsetY = 7.5; }
-    if (pulse > 0.6) for (let i = rate(40, dt, bud); i > 0; i--) { wheel.getWorldPosition(v1); const a = Math.random() * 6.28; Pt.glow.emit(v1.x + Math.cos(a) * 1.4, v1.y, v1.z + Math.sin(a) * 1.4, Math.cos(a) * 3, 1, Math.sin(a) * 3, 0.6, 2.4, 2.2, 1.4, 0.16, 0, 2, 0.1, 0); }
+    if (pulse > 0.6) for (let i = rate(40, dt, bud); i > 0; i--) { wheel.getWorldPosition(v1); const a = Math.random() * 6.28; Pt.glow.spawn({ x: v1.x + Math.cos(a) * 1.4, y: v1.y, z: v1.z + Math.sin(a) * 1.4, vx: Math.cos(a) * 3, vy: 1, vz: Math.sin(a) * 3, life: 0.6, r: 2.4, g: 2.2, b: 1.4, size: 0.16, drag: 2, sizeEnd: 0.1 }); }
     // a faint shadow haze at the feet (it is a shikigami of the Ten Shadows)
-    for (let i = rate(5, dt, bud); i > 0; i--) Pt.smoke.emit(b.pos.x + rnd(1.4), b.pos.y + 0.1, b.pos.z + rnd(1.4), 0, 0.3, 0, 1.4, 0.03, 0.03, 0.05, 0.6, -0.1, 1, 2.6, 0);
+    for (let i = rate(5, dt, bud); i > 0; i--) Pt.smoke.spawn({ x: b.pos.x + rnd(1.4), y: b.pos.y + 0.1, z: b.pos.z + rnd(1.4), vy: 0.3, life: 1.4, r: 0.03, g: 0.03, b: 0.05, size: 0.6, gravity: -0.1, drag: 1, sizeEnd: 2.6 });
   };
   rig.fx = fx;
   return rig;

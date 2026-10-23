@@ -33,8 +33,8 @@ function cone(b, at, size = 1) {
 function erupt(b, at, r, dmg) {
   const g = b.game;
   g.fx.explosion(at, ORANGE, r);
-  for (let i = 0; i < 26 * (g.particles.budget ?? 1); i++) g.particles.glow.emit(at.x + (Math.random() - 0.5) * r * 0.5, at.y + 0.6, at.z + (Math.random() - 0.5) * r * 0.5, (Math.random() - 0.5) * 3, 9 + Math.random() * 9, (Math.random() - 0.5) * 3, 1.1, 3.2, 1.2, 0.25, 0.22, 16, 0.4, 0.5, 1);
-  for (let i = 0; i < 8; i++) g.particles.smoke.emit(at.x, at.y + 1, at.z, (Math.random() - 0.5) * 2, 4 + Math.random() * 3, (Math.random() - 0.5) * 2, 2, 0.12, 0.08, 0.07, 0.9, -0.5, 1.2, 3.4, 0);
+  for (let i = 0; i < 26 * (g.particles.budget ?? 1); i++) g.particles.glow.spawn({ x: at.x + (Math.random() - 0.5) * r * 0.5, y: at.y + 0.6, z: at.z + (Math.random() - 0.5) * r * 0.5, vx: (Math.random() - 0.5) * 3, vy: 9 + Math.random() * 9, vz: (Math.random() - 0.5) * 3, life: 1.1, r: 3.2, g: 1.2, b: 0.25, size: 0.22, gravity: 16, drag: 0.4, sizeEnd: 0.5, shape: 'square' });
+  for (let i = 0; i < 8; i++) g.particles.smoke.spawn({ x: at.x, y: at.y + 1, z: at.z, vx: (Math.random() - 0.5) * 2, vy: 4 + Math.random() * 3, vz: (Math.random() - 0.5) * 2, life: 2, r: 0.12, g: 0.08, b: 0.07, size: 0.9, gravity: -0.5, drag: 1.2, sizeEnd: 3.4 });
   b.hurt(at, r, dmg, 4, { up: 11 });
   g.combat.hitBlocks(at, V(0, 0, 1), r * 0.8, Math.PI, 40, null);
   g.audio?.energy('explode');
@@ -55,7 +55,7 @@ export const jogo = {
   tick(dt) {
     if (this.st.burnout > 0) {
       this.st.burnout -= dt;
-      if (Math.random() < dt * 20) this.game.particles.smoke.emit(this.pos.x + (Math.random() - 0.5), this.pos.y + 4.4, this.pos.z + (Math.random() - 0.5), 0, 1.4, 0, 1.6, 0.25, 0.25, 0.25, 0.6, -0.3, 1, 2.6, 0);
+      if (Math.random() < dt * 20) this.game.particles.smoke.spawn({ x: this.pos.x + (Math.random() - 0.5), y: this.pos.y + 4.4, z: this.pos.z + (Math.random() - 0.5), vy: 1.4, life: 1.6, r: 0.25, g: 0.25, b: 0.25, size: 0.6, gravity: -0.3, drag: 1, sizeEnd: 2.6 });
     }
     this.st.domainCd = Math.max(0, (this.st.domainCd ?? 0) - dt);
   },
@@ -73,7 +73,7 @@ export const jogo = {
         const a = this.facing + (i - (n - 1) / 2) * 0.32;
         const from = this.pos.clone().setY(this.pos.y + 2.4).add(V(Math.sin(a) * 1.2, 0, Math.cos(a) * 1.2));
         g.projectiles.fire({ pos: from, vel: V(Math.sin(a) * 9, 2.5 + Math.random() * 2, Math.cos(a) * 9), team: 'enemy', dmg: this.dmg * 0.45, shape: 'cube', color: 0xffa03a, emissive: 4, life: 3.2, homing: 1.6, target: tg, scale: 0.9, radius: 0.45, light: i % 3 === 0 ? 2 : 0,
-          trail: (pr) => { if (Math.random() < 0.7) g.particles.glow.emit(pr.pos.x, pr.pos.y, pr.pos.z, (Math.random() - 0.5) * 0.6, 0.6, (Math.random() - 0.5) * 0.6, 0.35, 3, 1.3, 0.3, 0.16, 0, 1, 0.05, 0); pr.mesh.rotation.z += 0.4; },
+          trail: (pr) => { if (Math.random() < 0.7) g.particles.glow.spawn({ pos: pr.pos, vx: (Math.random() - 0.5) * 0.6, vy: 0.6, vz: (Math.random() - 0.5) * 0.6, life: 0.35, r: 3, g: 1.3, b: 0.3, size: 0.16, drag: 1, sizeEnd: 0.05 }); pr.mesh.rotation.z += 0.4; },
           onHit: (p, pr) => { p.takeDamage(self.dmg * 0.45, self, { knock: pr.vel.clone().setY(0).setLength(4) }); },
           onExpire: (pr) => { g.fx.explosion(pr.pos, ORANGE, 1.4); self.hurt(pr.pos, 1.3, self.dmg * 0.3, 5); } });
         g.audio?.energy('nail');

@@ -151,7 +151,7 @@ export class Ally {
     this.object.rotation.y = this.facing;
     for (const m of this.meshes) m.material = this.flashT > 0 ? FLASH_MATERIAL : m.userData.baseMat;
     // faint shadow smoke so they read as shikigami
-    if (this.kind !== 'corpse' && Math.random() < 0.3) g.particles.smoke.emit(this.pos.x + (Math.random() - 0.5) * 0.6, this.pos.y + 0.2, this.pos.z + (Math.random() - 0.5) * 0.6, 0, 0.4, 0, 0.8, 0.02, 0.02, 0.04, 0.35, 0, 1, 2, 0);
+    if (this.kind !== 'corpse' && Math.random() < 0.3) g.particles.smoke.spawn({ x: this.pos.x + (Math.random() - 0.5) * 0.6, y: this.pos.y + 0.2, z: this.pos.z + (Math.random() - 0.5) * 0.6, vy: 0.4, life: 0.8, r: 0.02, g: 0.02, b: 0.04, size: 0.35, drag: 1, sizeEnd: 2 });
     return true;
   }
   attack(e) {

@@ -65,8 +65,8 @@ export function buildSugisawa() {
     blink -= dt; if (blink < 0) blink = 1 + Math.random() * 2;
     m.userData.emitMask.value = blink < 0.12 ? 0.2 : 2.4 + Math.sin(t * 3) * 0.5;
     if (b.lightH) { b.lightH.intensity = 3; b.lightH.offsetY = 5.5; }
-    for (let i = rate(5, dt, bud); i > 0; i--) Pt.smoke.emit(b.pos.x + rnd(1.3), b.pos.y + Math.random() * 3.5, b.pos.z + rnd(1.3), rnd(0.2), 0.5, rnd(0.2), 1.6, 0.1, 0.06, 0.16, 0.5, -0.2, 1.2, 2.4, 0);
-    if (Math.random() < dt * 3) { jaw.getWorldPosition(v1); Pt.glow.emit(v1.x, v1.y, v1.z, 0, -1, 0, 0.8, 0.9, 1.6, 0.4, 0.08, 14, 0.2, 0.6, 1); }
+    for (let i = rate(5, dt, bud); i > 0; i--) Pt.smoke.spawn({ x: b.pos.x + rnd(1.3), y: b.pos.y + Math.random() * 3.5, z: b.pos.z + rnd(1.3), vx: rnd(0.2), vy: 0.5, vz: rnd(0.2), life: 1.6, r: 0.1, g: 0.06, b: 0.16, size: 0.5, gravity: -0.2, drag: 1.2, sizeEnd: 2.4 });
+    if (Math.random() < dt * 3) { jaw.getWorldPosition(v1); Pt.glow.spawn({ pos: v1, vy: -1, life: 0.8, r: 0.9, g: 1.6, b: 0.4, size: 0.08, gravity: 14, drag: 0.2, sizeEnd: 0.6, shape: 'square' }); }
   };
   rig.fx = fx;
   return rig;

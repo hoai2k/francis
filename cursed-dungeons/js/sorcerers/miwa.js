@@ -576,7 +576,7 @@ class MiwaKit extends Kit {
     this.cast(0.4, true);
     g.toast?.('Resolve'); g.fx.shockwave(p.pos, SKY, 3); g.audio?.charge(0.3, 1.4);
     this.statBuff('resolve', 8, { speed: 0.15, crit: 0.15, ceGain: 0.3 }, {
-      onTick: () => { if (Math.random() < 0.3) g.particles.glow.emit(p.pos.x + (Math.random() - 0.5), p.pos.y + Math.random() * 1.8, p.pos.z + (Math.random() - 0.5), 0, 0.6, 0, 0.5, 0.8, 1.4, 2.2, 0.1, 0, 1, 0.1, 0); },
+      onTick: () => { if (Math.random() < 0.3) g.particles.glow.spawn({ x: p.pos.x + (Math.random() - 0.5), y: p.pos.y + Math.random() * 1.8, z: p.pos.z + (Math.random() - 0.5), vy: 0.6, life: 0.5, r: 0.8, g: 1.4, b: 2.2, size: 0.1, drag: 1, sizeEnd: 0.1 }); },
     });
   }
 }

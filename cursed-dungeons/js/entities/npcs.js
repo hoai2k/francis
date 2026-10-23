@@ -416,7 +416,7 @@ export class HubNpcs {
         r.armR.rotation.set(0.15, 0, 0.22); r.armL.rotation.set(0.15, 0, -0.22);
         r.torso.rotation.z = 0.05;
         const sign = (t % 12) < 1.6 ? Math.sin((t % 12) / 1.6 * Math.PI) : 0;
-        if (sign > 0) { r.armR.rotation.set(-1.25 * sign, 0.6 * sign, 0.2); r.armL.rotation.set(-1.25 * sign, -0.6 * sign, -0.2); if (Math.random() < dt * 20) this.game.particles?.smoke.emit(n.pos.x + Math.sin(n.yaw) * 0.5, n.pos.y + 1.2, n.pos.z + Math.cos(n.yaw) * 0.5, 0, 0.3, 0, 0.8, 0.04, 0.03, 0.08, 0.25, 0, 1, 1.4, 0); }
+        if (sign > 0) { r.armR.rotation.set(-1.25 * sign, 0.6 * sign, 0.2); r.armL.rotation.set(-1.25 * sign, -0.6 * sign, -0.2); if (Math.random() < dt * 20) this.game.particles?.smoke.spawn({ x: n.pos.x + Math.sin(n.yaw) * 0.5, y: n.pos.y + 1.2, z: n.pos.z + Math.cos(n.yaw) * 0.5, vy: 0.3, life: 0.8, r: 0.04, g: 0.03, b: 0.08, size: 0.25, drag: 1, sizeEnd: 1.4 }); }
         break;
       }
       case 'watch': {    // Inumaki, arms folded
@@ -611,7 +611,7 @@ export class HubNpcs {
         this.petalT -= 1;
         const x = f.x + (Math.random() - 0.5) * 34, z = f.z + (Math.random() - 0.5) * 30, y = f.y + 4 + Math.random() * 5;
         const pink = 0.85 + Math.random() * 0.15;
-        part.smoke.emit(x, y, z, 0.5 + Math.random() * 0.4, -0.55 - Math.random() * 0.3, 0.25 + Math.random() * 0.3, 6 + Math.random() * 3, 1.0 * pink, 0.68 * pink, 0.78 * pink, 0.085, 0, 0.05, 0.9, 1);
+        part.smoke.spawn({ x, y, z, vx: 0.5 + Math.random() * 0.4, vy: -0.55 - Math.random() * 0.3, vz: 0.25 + Math.random() * 0.3, life: 6 + Math.random() * 3, r: 1.0 * pink, g: 0.68 * pink, b: 0.78 * pink, size: 0.085, drag: 0.05, sizeEnd: 0.9, shape: 'square' });
       }
     }
   }

@@ -215,7 +215,7 @@ class HakariKit extends Kit {
     const k = Math.floor(g.time * 8);
     P.bulbs.forEach((b, i) => { b.visible = (i + k) % 3 !== 0; });
     P.train.position.x += dt * 24; if (P.train.position.x > 40) P.train.position.x = -70;
-    if (Math.random() < 0.4) { const a = Math.random() * Math.PI * 2, rr = Math.random() * d.radius; g.particles.glow.emit(d.center.x + Math.cos(a) * rr, d.center.y + 4 + Math.random() * 3, d.center.z + Math.sin(a) * rr, 0, -2, 0, 1.2, Math.random() < 0.5 ? 0.4 : 2.4, 2.4, Math.random() < 0.5 ? 1.2 : 0.4, 0.14, 2, 0.3, 1, 1); }
+    if (Math.random() < 0.4) { const a = Math.random() * Math.PI * 2, rr = Math.random() * d.radius; g.particles.glow.spawn({ x: d.center.x + Math.cos(a) * rr, y: d.center.y + 4 + Math.random() * 3, z: d.center.z + Math.sin(a) * rr, vy: -2, life: 1.2, r: Math.random() < 0.5 ? 0.4 : 2.4, g: 2.4, b: Math.random() < 0.5 ? 1.2 : 0.4, size: 0.14, gravity: 2, drag: 0.3, sizeEnd: 1, shape: 'square' }); }
     if (P.spin) { this.updateSpin(P, dt); return; }
     if (this.jackpotT > 0) return;           // already immortal: just enjoy the ride
     P.roll -= dt;
@@ -318,7 +318,7 @@ class HakariKit extends Kit {
       this.auraT += dt * 40;
       for (; this.auraT > 1; this.auraT--) {
         const a = Math.random() * Math.PI * 2, rr = 0.4 + Math.random() * 0.4, gold = Math.random() < 0.5;
-        g.particles.glow.emit(p.pos.x + Math.cos(a) * rr, p.pos.y + Math.random() * 1.8, p.pos.z + Math.sin(a) * rr, Math.cos(a) * 0.6, 2 + Math.random() * 2, Math.sin(a) * 0.6, 0.6, gold ? 3 : 0.6, gold ? 2.4 : 3, gold ? 0.4 : 1.2, 0.14, -1, 1.2, 0.1, gold ? 1 : 0);
+        g.particles.glow.spawn({ x: p.pos.x + Math.cos(a) * rr, y: p.pos.y + Math.random() * 1.8, z: p.pos.z + Math.sin(a) * rr, vx: Math.cos(a) * 0.6, vy: 2 + Math.random() * 2, vz: Math.sin(a) * 0.6, life: 0.6, r: gold ? 3 : 0.6, g: gold ? 2.4 : 3, b: gold ? 0.4 : 1.2, size: 0.14, gravity: -1, drag: 1.2, sizeEnd: 0.1, shape: gold ? 1 : 0 });
       }
       if (this.jackpotT <= 0) {
         p.stats.attackSpeed /= 1.25; this.speedMul = 1;
@@ -326,7 +326,7 @@ class HakariKit extends Kit {
         g.toast?.('Jackpot over');
       }
     } else if (this.fever > 40 && Math.random() < this.fever / 400) {
-      g.particles.glow.emit(p.pos.x + (Math.random() - 0.5) * 0.8, p.pos.y + Math.random() * 1.6, p.pos.z + (Math.random() - 0.5) * 0.8, 0, 1.2, 0, 0.5, 0.6, 3, 1.2, 0.1, 0, 1, 0.2, 1);
+      g.particles.glow.spawn({ x: p.pos.x + (Math.random() - 0.5) * 0.8, y: p.pos.y + Math.random() * 1.6, z: p.pos.z + (Math.random() - 0.5) * 0.8, vy: 1.2, life: 0.5, r: 0.6, g: 3, b: 1.2, size: 0.1, drag: 1, shape: 'square' });
     }
   }
   // ------------------------------------------------------------ techniques
@@ -686,7 +686,7 @@ class HakariKit extends Kit {
     this.cast(0.5, true, { lock: true, moveScale: 0 });
     g.audio?.charge(0.4, 1);
     const fist = () => this.handPos(tmp);
-    this.during(0.42, () => { const h = fist(); g.particles.glow.emit(h.x + (Math.random() - 0.5) * 0.6, h.y + (Math.random() - 0.5) * 0.6, h.z + (Math.random() - 0.5) * 0.6, 0, 0.5, 0, 0.3, 0.6, 3, 1.2, 0.18, 0, 1, 0.1, 1); });
+    this.during(0.42, () => { const h = fist(); g.particles.glow.spawn({ x: h.x + (Math.random() - 0.5) * 0.6, y: h.y + (Math.random() - 0.5) * 0.6, z: h.z + (Math.random() - 0.5) * 0.6, vy: 0.5, life: 0.3, r: 0.6, g: 3, b: 1.2, size: 0.18, drag: 1, sizeEnd: 0.1, shape: 'square' }); });
     g.fx.rings.spawn(tmp.set(p.pos.x, p.pos.y + 0.08, p.pos.z), { color: GREEN, r0: 3.6, r1: 0.4, dur: 0.42, thick: 0.15 });
     this.after(0.42, () => {
       this.pose('punch', 0.3);
@@ -709,7 +709,7 @@ class HakariKit extends Kit {
     this.cast(0.7, true, { type: 'raise', lock: true });
     g.audio?.charge(0.6, 0.8);
     g.fx.rings.spawn(tmp.set(p.pos.x, p.pos.y + 0.08, p.pos.z), { color: GREEN, r0: R, r1: R * 0.95, dur: 0.65, thick: 0.12 });
-    this.during(0.6, () => { for (let i = 0; i < 3; i++) { const a = Math.random() * Math.PI * 2, rr = 0.5 + Math.random(); g.particles.glow.emit(p.pos.x + Math.cos(a) * rr, p.pos.y + Math.random() * 2, p.pos.z + Math.sin(a) * rr, 0, 4, 0, 0.4, Math.random() < 0.5 ? 0.4 : 3, Math.random() < 0.5 ? 3 : 2.4, Math.random() < 0.5 ? 1.2 : 0.4, 0.2, -2, 1, 0.05, 1); } });
+    this.during(0.6, () => { for (let i = 0; i < 3; i++) { const a = Math.random() * Math.PI * 2, rr = 0.5 + Math.random(); g.particles.glow.spawn({ x: p.pos.x + Math.cos(a) * rr, y: p.pos.y + Math.random() * 2, z: p.pos.z + Math.sin(a) * rr, vy: 4, life: 0.4, r: Math.random() < 0.5 ? 0.4 : 3, g: Math.random() < 0.5 ? 3 : 2.4, b: Math.random() < 0.5 ? 1.2 : 0.4, size: 0.2, gravity: -2, drag: 1, sizeEnd: 0.05, shape: 'square' }); } });
     this.after(0.62, () => {
       const c = p.pos.clone();
       this.blast(c, R, (50 + rk * 12) * (big ? 1.8 : 1), { color: GREEN, knock: 12, stagger: 1 });
@@ -754,7 +754,7 @@ class HakariKit extends Kit {
   hotStreak() {
     const g = this.game, p = this.p;
     this.cast(0.3);
-    this.statBuff('hot_streak', 8, { attackSpeed: 0.15 }, { onTick: () => { if (Math.random() < 0.3) g.particles.glow.emit(p.pos.x + (Math.random() - 0.5) * 0.8, p.pos.y + Math.random() * 1.8, p.pos.z + (Math.random() - 0.5) * 0.8, 0, 1.6, 0, 0.5, 3, 1.4, 0.3, 0.12, -1, 1, 0.1, 1); } });
+    this.statBuff('hot_streak', 8, { attackSpeed: 0.15 }, { onTick: () => { if (Math.random() < 0.3) g.particles.glow.spawn({ x: p.pos.x + (Math.random() - 0.5) * 0.8, y: p.pos.y + Math.random() * 1.8, z: p.pos.z + (Math.random() - 0.5) * 0.8, vy: 1.6, life: 0.5, r: 3, g: 1.4, b: 0.3, size: 0.12, gravity: -1, drag: 1, sizeEnd: 0.1, shape: 'square' }); } });
     g.toast?.('♨️ Hot Streak — double Fever');
     g.fx.rings.spawn(tmp.set(p.pos.x, p.pos.y + 0.08, p.pos.z), { color: 0xff8a3a, r0: 0.4, r1: 3.2, dur: 0.4, thick: 0.15 });
     g.audio?.energy('fire');
@@ -781,7 +781,7 @@ class HakariKit extends Kit {
     const g = this.game, p = this.p;
     this.cast(0.3);
     this.lucky7 = 7;
-    this.statBuff('lucky7', 10, { crit: 1 }, { onTick: () => { if (Math.random() < 0.25) g.particles.glow.emit(p.pos.x + (Math.random() - 0.5) * 0.8, p.pos.y + 1 + Math.random(), p.pos.z + (Math.random() - 0.5) * 0.8, 0, 1, 0, 0.6, 3, 2.4, 0.4, 0.14, 0, 1, 0.1, 1); } });
+    this.statBuff('lucky7', 10, { crit: 1 }, { onTick: () => { if (Math.random() < 0.25) g.particles.glow.spawn({ x: p.pos.x + (Math.random() - 0.5) * 0.8, y: p.pos.y + 1 + Math.random(), z: p.pos.z + (Math.random() - 0.5) * 0.8, vy: 1, life: 0.6, r: 3, g: 2.4, b: 0.4, size: 0.14, drag: 1, sizeEnd: 0.1, shape: 'square' }); } });
     g.fx.damageNumber(p.pos.clone().setY(p.pos.y + 0.8), 0, { text: '7 | 7 | 7', color: '#ffd23a', crit: true });
     g.toast?.('7️⃣ Lucky Seven — the next 7 hits are critical');
     g.fx.flash(GOLD, 0.2, 0.15);

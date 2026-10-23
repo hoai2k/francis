@@ -368,7 +368,7 @@ class AngelKit extends Kit {
       const light = g.lights.flash(c.clone().setY(c.y + 6), HOLY, 4, R * 2.5, DUR + 0.3, { priority: 7 });
       let tick = 0;
       this.during(DUR, (tt, dt) => {
-        for (let i = 0; i < 6; i++) { const a = Math.random() * Math.PI * 2, rr = Math.sqrt(Math.random()) * R; g.particles.glow.emit(c.x + Math.cos(a) * rr, c.y + 0.2, c.z + Math.sin(a) * rr, 0, 4 + Math.random() * 6, 0, 1, 3, 2.8, 2, 0.2, 0, 0.5, 0.05, 0); }
+        for (let i = 0; i < 6; i++) { const a = Math.random() * Math.PI * 2, rr = Math.sqrt(Math.random()) * R; g.particles.glow.spawn({ x: c.x + Math.cos(a) * rr, y: c.y + 0.2, z: c.z + Math.sin(a) * rr, vy: 4 + Math.random() * 6, life: 1, r: 3, g: 2.8, b: 2, size: 0.2, drag: 0.5, sizeEnd: 0.05 }); }
         tick -= dt; if (tick > 0) return; tick = 0.3;
         // the light extinguishes techniques: curses are erased, bosses scorched
         for (const e of this.foes(c, R)) {

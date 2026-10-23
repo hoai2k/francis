@@ -249,7 +249,7 @@ class YutaKit extends Kit {
       const [aL, aR] = grp.userData.arms;
       aL.rotation.x = -0.3 - (R.side === 0 ? R.swing * 2.6 : 0) + Math.sin(R.t * 3) * 0.1;
       aR.rotation.x = -0.3 - (R.side === 1 ? R.swing * 2.6 : 0) + Math.cos(R.t * 3) * 0.1;
-      if (Math.random() < 0.4) g.particles.glow.emit(grp.position.x + (Math.random() - 0.5) * 1.6, grp.position.y + Math.random() * 3, grp.position.z + (Math.random() - 0.5) * 1.6, 0, 0.8, 0, 0.7, 1.4, 0.6, 1.8, 0.18, -0.4, 1.5, 0.2, 0);
+      if (Math.random() < 0.4) g.particles.glow.spawn({ x: grp.position.x + (Math.random() - 0.5) * 1.6, y: grp.position.y + Math.random() * 3, z: grp.position.z + (Math.random() - 0.5) * 1.6, vy: 0.8, life: 0.7, r: 1.4, g: 0.6, b: 1.8, size: 0.18, gravity: -0.4, drag: 1.5 });
       if (R.cd <= 0) {
         const e = g.nearestEnemy(p.pos, this.rikaBoost ? 10 : 7.5);
         if (e) { R.cd = (1.15 - rk * 0.1) * (this.rikaBoost ? 0.6 : 1); R.swing = 1; R.side ^= 1; this.after(0.14, () => !e.dead && this.rikaSmash(e.pos.clone(), this.rikaBoost ? 1.5 : 1)); }
@@ -343,7 +343,7 @@ class YutaKit extends Kit {
       const from = p.pos.clone().addScaledVector(fwd, 1).setY(p.pos.y + 1.35);
       if (!beam) {
         p.facing = Math.atan2(p.aimDir.x, p.aimDir.z);
-        for (let i = 0; i < 5; i++) { const a = Math.random() * Math.PI * 2, r = 2.5; g.particles.glow.emit(from.x + Math.cos(a) * r, from.y + (Math.random() - 0.5) * 2, from.z + Math.sin(a) * r, -Math.cos(a) * 6, 0, -Math.sin(a) * 6, 0.4, 3, 1.4, 2.6, 0.16, 0, 2, 0.2, 1); }
+        for (let i = 0; i < 5; i++) { const a = Math.random() * Math.PI * 2, r = 2.5; g.particles.glow.spawn({ x: from.x + Math.cos(a) * r, y: from.y + (Math.random() - 0.5) * 2, z: from.z + Math.sin(a) * r, vx: -Math.cos(a) * 6, vz: -Math.sin(a) * 6, life: 0.4, r: 3, g: 1.4, b: 2.6, size: 0.16, drag: 2, shape: 'square' }); }
         if (t < CH) return true;
         g.lights.remove(light);
         beam = this.fireBeam(from, fwd.clone(), W, L, DMG);
@@ -462,7 +462,7 @@ class YutaKit extends Kit {
     g.audio?.tone({ freq: 200, to: 70, dur: 0.7, gain: 0.35, type: 'sawtooth', filter: 900, rev: 0.4 });
     this.during(0.45, (tt) => {
       if (t.dead) return false;
-      for (let i = 0; i < 3; i++) { const a = tt * 18 + i * 2.1, r = t.radius + 0.6; g.particles.glow.emit(t.pos.x + Math.cos(a) * r, t.pos.y + (tt / 0.45) * t.height, t.pos.z + Math.sin(a) * r, 0, 0.5, 0, 0.4, 2.2, 2, 2.6, 0.16, 0, 1, 0.3, 1); }
+      for (let i = 0; i < 3; i++) { const a = tt * 18 + i * 2.1, r = t.radius + 0.6; g.particles.glow.spawn({ x: t.pos.x + Math.cos(a) * r, y: t.pos.y + (tt / 0.45) * t.height, z: t.pos.z + Math.sin(a) * r, vy: 0.5, life: 0.4, r: 2.2, g: 2, b: 2.6, size: 0.16, drag: 1, sizeEnd: 0.3, shape: 'square' }); }
     }, () => {
       if (t.dead) return;
       this.hit(t, 80 + this.rank('speech') * 15, { stagger: 1, unblockable: true, crit: false, color: '#e8e0ff' });
@@ -477,7 +477,7 @@ class YutaKit extends Kit {
     p.action = { type: 'cast', both: true, dur: 0.75, elapsed: 0, t: 0, moveScale: 0.1, lock: true, faceAim: true };
     g.audio?.charge(0.5, 0.9);
     const orb = makeOrb(CE, { radius: 0.2, coreColor: 0xffffff }); g.scene.add(orb);
-    this.during(0.5, (t, dt, k) => { orb.position.copy(this.handPos()); orb.scale.setScalar(0.2 + k * 0.8); for (let i = 0; i < 3; i++) { const a = Math.random() * Math.PI * 2, r = 2; const o = orb.position; g.particles.glow.emit(o.x + Math.cos(a) * r, o.y + (Math.random() - 0.5) * 1.5, o.z + Math.sin(a) * r, -Math.cos(a) * 5, 0, -Math.sin(a) * 5, 0.4, 1.4, 2.2, 2.8, 0.14, 0, 1, 0.1, 1); } }, () => {
+    this.during(0.5, (t, dt, k) => { orb.position.copy(this.handPos()); orb.scale.setScalar(0.2 + k * 0.8); for (let i = 0; i < 3; i++) { const a = Math.random() * Math.PI * 2, r = 2; const o = orb.position; g.particles.glow.spawn({ x: o.x + Math.cos(a) * r, y: o.y + (Math.random() - 0.5) * 1.5, z: o.z + Math.sin(a) * r, vx: -Math.cos(a) * 5, vz: -Math.sin(a) * 5, life: 0.4, r: 1.4, g: 2.2, b: 2.8, size: 0.14, drag: 1, sizeEnd: 0.1, shape: 'square' }); } }, () => {
       const dir = this.fwd();
       const dmg = 34 + this.rank('speech') * 6;
       const pr = g.projectiles.fire({ pos: this.handPos(), vel: dir.clone().multiplyScalar(22), team: 'player', shape: 'orb', color: CE, scale: 0.01, life: 0.8, radius: 1.1, pierce: true, light: 5,
@@ -592,7 +592,7 @@ class YutaKit extends Kit {
     g.audio?.tone({ freq: 700, to: 300, dur: 0.9, gain: 0.15, type: 'sawtooth', filter: 2500, rev: 0.5 }); g.audio?.noise({ dur: 0.8, gain: 0.35, type: 'bandpass', freq: 1500, sweep: 600, q: 1.5 });
     const from = this.rika ? this.rika.grp.position.clone().setY(this.rika.grp.position.y + 2.9) : p.pos.clone().setY(p.pos.y + 1.6);
     for (let k = 0; k < 4; k++) this.after(k * 0.07, () => g.fx.rings.spawn(from.clone().addScaledVector(f, 1 + k * 1.5), { color: RIKA, r0: 0.4 + k * 0.8, r1: 1.2 + k * 1.4, dur: 0.3, thick: 0.1, tilt: new THREE.Quaternion().setFromUnitVectors(tmp.set(0, 0, 1), f) }));
-    for (let i = 0; i < 24; i++) { const a = Math.atan2(f.x, f.z) + (Math.random() - 0.5) * arc * 2, sp = 10 + Math.random() * 5; g.particles.glow.emit(from.x, from.y, from.z, Math.sin(a) * sp, (Math.random() - 0.5) * 2, Math.cos(a) * sp, range / sp, 2.4, 1.2, 2.6, 0.2, 0, 1, 0.8, 0); }
+    for (let i = 0; i < 24; i++) { const a = Math.atan2(f.x, f.z) + (Math.random() - 0.5) * arc * 2, sp = 10 + Math.random() * 5; g.particles.glow.spawn({ pos: from, vx: Math.sin(a) * sp, vy: (Math.random() - 0.5) * 2, vz: Math.cos(a) * sp, life: range / sp, r: 2.4, g: 1.2, b: 2.6, size: 0.2, drag: 1, sizeEnd: 0.8 }); }
     for (const e of this.foes(p.pos, range, f, arc)) {
       this.hit(e, 22 + this.rank('rika') * 5, { stagger: 0.6, knock: tmp.subVectors(e.pos, p.pos).setY(0).normalize().multiplyScalar(11), unblockable: true });
       hold(e, 1.4);
@@ -620,7 +620,7 @@ class YutaKit extends Kit {
           R.scale.setScalar(Math.min(1, (b.dur - b.left) * 4) * 1.05);
         }
         for (const arm of grp.userData.arms) arm.rotation.x = -1.3 + Math.sin(g.time * 3) * 0.05;   // arms wrapped around him
-        if (Math.random() < 0.4) g.particles.glow.emit(p.pos.x + (Math.random() - 0.5) * 1.4, p.pos.y + Math.random() * 2.2, p.pos.z + (Math.random() - 0.5) * 1.4, 0, 0.5, 0, 0.5, 2.2, 1, 2.6, 0.14, 0, 1, 0.2, 0);
+        if (Math.random() < 0.4) g.particles.glow.spawn({ x: p.pos.x + (Math.random() - 0.5) * 1.4, y: p.pos.y + Math.random() * 2.2, z: p.pos.z + (Math.random() - 0.5) * 1.4, vy: 0.5, life: 0.5, r: 2.2, g: 1, b: 2.6, size: 0.14, drag: 1 });
       },
       onEnd: () => { if (R) { g.scene.remove(R); g.fx.blinkPuff(R.position, RIKA); } },
     });
@@ -688,9 +688,9 @@ class YutaKit extends Kit {
     this.after(0.45, () => { if (p.action?.lock) p.action = null; });
     g.toast?.('Overwhelming Cursed Energy');
     this.blast(p.pos.clone(), 6, 40, { color: CE, knock: 15, stagger: 0.9, explode: false });
-    for (let i = 0; i < 40; i++) { const a = Math.random() * Math.PI * 2; g.particles.glow.emit(p.pos.x, p.pos.y + 0.5 + Math.random() * 1.5, p.pos.z, Math.cos(a) * 12, Math.random() * 3, Math.sin(a) * 12, 0.5, 1.6, 2.2, 3, 0.3, 0, 2, 1.2, 0); }
+    for (let i = 0; i < 40; i++) { const a = Math.random() * Math.PI * 2; g.particles.glow.spawn({ x: p.pos.x, y: p.pos.y + 0.5 + Math.random() * 1.5, z: p.pos.z, vx: Math.cos(a) * 12, vy: Math.random() * 3, vz: Math.sin(a) * 12, life: 0.5, r: 1.6, g: 2.2, b: 3, size: 0.3, drag: 2, sizeEnd: 1.2 }); }
     g.fx.flash(0xc0e0ff, 0.35, 0.2); g.fx.screenWave(p.pos.clone().setY(p.pos.y + 1), 1.2, 0.5); g.fx.chroma(0.8);
-    this.statBuff('ce_overflow', 3, { armor: 0.4 }, { onTick: () => { if (Math.random() < 0.5) g.particles.glow.emit(p.pos.x + (Math.random() - 0.5) * 1, p.pos.y + Math.random() * 2, p.pos.z + (Math.random() - 0.5) * 1, 0, 1.5, 0, 0.5, 1.4, 2, 2.8, 0.2, 0, 1, 0.1, 0); } });
+    this.statBuff('ce_overflow', 3, { armor: 0.4 }, { onTick: () => { if (Math.random() < 0.5) g.particles.glow.spawn({ x: p.pos.x + (Math.random() - 0.5) * 1, y: p.pos.y + Math.random() * 2, z: p.pos.z + (Math.random() - 0.5) * 1, vy: 1.5, life: 0.5, r: 1.4, g: 2, b: 2.8, size: 0.2, drag: 1, sizeEnd: 0.1 }); } });
     g.audio?.energy('blue');
   }
 }

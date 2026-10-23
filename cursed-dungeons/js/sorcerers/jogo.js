@@ -147,8 +147,8 @@ class JogoKit extends Kit {
           for (let k = 0; k < 2; k++) g.particles.burst(at, { count: 18, color: k ? LAVA : EMBER, speed: 6, spread: 0.3, dir: tmp.set(0, 4, 0), life: 1.1, size: 0.4, sizeEnd: 0.1, gravity: 9, intensity: 3 });
         }
         // falling ash and embers, heat shimmer
-        for (let i = 0; i < 4; i++) { const a = Math.random() * Math.PI * 2, rr = Math.random() * d.radius; g.particles.glow.emit(d.center.x + Math.cos(a) * rr, d.center.y + 6 + Math.random() * 6, d.center.z + Math.sin(a) * rr, 0, -2, 0, 2, 3, 1.2, 0.3, 0.1, 0, 0.5, 0.5, 1); }
-        if (Math.random() < 0.3) { const a = Math.random() * Math.PI * 2, rr = Math.random() * d.radius; g.particles.smoke.emit(d.center.x + Math.cos(a) * rr, d.center.y + 8, d.center.z + Math.sin(a) * rr, 0, -0.6, 0, 2.5, 0.12, 0.09, 0.08, 1.4, 0, 0.5, 3, 0); }
+        for (let i = 0; i < 4; i++) { const a = Math.random() * Math.PI * 2, rr = Math.random() * d.radius; g.particles.glow.spawn({ x: d.center.x + Math.cos(a) * rr, y: d.center.y + 6 + Math.random() * 6, z: d.center.z + Math.sin(a) * rr, vy: -2, life: 2, r: 3, g: 1.2, b: 0.3, size: 0.1, drag: 0.5, sizeEnd: 0.5, shape: 'square' }); }
+        if (Math.random() < 0.3) { const a = Math.random() * Math.PI * 2, rr = Math.random() * d.radius; g.particles.smoke.spawn({ x: d.center.x + Math.cos(a) * rr, y: d.center.y + 8, z: d.center.z + Math.sin(a) * rr, vy: -0.6, life: 2.5, r: 0.12, g: 0.09, b: 0.08, size: 1.4, drag: 0.5, sizeEnd: 3 }); }
         // the crater walls' lava streams pulse
         if (this.crater) this.crater.userData.lava.emissiveIntensity = 3 + Math.sin(g.time * 5) * 0.8;
       },
@@ -240,8 +240,8 @@ class JogoKit extends Kit {
     let t = 0;
     g.addUpdater((dt) => {
       t += dt;
-      for (let i = 0; i < 2; i++) { const a = Math.random() * Math.PI * 2, rr = Math.random() * R; g.particles.glow.emit(at.x + Math.cos(a) * rr, at.y + 0.1, at.z + Math.sin(a) * rr, 0, 1.5, 0, 0.4, 3, 0.9, 0.2, 0.12, 0, 1, 0.5, 1); }
-      if (Math.random() < 0.3) g.particles.smoke.emit(at.x + (Math.random() - 0.5) * R, at.y + 0.2, at.z + (Math.random() - 0.5) * R, 0, 1.2, 0, 1, 0.15, 0.1, 0.08, 0.5, -0.2, 1, 2, 0);
+      for (let i = 0; i < 2; i++) { const a = Math.random() * Math.PI * 2, rr = Math.random() * R; g.particles.glow.spawn({ x: at.x + Math.cos(a) * rr, y: at.y + 0.1, z: at.z + Math.sin(a) * rr, vy: 1.5, life: 0.4, r: 3, g: 0.9, b: 0.2, size: 0.12, drag: 1, sizeEnd: 0.5, shape: 'square' }); }
+      if (Math.random() < 0.3) g.particles.smoke.spawn({ x: at.x + (Math.random() - 0.5) * R, y: at.y + 0.2, z: at.z + (Math.random() - 0.5) * R, vy: 1.2, life: 1, r: 0.15, g: 0.1, b: 0.08, size: 0.5, gravity: -0.2, drag: 1, sizeEnd: 2 });
       if (t < warn) return true;
       // ERUPTION
       g.combat.aoe(at, R, (34 + rk * 12) * mult, p, { knock: 6, stagger: 0.8 });
@@ -316,7 +316,7 @@ class JogoKit extends Kit {
       rock.position.lerpVectors(start, at, k * k);
       core.rotation.x += dt * 3; core.rotation.y += dt * 2;
       for (let i = 0; i < 6; i++) g.particles.burst(tmp.copy(rock.position).add(new THREE.Vector3((Math.random() - 0.5) * 2, (Math.random() - 0.5) * 2, (Math.random() - 0.5) * 2)), { count: 1, color: Math.random() < 0.5 ? FIRE : EMBER, speed: 1, up: 1.5, life: 0.6, size: 1, sizeEnd: 2.5, intensity: 3 });
-      if (Math.random() < 0.6) g.particles.smoke.emit(rock.position.x, rock.position.y + 1, rock.position.z, 0, 2, 0, 1.4, 0.12, 0.08, 0.06, 1.2, -0.1, 1, 3, 0);
+      if (Math.random() < 0.6) g.particles.smoke.spawn({ x: rock.position.x, y: rock.position.y + 1, z: rock.position.z, vy: 2, life: 1.4, r: 0.12, g: 0.08, b: 0.06, size: 1.2, gravity: -0.1, drag: 1, sizeEnd: 3 });
       if (k < 1) return true;
       g.scene.remove(rock); g.lights.remove(light);
       g.fx.explosion(at, FIRE, R);
@@ -370,9 +370,9 @@ class JogoKit extends Kit {
       const from = this.handPos(), f = p.facing;
       for (let i = 0; i < 9; i++) {
         const a = f + (Math.random() - 0.5) * arc * 2, sp = 10 + Math.random() * 6;
-        g.particles.glow.emit(from.x, from.y, from.z, Math.sin(a) * sp, (Math.random() - 0.3) * 2, Math.cos(a) * sp, range / sp, 3, 1.1 + Math.random() * 0.8, 0.25, 0.4, -1, 0.8, 1.8, 0);
+        g.particles.glow.spawn({ pos: from, vx: Math.sin(a) * sp, vy: (Math.random() - 0.3) * 2, vz: Math.cos(a) * sp, life: range / sp, r: 3, g: 1.1 + Math.random() * 0.8, b: 0.25, size: 0.4, gravity: -1, drag: 0.8, sizeEnd: 1.8 });
       }
-      if (Math.random() < 0.3) g.particles.smoke.emit(from.x + Math.sin(f) * 4, from.y + 1, from.z + Math.cos(f) * 4, 0, 1.4, 0, 1.2, 0.14, 0.1, 0.08, 1, -0.2, 1, 2.5, 0);
+      if (Math.random() < 0.3) g.particles.smoke.spawn({ x: from.x + Math.sin(f) * 4, y: from.y + 1, z: from.z + Math.cos(f) * 4, vy: 1.4, life: 1.2, r: 0.14, g: 0.1, b: 0.08, size: 1, gravity: -0.2, drag: 1, sizeEnd: 2.5 });
       if (tick <= 0) { tick = 0.15; for (const e of this.foes(p.pos, range, tmp2.set(Math.sin(f), 0, Math.cos(f)), arc)) this.burn(e, 7 + this.rank('orb') * 2, { stagger: 0.12 }); }
     }, () => g.lights.remove(light));
   }
@@ -389,7 +389,7 @@ class JogoKit extends Kit {
       });
     }
     this.after(0.3, () => this.during(dur, () => {
-      for (let k = 0; k < 2; k++) { const s = (Math.random() - 0.5) * 9; g.particles.glow.emit(c.x + side.x * s, c.y + 0.2, c.z + side.z * s, 0, 3 + Math.random() * 3, 0, 0.6, 3, 1.1, 0.25, 0.5, 0, 1, 0.1, 0); }
+      for (let k = 0; k < 2; k++) { const s = (Math.random() - 0.5) * 9; g.particles.glow.spawn({ x: c.x + side.x * s, y: c.y + 0.2, z: c.z + side.z * s, vy: 3 + Math.random() * 3, life: 0.6, r: 3, g: 1.1, b: 0.25, size: 0.5, drag: 1, sizeEnd: 0.1 }); }
     }));
     g.audio?.energy('fire');
   }
@@ -402,7 +402,7 @@ class JogoKit extends Kit {
     this.statBuff('heat_haze', 8, { techMult: 0.15 }, {
       onTick: (dt) => {
         tick -= dt;
-        for (let i = 0; i < 2; i++) { const a = Math.random() * Math.PI * 2; g.particles.glow.emit(p.pos.x + Math.cos(a) * 0.7, p.pos.y + Math.random() * 1.8, p.pos.z + Math.sin(a) * 0.7, 0, 1.5, 0, 0.5, 3, 1.2, 0.3, 0.25, -0.5, 1, 0.05, 0); }
+        for (let i = 0; i < 2; i++) { const a = Math.random() * Math.PI * 2; g.particles.glow.spawn({ x: p.pos.x + Math.cos(a) * 0.7, y: p.pos.y + Math.random() * 1.8, z: p.pos.z + Math.sin(a) * 0.7, vy: 1.5, life: 0.5, r: 3, g: 1.2, b: 0.3, size: 0.25, gravity: -0.5, drag: 1, sizeEnd: 0.05 }); }
         if (tick <= 0) { tick = 0.5; for (const e of this.foes(p.pos, 2.8)) this.burn(e, 6, { stagger: 0 }); }
       },
     });
@@ -412,7 +412,7 @@ class JogoKit extends Kit {
     p.action = { type: 'cast', both: true, dur: 0.85, elapsed: 0, t: 0, moveScale: 0, lock: true, hold: true, cancelable: false };
     g.markers.spawn({ pos: c, dur: 0.6, radius: R, color: FIRE });
     g.toast?.('Disaster Flames'); g.audio?.charge(0.6, 0.6);
-    this.during(0.6, () => { for (let i = 0; i < 4; i++) { const a = Math.random() * Math.PI * 2, r = Math.random() * R; g.particles.glow.emit(c.x + Math.cos(a) * r, c.y + 0.1, c.z + Math.sin(a) * r, 0, 2, 0, 0.4, 3, 1, 0.2, 0.15, 0, 1, 0.5, 1); } });
+    this.during(0.6, () => { for (let i = 0; i < 4; i++) { const a = Math.random() * Math.PI * 2, r = Math.random() * R; g.particles.glow.spawn({ x: c.x + Math.cos(a) * r, y: c.y + 0.1, z: c.z + Math.sin(a) * r, vy: 2, life: 0.4, r: 3, g: 1, b: 0.2, size: 0.15, drag: 1, sizeEnd: 0.5, shape: 'square' }); } });
     this.after(0.6, () => {
       if (p.action?.lock) p.action = null;
       this.blast(c, R, 70 + this.rank('volcano') * 10, { color: FIRE, knock: 13, stagger: 0.9, unblockable: true });
@@ -547,7 +547,7 @@ class JogoKit extends Kit {
       let tick = 0;
       this.during(4, (t, dt) => {
         // the swarm overhead
-        for (let i = 0; i < 4; i++) { const a = Math.random() * Math.PI * 2, r = Math.random() * R; g.particles.glow.emit(c.x + Math.cos(a) * r, c.y + 6 + Math.random() * 2, c.z + Math.sin(a) * r, Math.sin(a + t) * 3, (Math.random() - 0.5), Math.cos(a + t) * 3, 0.5, 3, 1.6, 0.4, 0.22, 0, 1, 0.3, 0); }
+        for (let i = 0; i < 4; i++) { const a = Math.random() * Math.PI * 2, r = Math.random() * R; g.particles.glow.spawn({ x: c.x + Math.cos(a) * r, y: c.y + 6 + Math.random() * 2, z: c.z + Math.sin(a) * r, vx: Math.sin(a + t) * 3, vy: (Math.random() - 0.5), vz: Math.cos(a + t) * 3, life: 0.5, r: 3, g: 1.6, b: 0.4, size: 0.22, drag: 1, sizeEnd: 0.3 }); }
         tick -= dt; if (tick > 0) return;
         tick = 0.12;
         const a = Math.random() * Math.PI * 2, r = Math.sqrt(Math.random()) * R;
@@ -565,11 +565,11 @@ class JogoKit extends Kit {
     at.y = this.groundAt(at.x, at.z, at.y);
     this.cast(0.4, true);
     g.markers.spawn({ pos: at, dur: 0.55, radius: 1.9, color: FIRE });
-    this.during(0.55, () => { g.particles.glow.emit(at.x + (Math.random() - 0.5) * 2, at.y + 0.1, at.z + (Math.random() - 0.5) * 2, 0, 2, 0, 0.4, 3, 1, 0.2, 0.15, 0, 1, 0.5, 1); });
+    this.during(0.55, () => { g.particles.glow.spawn({ x: at.x + (Math.random() - 0.5) * 2, y: at.y + 0.1, z: at.z + (Math.random() - 0.5) * 2, vy: 2, life: 0.4, r: 3, g: 1, b: 0.2, size: 0.15, drag: 1, sizeEnd: 0.5, shape: 'square' }); });
     this.after(0.55, () => {
       g.combat.aoe(at, 1.9, 75 + this.rank('orb') * 10, p, { knock: 2, stagger: 0.9, unblockable: true });
       for (const e of this.foes(at, 2.2)) if (!e.isBoss) e.vel.y = Math.max(e.vel.y, 10);
-      this.during(0.6, () => { for (let i = 0; i < 6; i++) g.particles.glow.emit(at.x + (Math.random() - 0.5) * 1.4, at.y + Math.random() * 2, at.z + (Math.random() - 0.5) * 1.4, 0, 14 + Math.random() * 6, 0, 0.6, 3, 1.2 + Math.random(), 0.25, 0.7, 0, 0.5, 0.2, 0); });
+      this.during(0.6, () => { for (let i = 0; i < 6; i++) g.particles.glow.spawn({ x: at.x + (Math.random() - 0.5) * 1.4, y: at.y + Math.random() * 2, z: at.z + (Math.random() - 0.5) * 1.4, vy: 14 + Math.random() * 6, life: 0.6, r: 3, g: 1.2 + Math.random(), b: 0.25, size: 0.7, drag: 0.5 }); });
       g.fx.shockwave(at, FIRE, 3); g.lights.flash(at.clone().setY(at.y + 4), FIRE, 18, 14, 0.6, { priority: 5 });
       this.lava(at, 1.4, 14, 3);
       g.shake(0.35); g.hitStop(0.04); g.audio?.energy('explode');
@@ -607,7 +607,7 @@ class JogoKit extends Kit {
     g.audio?.noise({ dur: 0.7, gain: 0.4, type: 'highpass', freq: 1800, sweep: 4000 });
     this.blast(p.pos.clone(), 3.8, 12, { color: 0xffd0a0, knock: 12, stagger: 0.6, explode: false });
     this.statBuff('boiling', 4, { armor: 0.3 }, {
-      onTick: () => { if (Math.random() < 0.4) g.particles.smoke.emit(p.pos.x + (Math.random() - 0.5) * 0.4, p.pos.y + 2.4, p.pos.z + (Math.random() - 0.5) * 0.4, 0, 2.5, 0, 0.9, 0.7, 0.7, 0.72, 0.5, -0.5, 1, 1.6, 0); },
+      onTick: () => { if (Math.random() < 0.4) g.particles.smoke.spawn({ x: p.pos.x + (Math.random() - 0.5) * 0.4, y: p.pos.y + 2.4, z: p.pos.z + (Math.random() - 0.5) * 0.4, vy: 2.5, life: 0.9, r: 0.7, g: 0.7, b: 0.72, size: 0.5, gravity: -0.5, drag: 1, sizeEnd: 1.6 }); },
     });
   }
   fireDash() {

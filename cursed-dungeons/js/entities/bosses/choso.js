@@ -96,8 +96,8 @@ export function buildChoso() {
     m.userData.glow.value.setRGB(0.25 * scale, 0.0, 0.02 * scale);
     if (b.lightH) { b.lightH.intensity = 3 + scale * 3; b.lightH.offsetY = 5.2; }
     // dripping blood, and steam off him while Flowing Red Scale burns
-    if (Math.random() < dt * 3) { (Math.random() < 0.5 ? rig.handR : rig.handL).getWorldPosition(v1); Pt.glow.emit(v1.x, v1.y - 0.1, v1.z, 0, -1, 0, 0.8, 1.6, 0.05, 0.1, 0.08, 14, 0.2, 0.6, 1); }
-    if (scale) for (let i = rate(14, dt, bud); i > 0; i--) { Pt.smoke.emit(b.pos.x + rnd(0.7), b.pos.y + 1 + Math.random() * 2.5, b.pos.z + rnd(0.7), rnd(0.3), 1.2, rnd(0.3), 1, 0.7, 0.62, 0.62, 0.3, -0.5, 1.2, 2, 0); Pt.glow.emit(b.pos.x + rnd(0.6), b.pos.y + Math.random() * 3.5, b.pos.z + rnd(0.6), 0, 1, 0, 0.6, 2.4, 0.1, 0.2, 0.1, 0, 1, 0.1, 0); }
+    if (Math.random() < dt * 3) { (Math.random() < 0.5 ? rig.handR : rig.handL).getWorldPosition(v1); Pt.glow.spawn({ x: v1.x, y: v1.y - 0.1, z: v1.z, vy: -1, life: 0.8, r: 1.6, g: 0.05, b: 0.1, size: 0.08, gravity: 14, drag: 0.2, sizeEnd: 0.6, shape: 'square' }); }
+    if (scale) for (let i = rate(14, dt, bud); i > 0; i--) { Pt.smoke.spawn({ x: b.pos.x + rnd(0.7), y: b.pos.y + 1 + Math.random() * 2.5, z: b.pos.z + rnd(0.7), vx: rnd(0.3), vy: 1.2, vz: rnd(0.3), life: 1, r: 0.7, g: 0.62, b: 0.62, size: 0.3, gravity: -0.5, drag: 1.2, sizeEnd: 2 }); Pt.glow.spawn({ x: b.pos.x + rnd(0.6), y: b.pos.y + Math.random() * 3.5, z: b.pos.z + rnd(0.6), vy: 1, life: 0.6, r: 2.4, g: 0.1, b: 0.2, size: 0.1, drag: 1, sizeEnd: 0.1 }); }
   };
   rig.fx = fx;
   return rig;
@@ -168,7 +168,7 @@ export const choso = {
       this.still(); this.pose('sign');
       this.callout('Convergence');
       g.audio?.charge(0.9, 0.7);
-      for (let k = 0; k < 9; k++) { const h = this.rig.handR.getWorldPosition(V()); for (let i = 0; i < 6; i++) { const a = Math.random() * 6.28, r = 1.6; g.particles.glow.emit(h.x + Math.cos(a) * r, h.y + (Math.random() - 0.5), h.z + Math.sin(a) * r, -Math.cos(a) * r * 3, 0, -Math.sin(a) * r * 3, 0.3, 2, 0.05, 0.1, 0.14, 0, 0, 0.05, 0); } yield 0.1; }
+      for (let k = 0; k < 9; k++) { const h = this.rig.handR.getWorldPosition(V()); for (let i = 0; i < 6; i++) { const a = Math.random() * 6.28, r = 1.6; g.particles.glow.spawn({ x: h.x + Math.cos(a) * r, y: h.y + (Math.random() - 0.5), z: h.z + Math.sin(a) * r, vx: -Math.cos(a) * r * 3, vz: -Math.sin(a) * r * 3, life: 0.3, r: 2, g: 0.05, b: 0.1, size: 0.14, sizeEnd: 0.05 }); } yield 0.1; }
       yield* this.B.moves.piercing_blood.call(this, true);
     },
     // 超新星 Supernova: blood orbs hang in the air and burst into spikes
