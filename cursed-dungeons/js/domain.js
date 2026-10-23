@@ -41,6 +41,10 @@ const PLAYER_DOMAINS = {
   authentic_mutual_love:   { dur: 15, radius: 24, rim: 0xe8b8ff, power: 9, bonus: true },
   ceremonial_sea_of_light: { dur: 13, radius: 24, rim: 0xfff0a0, power: 6, bonus: true },
   time_cell_moon_palace:   { dur: 12, radius: 24, rim: 0xa8f0ff, power: 6, bonus: true },
+  reverse_transcendence:   { dur: 15, radius: 25, rim: 0xfff4c8, power: 9, bonus: true },   // Dabura (JJK Modulo)
+  captivating_skandha:     { dur: 14, radius: 25, rim: 0x5ad8ff, power: 6, bonus: true },   // Dagon
+  womb_profusion:          { dur: 15, radius: 25, rim: 0xc83a5a, power: 9, bonus: true },   // Kenjaku
+  threefold_affliction:    { dur: 13, radius: 24, rim: 0xd8d8e8, power: 8, bonus: true },   // Yorozu
 };
 // boss domains, keyed by name (several share a DOMAINS env key)
 const BOSS_DOMAINS = {
@@ -54,6 +58,8 @@ const BY_NAME = {
   'Idle Death Gamble': 'pure_love_train', 'Deadly Sentencing': 'deadly_sentencing', 'Self-Embodiment of Perfection': 'self_embodiment',
   'Coffin of the Iron Mountain': 'coffin_iron_mountain', 'Authentic Mutual Love': 'authentic_mutual_love',
   'Ceremonial Sea of Light': 'ceremonial_sea_of_light', 'Time Cell Moon Palace': 'time_cell_moon_palace',
+  'Otherworld Between Darkness and Light: Reverse Transcendence': 'reverse_transcendence',
+  'Womb Profusion': 'womb_profusion', 'Threefold Affliction': 'threefold_affliction',
 };
 export function domainSpec(caster, def) {
   const boss = !!caster?.isBoss;

@@ -112,6 +112,12 @@ const techQuip = (g) => {
     panda: 'Gorilla Core? Did Yaga make you? ...No? Huh.',
     todo: 'Boogie Woogie. Please never ask me what type of woman I like.',
     hakari: 'A gambler, huh? Just don\'t bet your life on a pachinko reel.',
+    kenjaku: 'Anti-Gravity System... and those stitches. If you start talking about "the next era of jujutsu", I am sealing you myself.',
+    dabura: 'Light AND Darkness? Seventy years from now that would be the scariest thing in the sky. Today it\'s just you. Lucky us.',
+    dagon: 'Disaster Tides. Last time I saw that one, it was being rude to Naobito on a beach.',
+    angel: 'Jacob\'s Ladder. Please don\'t point it at me. I mean it.',
+    takaba: 'Comedian? Okay, okay. Tell me a joke. ...No, a good one.',
+    uiui: 'Space Manipulation! Mei Mei\'s going to want a cut of everything you earn.',
   }[id] ?? 'Interesting! Let\'s find out how far it goes.';
 };
 

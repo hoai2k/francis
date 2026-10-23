@@ -67,7 +67,7 @@ export class HUD {
     mk('heal', { name: 'Reverse CT', icon: '✚' });
     p.artifacts.forEach((a, i) => mk('art' + (i + 1), { name: a.base.name.split(' ').slice(-1)[0], icon: a.base.icon }));
     const ult = k.domain ?? k.ultimate;
-    if (ult) mk('domain', { name: ult.name, icon: ult.icon ?? '領' }, true);
+    if (ult) mk('domain', { name: ult.short ?? ult.name, icon: ult.icon ?? '領' }, true);
     this.abilityRows.set(p, { p, els, device: p.device, kit: p.kit, sig: p.artifacts.map((a) => a.it.uid).join() });
   }
   setObjective(title, desc) {
