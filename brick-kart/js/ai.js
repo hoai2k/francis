@@ -80,6 +80,13 @@ export class AIDriver {
       const di = (r.i - i + tr.N) % tr.N;
       if (di < 45) { want = 0; this.lane *= 0.9; break; }
     }
+    // tricks: in the air off a jump, CPUs trick like players do (better drivers more often; one
+    // roll per jump)
+    if (k.grounded) this.trickRoll = null;
+    else if (k.canTrick && !k.trickDone && k.airTime > 0.18) {
+      this.trickRoll ??= Math.random() < 0.35 + sk * 0.6;
+      if (this.trickRoll) c.driftPressed = true;
+    }
     // steer to target point
     const j = tr.wrap(i + la);
     const tp = tr.at(j, this.lane * tr.HW[j] * 0.85, 0);

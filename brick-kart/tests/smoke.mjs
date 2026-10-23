@@ -58,6 +58,50 @@ for (const id of MAPS.filter((m) => !only.length || only.includes(m))) {
     await sleep(3000);
     const d1 = await page.evaluate(() => Math.max(...window.game.race.karts.map((k) => k.raceDist)));
     if (!(d1 > d0)) throw new Error(`karts did not move (${d0} -> ${d1})`);
+    // every jump: a CPU kart set down at speed before it must take off, land back on the road
+    // (no respawn) and carry on past it
+    const res = await page.evaluate(async () => {
+      const race = window.game.race, tr = race.track;
+      const cpus = race.karts.filter((k) => !k.human);
+      const out = [];
+      for (let b = 0; b < tr.ramps.length; b += cpus.length) {
+        const batch = tr.ramps.slice(b, b + cpus.length).map((r, n) => {
+          const k = cpus[n], i0 = tr.wrap(r.i - 45);
+          k.place(i0, 0); k.lastSafe = i0; k.speed = k.topSpeed; k.respawn = 0;
+          const st = { r, k, i0, flew: false, landed: false, respawned: false, trick: false };
+          k._jt = st;
+          const orig = k.startRespawn;
+          k.startRespawn = function () { if (this._jt) this._jt.respawned = true; return orig.call(this); };
+          return st;
+        });
+        const t0 = performance.now();
+        await new Promise((done) => {
+          const tick = () => {
+            for (const st of batch) {
+              const k = st.k, past = (k.loc.i - st.r.i + tr.N) % tr.N;
+              if (st.done) continue;
+              if (!k.grounded && k.launched) st.flew = true;
+              if (k.trickDone) st.trick = true;
+              if (st.flew && k.grounded) st.landed = true;
+              // landed and driven on: this jump is done (what happens further on is another jump's)
+              if (st.landed && past > 30 && past < tr.N / 2) { st.done = true; st.past = past; delete k._jt; }
+            }
+            // (a glider flight can last 11 s)
+            if (performance.now() - t0 > 20000 || batch.every((s) => s.done)) done(); else requestAnimationFrame(tick);
+          };
+          tick();
+        });
+        for (const st of batch) {
+          const past = st.past ?? (st.k.loc.i - st.r.i + tr.N) % tr.N;
+          out.push({ i: st.r.i, kind: st.r.kind, flew: st.flew, landed: st.landed, respawned: st.respawned, past: past < tr.N / 2 ? past : past - tr.N, trick: st.trick });
+          delete st.k._jt;
+        }
+      }
+      return out;
+    });
+    const bad = res.filter((j) => !j.flew || !j.landed || j.respawned || j.past < 20);
+    console.log(`     ${res.length} jumps (${res.map((j) => ({ ramp: 'R', bump: 'b', boost: 'B', glide: 'G' })[j.kind]).join('')}), ${res.filter((j) => j.trick).length} tricked by CPUs`);
+    if (bad.length) throw new Error('jumps that went wrong: ' + JSON.stringify(bad));
   });
 }
 

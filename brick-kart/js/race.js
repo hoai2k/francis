@@ -6,6 +6,7 @@ import { World } from './world.js';
 import { Kart, angleDiff, lerpAngle } from './kart.js';
 import { Effects } from './effects.js';
 import { Items, rollItem, MULTI } from './items.js';
+import { JUMPS } from './track.js';
 import { AIDriver } from './ai.js';
 import { CHARACTERS } from './characters.js';
 import { DRIVERS } from './driver.js';
@@ -443,7 +444,7 @@ export class Race {
           const di = ((r.i - k.loc.i) + tr.N) % tr.N;
           if (di <= 2 && Math.abs(k.loc.lat) < tr.HW[r.i] && k.speed > 8) {
             if (r.glide) { k.launch(15, true); k.boostTime = Math.max(k.boostTime, 0.6); k.speed = Math.max(k.speed, k.topSpeed * 0.95); }
-            else { k.launch(14 + Math.min(10, k.speed * 0.14)); k.boostTime = Math.max(k.boostTime, 0.25); }
+            else { const j = JUMPS[r.kind]; k.launch(j.vy + Math.min(j.maxExtra, k.speed * j.perSpeed)); if (j.boost) k.boostTime = Math.max(k.boostTime, j.boost); }
           }
         }
       }

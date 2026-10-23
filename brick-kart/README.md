@@ -49,6 +49,11 @@ the road, and hazards to dodge. Most of them have **glider ramps**: drive onto
 the blue ramp and a brick glider pops out so you can fly across a lake, a bay
 or the sky.
 
+Like Mario Kart, every lap has 5 to 7 jumps to trick off (about one every 10
+seconds): orange **trick ramps**, low **bumps** across the road for a short hop,
+**boost ramps** (a dash pad into a taller ramp for a long jump) and the glider
+ramps. Driving fast off a lip or a crest counts as a jump too.
+
 | Cup | Map | Highlights |
 | --- | --- | --- |
 | Stud | Brick City Circuit | Figure-8 overpass, traffic cars and a bus, a canal jump, a fountain splitting the road, a tunnel through a skyscraper |
@@ -335,9 +340,14 @@ you drop some.
 | Look behind | click a stick | Q | |
 | Pause | Start | Esc / P | II |
 
-- **Drift**: hold drift while you turn. The sparks go blue, then orange, then
-  purple. Let go for a mini-turbo.
-- **Tricks**: tap drift in mid-air after a ramp to land with a boost.
+- **Drift**: tap drift to hop, and hold it while you steer to drift. The sparks
+  go blue (1 s), then orange (2.1 s), then purple (3.3 s); steering into the turn
+  charges them faster. Let go for a boost: a Mini-Turbo, Super Mini-Turbo or Ultra
+  Mini-Turbo lasting 0.6, 1.7 or 2.6 s, as in Mario Kart 8 Deluxe. Going off the
+  road or slowing right down ends the drift with no boost.
+- **Tricks**: tap drift in mid-air off any jump (ramps, bumps, boost and glider
+  ramps, or driving fast off a lip) to land with a 0.8 s boost. Getting hit in the
+  air loses it. CPU racers trick too.
 - **Rocket start**: hold accelerate just after the second start light comes on.
 - **Gliding**: steer while you fly; the glider banks into the turn like a plane. Let go and it
   eases back towards the middle of the track. You land wherever the road is below you, and once you're past the gap you come down twice as fast. Ground obstacles like hay bales and cupcakes only stop you if you fly low enough to hit them. Fly over buildings, rocks and other scenery beside the track and you land on their tops like on the ground (pulling up in time for a taller one ahead) instead of flying through them: the glider folds away and you drive across the roof at full speed (a taller building next to it is a wall). Drive off the edge with a real drop below and the glider opens again, like a glide ramp. Gates, arches and bridges over the road itself stay as they were.
