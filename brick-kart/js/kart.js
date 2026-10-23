@@ -5,8 +5,13 @@ import { buildDriver, DriverAnim, combinedStats } from './driver.js';
 import { plastic } from './lego.js';
 
 const G = 42;
+// drift charge (seconds of drifting, faster while steering into the turn) for blue, orange and
+// purple sparks, and the boost each gives on release: Mario Kart 8 Deluxe's Mini-Turbo, Super
+// Mini-Turbo and Ultra Mini-Turbo last about 0.62, 1.67 and 2.63 s
 const DRIFT_LEVELS = [1.0, 2.1, 3.3];
-const DRIFT_BOOST = [0.7, 1.15, 1.7];
+const DRIFT_BOOST = [0.62, 1.67, 2.63];
+// a trick in the air (tap drift) boosts on landing
+const TRICK_BOOST = 0.8;
 export const SPARK_COLORS = [0x7fd4ff, 0xff9a1a, 0xd05aff];
 
 // Angle helpers are constant-time and never loop: a while-loop wrap spins forever on a
@@ -204,6 +209,7 @@ export class Kart {
     if (this.remote || this.invincible || this.finishedCoast) return false;
     if (this.shieldBlocks()) return false;
     this.cancelDrift();
+    this.trickDone = false; this.canTrick = false;   // a hit in the air loses the trick boost
     if (this.megaTime > 0) {
       // a hit only shrinks a mega kart back to normal size
       this.megaTime = 0; this.speed *= 0.6; this.invuln = 1.2;
@@ -512,6 +518,9 @@ export class Kart {
         this.pos.y = gY;
       } else {
         this.grounded = false; this.airTime = 0; this.trick = false; this.trickDone = false;
+        // driving off a lip or a crest at speed is a jump too (as in Mario Kart): it can be tricked
+        // once there's real air under the kart (see the trick check below)
+        this.canTrick = this.speed > 14 && !this.gliding;
         this.vy -= G * dt; this.pos.y = ballistic;
         if (wasRoofed) this.offRoofT = 0.4;
       }
@@ -544,7 +553,7 @@ export class Kart {
     }
     this.roofed = this.grounded && roofHere;
     // tricks off ramps/jumps: tap drift while airborne
-    if (!this.grounded && this.airTime > 0.1 && this.canTrick && ctl.driftPressed && !this.trickDone && on) {
+    if (!this.grounded && this.airTime > (this.launched ? 0.1 : 0.15) && this.canTrick && ctl.driftPressed && !this.trickDone && on) {
       this.trickDone = true; this.trickSpin = 0.45;
       this.emote('trick');
       if (this.human) this.race.audio.sfx('trick');
@@ -683,8 +692,8 @@ export class Kart {
     if (this.gliding) this.setGliding(false);
     this.pos.y = gY; this.vy = 0; this.grounded = true;
     this.squash = Math.min(0.25, fallSpeed * 0.012);
-    if (this.trickDone) { this.boost(0.8); }
-    this.trickDone = false; this.canTrick = false;
+    if (this.trickDone) { this.boost(TRICK_BOOST); }
+    this.trickDone = false; this.canTrick = false; this.launched = false;
     if (this.drift.queued && ctl.drift && Math.abs(ctl.steer) > 0.2 && this.speed > 8) {
       this.drift.active = true; this.drift.dir = Math.sign(ctl.steer); this.drift.charge = 0; this.drift.level = 0;
     }
@@ -696,7 +705,7 @@ export class Kart {
   // ramp launch
   launch(vy, glide = false) {
     if (!this.grounded) return;
-    this.vy = vy; this.grounded = false; this.airTime = 0; this.canTrick = true; this.trickDone = false;
+    this.vy = vy; this.grounded = false; this.airTime = 0; this.canTrick = true; this.trickDone = false; this.launched = true;
     this.drift.queued = false;
     this.cancelDrift();
     if (glide) { this.setGliding(true); if (this.human) this.race.audio.sfx('glide'); }

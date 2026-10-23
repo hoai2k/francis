@@ -6,6 +6,14 @@ import * as THREE from 'three';
 import { BrickBuilder, C, plastic, baseplateMat, roadTexture, checkerTexture, brickGeometry, canvasTexture } from './lego.js';
 
 const SPACING = 1.0;
+// jump kinds: wedge length and height, and the launch (vy, plus vy per unit of speed; boost:
+// seconds of boost given at the lip)
+export const JUMPS = {
+  ramp: { len: 7, h: 1.6, vy: 14, perSpeed: 0.14, maxExtra: 10, boost: 0.25 },
+  bump: { len: 5, h: 0.9, vy: 8, perSpeed: 0.08, maxExtra: 4, boost: 0 },
+  boost: { len: 9, h: 2.2, vy: 17, perSpeed: 0.16, maxExtra: 12, boost: 1.0 },
+  glide: { len: 12, h: 2.6 },
+};
 const THICK = 0.9;
 
 const canvasTex = (w, h, draw) => canvasTexture(w, h, draw, { repeat: true });
@@ -770,33 +778,44 @@ export class Track {
     const tex = boostTexture();
     for (const [k, f] of this.def.boosts || []) {
       const i = this.kToIndex(k);
-      const hw = this.HW[i];
-      const lat = f * hw;
-      const mat = new THREE.MeshStandardMaterial({ map: tex, emissive: 0xff8800, emissiveIntensity: 0.9, emissiveMap: tex, roughness: 0.3 });
-      const m = new THREE.Mesh(new THREE.PlaneGeometry(4.4, 7), mat);
-      m.rotation.x = -Math.PI / 2;
-      const h = new THREE.Group();
-      h.position.copy(this.at(i, lat, 0.06));
-      h.rotation.y = this.yawAt(i);
-      // align with slope
-      h.rotation.x = -Math.asin(this.T[i * 3 + 1]);
-      h.rotation.order = 'YXZ';
-      h.add(m);
-      this.group.add(h);
-      this.boosts.push({ i, lat, mat });
+      this.addPad(i, f * this.HW[i], tex);
     }
   }
 
+  // a dash pad on the road at sample i, lat across
+  addPad(i, lat, tex = boostTexture()) {
+    const mat = new THREE.MeshStandardMaterial({ map: tex, emissive: 0xff8800, emissiveIntensity: 0.9, emissiveMap: tex, roughness: 0.3 });
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(4.4, 7), mat);
+    m.rotation.x = -Math.PI / 2;
+    const h = new THREE.Group();
+    h.position.copy(this.at(i, lat, 0.06));
+    h.rotation.y = this.yawAt(i);
+    // align with slope
+    h.rotation.x = -Math.asin(this.T[i * 3 + 1]);
+    h.rotation.order = 'YXZ';
+    h.add(m);
+    this.group.add(h);
+    this.boosts.push({ i, lat, mat });
+  }
+
+  // Jumps, as in Mario Kart: def.ramps lists trick ramps by k, or [k, kind] for other kinds
+  // ('bump': a low hump across the road for a short hop; 'boost': a dash pad into a taller ramp
+  // for a long jump), and def.gliders the glider ramps. All of them can be tricked off.
   buildRamps() {
     this.ramps = [];
-    const list = [...(this.def.ramps || []).map((k) => [k, false]), ...(this.def.gliders || []).map((k) => [k, true])];
-    for (const [k, glide] of list) {
-      const i = this.kToIndex(k);
+    const list = [...(this.def.ramps || []).map((r) => (Array.isArray(r) ? r : [r, 'ramp'])), ...(this.def.gliders || []).map((k) => [k, 'glide'])];
+    for (const [k, kind] of list) {
+      const i = this.kToIndex(k), glide = kind === 'glide';
       const hw = this.HW[i];
-      const len = glide ? 12 : 7, h = glide ? 2.6 : 1.6;
-      // wedge (triangular prism) along -Z..0, rising to +h at the lip
+      const { len, h } = JUMPS[kind];
+      // wedge (triangular prism) along -Z..0, rising to +h at the lip; a bump is a rounded hump
       const shape = new THREE.Shape();
-      shape.moveTo(-len, 0); shape.lineTo(0, 0); shape.lineTo(0, h); shape.closePath();
+      if (kind === 'bump') {
+        // its crest is at the lip
+        shape.moveTo(-len, 0);
+        for (let n = 1; n <= 16; n++) { const u = n / 16; shape.lineTo(-len + u * len * 2, Math.sin(Math.PI * u) * h); }
+        shape.closePath();
+      } else { shape.moveTo(-len, 0); shape.lineTo(0, 0); shape.lineTo(0, h); shape.closePath(); }
       const g = new THREE.ExtrudeGeometry(shape, { depth: hw * 2, bevelEnabled: false });
       g.rotateY(-Math.PI / 2);
       g.translate(hw, 0, 0);
@@ -813,7 +832,8 @@ export class Track {
       hold.rotation.x = -Math.asin(this.T[i * 3 + 1]);
       hold.add(mesh);
       this.group.add(hold);
-      this.ramps.push({ i, len, h, glide });
+      this.ramps.push({ i, len, h, glide, kind });
+      if (kind === 'boost') this.addPad(this.wrap(i - len - 6), 0);
       if (glide) {
         // glider arch over the ramp lip
         const b = new BrickBuilder(1);
