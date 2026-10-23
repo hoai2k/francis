@@ -1,0 +1,128 @@
+// Brick Kart smoke test: loads the game in headless Chromium and fails on any page error or
+// console error. It covers every map (a short race each), every item and movie ability (used by
+// the player's kart on one map), the menus up to the character select, and the driver, kart and
+// glider line-ups cycling their poses (which build every driver, vehicle and glider).
+//
+//   node brick-kart/tests/smoke.mjs            (from the repository root; needs Playwright)
+//   node brick-kart/tests/smoke.mjs city jjk   (only these maps, plus the rest of the checks)
+//
+// Pages load with ?norender, so it runs everything but drawing (see main.js).
+import { spawn, execSync } from 'node:child_process';
+import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
+
+const require = createRequire(import.meta.url);
+let playwright;
+try { playwright = require('playwright'); } catch { playwright = require(path.join(execSync('npm root -g').toString().trim(), 'playwright')); }
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+const PORT = 8000 + Math.floor(Math.random() * 900);
+const BASE = `http://127.0.0.1:${PORT}/brick-kart/`;
+const MAPS = ['city', 'meadow', 'pirate', 'candy', 'jungle', 'frost', 'factory', 'lava', 'space', 'jurassic', 'starwars', 'marvel', 'hogwarts', 'jjk-goodwill', 'jjk-inventory', 'jjk', 'jjk-culling', 'minecraft', 'pokemon', 'sonic'];
+const only = process.argv.slice(2);
+
+const server = spawn('python3', ['-m', 'http.server', String(PORT), '--bind', '127.0.0.1', '-d', ROOT], { stdio: 'ignore' });
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+await sleep(600);
+
+const executablePath = process.env.CHROMIUM || undefined;
+const browser = await playwright.chromium.launch({ executablePath, args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
+const context = await browser.newContext({ viewport: { width: 1280, height: 720 } });
+const failures = [];
+
+async function check(name, url, fn) {
+  const page = await context.newPage();
+  const errors = [];
+  page.on('pageerror', (e) => errors.push('pageerror: ' + (e.stack || e.message)));
+  page.on('console', (m) => { if (m.type() === 'error') errors.push('console.error: ' + m.text()); });
+  const t0 = Date.now();
+  try {
+    await page.goto(BASE + url, { waitUntil: 'load', timeout: 60000 });
+    await fn(page);
+  } catch (e) { errors.push('test: ' + e.message); }
+  await page.close();
+  const ok = !errors.length;
+  console.log(`${ok ? 'ok  ' : 'FAIL'} ${name} (${((Date.now() - t0) / 1000).toFixed(1)}s)`);
+  for (const e of errors.slice(0, 8)) console.log('     ' + e.split('\n').slice(0, 4).join('\n     '));
+  if (!ok) failures.push(name);
+}
+
+const raceReady = (page) => page.waitForFunction(() => window.game?.race?.state === 'race' && window.game.race.mode !== 'attract', null, { timeout: 60000 });
+
+// every map: get into the race, drive a few seconds, and see the karts move
+for (const id of MAPS.filter((m) => !only.length || only.includes(m))) {
+  await check(`map ${id}`, `?quick=${id}&norender`, async (page) => {
+    await raceReady(page);
+    const d0 = await page.evaluate(() => Math.max(...window.game.race.karts.map((k) => k.raceDist)));
+    await sleep(3000);
+    const d1 = await page.evaluate(() => Math.max(...window.game.race.karts.map((k) => k.raceDist)));
+    if (!(d1 > d0)) throw new Error(`karts did not move (${d0} -> ${d1})`);
+  });
+}
+
+// every item and movie ability, used by player 1 (forward, then behind), with time to play out
+await check('items and abilities', '?quick=city&norender&abilities=all', async (page) => {
+  await raceReady(page);
+  const ids = await page.evaluate(async () => {
+    const { ITEMS } = await import('./js/items.js');
+    const { ABILITIES } = await import('./js/abilities.js');
+    return [...Object.keys(ITEMS), ...ABILITIES.map((a) => a.id)];
+  });
+  if (ids.length < 40) throw new Error(`only ${ids.length} items and abilities`);
+  for (const [i, id] of ids.entries()) {
+    await page.evaluate(({ id, back }) => {
+      const race = window.game.race, k = race.karts.find((o) => o.human) || race.karts[0];
+      k.item = id; k.itemCount = 3;
+      k.ctl = { ...k.ctl, back, aimFwd: !back };
+      race.items.use(k);
+    }, { id, back: i % 2 === 1 });
+    await sleep(350);
+  }
+  await sleep(3000);
+});
+
+// the menus: title, main menu, Grand Prix select, a driver and a kart and a glider locked in
+await check('menus and select', '?norender', async (page) => {
+  await page.waitForFunction(() => window.game?.onTitle !== undefined && document.querySelector('#ui').innerHTML.length > 0, null, { timeout: 60000 });
+  const press = async (key, n = 1) => { for (let i = 0; i < n; i++) { await page.keyboard.press(key); await sleep(150); } };
+  await press('Enter');
+  await page.waitForFunction(() => !window.game.onTitle, null, { timeout: 10000 });
+  await page.evaluate(() => window.game.showSelect('gp'));
+  await sleep(400);
+  await press('ArrowRight', 3); await press('ArrowDown');
+  await press('Enter');            // driver
+  await sleep(300);
+  await press('ArrowRight', 2);
+  await press('Enter');            // kart
+  await sleep(300);
+  await press('Enter');            // glider
+  await sleep(800);
+  const html = await page.evaluate(() => document.querySelector('#ui').innerHTML);
+  if (!/cup/i.test(html)) throw new Error('did not reach the cup screen after locking in');
+  await press('Escape'); await sleep(300); await press('Escape'); await sleep(300);
+  await page.evaluate(() => window.game.showSelect('vs'));
+  await sleep(500);
+});
+
+// the line-ups: every driver in its kart, every vehicle, every glider, cycling their poses
+await check('driver gallery', '?gallery=all&norender', async (page) => {
+  await page.waitForFunction(() => window.galleryPose, null, { timeout: 90000 });
+  for (const p of ['steerL', 'steerR', 'cheer', 'taunt', 'trick', 'throwF', 'throwB', 'use', 'ouch', 'glide', 'look', 'win', 'lose', 'pre']) {
+    await page.evaluate((p) => window.galleryPose(p), p);
+    await sleep(500);
+  }
+});
+await check('garage', '?garage=all&pose=boost&norender', async (page) => {
+  await page.waitForFunction(() => window.galleryPose, null, { timeout: 90000 });
+  await sleep(2500);
+});
+await check('gliders', '?glider=all&norender', async (page) => {
+  await page.waitForFunction(() => window.galleryPose, null, { timeout: 90000 });
+  await sleep(2500);
+});
+
+await browser.close();
+server.kill();
+console.log(failures.length ? `\n${failures.length} failed: ${failures.join(', ')}` : '\nall passed');
+process.exit(failures.length ? 1 : 0);

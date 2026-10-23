@@ -237,7 +237,7 @@ export function buildKart(ch, rig = null, glider = null) {
   b.brick(0, 1.42, -1.8, 6, 2, 1, a);
   // number plate stickers
   b.box(1.21, 0.55, 0.2, 0.02, 0.3, 0.9, C.white); b.box(-1.21, 0.55, 0.2, 0.02, 0.3, 0.9, C.white);
-  if (rig) return finishCharacterKart(ch, rig, root, body, b);
+  if (rig) return finishCharacterKart(ch, rig, root, body, b, glider);
   // steering wheel
   const sw = new THREE.TorusGeometry(0.2, 0.04, 8, 18);
   const swm = new THREE.Matrix4().compose(new THREE.Vector3(0, 1.08, 0.42), new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.5, 0, 0)), new THREE.Vector3(1, 1, 1));
@@ -294,7 +294,7 @@ for (const ch of CHARACTERS) ch.body = BODY_OF[ch.id] || 'classic';
 const BODY_NAMES = { classic: 'Classic kart', racer: 'Racer', buggy: 'Buggy', monster: 'Monster kart', hotrod: 'Hot rod' };
 export const bodyName = (ch) => BODY_NAMES[ch.body] || 'Kart';
 
-function finishCharacterKart(ch, rig, root, body, b) {
+function finishCharacterKart(ch, rig, root, body, b, glider = null) {
   const k = ch.kart, a = ch.accent, st = BODIES[ch.body] || BODIES.classic;
   const H = rig.height, wide = Math.max(1.2, rig.width || 1.2);
   const chrome = { matOpts: { metal: 0.9, rough: 0.2 } };
