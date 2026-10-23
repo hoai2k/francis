@@ -4,27 +4,15 @@
 // per-use materials (the ones whose opacity animates) are tagged with own() and freed by
 // disposeOwned().
 import * as THREE from 'three';
-import { BrickBuilder, plastic } from '../lego.js';
+import { BrickBuilder, plastic, canvasTexture, own, disposeOwned } from '../lego.js';
 
 const cache = new Map();
 export const once = (key, make) => { if (!cache.has(key)) cache.set(key, make()); return cache.get(key); };
 
-export function own(x) { x.userData.own = true; return x; }
-export function disposeOwned(root) {
-  if (!root) return;
-  root.parent?.remove(root);
-  root.traverse((o) => {
-    const ms = Array.isArray(o.material) ? o.material : o.material ? [o.material] : [];
-    for (const m of ms) if (m.userData.own) m.dispose();
-  });
-}
+export { own, disposeOwned };
 
 // ---- textures / materials -------------------------------------------------------------------
-function canvasTex(w, h, draw) {
-  const c = document.createElement('canvas'); c.width = w; c.height = h;
-  draw(c.getContext('2d'), w, h);
-  return new THREE.CanvasTexture(c);
-}
+const canvasTex = (w, h, draw) => canvasTexture(w, h, draw, { srgb: false, anisotropy: 1 });
 export const glowTex = () => once('glow', () => canvasTex(64, 64, (g) => {
   const r = g.createRadialGradient(32, 32, 0, 32, 32, 32);
   r.addColorStop(0, 'rgba(255,255,255,1)'); r.addColorStop(0.25, 'rgba(255,255,255,0.65)'); r.addColorStop(0.6, 'rgba(255,255,255,0.14)'); r.addColorStop(1, 'rgba(255,255,255,0)');

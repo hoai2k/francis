@@ -1,11 +1,11 @@
 // Shared helpers and brick-built props for the maps.
 import * as THREE from 'three';
-import { BrickBuilder, C, plastic, baseplateMat, brickGeometry, faceTexture } from '../lego.js';
+import { BrickBuilder, C, plastic, baseplateMat, brickGeometry, faceTexture, canvasTexture, glowTexture } from '../lego.js';
 import { groundPlane } from '../world.js';
 import { LEGO } from '../decor.js';
 export { tree, roundTree, pine, palm, rock, lamp, building, snowman, crystal, tower, wallSeg, cloud, mountain, grandstand, billboard, minifig, canvasTexture, pick, rng } from '../decor.js';
 export { mover, trackMover, crossing, geyser, crusher, spinner, cannon, cycleRandom } from '../hazards.js';
-export { THREE, BrickBuilder, C, plastic, baseplateMat, brickGeometry, faceTexture, groundPlane };
+export { THREE, BrickBuilder, C, plastic, baseplateMat, brickGeometry, faceTexture, glowTexture, groundPlane };
 
 const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), E = new THREE.Euler(), V = new THREE.Vector3(), S = new THREE.Vector3();
 export function mat4(x, y, z, rx, ry, rz, sx, sy, sz) {
@@ -89,7 +89,7 @@ export function arch(ctx, k, { cols = [C.red, C.white], text = null, bg = '#0055
   g.position.copy(tr.at(i, 0, 0)); g.position.y = Math.min(tr.surfaceY(i, -span), tr.surfaceY(i, span));
   g.rotation.y = tr.yawAt(i);
   if (text) {
-    const tex = canvasTex(512, 64, (x, W, H) => { x.fillStyle = bg; x.fillRect(0, 0, W, H); x.fillStyle = fg; x.font = '900 42px "Arial Black", Arial'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(text, W / 2, H / 2 + 2); });
+    const tex = canvasTexture(512, 64, (x, W, H) => { x.fillStyle = bg; x.fillRect(0, 0, W, H); x.fillStyle = fg; x.font = '900 42px "Arial Black", Arial'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(text, W / 2, H / 2 + 2); }, { anisotropy: 1 });
     for (const z of [-0.85, 0.85]) {
       const m = new THREE.Mesh(new THREE.PlaneGeometry(span * 2, 2), new THREE.MeshStandardMaterial({ map: tex, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.25 }));
       m.position.set(0, height + 1.1, z); m.rotation.y = z < 0 ? Math.PI : 0;
@@ -98,11 +98,6 @@ export function arch(ctx, k, { cols = [C.red, C.white], text = null, bg = '#0055
   }
   ctx.group.add(g);
   return g;
-}
-function canvasTex(w, h, draw) {
-  const c = document.createElement('canvas'); c.width = w; c.height = h;
-  draw(c.getContext('2d'), w, h);
-  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
 }
 export function built(fn, name = 'prop') { const b = new BrickBuilder(1); fn(b); return b.build({ name }); }
 

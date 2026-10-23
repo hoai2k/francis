@@ -3,26 +3,15 @@
 // shared; per-use objects only own the materials whose opacity they animate, and
 // release them through disposeOwned().
 import * as THREE from 'three';
-import { BrickBuilder, C, plastic, brickGeometry } from '../lego.js';
+import { BrickBuilder, C, plastic, brickGeometry, canvasTexture, own, disposeOwned } from '../lego.js';
 import { glowTex, divineDog } from '../maps/jjk-props.js';
 
 const cache = new Map();
 export const once = (key, make) => { if (!cache.has(key)) cache.set(key, make()); return cache.get(key); };
 export const UP = new THREE.Vector3(0, 1, 0);
 
-// ---- owned resources ---------------------------------------------------------------
-// materials/geometries made for one effect are tagged so dispose can free exactly those
-export function own(x) { x.userData.own = true; return x; }
-export function disposeOwned(root) {
-  if (!root) return;
-  root.parent?.remove(root);
-  root.traverse((o) => {
-    if (o.isInstancedMesh && o.userData.own) o.dispose();
-    if (o.geometry?.userData.own) o.geometry.dispose();
-    const ms = Array.isArray(o.material) ? o.material : o.material ? [o.material] : [];
-    for (const m of ms) if (m.userData.own) m.dispose();
-  });
-}
+// materials/geometries made for one effect are tagged with own() so disposeOwned() frees exactly those
+export { own, disposeOwned };
 
 // additive glow sprite with its own (fadeable) material
 export function glowSprite(color, size, opacity = 1) {
@@ -49,12 +38,7 @@ export const discGeo = () => once('disc', () => new THREE.CircleGeometry(1, 40).
 export const planeGeo = () => once('plane', () => new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2));
 
 // ---- canvas textures ------------------------------------------------------------------
-function canvasTex(w, h, draw) {
-  const c = document.createElement('canvas'); c.width = w; c.height = h;
-  draw(c.getContext('2d'), w, h);
-  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
-  return t;
-}
+const canvasTex = (w, h, draw) => canvasTexture(w, h, draw, { anisotropy: 1 });
 // Infinite Void sky: deep blue-black space, nebula smears and thousands of stars
 export const starTex = () => once('stars', () => canvasTex(1024, 512, (g, W, H) => {
   const bg = g.createLinearGradient(0, 0, 0, H);

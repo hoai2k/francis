@@ -34,14 +34,46 @@ export function plastic(color, opts = {}) {
 }
 
 // ---- textures -----------------------------------------------------------
-function canvasTex(w, h, draw, repeat = true) {
+// A texture drawn on a canvas by draw(ctx, w, h). srgb for colour maps (off for bump and other
+// data maps), repeat to tile it.
+export function canvasTexture(w, h, draw, { srgb = true, repeat = false, anisotropy = 8 } = {}) {
   const c = document.createElement('canvas');
   c.width = w; c.height = h;
   draw(c.getContext('2d'), w, h);
   const t = new THREE.CanvasTexture(c);
+  if (srgb) t.colorSpace = THREE.SRGBColorSpace;
   if (repeat) t.wrapS = t.wrapT = THREE.RepeatWrapping;
-  t.anisotropy = 8;
+  t.anisotropy = anisotropy;
   return t;
+}
+const canvasTex = (w, h, draw, repeat = true) => canvasTexture(w, h, draw, { srgb: false, repeat });
+
+// A soft white radial glow (64x64, built once) for additive glow sprites; tint it with the
+// sprite material's colour.
+let glowTex = null;
+export function glowTexture() {
+  if (glowTex) return glowTex;
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const g = c.getContext('2d'), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.25, 'rgba(255,255,255,0.7)'); gr.addColorStop(0.6, 'rgba(255,255,255,0.18)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
+  return (glowTex = new THREE.CanvasTexture(c));
+}
+
+// ---- owned resources -----------------------------------------------------
+// Geometries, materials and instanced meshes made for one model or effect are tagged with own()
+// so disposeOwned() frees exactly those (shared, cached ones stay).
+export function own(x) { x.userData.own = true; return x; }
+// removes root from its parent and frees what it owns
+export function disposeOwned(root) {
+  if (!root) return;
+  root.parent?.remove(root);
+  root.traverse((o) => {
+    if (o.isInstancedMesh && o.userData.own) o.dispose();
+    if (o.geometry?.userData.own) o.geometry.dispose();
+    const ms = Array.isArray(o.material) ? o.material : o.material ? [o.material] : [];
+    for (const m of ms) if (m.userData.own) m.dispose();
+  });
 }
 
 // A 2x2 stud tile (white-ish, multiplied by the material colour). Used as

@@ -1,24 +1,16 @@
 // Helpers for the Jujutsu Kaisen drivers: a seated figure with a face from the
 // Cursed Brick Shibuya atlas, driver-scale hair styles, and small cursed-energy
 // effect parts (emissive meshes + glow sprites) that the drivers' fx() toggle.
-import { THREE, BrickBuilder, C, plastic, seatedFig, rbox, rod, mat4, cached, taperGeo, faceMat } from './kit.js';
+import { THREE, BrickBuilder, C, plastic, seatedFig, rbox, rod, mat4, cached, taperGeo, faceMat, clamp01, seg, sm, lerp, bump, winF, LOOP, vis, fxg } from './kit.js';
 import { head as atlasHead, glow, neon, spike } from '../maps/jjk-props.js';
 
-export { THREE, BrickBuilder, C, plastic, rbox, rod, mat4, cached, taperGeo, faceMat, glow, neon, spike, atlasHead };
+export { THREE, BrickBuilder, C, plastic, rbox, rod, mat4, cached, taperGeo, faceMat, glow, neon, spike, atlasHead, clamp01, seg, sm, lerp, bump, winF, LOOP, vis, fxg };
 
 export const NAVY = 0x1d2233, GOLD = 0xdcbc81, INK = 0x15161c;
 
 // ---- maths for gestures / fx ---------------------------------------------------------
-export const clamp01 = (x) => (x < 0 ? 0 : x > 1 ? 1 : x);
-export const seg = (f, a, b) => clamp01((f - a) / (b - a));
-export const sm = (x) => { x = clamp01(x); return x * x * (3 - 2 * x); };
-export const lerp = (a, b, k) => a + (b - a) * k;
-// 0 -> 1 -> 0 bump over [a, b]
-export const bump = (f, a, b) => Math.sin(Math.PI * seg(f, a, b));
 // is name one of the (up to 4) given names
 export const any = (n, a, b, c, d) => n === a || n === b || n === c || n === d;
-// loop progress of the looped 'win' pose (driver.js loops it every 1.6 s)
-export const winF = (t) => (t % 1.6) / 1.6;
 
 // ---- figure ---------------------------------------------------------------------------
 // jfig(o): seatedFig with an atlas face (o.face) and a driver-scale hair function
@@ -77,10 +69,6 @@ export function fringe(b, r, h, col, n, len, ang = 1.9, { y = 0.92, spread = 0.5
 }
 
 // ---- effect parts ----------------------------------------------------------------------
-// a hidden group for an effect (toggled in fx)
-export function fxg(parent, x = 0, y = 0, z = 0) {
-  const g = new THREE.Group(); g.position.set(x, y, z); g.visible = false; parent.add(g); return g;
-}
 export function addGlow(parent, color, size, x = 0, y = 0, z = 0, op = 0.9) {
   const s = glow(color, size, op); s.position.set(x, y, z); parent.add(s); return s;
 }
@@ -112,4 +100,3 @@ export function sparks(parent, color, dark, n, len, seed = 5) {
   parent.add(m); return m;
 }
 // show/hide helper that avoids touching unchanged objects
-export function vis(o, on) { if (o.visible !== on) o.visible = on; }

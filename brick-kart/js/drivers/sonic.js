@@ -9,9 +9,8 @@ import {
   GLOVE, PEACH, EMERALDS, neon, metal, addGlow, fxg, blob, spike, ring, emerald, heartGeo, burst, flame, orbit,
   toon, part, rod,
 } from './sonic-kit.js';
-import { seatedFig } from './kit.js';
+import { seatedFig, winF } from './kit.js';
 
-const winF = (t) => (t % 1.6) / 1.6;
 // show a prop only for some gestures (the whole time for the looping win phase)
 const during = (n, f, list, a = 0.06, b = 0.94) => list.includes(n) && (n === 'win' || (f > a && f < b));
 // a spinning spark star (impact / glint) parented to p

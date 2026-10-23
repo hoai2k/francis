@@ -232,7 +232,7 @@ export default [
       const kx = clamp(1 + (f.W - 1.3) * 0.25, 1, 1.15), k = 1 + f.big * 0.03;
       return {
         // (the wings keep their span, the footprint is wide enough already)
-        mesh: grow(THREE, [b.build({ name: 'nue' }), head], kx, k, k), parts: wings.map((x) => { x.w.position.multiply(new THREE.Vector3(1, k, k)); return x.w; }),
+        mesh: grow([b.build({ name: 'nue' }), head], kx, k, k), parts: wings.map((x) => { x.w.position.multiply(new THREE.Vector3(1, k, k)); return x.w; }),
         seat: [0, 0.9 * k, -0.38 * k], control: 'bars', hover: 0.55,
         steer: [{ obj: head, axis: 'y', amount: 0.35 }], exhaust: [[0.28, 0.28 * k, -1.3 * k, BACK], [-0.28, 0.28 * k, -1.3 * k, BACK]],
         fx(s, dt) {
@@ -296,7 +296,7 @@ export default [
       };
       const front = chain(1), back = chain(-1);
       return {
-        mesh: grow(THREE, [b.build({ name: 'carpet' }), front, back], clamp(1 + (f.W - 1.3) * 0.2, 1, 1.12), 1, 1),
+        mesh: grow([b.build({ name: 'carpet' }), front, back], clamp(1 + (f.W - 1.3) * 0.2, 1, 1.12), 1, 1),
         seat: [0, 0.6, -0.42], control: 'none', hover: 0.55, glider: { z: -0.6 },
         exhaust: [[0.62, 0.14, -1.0, BACK], [-0.62, 0.14, -1.0, BACK]],
         fx(s, dt) {
@@ -387,7 +387,7 @@ export default [
       // a big rider gets a slightly broader saddle-back (the dragon stays about its own size)
       const kx = clamp(1 + (f.W - 1.3) * 0.2, 1, 1.12), ky = 1 + f.big * 0.04, kz = 1;
       return {
-        mesh: grow(THREE, [b.build({ name: 'dragon' }), head, tail, ...legs.map((l) => l.g)], kx, ky, kz),
+        mesh: grow([b.build({ name: 'dragon' }), head, tail, ...legs.map((l) => l.g)], kx, ky, kz),
         seat: [0, 1.28 * ky, -0.38 * kz], control: 'bars',
         // boost flames roar out of the mouth (the head rears up while boosting)
         exhaust: [[0, 1.66 * ky, 2.3 * kz, Math.PI / 2 - 0.25]],

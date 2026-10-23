@@ -3,21 +3,12 @@
 // gate, item boxes, boost pads, ramps and collectible studs, and answers
 // spatial queries for karts ("where am I on the track?").
 import * as THREE from 'three';
-import { BrickBuilder, C, plastic, baseplateMat, roadTexture, checkerTexture, brickGeometry } from './lego.js';
+import { BrickBuilder, C, plastic, baseplateMat, roadTexture, checkerTexture, brickGeometry, canvasTexture } from './lego.js';
 
 const SPACING = 1.0;
 const THICK = 0.9;
 
-function canvasTex(w, h, draw) {
-  const c = document.createElement('canvas');
-  c.width = w; c.height = h;
-  draw(c.getContext('2d'), w, h);
-  const t = new THREE.CanvasTexture(c);
-  t.wrapS = t.wrapT = THREE.RepeatWrapping;
-  t.colorSpace = THREE.SRGBColorSpace;
-  t.anisotropy = 8;
-  return t;
-}
+const canvasTex = (w, h, draw) => canvasTexture(w, h, draw, { repeat: true });
 
 function brickWallTexture(base, dark) {
   return canvasTex(128, 128, (g, w, h) => {

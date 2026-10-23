@@ -612,7 +612,7 @@ slow to drive several players).
 
 ## Code layout
 
-- `js/main.js`: game shell, menus, Grand Prix flow, results and podium
+- `js/main.js`: game shell, menus, Grand Prix flow, results and podium; `js/select.js`: the character select screen (drivers, karts, gliders, joining, online previews); `js/settings.js`: what is saved in localStorage (options, Time Trial records, last picks) and the clean-ups old saves need; `js/menu-kit.js`: small helpers the menu screens share
 - `js/race.js`: one race (grid, countdown, pickups, bumping, laps, split-screen cameras)
 - `js/kart.js`: arcade kart physics, drifting, jumps, respawns, hit reactions
 - `js/ai.js`: CPU drivers (racing line, drifting, item tactics, rubber-banding)
@@ -622,20 +622,22 @@ slow to drive several players).
 - `js/tracks.js`: the map list and Grand Prix cups
 - `js/maps/*.js`: one file per map (layout, sections, hazards, scenery); `js/maps/kit.js` has shared props
 - `js/hazards.js`: moving traffic/boulders, crossings, geysers, crushers, fire bars and cannons
-- `js/world.js`, `js/decor.js`, `js/lego.js`: sky, ground, lighting, brick-built props and the brick mesh merger
+- `js/world.js`, `js/decor.js`, `js/lego.js`: sky, ground, lighting, brick-built props and the brick mesh merger; `lego.js` also has the shared canvas textures (`canvasTexture`, `glowTexture`) and `own()` / `disposeOwned()` for freeing what one model or effect owns
 - `js/characters.js`: minifig drivers and karts (plus the five kart body styles)
 - `js/driver.js`: movie-character drivers: the seated rig contract, weight classes and the gesture animator
 - `js/gliders.js`, `js/gliders/*.js`: the glider list and the glider packs (the glider contract is at the top of `js/gliders.js`)
-- `js/vehicles.js`, `js/vehicles/*.js`: the kart list and the vehicle packs (the vehicle contract is documented above `buildVehicle` in `js/characters.js`)
+- `js/vehicles.js`, `js/vehicles/*.js`: the kart list and the vehicle packs (the vehicle contract is documented above `buildVehicle` in `js/characters.js`); `js/vehicles/common.js` has the helpers every pack's kit shares (`fitOf`, `pitchAbout`, `grow`, `ease`, `clamp`)
   - Sizing: big characters should read as big in a small vehicle and small ones as small in a big
     one. Vehicles only fit what must fit (seat width, head clearance under a canopy or roll hoop),
     within clamps; drivers are never scaled, and Rocket only gets his booster crate where he
     couldn't see out without it.
-- `js/drivers/*.js`: the driver casts per movie (`kit.js` has the seated figure builder); `js/showcase.js`: the 3D select stage, portraits and podium; `js/gallery.js`: a developer line-up view
+- `js/drivers/*.js`: the driver casts per movie (`kit.js` has the seated figure builder and the gesture maths every pack's kit shares: `seg`, `sm`, `bump`, `winF`, `LOOP`, `vis`, `fxg`…); `js/showcase.js`: the 3D select stage, portraits and podium; `js/gallery.js`: a developer line-up view
 - `js/effects.js`, `js/audio.js`, `js/hud.js`, `js/input.js`: particles, sound, HUD and input devices
 - `js/online/`: online play, loaded only from the Online menu: `online.js` (lobby, room flow, select hooks, results, host duties), `session.js` (the relay connection: identities, presence, clock sync, reconnecting, host migration), `netrace.js` (race sync: puppets, interpolation, item events, CPU takeover), `names.js` (names, saved names, the on-screen keyboard), `identity.js` (the lasting per-tab identity and the last room, for rejoining), `lineup.js` (the line-up while loading), `proto.js` (protocol constants, validation, kart-state encoding, seeded random)
 - `js/vendor/mini-rooms.js`: the mini-rooms relay client, copied verbatim from the `mini` repository's `multiplayer/client/mini-rooms.js`
 - `js/chrome.js`: getting the browser's bars out of the way on phones (fullscreen, iPhone Safari's swipe-up, home-screen app)
+
+Before committing, run the smoke test from the repository root: `node brick-kart/tests/smoke.mjs` (needs Playwright; add map ids to race only those maps). It loads the game in headless Chromium with `?norender` and fails on any page or console error: a short race on every map, player 1 using every power-up and movie power, the select screen (keyboard, mouse, Back, Simplified mode, Time Trial) and the driver, vehicle and glider line-ups.
 
 For development, `?quick=<map id>` (city, meadow, pirate, candy, jungle, frost, factory, lava, space, jurassic, starwars, marvel, hogwarts, jjk-goodwill, jjk-inventory, jjk, jjk-culling, minecraft, pokemon, sonic) goes
 straight into a race. Add `&players=2` to test split-screen, and `&driver=<driver id>`

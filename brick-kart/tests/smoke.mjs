@@ -90,18 +90,46 @@ await check('menus and select', '?norender', async (page) => {
   await page.waitForFunction(() => !window.game.onTitle, null, { timeout: 10000 });
   await page.evaluate(() => window.game.showSelect('gp'));
   await sleep(400);
+  const until = (fn, what) => page.waitForFunction(fn, null, { timeout: 8000 }).catch(() => { throw new Error('select: ' + what); });
+  const step = () => page.evaluate(() => document.querySelector('.pvstep')?.textContent || '');
   await press('ArrowRight', 3); await press('ArrowDown');
   await press('Enter');            // driver
-  await sleep(300);
+  await until(() => /pick a kart/.test(document.querySelector('.pvstep')?.textContent), 'no kart step after locking in a driver');
   await press('ArrowRight', 2);
-  await press('Enter');            // kart
-  await sleep(300);
-  await press('Enter');            // glider
-  await sleep(800);
-  const html = await page.evaluate(() => document.querySelector('#ui').innerHTML);
-  if (!/cup/i.test(html)) throw new Error('did not reach the cup screen after locking in');
-  await press('Escape'); await sleep(300); await press('Escape'); await sleep(300);
-  await page.evaluate(() => window.game.showSelect('vs'));
+  await press('Enter');            // kart: a lock-in spin, then the glider step
+  await until(() => /pick a glider/.test(document.querySelector('.pvstep')?.textContent), 'no glider step after locking in a kart');
+  await sleep(900);   // the preview finishes sliding to the glider
+  await press('ArrowRight');
+  await press('Enter');            // glider: ready, and on to the cups
+  await until(() => document.querySelector('.cup'), 'did not reach the cup screen after locking in');
+  // back from the cup screen keeps the players locked in; Back steps back to the glider, kart, driver
+  await page.evaluate(() => window.game.showSelect('gp', true));
+  await until(() => /ready/.test(document.querySelector('.pvstep')?.textContent), 'resumed players are not ready');
+  for (const want of ['pick a glider', 'pick a kart', 'pick a driver']) {
+    await press('Escape');
+    await until(new Function(`return /${want}/.test(document.querySelector('.pvstep')?.textContent)`), `Back did not step back to "${want}" (shows "${await step()}")`);
+    await sleep(900);
+  }
+  // mouse: tap a driver card, then the on-screen kart arrows and lock-in buttons
+  const tap = (sel) => page.evaluate((sel) => document.querySelector(sel)?.click(), sel);
+  await page.evaluate(() => window.game.showSelect('race'));
+  await sleep(400);
+  await page.evaluate(() => window.game.screen.click(+document.querySelectorAll('.dcard')[5].dataset.i));
+  await until(() => /pick a kart/.test(document.querySelector('.pvstep')?.textContent), 'tapping a driver did not lock it in');
+  await tap('[data-act^="knext"]'); await sleep(200);
+  await tap('[data-act^="kprev"]'); await sleep(200);
+  await tap('[data-act^="kok"]');
+  await until(() => /pick a glider/.test(document.querySelector('.pvstep')?.textContent), 'the Lock in button did not lock in the kart');
+  await sleep(900);
+  await tap('[data-act^="knext"]'); await sleep(200);
+  await tap('[data-act^="kok"]');
+  await until(() => document.querySelector('.tcard'), 'did not reach the map screen after locking in with the mouse');
+  // Simplified mode's smaller roster, and Time Trial
+  await page.evaluate(() => { window.game.settings.simple = true; window.game.showSelect('race'); });
+  await sleep(500);
+  await press('ArrowRight', 2); await press('Enter');
+  await until(() => /pick a kart/.test(document.querySelector('.pvstep')?.textContent), 'Simplified mode: no kart step');
+  await page.evaluate(() => { window.game.settings.simple = false; window.game.showSelect('tt'); });
   await sleep(500);
 });
 

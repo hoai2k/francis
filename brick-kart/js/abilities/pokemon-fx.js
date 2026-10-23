@@ -3,20 +3,11 @@
 // lightning, Quick Attack speed lines. Shared geometry is built once; per-use parts are cheap
 // clones or own materials that dispose() frees.
 import * as THREE from 'three';
+import { own, disposeOwned } from '../lego.js';
 import { BrickBuilder, shape, pokeBall, fxMat, spriteMat, PI } from '../drivers/pokemon-kit.js';
 import POKEMON from '../drivers/pokemon.js';
 
-// remove a model and free what it owns (userData.own on geometries / materials)
-export function disposeOwned(root) {
-  if (!root) return;
-  root.parent?.remove(root);
-  root.traverse((o) => {
-    if (o.geometry?.userData.own) o.geometry.dispose();
-    const ms = Array.isArray(o.material) ? o.material : o.material ? [o.material] : [];
-    for (const m of ms) if (m.userData.own) m.dispose();
-  });
-}
-const own = (x) => { x.userData.own = true; return x; };
+export { disposeOwned };   // removes a model and frees what it owns (userData.own)
 
 // ---- sleeping Snorlax ----------------------------------------------------------------------------
 // the Snorlax driver rig (its fx shows the Zzz, idle makes it breathe); its merged geometry is its own

@@ -4,12 +4,12 @@
 import * as THREE from 'three';
 import { BrickBuilder, C, plastic } from '../lego.js';
 import { skin, cube, rep, rows, pixItem, ITEMS, particles } from '../drivers/minecraft-kit.js';
+import { clamp, ease, pitchAbout } from './common.js';
+export { clamp, ease, pitchAbout };
 
 export { THREE, BrickBuilder, C, plastic, skin, cube, rep, rows, pixItem, ITEMS, particles };
 export const PI = Math.PI, S = Math.sin, CO = Math.cos;
 export const BACK = -PI / 2;   // boost flames pointing straight back
-export const ease = (dt, k) => Math.min(1, dt * k);
-export const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const face = (g, p, n = 0.08) => ({ g, p, n });
 
 // ---- block skins ---------------------------------------------------------------------------------
@@ -44,13 +44,6 @@ export function limb(parent, mat, x, y, z, w, len, d) {
   cube(p, mat, w, len, d, 0, -len / 2, 0);
   parent.add(p);
   return p;
-}
-// pitch a sprung group about a pivot (y, z) in the kart frame, keeping that point fixed
-export function pitchAbout(g, p, py, pz, lift = 0) {
-  const c = Math.cos(p), s = Math.sin(p);
-  g.rotation.x = p;
-  g.position.y = py - (py * c - pz * s) + lift;
-  g.position.z = pz - (py * s + pz * c);
 }
 // where the driver's hands meet (kit.rig is in the seat frame), in the kart frame
 export function handsAt(rig, seat) {

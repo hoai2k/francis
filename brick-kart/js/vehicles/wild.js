@@ -93,7 +93,7 @@ const thunderHog = {
     const kx = clamp(1 + (f.W - 1.3) * 0.25, 1, 1.15), k = 1 + f.big * 0.03;
     let lean = 0, pitch = 0;
     return {
-      mesh: grow(THREE, [mesh, fork, rSpin], kx, k, k), seat: [0, 0.97 * k, -0.5 * k], control: 'bars',
+      mesh: grow([mesh, fork, rSpin], kx, k, k), seat: [0, 0.97 * k, -0.5 * k], control: 'bars',
       exhaust: [[-0.39 * kx, 0.48 * k, -2.1 * k, BACK + 0.15], [-0.39 * kx, 0.72 * k, -2.1 * k, BACK + 0.15]],
       wheels: [{ g: new THREE.Group(), spin: rSpin, front: false, r: RR * k }, { g: new THREE.Group(), spin: fSpin, front: false, r: FR * k }],
       fx(s, dt) {

@@ -3,12 +3,10 @@
 // head sits on a neck pivot with a jaw, the tail sways behind over the engine and the
 // forelimbs are the arm pivots that reach the steering wheel.
 // Colours follow the Jurassic map creatures in ../maps/jurassic-props.js.
-import { THREE, BrickBuilder, C, taperGeo } from './kit.js';
+import { THREE, BrickBuilder, C, taperGeo, clamp01, sm as smooth } from './kit.js';
 import { Local, RAPTORS } from '../maps/jurassic-props.js';
 
 const S = Math.sin, PI = Math.PI;
-const clamp01 = (x) => Math.max(0, Math.min(1, x));
-const smooth = (x) => { x = clamp01(x); return x * x * (3 - 2 * x); };
 
 // a merged brick part built through a scaled Local frame (centre-based rotatable boxes)
 export function prt(fn, name, k = 1) {

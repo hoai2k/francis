@@ -3,16 +3,10 @@
 // Pokémon eyes), pivots, glow sprites and the signature effects (electric sparks, flames,
 // water jets, music notes, Zzz, aura spheres). pokeBall() is shared with the Pokémon karts and
 // power-ups.
-import { THREE, BrickBuilder, C, plastic, seatedFig, faceMat, rbox, rod, cached } from './kit.js';
+import { THREE, BrickBuilder, C, plastic, seatedFig, faceMat, rbox, rod, cached, clamp01, seg, sm, bump, LOOP, winF, vis, fxg, glowTexture } from './kit.js';
 
-export { THREE, BrickBuilder, C, plastic, seatedFig, faceMat, rbox, rod, cached };
+export { THREE, BrickBuilder, C, plastic, seatedFig, faceMat, rbox, rod, cached, clamp01, seg, sm, bump, LOOP, vis, fxg, winF };
 export const S = Math.sin, CO = Math.cos, PI = Math.PI, abs = Math.abs, UP = -2.75;
-export const LOOP = (PI * 2) / 1.6;   // one cycle of the looped win pose
-export const clamp01 = (x) => (x < 0 ? 0 : x > 1 ? 1 : x);
-export const seg = (f, a, b) => clamp01((f - a) / (b - a));
-export const sm = (x) => { x = clamp01(x); return x * x * (3 - 2 * x); };
-export const bump = (f, a, b) => S(PI * seg(f, a, b));
-export const vis = (o, on) => { if (o.visible !== on) o.visible = on; };
 
 // ---- shapes ----------------------------------------------------------------------------------
 const G = {
@@ -71,8 +65,6 @@ export function pv(parent, x, y, z, child) {
   parent.add(g);
   return g;
 }
-// a hidden effect group
-export function fxg(parent, x = 0, y = 0, z = 0) { const g = pv(parent, x, y, z); g.visible = false; return g; }
 
 // ---- Poké Ball (shared with the karts and power-ups): r = radius, centred at (x, y, z) -----------
 // the button faces +Z; o.open lifts the top half by that angle about the back hinge
@@ -87,16 +79,7 @@ export function pokeBall(L, x, y, z, r, o = {}) {
 }
 
 // ---- glow / fx materials ------------------------------------------------------------------------
-let gTex = null;
-export function glowTex() {
-  if (gTex) return gTex;
-  const c = document.createElement('canvas'); c.width = c.height = 64;
-  const g = c.getContext('2d'), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
-  gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.25, 'rgba(255,255,255,0.7)'); gr.addColorStop(0.6, 'rgba(255,255,255,0.18)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
-  g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
-  gTex = new THREE.CanvasTexture(c);
-  return gTex;
-}
+export const glowTex = glowTexture;
 const mats = new Map();
 const once = (k, make) => { let m = mats.get(k); if (!m) { m = make(); mats.set(k, m); } return m; };
 export const spriteMat = (c, op = 0.9) => once(`spr${c}|${op}`, () => new THREE.SpriteMaterial({ map: glowTex(), color: c, transparent: true, opacity: op, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));

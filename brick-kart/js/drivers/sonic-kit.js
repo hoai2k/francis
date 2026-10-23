@@ -2,33 +2,17 @@
 // contract): toon() builds a seated brick "Mobian" — a minifig body with a big round head,
 // sculpted eyes, muzzle, ears and quills, white gloves and chunky shoes — and the shared
 // effect parts (gold rings, Chaos Emeralds, glow sprites, spark bursts, hearts, fire).
-import { THREE, BrickBuilder, C, plastic, seatedFig, rod, mat4, cached } from './kit.js';
+import { THREE, BrickBuilder, C, plastic, seatedFig, rod, mat4, cached, clamp01, seg, sm, lerp, bump, LOOP, winF, vis, fxg, glowTexture } from './kit.js';
 
-export { THREE, BrickBuilder, C, plastic, rod, mat4, cached };
+export { THREE, BrickBuilder, C, plastic, rod, mat4, cached, clamp01, seg, sm, lerp, bump, LOOP, vis, fxg, winF };
 export const S = Math.sin, CO = Math.cos, PI = Math.PI, abs = Math.abs, UP = -2.75;
-export const LOOP = (PI * 2) / 1.6;   // one cycle of the looped win pose
-export const clamp01 = (x) => (x < 0 ? 0 : x > 1 ? 1 : x);
-export const seg = (f, a, b) => clamp01((f - a) / (b - a));
-export const sm = (x) => { x = clamp01(x); return x * x * (3 - 2 * x); };
-export const lerp = (a, b, k) => a + (b - a) * k;
-export const bump = (f, a, b) => S(PI * seg(f, a, b));
-export const vis = (o, on) => { if (o.visible !== on) o.visible = on; };
 export const GLOVE = 0xf6f6f2, PEACH = 0xf2c49a, SHOE = 0xd8202a;
 export const EMERALDS = [0x2fd84a, 0x2a6aff, 0xff2a2a, 0xffe02a, 0x30e8ff, 0xc0c0d8, 0xc040ff];
 
 // ---- materials / glow --------------------------------------------------------------------
 const mats = new Map();
 const once = (k, make) => { let m = mats.get(k); if (!m) { m = make(); mats.set(k, m); } return m; };
-let gTex = null;
-export function glowTex() {
-  if (gTex) return gTex;
-  const c = document.createElement('canvas'); c.width = c.height = 64;
-  const g = c.getContext('2d'), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
-  gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.25, 'rgba(255,255,255,0.7)'); gr.addColorStop(0.6, 'rgba(255,255,255,0.18)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
-  g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
-  gTex = new THREE.CanvasTexture(c);
-  return gTex;
-}
+export const glowTex = glowTexture;
 export const spriteMat = (c, op = 0.9) => once(`spr${c}|${op}`, () => new THREE.SpriteMaterial({ map: glowTex(), color: c, transparent: true, opacity: op, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
 export const fxMat = (c, op = 0.85) => once(`fx${c}|${op}`, () => new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: op, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
 export const neon = (c, k = 2) => plastic(c, { emissive: c, emissiveIntensity: k });
@@ -36,7 +20,6 @@ export const metal = (c, k = 0.6) => plastic(c, { metal: k, rough: 0.28 });
 export function addGlow(parent, color, size, x = 0, y = 0, z = 0, op = 0.9) {
   const s = new THREE.Sprite(spriteMat(color, op)); s.scale.setScalar(size); s.position.set(x, y, z); parent.add(s); return s;
 }
-export function fxg(parent, x = 0, y = 0, z = 0) { const g = new THREE.Group(); g.position.set(x, y, z); g.visible = false; parent.add(g); return g; }
 const col = (c) => (typeof c === 'number' ? plastic(c) : c);
 
 // ---- shapes ------------------------------------------------------------------------------
