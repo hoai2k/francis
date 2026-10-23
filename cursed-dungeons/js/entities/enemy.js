@@ -24,6 +24,7 @@ const MAX_ATTACKERS = 3;   // melee curses allowed to engage one target at a tim
 const TOKEN_AI = new Set(['melee', 'tank', 'fly', 'leap', 'burrow', 'charge', 'lunge', 'ambush', 'ember']);
 
 const tmp = new THREE.Vector3(), tmp2 = new THREE.Vector3(), tmp3 = new THREE.Vector3();
+const MOVE = new THREE.Vector3();   // this frame's walk (kept apart from the scratch vectors attacks use)
 const UP = new THREE.Vector3(0, 1, 0);
 const ELITE_AFFIX = {
   swift: { color: 0x4affd8, label: 'Swift' },
@@ -302,7 +303,7 @@ export class Enemy {
     this.revealT = Math.max(0, this.revealT - dt); this.retreatT = Math.max(0, this.retreatT - dt);
     this.liftWant = 0; this.guarding = false;
     const t = this.pickTarget();
-    let move = tmp2.set(0, 0, 0);
+    const move = MOVE.set(0, 0, 0);
     const ai = this.def.ai;
     if ((this.state === 'windup' || this.state === 'active') && !this.action) this.state = 'idle';   // (an attack cancelled by a stun / seal)
     let skipMove = false;
