@@ -2,6 +2,8 @@
 // Everything here runs at build time except pitchAbout/rollAbout/ease (cheap, allocation-free).
 import * as THREE from 'three';
 import { BrickBuilder, C, plastic } from '../lego.js';
+import { clamp, ease, fitOf, pitchAbout, grow } from './common.js';
+export { clamp, ease, fitOf, pitchAbout, grow };
 
 export { THREE, BrickBuilder, C, plastic };
 export const PI = Math.PI, S = Math.sin, CO = Math.cos;
@@ -48,28 +50,6 @@ export function glow(color, intensity = 1.2, o = {}) {
 // additive flame / jet material (own instance)
 export const jetMat = (c, op = 0.8) => new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: op, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false });
 
-// The driver's size (kit.rig, seat frame, hips at the origin) boiled down to the numbers the
-// rides need. A typical figure is ~2.0 tall and 1.3 wide; huge ones reach 2.9 x 2.0.
-export const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-export function fitOf(rig) {
-  const H = clamp(rig?.height ?? 1.8, 1.1, 3.0), W = clamp(rig?.width ?? 1.2, 0.8, 2.1);
-  const sx = clamp(Math.abs(rig?.shoulder?.x ?? 0.56), 0.2, 1.0), sy = clamp(rig?.shoulder?.y ?? 1.2, 0.6, 1.6);
-  return { H, W, sx, sy, hip: clamp(W * 0.46, 0.35, 0.95), big: clamp((H - 2.05) / 0.85, 0, 1), wide: clamp((W - 1.3) / 0.65, 0, 1) };
-}
-export function grow(objs, sx, sy, sz) {
-  const g = new THREE.Group();
-  for (const o of objs) g.add(o);
-  g.scale.set(sx, sy, sz);
-  return g;
-}
-// pitch a sprung group about a pivot (y, z) in the kart frame, keeping that point fixed
-export function pitchAbout(g, p, py, pz, lift = 0) {
-  const c = Math.cos(p), s = Math.sin(p);
-  g.rotation.x = p;
-  g.position.y = py - (py * c - pz * s) + lift;
-  g.position.z = pz - (py * s + pz * c);
-}
-export const ease = (dt, k) => Math.min(1, dt * k);
 // the shared glider wing (added to the sprung group by buildVehicle after build): rides that
 // fly on their own wings hide it each frame while gliding
 export const findGlider = (sprung) => sprung.children.find((o) => o.name === 'glider');

@@ -7,13 +7,12 @@
 // Bulbasaur's Vine Whip, Jigglypuff's song, Gengar fading into the shadows, Lucario's Aura Sphere,
 // Mewtwo's Psystrike and Snorlax's Zzz. Voices say their names (voice.say lines).
 import {
-  THREE, C, seatedFig, faceMat, rbox, shape, S, CO, PI, abs, UP, LOOP, seg, sm, bump, vis,
+  THREE, C, seatedFig, faceMat, rbox, shape, S, CO, PI, abs, UP, LOOP, seg, sm, bump, vis, winF,
   part, pv, fxg, onEll, pokeBall, addGlow, sparks, flame, jet, notes, zzz, orb,
 } from './pokemon-kit.js';
 
 const BK = 0x1b1b1b, WH = C.white;
 const FIRE = [0xff6a10, 0xff9a20, 0xe83a08];
-const winF = (t) => (t % 1.6) / 1.6;
 // a box between two points in the y/z plane (flat tails, wing bones), thickness along x
 function slab(L, x, y0, z0, y1, z1, w, th, col, o = {}) {
   const dy = y1 - y0, dz = z1 - z0;

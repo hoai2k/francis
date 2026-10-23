@@ -1,7 +1,7 @@
 // Harry Potter brick characters and props for the "Hogwarts Brick Express" map.
 // Minifig-style figures (robes, hats, wands) share one printed-face atlas; animated
 // parts (arms, wings, legs, branches, tentacles) are separate groups.
-import { THREE, BrickBuilder, C, plastic, mat4 } from './kit.js';
+import { THREE, BrickBuilder, C, plastic, mat4, glowTexture } from './kit.js';
 
 // ---- shared geometry -------------------------------------------------------------
 const geoCache = new Map();
@@ -25,17 +25,7 @@ export function beam(b, ax, ay, az, bx, by, bz, t, color, opts) {
 }
 
 // ---- glow ------------------------------------------------------------------------------
-let glowTexture = null;
-export function glowTex() {
-  if (glowTexture) return glowTexture;
-  const c = document.createElement('canvas'); c.width = c.height = 64;
-  const g = c.getContext('2d');
-  const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
-  gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.25, 'rgba(255,255,255,0.7)'); gr.addColorStop(0.6, 'rgba(255,255,255,0.18)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
-  g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
-  glowTexture = new THREE.CanvasTexture(c);
-  return glowTexture;
-}
+export const glowTex = glowTexture;
 const glowMats = new Map();
 export function glowMat(color, opacity = 0.9) {
   const key = color + '|' + opacity;

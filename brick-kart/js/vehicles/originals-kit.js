@@ -1,6 +1,8 @@
 // Shape helpers for the rebuilt Original Karts (js/vehicles/originals.js).
 // Everything adds into a BrickBuilder so a body still merges into a few meshes; nothing
 // here allocates per frame. Geometries are cached per module.
+import { ease, pitchAbout } from './common.js';
+export { ease, pitchAbout };
 const geos = new Map(), mats = new Map();
 
 export function kit(K) {
@@ -104,11 +106,3 @@ export function kit(K) {
   return sh;
 }
 
-export const ease = (dt, k) => Math.min(1, dt * k);
-// pitch a sprung group about a pivot (y, z) in the kart frame, keeping that point fixed
-export function pitchAbout(g, p, py, pz, lift = 0) {
-  const c = Math.cos(p), s = Math.sin(p);
-  g.rotation.x = p;
-  g.position.y = py - (py * c - pz * s) + lift;
-  g.position.z = pz - (py * s + pz * c);
-}

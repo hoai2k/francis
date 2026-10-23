@@ -5,12 +5,11 @@
 import {
   THREE, BrickBuilder, C, plastic, rbox, rod, mat4, cached, faceMat, neon, spike, atlasHead, taperGeo,
   NAVY, GOLD, INK, jfig, handY, cap, back, spikes, fringe, frustum, atlasStyle,
-  fxg, addGlow, ball, ringMesh, sparks, vis, seg, sm, lerp, bump,
+  fxg, addGlow, ball, ringMesh, sparks, vis, seg, sm, lerp, bump, LOOP,
 } from './jjk-kit.js';
 
 const S = Math.sin, PI = Math.PI, abs = Math.abs;
 const up = -2.75;          // arm straight up-ish
-const LOOP = (PI * 2) / 1.6; // one cycle of the looped win pose
 const PINK = 0xf28a9c, RED = C.red, WHITE = C.white, SKIN = 0xf3d2b3;
 const easeBack = (k) => { k = Math.min(1, Math.max(0, k)) - 1; return 1 + 2.70158 * k * k * k + 1.70158 * k * k; };
 

@@ -2,16 +2,11 @@
 // Totem of Undying, a Trident, an Ender Pearl, Elytra wings, a Channeling lightning bolt and the
 // pixel-art item icons. Skins and pixel sprites come from ../drivers/minecraft-kit.js.
 import * as THREE from 'three';
-import { BrickBuilder } from '../lego.js';
+import { BrickBuilder, own, disposeOwned } from '../lego.js';
 import { skin, cube, rep, pixItem } from '../drivers/minecraft-kit.js';
 
-const own = (m) => { m.userData.own = true; return m; };
 // removes a model and disposes the materials it owns (shared skins and geometries stay cached)
-export function disposeOwned(root) {
-  if (!root) return;
-  root.parent?.remove(root);
-  root.traverse((o) => { const ms = Array.isArray(o.material) ? o.material : o.material ? [o.material] : []; for (const m of ms) if (m.userData.own) m.dispose(); });
-}
+export { disposeOwned };
 export const addGlow = (c, op = 0.85) => own(new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: op, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
 let sph = null;
 export const sphereGeo = () => (sph ||= new THREE.SphereGeometry(1, 16, 10));

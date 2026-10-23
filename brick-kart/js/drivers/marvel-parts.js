@@ -2,16 +2,12 @@
 // Faces and torso prints are borrowed from the "Avengers Brick Assemble" map figures so the
 // drivers match the heroes standing around the track; the rigs themselves are new, compact,
 // seated minifigs with effect parts (webs, repulsor beams, mandalas…) toggled by rig.fx.
-import { THREE, BrickBuilder, plastic, seatedFig, mat4, cached } from './kit.js';
+import { THREE, BrickBuilder, plastic, seatedFig, mat4, cached, clamp01, sm, bump, seg, vis } from './kit.js';
 import * as P from '../maps/marvel-props.js';
 
 export const M = P.M;
 export const S = Math.sin, PI = Math.PI, UP = -2.75;
-export const clamp01 = (x) => (x < 0 ? 0 : x > 1 ? 1 : x);
-export const ease = (x) => { x = clamp01(x); return x * x * (3 - 2 * x); };
-export const bump = (x) => (x <= 0 || x >= 1 ? 0 : S(x * PI));        // 0 → 1 → 0 over 0..1
-export const seg = (f, a, b) => clamp01((f - a) / (b - a));
-export const vis = (o, on) => { if (o.visible !== on) o.visible = on; };
+export { clamp01, sm as ease, bump, seg, vis };   // bump(x) is 0 → 1 → 0 over 0..1
 // a quick "shot": shoots out fast, holds, then retracts (0 outside the window)
 export const shot = (f, a, b) => {
   const p = (f - a) / (b - a);

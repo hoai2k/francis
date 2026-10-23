@@ -2,18 +2,10 @@
 // blocky mobs whose cube heads, bodies and limbs wear pixel-art skins (one 6-tile canvas atlas
 // per part, nearest filtering), extruded pixel items (pickaxe, sword, bow, emerald…) and
 // cube-particle effects (block crumbs, smoke puffs, portal sparks, hearts).
-import { THREE, BrickBuilder, C, plastic, cached, mat4, rbox } from './kit.js';
+import { THREE, BrickBuilder, C, plastic, cached, mat4, rbox, clamp01, seg, sm, lerp, bump, winF, LOOP, vis, fxg } from './kit.js';
 
-export { THREE, BrickBuilder, C, plastic, mat4, rbox };
+export { THREE, BrickBuilder, C, plastic, mat4, rbox, clamp01, seg, sm, lerp, bump, winF, LOOP, vis, fxg };
 export const S = Math.sin, PI = Math.PI, abs = Math.abs, UP = -2.75;
-export const LOOP = (PI * 2) / 1.6;   // one cycle of the looped win pose
-export const clamp01 = (x) => (x < 0 ? 0 : x > 1 ? 1 : x);
-export const seg = (f, a, b) => clamp01((f - a) / (b - a));
-export const sm = (x) => { x = clamp01(x); return x * x * (3 - 2 * x); };
-export const lerp = (a, b, k) => a + (b - a) * k;
-export const bump = (f, a, b) => Math.sin(PI * seg(f, a, b));
-export const winF = (t) => (t % 1.6) / 1.6;
-export const vis = (o, on) => { if (o.visible !== on) o.visible = on; };
 export const rng = (seed) => { let s = (seed | 0) || 1; return () => ((s = (s * 16807) % 2147483647) / 2147483647); };
 
 // ---- pixel skins -----------------------------------------------------------------------------
@@ -107,7 +99,6 @@ export function arrowItem(px = 0.04) {
 // ---- fx -----------------------------------------------------------------------------------------
 const fxMats = new Map();
 export const fxMat = (c, op = 0.9, add = true) => { const k = `${c}|${op}|${add}`; let m = fxMats.get(k); if (!m) { m = new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: op, blending: add ? THREE.AdditiveBlending : THREE.NormalBlending, depthWrite: false, toneMapped: false }); fxMats.set(k, m); } return m; };
-export function fxg(parent, x = 0, y = 0, z = 0) { const g = new THREE.Group(); g.position.set(x, y, z); g.visible = false; parent.add(g); return g; }
 const unit = () => cached('mcUnit', () => new THREE.BoxGeometry(1, 1, 1));
 // A burst of little square particles flying out from the group origin. set(k) with k in 0..1
 // places them (k <= 0 or >= 1 hides the burst). o: { n, colors, size, spread, rise, grav, seed, add, up }

@@ -2,7 +2,7 @@
 // Characters are LEGO-minifig-style statues/figures built from boxes, cylinders
 // and cones. Printed faces come from one shared canvas atlas so every head uses
 // the same material. Animated parts (arms, wheels, orbs) are separate groups.
-import { THREE, BrickBuilder, C, plastic, mat4 } from './kit.js';
+import { THREE, BrickBuilder, C, plastic, mat4, glowTexture } from './kit.js';
 
 // ---- shared geometry -------------------------------------------------------------
 const geoCache = new Map();
@@ -27,17 +27,7 @@ export function spike(b, x, y, z, r, h, rx, rz, color, ry = 0, opts) {
 export function rbox(b, x, y, z, sx, sy, sz, rx, ry, rz, color, opts) { b.boxM(mat4(x, y, z, rx, ry, rz, sx, sy, sz), color, opts); }
 
 // ---- glow ------------------------------------------------------------------------------
-let glowTexture = null;
-export function glowTex() {
-  if (glowTexture) return glowTexture;
-  const c = document.createElement('canvas'); c.width = c.height = 64;
-  const g = c.getContext('2d');
-  const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
-  gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.25, 'rgba(255,255,255,0.7)'); gr.addColorStop(0.6, 'rgba(255,255,255,0.18)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
-  g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
-  glowTexture = new THREE.CanvasTexture(c);
-  return glowTexture;
-}
+export const glowTex = glowTexture;
 const glowMats = new Map();
 export function glowMat(color, opacity = 0.9) {
   const key = color + '|' + opacity;

@@ -1,19 +1,12 @@
 // Helpers for the Brick Kart Originals drivers (./classic.js): maths for gestures, canvas
 // faces, hand grips that keep a prop upright, effect parts (glows, puffs, rings, sparkles)
 // and a finish() that measures the rig. See ../driver.js for the seated-rig contract.
-import { THREE, BrickBuilder, C, plastic, seatedFig, rbox, rod, mat4, cached, taperGeo, glowMat, faceMat } from './kit.js';
+import { THREE, BrickBuilder, C, plastic, seatedFig, rbox, rod, mat4, cached, taperGeo, glowMat, faceMat, clamp01, seg, sm, lerp, bump, winF, vis } from './kit.js';
 
-export { THREE, BrickBuilder, C, plastic, seatedFig, rbox, rod, mat4, cached, taperGeo, glowMat };
+export { THREE, BrickBuilder, C, plastic, seatedFig, rbox, rod, mat4, cached, taperGeo, glowMat, clamp01, seg, sm, lerp, bump, winF, vis };
 
 // ---- maths ------------------------------------------------------------------------------
 export const S = Math.sin, CO = Math.cos, PI = Math.PI, abs = Math.abs, UP = -2.75;
-export const clamp01 = (x) => (x < 0 ? 0 : x > 1 ? 1 : x);
-export const seg = (f, a, b) => clamp01((f - a) / (b - a));
-export const sm = (x) => { x = clamp01(x); return x * x * (3 - 2 * x); };
-export const lerp = (a, b, k) => a + (b - a) * k;
-export const bump = (f, a = 0, b = 1) => Math.sin(PI * seg(f, a, b));          // 0 → 1 → 0 over [a, b]
-export const winF = (t) => (t % 1.6) / 1.6;                                      // driver.js loops 'win' every 1.6 s
-export const vis = (o, on) => { if (o.visible !== on) o.visible = on; };
 export const hex = (c) => '#' + new THREE.Color(c).getHexString();
 
 // ---- faces ------------------------------------------------------------------------------

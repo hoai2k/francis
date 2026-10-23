@@ -2,9 +2,22 @@
 // seatedFig() builds a seated minifig-style driver with separate torso, head and arm
 // pivots; character files dress it up with hair, helmets, props and custom faces.
 import * as THREE from 'three';
-import { BrickBuilder, C, plastic, faceTexture } from '../lego.js';
+import { BrickBuilder, C, plastic, faceTexture, glowTexture } from '../lego.js';
 
-export { THREE, BrickBuilder, C, plastic, faceTexture };
+export { THREE, BrickBuilder, C, plastic, faceTexture, glowTexture };
+
+// ---- gesture maths and effect groups, shared by every driver pack -----------------------
+// f is a gesture's progress 0..1; driver.js loops the 'win' pose every 1.6 s
+export const clamp01 = (x) => (x < 0 ? 0 : x > 1 ? 1 : x);
+export const seg = (f, a, b) => clamp01((f - a) / (b - a));                    // 0 → 1 over [a, b]
+export const sm = (x) => { x = clamp01(x); return x * x * (3 - 2 * x); };     // smoothstep
+export const lerp = (a, b, k) => a + (b - a) * k;
+export const bump = (f, a = 0, b = 1) => Math.sin(Math.PI * seg(f, a, b));    // 0 → 1 → 0 over [a, b]
+export const winF = (t) => (t % 1.6) / 1.6;                                    // progress through the looped 'win'
+export const LOOP = (Math.PI * 2) / 1.6;                                       // one cycle of the looped 'win', in radians a second
+export const vis = (o, on) => { if (o.visible !== on) o.visible = on; };
+// a hidden group for an effect (toggled in fx)
+export function fxg(parent, x = 0, y = 0, z = 0) { const g = new THREE.Group(); g.position.set(x, y, z); g.visible = false; parent.add(g); return g; }
 
 const geoCache = new Map();
 export const cached = (key, make) => { let g = geoCache.get(key); if (!g) { g = make(); geoCache.set(key, g); } return g; };

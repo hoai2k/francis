@@ -1,7 +1,9 @@
 // Brick-built scenery props. Every function draws into a BrickBuilder so the
 // whole map merges into a few meshes per colour.
 import * as THREE from 'three';
-import { C, plastic } from './lego.js';
+import { C, plastic, canvasTexture } from './lego.js';
+
+export { canvasTexture };
 
 export function rng(seed) {
   let a = seed >>> 0;
@@ -288,16 +290,6 @@ export function grandstand(b, track, i0, len, side, r) {
       b.box(p.x, track.groundY, p.z, 0.5, tiers * 1.1 + 7, 0.5, C.black);
     }
   }
-}
-
-export function canvasTexture(w, h, draw) {
-  const c = document.createElement('canvas');
-  c.width = w; c.height = h;
-  draw(c.getContext('2d'), w, h);
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  t.anisotropy = 8;
-  return t;
 }
 
 export function billboard(group, b, x, y, z, rot, text, bg = '#c91a09', fg = '#f2cd37', w = 14, h = 5) {
