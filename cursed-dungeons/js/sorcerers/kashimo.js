@@ -223,12 +223,12 @@ class KashimoKit extends Kit {
     if (!list.length) { g.toast?.('No charged curses'); g.audio?.ui('back'); return false; }
     this.cast(0.45, true, { type: 'raise' });
     g.fx.flash(0x9ad8ff, 0.25, 0.15);
-    list.forEach((e, i) => setTimeout(() => {
+    list.forEach((e, i) => this.after(i * 0.06, () => {
       if (e.dead) return;
       const stacks = Math.max(1, Math.round(e.kCharge ?? 1)); e.kCharge = 0;
       this.strike(e.pos.clone(), 0, 1.2);
       g.combat.damageEnemy(e, (16 + rk * 6) * stacks, p, { stagger: 0.8, unblockable: true, color: '#6ae8ff' });
-    }, i * 60));
+    }));
     g.shake(0.35); g.fx.chroma(0.6);
   }
   // Full output: every bit of stored electricity leaves his body at once.
@@ -237,7 +237,7 @@ class KashimoKit extends Kit {
     const R = 7.5;
     this.cast(0.5, true, { type: 'raise' });
     g.audio?.charge(0.3, 1.6);
-    setTimeout(() => {
+    this.after(0.26, () => {
       const body = p.pos.clone().setY(p.pos.y + 1.2);
       g.fx.flash(0xc0f0ff, 0.35, 0.2); g.fx.chroma(0.8);
       g.fx.shockwave(p.pos, VOLT, R); g.fx.rings.spawn(tmp.set(p.pos.x, p.pos.y + 0.08, p.pos.z), { color: WHITE, r0: 0.5, r1: R, dur: 0.35, thick: 0.15 });
@@ -250,7 +250,7 @@ class KashimoKit extends Kit {
       }
       g.shake(0.45); g.hitStop(0.05);
       g.audio?.noise({ dur: 0.5, gain: 0.5, type: 'highpass', freq: 2000, sweep: 400, rev: 0.4 }); g.audio?.blackFlash();
-    }, 260);
+    });
   }
   // ------------------------------------------------------------ library abilities
   incoming(amount, src) {
@@ -529,7 +529,7 @@ class KashimoKit extends Kit {
       if (Math.random() < 0.5) { const a = Math.random() * Math.PI * 2, r = 4 + Math.random() * 4; zap(g, p.pos.clone().add(new THREE.Vector3(Math.cos(a) * r, 8, Math.sin(a) * r)), p.pos.clone().setY(p.pos.y + 1.2), Math.random() < 0.5 ? VOLT : WHITE, 0.25, 6); }
       return t < 0.9;
     });
-    this.amberTimer = setTimeout(() => {
+    this.amberTimer = this.after(1, () => {
       this.amberTimer = null;
       if (p.action?.type === 'sign') p.action = null;
       g.fx.dimTarget = 0;
@@ -551,7 +551,7 @@ class KashimoKit extends Kit {
         this.charge(e, 3);
       }
       g.audio?.blackFlash(); g.audio?.energy('explode');
-    }, 1000);
+    });
   }
   endAmber() {
     const g = this.game, p = this.p;
@@ -611,6 +611,6 @@ class KashimoKit extends Kit {
     // charged curses crackle
     if (Math.random() < 0.35) for (const e of g.enemies) if (!e.dead && e.kCharge > 0 && Math.random() < 0.35) g.particles.glow.spawn({ x: e.pos.x + (Math.random() - 0.5) * 0.8, y: e.pos.y + Math.random() * e.height, z: e.pos.z + (Math.random() - 0.5) * 0.8, vx: (Math.random() - 0.5) * 2, vy: 1, vz: (Math.random() - 0.5) * 2, life: 0.2, r: 0.8, g: 2.4, b: 3, size: 0.05 + e.kCharge * 0.015, drag: 2, shape: 'spark' });
   }
-  dispose() { super.dispose(); this.removeRod(); if (this.amberTimer) { clearTimeout(this.amberTimer); this.amberTimer = null; } this.game.fx.dimTarget = 0; this.amberT = 0; this.burnT = 0; this.speedMul = 1; }
+  dispose() { super.dispose(); this.removeRod(); this.amberTimer = null; this.game.fx.dimTarget = 0; this.amberT = 0; this.burnT = 0; this.speedMul = 1; }
 }
 registerKit('kashimo', KashimoKit, KASHIMO_SKILLS);

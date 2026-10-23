@@ -104,6 +104,7 @@ export class Kit {
   ability(o) { return ability(o); }
   dispose() {
     this.disposed = true;
+    this.afterTimers = null;
     for (const o of this.owned ?? []) this.game.scene.remove(o);
     for (const b of this.buffs.values()) b.onEnd?.(true);
     this.buffs.clear();
@@ -171,6 +172,7 @@ export class Kit {
   get domainLocked() { return !this.rank('unlock_domain'); }
 
   update(dt, inp) {
+    this.tickTimers(dt);
     for (const k in this.slots) {
       const s = this.slots[k];
       if (s.maxCharges) {
@@ -246,9 +248,21 @@ export class Kit {
   // ================================================================ toolkit
   // Run fn after `sec` seconds of game time (pauses with the game, dropped
   // when the level changes or the kit is rebuilt).
+  // Call fn after `sec` seconds of game time: it waits while the game is paused (and through hit-stop
+  // and slow motion), carries on across region changes, and is dropped when the kit is disposed.
+  // Use it instead of setTimeout, which runs on the wall clock. Returns a handle: h.cancel().
   after(sec, fn) {
-    let t = 0;
-    this.game.addUpdater((dt) => { if (this.disposed) return false; t += dt; if (t < sec) return true; fn(); return false; });
+    const h = { left: sec, fn, cancel() { this.fn = null; } };
+    (this.afterTimers ??= []).push(h);
+    return h;
+  }
+  // advance after() timers (Kit.update does it; Player.update too while its player is down)
+  tickTimers(dt) {
+    if (!this.afterTimers?.length || this.disposed) return;
+    const due = [];
+    this.afterTimers = this.afterTimers.filter((h) => { if (!h.fn) return false; h.left -= dt; if (h.left > 0) return true; due.push(h); return false; });
+    due.sort((a, b) => a.left - b.left);   // the most overdue first
+    for (const h of due) if (h.fn && !this.disposed) { const fn = h.fn; h.fn = null; fn(); }
   }
   // Call fn(t, dt, k) every frame for `dur` seconds (k = 0..1). Return false to stop early.
   during(dur, fn, onEnd) {

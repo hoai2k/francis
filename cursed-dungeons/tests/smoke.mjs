@@ -161,7 +161,8 @@ const sections = {};
 const section = async (name, fn, arg) => {
   const before = await page.evaluate(() => window.__T.hash);
   const n0 = errors.length;
-  const res = await page.evaluate(fn, arg);
+  let res;
+  try { res = await page.evaluate(fn, arg); } catch (e) { errors.push(`${name}: ${e.message.split('\n')[0]}`); }
   const after = await page.evaluate(() => { const T = window.__T; const h = T.hash; T.hash = 0x811c9dc5; return h; });
   sections[name] = after.toString(16);
   const bad = errors.length - n0;
@@ -195,6 +196,19 @@ await section('curses', () => {
 });
 const attacks = await page.evaluate(() => window.__T.attacks);
 
+// kit timers (Kit.after) run on game time: they wait while the game is paused
+await section('timers', () => {
+  const T = window.__T, g = window.__game, kit = T.player().kit;
+  let fired = 0, cancelled = 0;
+  kit.after(0.5, () => fired++);
+  kit.after(0.5, () => cancelled++).cancel();
+  g.paused = true; T.step(60);
+  const whilePaused = fired;
+  g.paused = false; T.step(20);
+  if (whilePaused !== 0 || fired !== 1 || cancelled !== 0) throw new Error(`Kit.after: fired ${whilePaused} while paused, ${fired} after, ${cancelled} cancelled`);
+  return 'after() waits through a pause; cancel() works';
+});
+
 // techniques
 const ids = await page.evaluate(() => window.__T.SORCERER_IDS.slice());
 for (const id of ids) {
@@ -215,6 +229,7 @@ for (const id of ids) {
     const p = T.player(), kit = p.kit;
     const spawn = () => { if (g.enemies.filter((e) => !e.dead).length < 4) T.ring(['swarmer', 'tank', 'spitter', 'flyhead', 'transfigured'], 5); };
     let fired = 0, total = 0;
+    const idle = [];
     const abilities = Object.values(kit.library ?? {}).filter((a) => !a.isPassive && !a.empty);
     for (const ab of abilities) {
       spawn();
@@ -226,7 +241,7 @@ for (const id of ids) {
       total++;
       if (ab.hold) { T.holding = new Set([slot]); T.press(slot); T.step(20); T.holding = null; T.inp.held[slot] = false; T.inp.released[slot] = true; T.step(1); }
       else { T.press(slot); T.step(1); }
-      if (ab.cdLeft !== cd0 || ab.chargesLeft !== ch0) fired++;
+      if (ab.cdLeft !== cd0 || ab.chargesLeft !== ch0) fired++; else idle.push(ab.id);
       T.step(40);
     }
     // melee, dodge, Reverse Cursed Technique
@@ -239,7 +254,7 @@ for (const id of ids) {
     const domain = kit.domain ? 'domain' : kit.ultimate ? 'ultimate' : 'none';
     T.press('domain'); T.step(240);
     g.domainSys.end(); T.step(30);
-    return `${fired}/${total} abilities fired, ${domain}`;
+    return `${fired}/${total} abilities fired, ${domain}${idle.length ? ' (not fired: ' + idle.join(', ') + ')' : ''}`;
   }, id);
 }
 

@@ -284,7 +284,7 @@ class HakariKit extends Kit {
     this.fever = 0;
     if (fresh) { p.stats.attackSpeed *= 1.25; this.speedMul = 1.15; }
     g.toast?.('JACKPOT!', 'domain');
-    setTimeout(() => g.toast?.('♪ Next stop, Tokyo Station… "Private Pure Love Train" ♪', 'big'), 900);
+    this.after(0.9, () => g.toast?.('♪ Next stop, Tokyo Station… "Private Pure Love Train" ♪', 'big'));
     g.fx.flash(GOLD, 0.6, 0.35); g.fx.screenWave(p.pos.clone().setY(p.pos.y + 1), 1.4, 0.7); g.fx.chroma(1.2);
     g.shake(0.6); g.slowMo(0.6, 0.3);
     g.lights.flash(p.pos.clone().setY(p.pos.y + 2), GOLD, 26, 18, 1.2, { priority: 8 });
@@ -294,7 +294,7 @@ class HakariKit extends Kit {
     if (this.parlour) this.parlour.screen.userData.draw([7, 7, 7], 'JACKPOT!!', '#ffd23a');
     // a bright little fanfare in place of the anime's dancing opening
     [523, 659, 784, 1046, 784, 1046, 1318, 1568].forEach((f, i) => g.audio?.tone({ freq: f, dur: 0.22, gain: 0.08, type: 'square', filter: 3500, at: i * 0.11, rev: 0.3 }));
-    for (let i = 0; i < 8; i++) setTimeout(() => g.audio?.coin(), 120 + i * 70);
+    for (let i = 0; i < 8; i++) this.after(0.12 + i * 0.07, () => g.audio?.coin());
   }
   onIncoming(amount, src, o) {
     amount = super.onIncoming(amount, src, o); if (amount <= 0) return 0;
@@ -395,10 +395,10 @@ class HakariKit extends Kit {
     const n = 4 + this.rank('shutter');
     const dmg = 20 + this.rank('shutter') * 8;
     const sure = g.domainSys?.sureHit(p) ? [...this.inDomain()].slice(0, n) : null;
-    for (let i = 0; i < n; i++) setTimeout(() => {
+    for (let i = 0; i < n; i++) this.after(i * 0.07, () => {
       const at = sure && sure[i] ? sure[i].pos.clone() : p.pos.clone().addScaledVector(p.aimDir, 1.8 + i * 1.6);
       this.shutter(at, face, dmg);
-    }, i * 70);
+    });
     g.audio?.whoosh(1.1);
   }
   rush() {
@@ -419,7 +419,7 @@ class HakariKit extends Kit {
       g.particles.burst(front, { count: 6, color: GREEN, speed: 5, life: 0.25, size: 0.1, shape: 1, dir: fwd.clone().multiplyScalar(0.8) });
       if (targets.length) { g.hitStop(0.02); g.shake(0.1); g.audio?.impact(0.8); this.fever = Math.min(100, this.fever + 1.5); } else g.audio?.swing(i % 3);
       if (i === hits - 1) { g.fx.shockwave(front, GREEN, 3); g.shake(0.3); }
-      i++; setTimeout(step, 70);
+      i++; this.after(0.07, step);
     };
     step();
   }
@@ -428,18 +428,18 @@ class HakariKit extends Kit {
     this.cast(0.5, true, { type: 'raise' });
     g.audio?.charge(0.4, 1.4);
     g.fx.rings.spawn(tmp.set(p.pos.x, p.pos.y + 0.08, p.pos.z), { color: GREEN, r0: 3, r1: 0.4, dur: 0.5, thick: 0.15 });
-    setTimeout(() => {
+    this.after(0.4, () => {
       const c = p.pos.clone();
       const n = 16 + rk * 4;
-      for (let i = 0; i < n; i++) setTimeout(() => {
+      for (let i = 0; i < n; i++) this.after(i * 0.025, () => {
         const a = Math.random() * Math.PI * 2, rr = 1 + Math.random() * 4.5;
         g.projectiles.fire({ pos: c.clone().add(new THREE.Vector3(Math.cos(a) * rr, 7 + Math.random() * 2, Math.sin(a) * rr)), vel: new THREE.Vector3(0, -16, 0), team: 'player', shape: 'orb', color: i % 2 ? SILVER : GOLD, emissive: 1.5, scale: 0.8, radius: 0.5, life: 1.2, ghost: true,
           onHit: (e) => { g.combat.damageEnemy(e, 12 + rk * 3, p, { stagger: 0.3 }); this.fever = Math.min(100, this.fever + 0.5); },
           onExpire: (q) => { g.particles.burst(q.pos, { count: 4, color: SILVER, speed: 3, life: 0.3, size: 0.1, shape: 1 }); if (Math.random() < 0.3) g.audio?.coin(); } });
-      }, i * 25);
+      });
       g.combat.aoe(c, 5, 20 + rk * 4, p, { knock: 4, stagger: 0.4, falloff: true });
       g.fx.shockwave(c, SILVER, 5);
-    }, 400);
+    });
   }
   // ------------------------------------------------------------ Pachinko (more)
   ballShot() {

@@ -257,6 +257,7 @@ export class Player {
 
   update(dt) {
     const g = this.game, inp = this.input();
+    if (this.dead || this.downed) this.kit.tickTimers?.(dt);   // (Kit.update, which ticks them, doesn't run while down)
     if (this.dead) { this.animate(dt); return; }
     if (this.downed) {
       this.downT -= dt;

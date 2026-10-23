@@ -113,7 +113,8 @@ Conventions worth knowing:
 - **Techniques** (`js/sorcerers/<id>.js`) extend `Kit` (`js/sorcerers/kit.js`),
   whose header lists the helpers. Pick curses with `living`, `inDomain`,
   `near`, `targetsNear`, `nearest` and `best` rather than looping over
-  `game.enemies`.
+  `game.enemies`, and sequence effects with `this.after(seconds, fn)` (game
+  time: it waits through pauses), never `setTimeout`.
 - **Curse attacks** are entries in `js/entities/enemyAttacks.js` (spec, start,
   wind-up, release, active phase); `js/entities/enemy.js` runs them and holds
   the archetype AIs.

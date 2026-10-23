@@ -87,7 +87,7 @@ export class Combat {
       });
       if (dealt > 0) {
         hit++;
-        if (p.weaponTwin && !e.dead) { const ee = e; setTimeout(() => { if (!ee.dead) this.damageEnemy(ee, step.dmg * 0.45, p, { melee: true, stagger: 0.05, color: '#bfe8ff' }); }, 90); }
+        if (p.weaponTwin && !e.dead) { const ee = e; p.kit.after(0.09, () => { if (!ee.dead) this.damageEnemy(ee, step.dmg * 0.45, p, { melee: true, stagger: 0.05, color: '#bfe8ff' }); }); }
         const hp = e.pos.clone(); hp.y += e.height * 0.55;
         g.fx.hitSpark(hp, kdir, { color: bf ? 0xff2020 : step.sparkColor ?? p.rig.look?.accent ?? 0xffe0a0, big: step.ring || bf, crit: false });
         p.kit?.onMeleeHit?.(e, step, dealt, bf);

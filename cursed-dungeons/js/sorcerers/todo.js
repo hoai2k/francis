@@ -112,8 +112,8 @@ class TodoKit extends Kit {
     this.ultimate = { name: 'Boogie Woogie × Black Flash', icon: '⚡', use: () => this.brotherFlash() };
     this.openT = 0; this.bfChain = 0;
   }
-  dispose() { super.dispose(); this.disposed = true; for (const id of this.timers ?? []) clearTimeout(id); this.timers = []; this.game.fx.dimTarget = 0; }
-  later(ms, fn) { if ((this.timers ??= []).length > 200) this.timers = this.timers.slice(-100); this.timers.push(setTimeout(() => { if (!this.disposed && !this.p.dead) fn(); }, ms)); }
+  dispose() { super.dispose(); this.disposed = true; this.game.fx.dimTarget = 0; }
+  later(ms, fn) { this.after(ms / 1000, () => { if (!this.p.dead) fn(); }); }
   // ------------------------------------------------------------ helpers
   clapFx(at, s = 1) {
     const g = this.game;
@@ -643,7 +643,7 @@ class TodoKit extends Kit {
       if (victim !== e && !e.dead && e.pos.distanceTo(p.pos) < 3.2) punch(e, i + 1, false);
     });
     // the finisher: a final clap pulls the target in front of Todo for one last Black Flash
-    this.timers.push(setTimeout(() => { if (!this.disposed) g.fx.dimTarget = 0; }, 300 + beats * gap + 150));
+    this.after((300 + beats * gap + 150) / 1000, () => { g.fx.dimTarget = 0; });
     this.later(300 + beats * gap + 150, () => {
       const e = retarget(); if (!e) return;
       this.clapFx(p.pos, 1.6);

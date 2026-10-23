@@ -159,7 +159,7 @@ class InumakiKit extends Kit {
     if (g.domainSys?.sureHit(p)) return [...this.inDomain()];
     return g.combat.query(p.pos, p.aimDir, range, arc);
   }
-  dispose() { super.dispose(); if (this.dieT) { clearTimeout(this.dieT); this.dieT = null; } this.game.fx.dimTarget = 0; }
+  dispose() { super.dispose(); this.dieT = null; this.game.fx.dimTarget = 0; }
   // ------------------------------------------------------------ library helpers
   get mult() { return this.baseMult * (this.bloodyVoice && this.strain >= 100 ? 1.3 : 1); }
   reach() { return this.buffs.has('unzip') ? 1.25 : 1; }
@@ -455,7 +455,7 @@ class InumakiKit extends Kit {
     this.cast(0.32);
     this.say('Blast away', false);
     const face = Math.atan2(p.aimDir.x, p.aimDir.z);
-    for (let i = 0; i < 4; i++) setTimeout(() => g.fx.slashArc(p.pos, face, VOICE, 1.6 + i * 1.6, 0.45, 0.25), i * 45);
+    for (let i = 0; i < 4; i++) this.after(i * 0.045, () => g.fx.slashArc(p.pos, face, VOICE, 1.6 + i * 1.6, 0.45, 0.25));
     g.particles.burst(this.handPos(), { count: 24, color: VOICE, speed: 14, spread: 0.35, dir: p.aimDir.clone(), life: 0.4, size: 0.14, shape: 1 });
     for (const e of this.targets(7, 0.6)) {
       const k = tmp.subVectors(e.pos, p.pos).setY(0).normalize().multiplyScalar(e.isBoss ? 4 : 15);
@@ -503,7 +503,7 @@ class InumakiKit extends Kit {
     for (let i = 0; i < 18; i++) { const a = Math.random() * Math.PI * 2, rr = Math.random() * R; g.particles.glow.spawn({ x: at.x + Math.cos(a) * rr, y: at.y + 4 + Math.random() * 2, z: at.z + Math.sin(a) * rr, vy: -18, life: 0.25, r: 1.6, g: 1.2, b: 3, size: 0.18, sizeEnd: 0.6, shape: 'square' }); }
     g.fx.rings.spawn(tmp.set(at.x, at.y + 0.08, at.z), { color: VOICE, r0: R * 1.4, r1: 0.3, dur: 0.25, thick: 0.2 });
     this.strainBy(20 * this.weight(g.combat.query(at, tmp.set(0, 0, 1), R, Math.PI)));
-    setTimeout(() => {
+    this.after(0.22, () => {
       for (const e of g.combat.query(at, tmp.set(0, 0, 1), R, Math.PI)) {
         g.combat.damageEnemy(e, (46 + rk * 16) * this.mult, p, { stagger: 1, unblockable: true });
         e.vel.y = Math.min(e.vel.y, -8); e.slowT = Math.max(e.slowT ?? 0, 2);
@@ -513,7 +513,7 @@ class InumakiKit extends Kit {
       g.fx.darkRings.spawn(tmp.set(at.x, at.y + 0.06, at.z), { color: 0x000000, r0: 0.3, r1: R, dur: 0.5, thick: 0.4 });
       g.fx.screenWave(at, 0.9, 0.4);
       g.shake(0.45); g.hitStop(0.06); g.audio?.impact(2);
-    }, 220);
+    });
   }
   twist() {
     if (this.mute()) return false;
@@ -526,14 +526,14 @@ class InumakiKit extends Kit {
     g.fx.screenWave(p.pos.clone().setY(p.pos.y + 1.6), 0.7, 0.4);
     for (const e of list) {
       e.slowT = Math.max(e.slowT ?? 0, 1.5);
-      for (let k = 0; k < 3; k++) setTimeout(() => {
+      for (let k = 0; k < 3; k++) this.after(0.12 + k * 0.14, () => {
         if (e.dead) return;
         const at = e.pos.clone().setY(e.pos.y + e.height * 0.5);
         g.combat.damageEnemy(e, (16 + rk * 6) * this.mult, p, { stagger: 0.5, unblockable: true, color: '#b89aff' });
         g.fx.slashArc(e.pos, k * 2.1 + Math.random(), VOICE, 0.9 + e.radius, 0.9, 0.22, k % 2 === 1);
         g.particles.burst(at, { count: 8, color: k === 2 ? BLOOD : VOICE, speed: 4, life: 0.4, size: 0.1, shape: 1 });
         g.audio?.impact(0.9);
-      }, 120 + k * 140);
+      });
     }
     g.shake(0.3);
     this.strainBy(18 * this.weight(list));
@@ -555,7 +555,7 @@ class InumakiKit extends Kit {
     g.audio?.charge(0.9, 0.5);
     for (const e of list) { e.cancelAttack?.(); if (!e.isBoss) e.sealT = Math.max(e.sealT ?? 0, 1.2); }
     const bosses = list.filter((e) => e.isBoss).length;
-    this.dieT = setTimeout(() => {
+    this.dieT = this.after(0.9, () => {
       this.dieT = null;
       if (p.action?.type === 'sign') p.action = null;
       g.fx.dimTarget = 0;
@@ -567,7 +567,7 @@ class InumakiKit extends Kit {
       g.lights.flash(p.pos.clone().setY(p.pos.y + 2), BLOOD, 30, R + 6, 0.6, { priority: 8 });
       g.shake(1); g.hitStop(0.12);
       g.audio?.blackFlash(); g.audio?.energy('explode');
-      list.forEach((e, i) => setTimeout(() => {
+      list.forEach((e, i) => this.after(0.04 + i * 0.035, () => {
         if (e.dead) return;
         const at = e.pos.clone().setY(e.pos.y + e.height * 0.6);
         e.sealT = 0;
@@ -576,7 +576,7 @@ class InumakiKit extends Kit {
         g.particles.burst(at, { count: 30, color: BLOOD, speed: 7, life: 0.6, size: 0.14, gravity: 12, shape: 1, intensity: 1.6 });
         g.fx.darkRings.spawn(tmp.set(e.pos.x, e.pos.y + 0.07, e.pos.z), { color: 0x000000, r0: 0.3, r1: 3, dur: 0.5, thick: 0.4 });
         g.lights.flash(at, BLOOD, 10, 8, 0.4);
-      }, 40 + i * 35));
+      }));
       // the order tears Toge's throat
       const cost = Math.min(p.hp - 1, p.maxHp * (0.3 + rk * 0.04 + bosses * 0.08));
       if (cost > 0) {
@@ -586,8 +586,8 @@ class InumakiKit extends Kit {
         g.audio?.hurt();
       }
       this.strain = 130; this.quietT = 4; this.muteT = 8;
-      setTimeout(() => g.toast?.('🩸 The order tears Toge\'s throat — he can\'t speak for 8s'), 700);
-    }, 900);
+      this.after(0.7, () => g.toast?.('🩸 The order tears Toge\'s throat — he can\'t speak for 8s'));
+    });
   }
 }
 registerKit('inumaki', InumakiKit, INUMAKI_SKILLS);

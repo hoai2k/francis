@@ -121,8 +121,8 @@ class NanamiKit extends Kit {
     this.mark = null; this.cycle = 0; this.workT = 0; this.overtimeT = 0; this.bfStreak = 0; this.bfT = 0;
     this.buildMarker();
   }
-  dispose() { super.dispose(); this.disposed = true; for (const id of this.timers ?? []) clearTimeout(id); this.timers = []; this.game.fx.dimTarget = 0; }
-  later(ms, fn) { if ((this.timers ??= []).length > 200) this.timers = this.timers.slice(-100); this.timers.push(setTimeout(() => { if (!this.disposed) fn(); }, ms)); }
+  dispose() { super.dispose(); this.disposed = true; this.game.fx.dimTarget = 0; }
+  later(ms, fn) { this.after(ms / 1000, fn); }
   // ------------------------------------------------------------ 7:3 marker
   buildMarker() {
     const grp = new THREE.Group();

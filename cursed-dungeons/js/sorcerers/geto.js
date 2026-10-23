@@ -163,7 +163,7 @@ class Spirit {
       g.audio?.energy('spit');
       return;
     }
-    setTimeout(() => {
+    this.owner.kit.after(0.12, () => {
       if (this.dead || e.dead) return;
       const dir = tmp.subVectors(e.pos, this.pos).setY(0).normalize();
       if (S.aoe) {
@@ -172,7 +172,7 @@ class Spirit {
       } else g.combat.damageEnemy(e, this.dmg * mult, own, { knock: dir.multiplyScalar(3), stagger: 0.35, ceGain: 1 });
       g.fx.hitSpark(e.pos.clone().setY(e.pos.y + e.height * 0.5), null, { color: VIOLET });
       g.audio?.impact(S.aoe ? 1.2 : 0.7);
-    }, 120);
+    });
   }
 }
 
@@ -835,7 +835,7 @@ class GetoKit extends Kit {
     g.fx.dimTarget = 0.5;
     g.slowMo(CH + 0.6, 0.35);
     g.toast?.('MAXIMUM: UZUMAKI', 'domain');
-    setTimeout(() => { if (!this.disposed) g.toast?.(`🌀 ${Math.round(power * 186)} curses compressed into one`); }, 600);
+    this.after(0.6, () => g.toast?.(`🌀 ${Math.round(power * 186)} curses compressed into one`));
     g.rig.cinematic?.({ center: p.pos.clone().setY(p.pos.y + 1.5), dur: CH + 1.2, dist: 13, pitch: 0.35, orbit: 0.3 });
     g.audio?.charge(CH, 0.5); g.audio?.energy('summon');
     let t = 0, ring = 0;

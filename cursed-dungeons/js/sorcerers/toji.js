@@ -159,17 +159,14 @@ class TojiKit extends Kit {
   get speedMul() { return this.rampage ? 1.45 : 1; }
   dispose() {
     super.dispose(); this.disposed = true;
-    clearTimeout(this.toolTimer);
-    for (const id of this.ultTimers ?? []) clearTimeout(id);
-    this.ultTimers = [];
     if (this.ultActive) { this.game.fx.dimTarget = 0; this.ultActive = false; }
   }
   // ------------------------------------------------------------- helpers
   showTool(name, dur = 1.1) {
     const tools = this.p.rig.extras.tools; if (!tools) return;
     for (const k in tools) tools[k].visible = k === name;
-    clearTimeout(this.toolTimer);
-    if (name !== 'spear') this.toolTimer = setTimeout(() => { if (!this.disposed) for (const k in tools) tools[k].visible = k === 'spear'; }, dur * 1000);
+    this.toolTimer?.cancel();
+    if (name !== 'spear') this.toolTimer = this.after(dur, () => { for (const k in tools) tools[k].visible = k === 'spear'; });
   }
   safeSpot(x, z, y) {
     const w = this.game.world;
@@ -366,8 +363,8 @@ class TojiKit extends Kit {
       if (score > best) { best = score; prey = e; }
     }
     if (!prey) { g.toast?.('🐆 No prey in sight — the meter waits.'); g.audio?.ui('back'); return false; }
-    this.ultActive = true; this.ultTimers = [];
-    const later = (ms, fn) => this.ultTimers.push(setTimeout(() => { if (!this.disposed && !p.dead) fn(); }, ms));
+    this.ultActive = true;
+    const later = (ms, fn) => this.after(ms / 1000, () => { if (!p.dead) fn(); });
     const escorts = this.byDistance(this.targetsNear(prey.pos, 11, (e) => e !== prey && !e.isBoss), p.pos).slice(0, 4 + rk * 2);
     const total = 650 + escorts.length * 170 + 900;
     p.iframes = Math.max(p.iframes, total / 1000 + 0.4);
@@ -422,7 +419,7 @@ class TojiKit extends Kit {
       g.audio?.impact(2.2, 'crit'); g.audio?.energy('slash');
     });
     // 3) the follow-through: a katana cross through whatever is left
-    this.ultTimers.push(setTimeout(() => { if (!this.disposed) { this.ultActive = false; g.fx.dimTarget = 0; } }, strike + 560));
+    this.after((strike + 560) / 1000, () => { this.ultActive = false; g.fx.dimTarget = 0; });
     later(strike + 560, () => {
       this.rampageT = 4 + rk * 1.5;
       if (prey.dead) { g.toast?.('🐆 Target eliminated.'); return; }

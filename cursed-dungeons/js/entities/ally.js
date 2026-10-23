@@ -162,7 +162,7 @@ export class Ally {
     if (this.kind === 'toad') {
       // tongue: pull the curse in and stun it
       const P = this.parts; P.tongue.visible = true; P.tongue.scale.z = Math.min(8, e.pos.distanceTo(this.pos)); P.tongue.position.z = 0.5 + P.tongue.scale.z / 2;
-      setTimeout(() => { P.tongue.visible = false; }, 250);
+      own.kit.after(0.25, () => { P.tongue.visible = false; });
       e.knock?.add(tmp.subVectors(this.pos, e.pos).setY(0).normalize().multiplyScalar(14));
       e.state = 'stagger'; e.stateT = 0; e.stagger = 1.0;
       g.combat.damageEnemy(e, this.dmg * mult, own, { stagger: 0.8, ceGain: 1 });
