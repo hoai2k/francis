@@ -126,6 +126,55 @@ await check('items and abilities', '?quick=city&norender&abilities=all', async (
   await sleep(3000);
 });
 
+// feedback for bonuses: player 1 (keyboard) hits a boost ramp, tricks in the air (Space) and lands;
+// then charges a drift to purple sparks and lets go. Each must sound and show.
+await check('bonus feedback', '?quick=city&norender', async (page) => {
+  await raceReady(page);
+  await page.evaluate(() => {
+    const race = window.game.race, tr = race.track, k = race.karts.find((o) => o.human);
+    window.__heard = [];
+    const sfx = race.audio.sfx.bind(race.audio);
+    race.audio.sfx = (name, ...a) => { window.__heard.push(name); return sfx(name, ...a); };
+    window.__bursts = 0;
+    const burst = race.fx.boostBurst.bind(race.fx);
+    race.fx.boostBurst = (...a) => { window.__bursts++; return burst(...a); };
+    const r = tr.ramps.find((x) => x.kind === 'boost');
+    for (const o of race.karts) if (o !== k) o.place(tr.wrap(r.i + 400), 0);
+    k.place(tr.wrap(r.i - 50), 0); k.speed = k.topSpeed;
+  });
+  await page.keyboard.down('KeyW');
+  await page.waitForFunction(() => { const k = window.game.race.karts.find((o) => o.human); return !k.grounded && k.launched && k.airTime > 0.2; }, null, { timeout: 8000 })
+    .catch(() => { throw new Error('the kart never left the boost ramp'); });
+  await page.keyboard.press('Space');
+  await page.waitForFunction(() => window.game.race.karts.find((o) => o.human).grounded, null, { timeout: 8000 });
+  await sleep(300);
+  const jump = await page.evaluate(() => ({ heard: window.__heard.splice(0), bursts: window.__bursts, flames: window.game.race.karts.find((o) => o.human).boosting }));
+  for (const s of ['boost', 'jump', 'trick']) if (!jump.heard.includes(s)) throw new Error(`no "${s}" sound off the boost ramp (heard ${jump.heard.join(', ')})`);
+  if (jump.heard.filter((s) => s === 'boost').length < 2) throw new Error(`no boost sound on landing the trick (heard ${jump.heard.join(', ')})`);
+  if (jump.bursts < 2 || !jump.flames) throw new Error('no boost burst / flames for the boost ramp and the trick landing');
+  // a drift (Space held) charged through all three spark colours, then let go
+  await page.keyboard.down('Space'); await sleep(400);
+  const drift = await page.evaluate(async () => {
+    const race = window.game.race, tr = race.track, k = race.karts.find((o) => o.human);
+    const i0 = tr.wrap(tr.ramps.find((x) => x.kind === 'boost').i + 120);
+    window.__bursts = 0;
+    const ticks = [];
+    for (const c of [1.05, 2.15, 3.35]) {
+      // (set down mid-road at speed each time, so the drift never runs into a wall)
+      k.place(i0, 0); k.speed = k.topSpeed;
+      Object.assign(k.drift, { active: true, dir: 1, charge: c - 0.04, level: ticks.length });
+      await new Promise((r) => setTimeout(r, 150)); ticks.push(k.drift.level);
+    }
+    k.place(i0, 0); k.speed = k.topSpeed;
+    return { ticks };
+  });
+  await page.keyboard.up('Space'); await sleep(300);
+  await page.keyboard.up('KeyW');
+  const after = await page.evaluate(() => ({ heard: window.__heard.splice(0), bursts: window.__bursts }));
+  for (const s of ['spark1', 'spark2', 'spark3']) if (!after.heard.includes(s)) throw new Error(`no "${s}" sound as the drift charged (heard ${after.heard.join(', ')}; levels ${drift.ticks})`);
+  if (!after.heard.includes('boost') || !after.bursts) throw new Error(`no Ultra Mini-Turbo boost when the drift was let go (heard ${after.heard.join(', ')})`);
+});
+
 // the menus: title, main menu, Grand Prix select, a driver and a kart and a glider locked in
 await check('menus and select', '?norender', async (page) => {
   await page.waitForFunction(() => window.game?.onTitle !== undefined && document.querySelector('#ui').innerHTML.length > 0, null, { timeout: 60000 });

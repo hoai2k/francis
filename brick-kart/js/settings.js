@@ -8,12 +8,12 @@ export function save(key, v) { try { localStorage.setItem(key, JSON.stringify(v)
 
 // the options (mobile: start on low quality)
 export function loadSettings(mobile) {
-  const s = load(SKEY, { cc: 100, difficulty: 'normal', laps: 3, music: 0.5, sfx: 0.8, autoGas: false, simple: false, touchSteer: 'both', tiltStyle: 'wheel', tiltSens: 'med', tiltInvert: false, lego: true, quality: mobile ? 'low' : 'high' });
+  const s = load(SKEY, { cc: 100, difficulty: 'normal', laps: 3, music: 0.5, sfx: 0.8, autoGas: false, simple: false, lego: true, quality: mobile ? 'low' : 'high' });
   // races always have 12 karts (players included): drop the old count
   if ('racers' in s) { delete s.racers; save(SKEY, s); }
-  // tilt steering was reworked (it read reversed on some phones): drop an old "Invert tilt"
-  // workaround once so the new default is right
-  if (!s.tiltV2) { s.tiltInvert = false; s.tiltV2 = true; save(SKEY, s); }
+  // tilt steering is gone (touch steering is drag only): drop its old options
+  const TILT = ['touchSteer', 'tiltStyle', 'tiltSens', 'tiltInvert', 'tiltV2'];
+  if (TILT.some((k) => k in s)) { for (const k of TILT) delete s[k]; save(SKEY, s); }
   // characters are always on now: drop the old toggle
   if ('useChars' in s || 'charsDefault' in s) { delete s.useChars; delete s.charsDefault; save(SKEY, s); }
   return s;

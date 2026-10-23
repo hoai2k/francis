@@ -101,6 +101,7 @@ export class Audio {
       case 'itemget': this.tone(784, 0.08, { vol: 0.15 }); this.tone(1175, 0.16, { vol: 0.15, at: 0.07 }); break;
       case 'box': this.clatter(6, 0.1, 0.22); this.tone(1500, 0.1, { vol: 0.08, type: 'triangle', slide: 1.5 }); break;
       case 'boost': this.noiseHit(0.6, { vol: 0.35 * a, freq: 400, sweep: 6, q: 2 }); this.tone(200, 0.5, { vol: 0.12 * a, type: 'sawtooth', slide: 3, filter: 2000 }); break;
+      case 'jump': this.noiseHit(0.3, { vol: 0.18, freq: 500, sweep: 3, q: 1 }); this.tone(330, 0.2, { vol: 0.08, type: 'triangle', slide: 2.2 }); break;
       case 'hop': this.tone(300, 0.08, { vol: 0.08, type: 'triangle', slide: 1.8 }); break;
       case 'spark1': this.tone(1400, 0.08, { vol: 0.07, type: 'square' }); break;
       case 'spark2': this.tone(1700, 0.1, { vol: 0.08, type: 'square' }); this.tone(2100, 0.1, { vol: 0.06, at: 0.05 }); break;

@@ -110,9 +110,10 @@ export class Effects {
       for (let j = 0; j < n; j++) this.spark(p.x, p.y, p.z, (Math.random() - 0.5) * 6, 2 + Math.random() * 4, (Math.random() - 0.5) * 6, c, 0.25 + Math.random() * 0.2, 20);
     }
   }
-  boostBurst(k) {
+  // color: every other spark in this colour (a mini-turbo's spark colour); size: more sparks
+  boostBurst(k, color = null, size = 1) {
     const fx = Math.sin(k.yaw), fz = Math.cos(k.yaw);
-    for (let j = 0; j < 16; j++) this.spark(k.pos.x - fx * 2, k.pos.y + 1.1, k.pos.z - fz * 2, -fx * 12 + (Math.random() - 0.5) * 6, Math.random() * 4, -fz * 12 + (Math.random() - 0.5) * 6, j % 2 ? 0xffa020 : 0xffe060, 0.35);
+    for (let j = 0; j < 16 * size; j++) this.spark(k.pos.x - fx * 2, k.pos.y + 1.1, k.pos.z - fz * 2, -fx * 12 + (Math.random() - 0.5) * 6, Math.random() * 4, -fz * 12 + (Math.random() - 0.5) * 6, j % 2 ? color ?? 0xffa020 : 0xffe060, 0.35);
   }
   dust(k, color = 0xcccccc, n = 1) {
     if (n === 1 && Math.random() < 0.5) return;
