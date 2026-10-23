@@ -156,7 +156,7 @@ class InumakiKit extends Kit {
   }
   targets(range, arc) {
     const g = this.game, p = this.p;
-    if (g.domainSys?.sureHit(p)) return g.enemies.filter((e) => !e.dead && !e.isDummy && g.domainSys.inside(e.pos));
+    if (g.domainSys?.sureHit(p)) return [...this.inDomain()];
     return g.combat.query(p.pos, p.aimDir, range, arc);
   }
   dispose() { super.dispose(); if (this.dieT) { clearTimeout(this.dieT); this.dieT = null; } this.game.fx.dimTarget = 0; }
@@ -543,7 +543,7 @@ class InumakiKit extends Kit {
     if (this.mute()) return false;
     const g = this.game, p = this.p, rk = this.rank('die');
     const R = 15 + rk * 3;
-    const list = g.enemies.filter((e) => !e.dead && !e.isDummy && e.pos.distanceTo(p.pos) < R);
+    const list = [...this.near(p.pos, R, (e) => !e.isDummy)];
     if (!list.length) { g.toast?.('No one to command'); g.audio?.ui('back'); return false; }
     p.action = { type: 'sign', dur: 1.0, elapsed: 0, t: 0, moveScale: 0, lock: true, hold: true, cancelable: false };
     p.iframes = Math.max(p.iframes ?? 0, 1.5);

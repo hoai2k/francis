@@ -294,8 +294,7 @@ class MahitoKit extends Kit {
   onMeleeHit(e) { this.soulTouch(e, 1); }
   tick(dt) {
     const g = this.game, dmgMul = 1 + this.rank('distort') * 0.25;
-    for (const e of g.enemies) {
-      if (e.dead || !e.soul) continue;
+    for (const e of this.living((e) => e.soul)) {
       e.soulT -= dt; e.soulTick -= dt;
       if (e.soulT <= 0) { e.soul = 0; continue; }
       if (e.soulTick <= 0) {
@@ -319,7 +318,7 @@ class MahitoKit extends Kit {
     this.pending = null;
     const g = this.game, p = this.p;
     const sure = g.domainSys?.sureHit(p);
-    const hits = sure ? g.enemies.filter((e) => !e.dead && !e.isDummy && g.domainSys.inside(e.pos)) : g.combat.query(p.pos, tmp.set(Math.sin(p.facing), 0, Math.cos(p.facing)), 3, 0.9);
+    const hits = sure ? [...this.inDomain()] : g.combat.query(p.pos, tmp.set(Math.sin(p.facing), 0, Math.cos(p.facing)), 3, 0.9);
     for (const e of hits) {
       g.combat.damageEnemy(e, 16 + this.rank('idle') * 5, p, { melee: true, stagger: 0.6, knock: tmp.subVectors(e.pos, p.pos).setY(0).normalize().multiplyScalar(2), color: '#7ac8f0' });
       this.handprint(e);
@@ -389,7 +388,7 @@ class MahitoKit extends Kit {
     g.particles.burst(at.clone().setY(at.y + 1), { count: 50, color: FLESH, additive: false, speed: R * 2, up: 1, life: 1, size: 0.4, sizeEnd: 1.2 });
     for (let i = 0; i < 14; i++) { const a = i / 14 * Math.PI * 2; g.fx.slashLine(at.clone().setY(at.y + 0.5), tmp.set(Math.sin(a), 0.5, Math.cos(a)), R * 0.8, BONE, 0.2, 0.35); }
     g.combat.aoe(at, R, 70 + rk * 25, p, { knock: 13, stagger: 1, falloff: true });
-    for (const e of g.enemies) if (!e.dead && e.pos.distanceTo(at) < R + 1) this.soulTouch(e, 2);
+    for (const e of this.near(at, R + 1)) this.soulTouch(e, 2);
     // the fused souls spill out as transfigured humans
     const n = 1 + (rk >= 2 ? 1 : 0);
     for (let i = 0; i < n; i++) g.allies.push(new TransHuman(g, p, at.clone().add(tmp2.set((Math.random() - 0.5) * 2, 0, (Math.random() - 0.5) * 2)).setY(at.y), { life: 12 }));
@@ -438,7 +437,7 @@ class MahitoKit extends Kit {
   }
   soulRupture() {
     const g = this.game, p = this.p, R = 14;
-    const souls = g.enemies.filter((e) => !e.dead && (e.soul ?? 0) > 0 && e.pos.distanceTo(p.pos) < R);
+    const souls = [...this.near(p.pos, R, (e) => (e.soul ?? 0) > 0)];
     if (!souls.length) { g.toast?.('No distorted souls nearby — touch some first'); g.audio?.ui('back'); return false; }
     this.cast(0.45, true);
     g.fx.rings.spawn(tmp.set(p.pos.x, p.pos.y + 0.08, p.pos.z), { color: SOUL, r0: 0.4, r1: R, dur: 0.4, thick: 0.1 });
@@ -617,7 +616,7 @@ class MahitoKit extends Kit {
     g.audio?.tone?.({ freq: 300, to: 600, dur: 0.4, gain: 0.08, type: 'sine', rev: 0.5 });
     this.buff('perception', 8, { onTick: () => {
       // every soul nearby glows through the body
-      for (const e of g.enemies) if (!e.dead && Math.random() < 0.08 && e.pos.distanceTo(p.pos) < 18) g.particles.glow.spawn({ x: e.pos.x, y: e.pos.y + e.height * 0.6, z: e.pos.z, vy: 0.4, life: 0.4, r: 0.8, g: 1.6, b: 2.4, size: 0.25, drag: 1, sizeEnd: 0.4 });
+      for (const e of this.living()) if (Math.random() < 0.08 && e.pos.distanceTo(p.pos) < 18) g.particles.glow.spawn({ x: e.pos.x, y: e.pos.y + e.height * 0.6, z: e.pos.z, vy: 0.4, life: 0.4, r: 0.8, g: 1.6, b: 2.4, size: 0.25, drag: 1, sizeEnd: 0.4 });
     } });
   }
   distortedKilling() {
@@ -645,8 +644,7 @@ class MahitoKit extends Kit {
   perfectionTouch(g, d, first) {
     const p = this.p, rk = this.rank('perfection');
     let n = 0;
-    for (const e of g.enemies) {
-      if (e.dead || !g.domainSys.inside(e.pos)) continue;
+    for (const e of this.inDomain(null, { dummies: true })) {
       if (e.isBoss) {
         // a soul too vast to reshape in one touch — it is mauled instead
         if (!d.touched.has(e)) {

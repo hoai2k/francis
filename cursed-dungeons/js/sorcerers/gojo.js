@@ -92,21 +92,21 @@ class GojoKit extends Kit {
       onTick: (g, d, dt) => {
         d.tick = (d.tick ?? 0) - dt;
         // streams of information pouring into every frozen head
-        for (const e of g.enemies) {
-          if (e.dead || !g.domainSys.inside(e.pos) || Math.random() > 0.35) continue;
+        for (const e of this.inDomain(null, { dummies: true })) {
+          if (Math.random() > 0.35) continue;
           const hx = e.pos.x, hy = e.pos.y + e.height, hz = e.pos.z;
           const a = Math.random() * Math.PI * 2, r = 2 + Math.random() * 2;
           g.particles.glow.spawn({ x: hx + Math.cos(a) * r, y: hy + 1 + Math.random() * 2, z: hz + Math.sin(a) * r, vx: -Math.cos(a) * r * 2.2, vy: -2, vz: -Math.sin(a) * r * 2.2, life: 0.45, r: 1.6, g: 1.9, b: 2.4, size: 0.08, sizeEnd: 0.02, shape: 'square' });
         }
         if (d.tick <= 0) {
           d.tick = 0.6;
-          for (const e of g.enemies) if (!e.dead && g.domainSys.inside(e.pos)) { e.flashT = 0.06; e.cancelAttack?.(); }
+          for (const e of this.inDomain(null, { dummies: true })) { e.flashT = 0.06; e.cancelAttack?.(); }
         }
       },
       onEnd: (g) => {
         g.frozen = false;
         // the brain is still processing: the paralysis lingers a moment
-        for (const e of g.enemies) if (!e.dead && !e.isBoss && g.domainSys.inside(e.pos)) e.sealT = Math.max(e.sealT ?? 0, 1.5);
+        for (const e of this.inDomain((e) => !e.isBoss, { dummies: true })) e.sealT = Math.max(e.sealT ?? 0, 1.5);
       },
     };
     this.p.stats.crit += r('six_eyes') * 0.04; this.p.stats.ceGain += r('six_eyes') * 0.1;
@@ -197,7 +197,7 @@ class GojoKit extends Kit {
     const g = this.game, p = this.p;
     const R = Rr ?? 3.4 + power * 0.6;
     g.combat.aoe(c, R, dmg ?? 30 + power * 10, p, { knock: (small ? 9 : 17) + power * 3, stagger: 0.6, falloff: true, unblockable: true });
-    for (const e of g.enemies) if (!e.dead && e.pos.distanceTo(c) < R) e.vel.y = Math.max(e.vel.y, 7);
+    for (const e of this.near(c, R)) e.vel.y = Math.max(e.vel.y, 7);
     g.fx.explosion(c, RED, R);
     g.fx.screenWave(c, small ? 0.4 : 0.9, 0.45);
     g.fx.chroma(small ? 0.2 : 0.6);

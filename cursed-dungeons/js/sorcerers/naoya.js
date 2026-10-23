@@ -280,7 +280,7 @@ class NaoyaKit extends Kit {
   blitz() {
     const g = this.game, p = this.p;
     const n = 6 + this.rank('blitz') * 2;
-    const pool = g.enemies.filter((e) => !e.dead && !e.untargetable && e.pos.distanceTo(p.pos) < 11);
+    const pool = this.targetsNear(p.pos, 11);
     if (!pool.length) { g.toast?.('No curses in reach'); g.audio?.ui('back'); return false; }
     p.action = { type: 'attack', step: { style: 'punch', strike: 0.3, windup: 0.2 }, style: 'punch', dur: n * FPS * 2 + 0.2, elapsed: 0, t: 0, windup: 0.2, strike: 0.3, struck: true, moveScale: 0, lock: true, cancelable: false };
     p.iframes = Math.max(p.iframes, n * FPS * 2 + 0.3);
@@ -454,7 +454,7 @@ class NaoyaKit extends Kit {
   }
   panelShatter() {
     const g = this.game, p = this.p;
-    const list = g.enemies.filter((e) => !e.dead && e.panelEnd > g.time && e.pos.distanceTo(p.pos) < 22);
+    const list = [...this.near(p.pos, 22, (e) => e.panelEnd > g.time)];
     if (!list.length) { g.toast?.('Nothing is panelled'); g.audio?.ui('back'); return false; }
     this.cast(0.35, true);
     for (const e of list) {

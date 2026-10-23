@@ -175,7 +175,7 @@ class MegumiKit extends Kit {
       onStart: (g, d) => {
         g.toast?.('Incomplete domain — no sure-hit; shikigami rise from every shadow');
         const n = 2 + r('garden');
-        const foes = g.enemies.filter((e) => !e.dead && !e.isDummy && g.domainSys.inside(e.pos));
+        const foes = [...this.inDomain()];
         for (let i = 0; i < n; i++) { const e = foes[i % Math.max(1, foes.length)]; this.summon(i % 3 === 2 ? 'nue' : i % 2 ? 'toad' : 'dog', true, e?.pos); }
         d.rise = 1.4;
       },

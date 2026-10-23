@@ -263,7 +263,7 @@ class KashimoKit extends Kit {
     }
     return amount;
   }
-  chargedFoes(R = 16) { const p = this.p; return this.game.enemies.filter((e) => !e.dead && (e.kCharge ?? 0) > 0 && e.pos.distanceTo(p.pos) < R); }
+  chargedFoes(R = 16) { return [...this.near(this.p.pos, R, (e) => (e.kCharge ?? 0) > 0)]; }
   // ---- Discharge
   sparkBolt() {
     const g = this.game, p = this.p;

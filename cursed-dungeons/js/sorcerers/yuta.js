@@ -140,7 +140,7 @@ class YutaKit extends Kit {
         d.tick = (d.tick ?? 0.3) - dt;
         if (d.tick > 0) return;
         d.tick = 0.9;
-        const list = g.enemies.filter((e) => !e.dead && !e.isDummy && g.domainSys.inside(e.pos));
+        const list = [...this.inDomain()];
         // a different copied technique each beat, drawn from a katana, all of them sure hits
         const pick = d.beat = ((d.beat ?? -1) + 1) % 4;
         if (!list.length && pick !== 3) return;
@@ -180,7 +180,7 @@ class YutaKit extends Kit {
   speech(forced = null) {
     const g = this.game, p = this.p, rk = this.rank('speech');
     const R = 8 + rk * 1.5, dur = 1.6 + rk * 0.5;
-    const list = forced ?? g.enemies.filter((e) => !e.dead && e.pos.distanceTo(p.pos) < R);
+    const list = forced ?? [...this.near(p.pos, R)];
     if (!list.length) { if (!forced) { g.toast?.('No curses in earshot'); g.audio?.ui('back'); } return false; }
     if (!forced) this.cast(0.5, true);
     g.toast?.('「Don\'t move.」');

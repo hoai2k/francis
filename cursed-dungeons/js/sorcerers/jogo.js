@@ -126,7 +126,7 @@ class JogoKit extends Kit {
         if (d.burn <= 0) {
           d.burn = 0.5;
           const heat = 1 + r('iron') * 0.25;
-          for (const e of g.enemies) if (!e.dead && !e.isDummy && g.domainSys.inside(e.pos)) {
+          for (const e of this.inDomain()) {
             const mx = e.maxHp ?? 100;
             const dmg = (e.isBoss ? mx * 0.03 : Math.max(25, mx * 0.4)) * heat;
             g.combat.damageEnemy(e, dmg, this.p, { stagger: e.isBoss ? 0 : 0.2, ceGain: 0, unblockable: true, crit: false, color: '#ff8a3a' });
@@ -138,7 +138,7 @@ class JogoKit extends Kit {
         // the crater floor keeps erupting under the curses
         if (d.erupt <= 0) {
           d.erupt = 0.8;
-          const list = g.enemies.filter((e) => !e.dead && !e.isDummy && g.domainSys.inside(e.pos));
+          const list = [...this.inDomain()];
           for (let i = 0; i < Math.min(3, list.length); i++) this.erupt(list[Math.floor(Math.random() * list.length)].pos.clone(), 0.45, 0.8);
           // and a random lava fountain somewhere in the crater
           const a = Math.random() * Math.PI * 2, rr = 4 + Math.random() * (d.radius - 6);
@@ -245,7 +245,7 @@ class JogoKit extends Kit {
       if (t < warn) return true;
       // ERUPTION
       g.combat.aoe(at, R, (34 + rk * 12) * mult, p, { knock: 6, stagger: 0.8 });
-      for (const e of g.enemies) if (!e.dead && !e.isBoss && e.pos.distanceTo(at) < R + 0.5) e.vel.y = Math.max(e.vel.y, 12);
+      for (const e of this.near(at, R + 0.5, (e) => !e.isBoss)) e.vel.y = Math.max(e.vel.y, 12);
       const c = at.clone().setY(at.y + 0.5);
       for (let i = 0; i < 4; i++) g.particles.burst(c, { count: 20, color: i % 2 ? FIRE : EMBER, speed: 5, spread: 0.35, dir: tmp.set(0, 3 + i, 0), life: 0.9, size: 0.45, sizeEnd: 0.1, gravity: 8, intensity: 3 });
       g.particles.burst(c, { count: 18, color: 0x2a1a14, additive: false, speed: 4, up: 3, life: 1.4, size: 0.9, sizeEnd: 3, drag: 2 });
@@ -269,7 +269,7 @@ class JogoKit extends Kit {
   insects() {
     const g = this.game, p = this.p;
     const n = 6 + this.rank('insects') * 2 + this.insectBonus;
-    const foes = g.enemies.filter((e) => !e.dead && !e.untargetable && e.pos.distanceTo(p.pos) < 20);
+    const foes = this.targetsNear(p.pos, 20);
     if (!foes.length) { g.toast?.('No curses to hunt'); g.audio?.ui('back'); return false; }
     this.cast(0.5, true);
     for (let i = 0; i < n; i++) this.after(i * 0.045, () => {
@@ -322,7 +322,7 @@ class JogoKit extends Kit {
       g.fx.explosion(at, FIRE, R);
       g.fx.explosion(at.clone().setY(at.y + 2), EMBER, R * 0.6);
       g.combat.aoe(at, R, 110 + rk * 35, p, { knock: 16, stagger: 1, falloff: true, unblockable: true });
-      for (const e of g.enemies) if (!e.dead && !e.isBoss && e.pos.distanceTo(at) < R) e.vel.y = Math.max(e.vel.y, 10);
+      for (const e of this.near(at, R, (e) => !e.isBoss)) e.vel.y = Math.max(e.vel.y, 10);
       for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2; this.lava(at.clone().add(new THREE.Vector3(Math.cos(a) * R * 0.55, 0, Math.sin(a) * R * 0.55)), 1.6, 18, 4 + rk * 1.5); }
       for (let i = 0; i < 30; i++) g.debris.spawn(at.clone().setY(at.y + 0.6), new THREE.Vector3((Math.random() - 0.5) * 16, 6 + Math.random() * 10, (Math.random() - 0.5) * 16), 0.25 + Math.random() * 0.35, new THREE.Color(Math.random() < 0.4 ? 0xff5a1a : 0x3a2a24), 3);
       g.fx.screenWave(at, 1.5, 0.7); g.fx.flash(0xffa040, 0.6, 0.3); g.fx.chroma(1.5);

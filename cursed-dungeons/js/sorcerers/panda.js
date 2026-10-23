@@ -191,7 +191,7 @@ class PandaKit extends Kit {
     this.pendingBeat = null;
     const g = this.game, p = this.p, rk = this.rank('drumming');
     const dir = new THREE.Vector3(Math.sin(p.facing), 0, Math.cos(p.facing));
-    const hits = g.domainSys?.sureHit(p) ? g.enemies.filter((e) => !e.dead && !e.isDummy && g.domainSys.inside(e.pos)) : g.combat.query(p.pos, dir, 3, 0.9);
+    const hits = g.domainSys?.sureHit(p) ? [...this.inDomain()] : g.combat.query(p.pos, dir, 3, 0.9);
     const dmg = 30 + rk * 10;
     for (const e of hits) {
       g.combat.damageEnemy(e, pierce(e, dmg), p, { melee: true, knock: dir.clone().multiplyScalar(5), stagger: 0.8, unblockable: true, color: '#ff8a5a' });

@@ -446,7 +446,7 @@ class MechamaruKit extends Kit {
   missiles() {
     const g = this.game, p = this.p, rk = this.rank('cannon');
     this.cast(0.4, true);
-    const list = g.enemies.filter((e) => !e.dead && e.pos.distanceTo(p.pos) < 18).sort((a, b) => a.pos.distanceTo(p.pos) - b.pos.distanceTo(p.pos));
+    const list = this.byDistance([...this.near(p.pos, 18)], p.pos);
     for (let i = 0; i < 6; i++) this.after(i * 0.07, () => {
       const side = i % 2 ? 1 : -1, f = this.fwd();
       const from = p.pos.clone().add(tmp.set(f.z * side * 0.5, 2.2, -f.x * side * 0.5));

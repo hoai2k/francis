@@ -55,7 +55,8 @@
 //  other code that reads them keeps working. createKit() calls initLoadout().
 //
 //  Helpers (see the toolkit section below): after, during, foes, target,
-//  line, hit, blast, stun, slow, dash, blink, closeIn, pose, shoot, aimGround,
+//  living, inDomain, near, targetsNear, byDistance, nearest, best (picking
+//  curses — use these rather than looping over game.enemies), line, hit, blast, stun, slow, dash, blink, closeIn, pose, shoot, aimGround,
 //  buff, statBuff, zone, groundAt, fwd, aimAngle, blackFlashStrike, rctHeal.
 //  Hooks a kit may define: tick(dt, inp), onCast(ability), onHitEnemy(e, dealt, o),
 //  onKill(e), incoming(amount, src, o) (damage taken; return the new amount). Use them — they keep abilities short and
@@ -270,6 +271,32 @@ export class Kit {
     v1.subVectors(d, p.pos).setY(0); if (v1.length() > range) d.copy(p.pos).addScaledVector(v1.normalize(), range);
     d.y = this.groundAt(d.x, d.z, p.pos.y);
     return d;
+  }
+  // ---- picking curses. The generators walk the live enemy list, so a loop over one behaves like a
+  // plain `for (const e of g.enemies)` with the same checks.
+  // living curses (passing pred): for (const e of this.living((e) => e.nails)) …
+  *living(pred) { for (const e of this.game.enemies) if (!e.dead && (!pred || pred(e))) yield e; }
+  // living curses inside the active domain (training dummies only with { dummies: true })
+  *inDomain(pred, { dummies = false } = {}) {
+    const D = this.game.domainSys;
+    for (const e of this.game.enemies) if (!e.dead && (dummies || !e.isDummy) && D.inside(e.pos) && (!pred || pred(e))) yield e;
+  }
+  // living curses closer than R to c (straight-line distance)
+  *near(c, R, pred) { for (const e of this.game.enemies) if (!e.dead && e.pos.distanceTo(c) < R && (!pred || pred(e))) yield e; }
+  // the curses that can be hit closer than R to c, as an array (sort it with byDistance)
+  targetsNear(c, R, pred) { return this.game.enemies.filter((e) => !e.dead && !e.untargetable && e.pos.distanceTo(c) < R && (!pred || pred(e))); }
+  byDistance(list, from) { return list.sort((a, b) => a.pos.distanceTo(from) - b.pos.distanceTo(from)); }
+  // the closest living curse to `from` passing pred, closer than range (else null)
+  nearest(from, pred, range = Infinity) {
+    let best = null, bd = range;
+    for (const e of this.living(pred)) { const d = e.pos.distanceTo(from); if (d < bd) { bd = d; best = e; } }
+    return best;
+  }
+  // the living curse passing pred with the highest score(e) (else null)
+  best(score, pred) {
+    let best = null, bs = -Infinity;
+    for (const e of this.living(pred)) { const s = score(e); if (s > bs) { bs = s; best = e; } }
+    return best;
   }
   // living enemies within R of c (optionally only in a cone around dir)
   foes(c, R, dir = null, arc = Math.PI) { return this.game.combat.query(c, dir ?? v2.set(0, 0, 1), R, dir ? arc : Math.PI); }

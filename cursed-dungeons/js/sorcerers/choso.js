@@ -393,7 +393,7 @@ class ChosoKit extends Kit {
   }
   bloodBurst() {
     const g = this.game, p = this.p;
-    const list = g.enemies.filter((e) => !e.dead && (e.chosoBlood ?? 0) > 0 && e.pos.distanceTo(p.pos) < 18);
+    const list = [...this.near(p.pos, 18, (e) => (e.chosoBlood ?? 0) > 0)];
     if (!list.length) { g.toast?.('None of your blood is on a curse'); g.audio?.ui('back'); return false; }
     this.cast(0.45, true);
     g.fx.flash(0x400008, 0.2, 0.15);
@@ -544,7 +544,7 @@ class ChosoKit extends Kit {
     g.toast?.('SUPERNOVA', 'domain');
     g.audio?.charge(1.1, 0.7);
     g.lights.flash(p.pos.clone().setY(p.pos.y + 1.5), BLOOD, 10, 12, 1.2, { priority: 7 });
-    const foes = g.enemies.filter((e) => !e.dead && !e.isDummy && e.pos.distanceTo(p.pos) < 18);
+    const foes = [...this.near(p.pos, 18, (e) => !e.isDummy)];
     const orbs = [];
     for (let i = 0; i < n; i++) {
       const pr = g.projectiles.fire({ pos: p.pos.clone().setY(p.pos.y + 1.4), vel: new THREE.Vector3(), team: 'player', shape: 'orb', color: BLOOD, emissive: 3, scale: 2, radius: 0.6, life: 99, ghost: true, light: i % 4 === 0 ? 5 : 0,

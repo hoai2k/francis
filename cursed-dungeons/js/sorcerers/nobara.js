@@ -100,8 +100,7 @@ class NobaraKit extends Kit {
     this.cast(0.35, true);
     const rk = this.rank('hairpin');
     let n = 0;
-    for (const e of g.enemies) {
-      if (e.dead || !e.nails) continue;
+    for (const e of this.nailed()) {
       const at = e.pos.clone().setY(e.pos.y + e.height * 0.5);
       const pow = e.nails;
       g.fx.explosion(at, ORANGE, 1.4 + rk * 0.3 + pow * 0.1);
@@ -116,8 +115,7 @@ class NobaraKit extends Kit {
     this.cast(0.6, true);
     const rk = this.rank('resonance');
     let n = 0;
-    for (const e of g.enemies) {
-      if (e.dead || !e.nails) continue;
+    for (const e of this.nailed()) {
       const at = e.pos.clone().setY(e.pos.y + e.height * 0.6);
       this.hit(e, (14 + rk * 6) * e.nails * this.resMul, { stagger: 0.8, unblockable: true, color: '#ffa050' });
       g.fx.hitSpark(at, null, { color: ORANGE, big: true });
@@ -131,10 +129,12 @@ class NobaraKit extends Kit {
   }
   tick(dt) {
     // show nails sticking out of curses as tiny sparks
-    if (Math.random() < 0.3) for (const e of this.game.enemies) if (!e.dead && e.nails) {
+    if (Math.random() < 0.3) for (const e of this.nailed()) {
       if (Math.random() < 0.3) this.game.particles.glow.spawn({ x: e.pos.x + (Math.random() - 0.5) * 0.6, y: e.pos.y + e.height * (0.3 + Math.random() * 0.5), z: e.pos.z + (Math.random() - 0.5) * 0.6, vy: 0.2, life: 0.3, r: 2, g: 1.2, b: 0.5, size: 0.06 + e.nails * 0.01, drag: 1, sizeEnd: 1 });
     }
   }
+  // the curses with nails in them
+  nailed() { return this.living((e) => e.nails); }
   // -------------------------------------------------------------- ultimate
   bloodDoll() {
     const g = this.game, p = this.p;
@@ -197,13 +197,12 @@ class NobaraKit extends Kit {
           if (!tgt.isBoss) tgt.sealT = Math.max(tgt.sealT ?? 0, 0.8);
         }
         // the echo reaches every other nailed curse
-        for (const e of g.enemies) if (e !== tgt && !e.dead && e.nails) g.combat.damageEnemy(e, (12 + rk * 4) * e.nails, p, { unblockable: true, crit: false, stagger: 0.5, color: '#ffa050' });
+        for (const e of this.nailed()) if (e !== tgt) g.combat.damageEnemy(e, (12 + rk * 4) * e.nails, p, { unblockable: true, crit: false, stagger: 0.5, color: '#ffa050' });
         if (last) {
           // HAIRPIN: every embedded nail detonates at once
           g.fx.flash(0xff6a2a, 0.6, 0.3); g.fx.chroma(1.6); g.fx.screenWave(heart, 1.4, 0.6);
           g.lights.flash(heart, ORANGE, 20, 16, 0.6, { priority: 7 });
-          for (const e of g.enemies) {
-            if (e.dead || !e.nails) continue;
+          for (const e of this.nailed()) {
             const at = e.pos.clone().setY(e.pos.y + e.height * 0.5);
             const pow = e.nails, hr = this.rank('hairpin');
             g.fx.explosion(at, ORANGE, 1.8 + hr * 0.3 + pow * 0.15);
@@ -324,8 +323,7 @@ class NobaraKit extends Kit {
   }
   chainReaction() {
     const g = this.game, p = this.p;
-    let cur = null, bd = Infinity;
-    for (const e of g.enemies) { if (e.dead || !e.nails) continue; const d = e.pos.distanceTo(p.aimPoint); if (d < bd) { bd = d; cur = e; } }
+    let cur = this.nearest(p.aimPoint, (e) => e.nails);
     if (!cur) { g.toast?.('No nails embedded'); g.audio?.ui('back'); return false; }
     this.cast(0.4, true);
     const done = new Set();
@@ -337,8 +335,7 @@ class NobaraKit extends Kit {
       this.detonate(cur, mult);
       g.shake(0.25); g.audio?.energy('explode'); g.hitStop(0.03);
       mult *= 1.25;
-      let nx = null, nd = 9;
-      for (const e of g.enemies) { if (e.dead || done.has(e) || !e.nails) continue; const d = e.pos.distanceTo(from); if (d < nd) { nd = d; nx = e; } }
+      const nx = this.nearest(from, (e) => !done.has(e) && e.nails, 9);
       if (!nx) return;
       const to = nx.pos.clone().setY(nx.pos.y + 1);
       for (let s = 0; s <= 1; s += 0.1) g.particles.burst(tmp.lerpVectors(from, to, s), { count: 1, color: ORANGE, speed: 0.4, life: 0.25, size: 0.2, sizeEnd: 0.05, intensity: 4 });
@@ -350,8 +347,7 @@ class NobaraKit extends Kit {
   pin() {
     const g = this.game, p = this.p;
     let n = 0;
-    for (const e of g.enemies) {
-      if (e.dead || !e.nails) continue;
+    for (const e of this.nailed()) {
       this.hit(e, (10 + this.rank('resonance') * 3) * e.nails * this.resMul, { stagger: 1, unblockable: true, knock: new THREE.Vector3(), color: '#ffa050' });
       this.stun(e, 1.5); e.nails = Math.max(0, e.nails - 1);
       g.fx.rings.spawn(tmp.set(e.pos.x, e.pos.y + 0.06, e.pos.z), { color: ORANGE, r0: 1.6, r1: 0.3, dur: 0.3, thick: 0.25 });
@@ -365,8 +361,7 @@ class NobaraKit extends Kit {
   spikes() {
     const g = this.game, p = this.p;
     let n = 0;
-    for (const e of g.enemies) {
-      if (e.dead || !e.nails) continue;
+    for (const e of this.nailed()) {
       const c = e.pos.clone().setY(e.pos.y + e.height * 0.5), pow = e.nails;
       for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2; g.fx.slashLine(c, tmp2.set(Math.cos(a), (Math.random() - 0.3) * 0.6, Math.sin(a)), 1.4 + pow * 0.2, 0xd8d8e0, 0.12, 0.25); }
       this.hit(e, (8 + this.rank('resonance') * 3) * pow * this.resMul, { stagger: 0.5, unblockable: true, color: '#ffa050' });
@@ -380,7 +375,7 @@ class NobaraKit extends Kit {
   }
   resChain() {
     const g = this.game, p = this.p;
-    const list = g.enemies.filter((e) => !e.dead && e.nails);
+    const list = [...this.nailed()];
     if (list.length < 1) { g.toast?.('No nailed curses'); g.audio?.ui('back'); return false; }
     this.cast(0.6, true);
     // chain from you through the nailed curses, nearest first
@@ -400,8 +395,7 @@ class NobaraKit extends Kit {
   }
   severed() {
     const g = this.game, p = this.p;
-    let t = null, bs = -1;
-    for (const e of g.enemies) { if (e.dead || !e.nails) continue; const sc = e.nails * 100 + (e.isBoss ? 1000 : 0) - e.pos.distanceTo(p.aimPoint); if (sc > bs) { bs = sc; t = e; } }
+    const t = this.best((e) => e.nails * 100 + (e.isBoss ? 1000 : 0) - e.pos.distanceTo(p.aimPoint), (e) => e.nails);
     if (!t) { g.toast?.('No nailed curses'); g.audio?.ui('back'); return false; }
     p.action = { type: 'cast', both: true, dur: 0.7, elapsed: 0, t: 0, moveScale: 0, lock: true, hold: true, cancelable: false };
     g.audio?.charge?.(0.5, 0.5);
@@ -516,11 +510,11 @@ class NobaraKit extends Kit {
     this.buff('self_res', 8, {
       incoming: (a) => {
         this.after(0.05, () => {
-          for (const e of g.enemies) if (!e.dead && e.nails) { this.hit(e, a * 2 * this.resMul + 6 * e.nails, { stagger: 0.6, unblockable: true, crit: false, color: '#ff4040' }); g.fx.hitSpark(e.pos.clone().setY(e.pos.y + 1), null, { color: 0xff2030 }); }
+          for (const e of this.nailed()) { this.hit(e, a * 2 * this.resMul + 6 * e.nails, { stagger: 0.6, unblockable: true, crit: false, color: '#ff4040' }); g.fx.hitSpark(e.pos.clone().setY(e.pos.y + 1), null, { color: 0xff2030 }); }
         });
         return a;
       },
-      onTick: () => { if (Math.random() < 0.3) for (const e of g.enemies) if (!e.dead && e.nails && Math.random() < 0.3) g.particles.glow.spawn({ x: e.pos.x, y: e.pos.y + e.height * 0.6, z: e.pos.z, vy: 0.8, life: 0.4, r: 1.6, g: 0.05, b: 0.08, size: 0.14, drag: 1, sizeEnd: 0.05, shape: 'square' }); },
+      onTick: () => { if (Math.random() < 0.3) for (const e of this.nailed()) if (Math.random() < 0.3) g.particles.glow.spawn({ x: e.pos.x, y: e.pos.y + e.height * 0.6, z: e.pos.z, vy: 0.8, life: 0.4, r: 1.6, g: 0.05, b: 0.08, size: 0.14, drag: 1, sizeEnd: 0.05, shape: 'square' }); },
     });
   }
   makeDoll() {

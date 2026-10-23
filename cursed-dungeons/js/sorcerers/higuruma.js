@@ -789,7 +789,7 @@ class HigurumaKit extends Kit {
   }
   weighEvidence() {
     const g = this.game, p = this.p, rk = this.rank('evidence');
-    const list = g.enemies.filter((e) => !e.dead && (e.evidence ?? 0) > 0 && e.pos.distanceTo(p.pos) < 16);
+    const list = [...this.near(p.pos, 16, (e) => (e.evidence ?? 0) > 0)];
     if (!list.length) { g.toast?.('No evidence to weigh — let Judgeman gather some'); g.audio?.ui('back'); return false; }
     this.cast(0.6, true);
     const jm = makeJudgeman(1.6);

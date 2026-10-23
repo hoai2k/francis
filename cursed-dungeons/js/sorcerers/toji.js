@@ -368,8 +368,7 @@ class TojiKit extends Kit {
     if (!prey) { g.toast?.('🐆 No prey in sight — the meter waits.'); g.audio?.ui('back'); return false; }
     this.ultActive = true; this.ultTimers = [];
     const later = (ms, fn) => this.ultTimers.push(setTimeout(() => { if (!this.disposed && !p.dead) fn(); }, ms));
-    const escorts = g.enemies.filter((e) => e !== prey && !e.dead && !e.untargetable && !e.isBoss && e.pos.distanceTo(prey.pos) < 11)
-      .sort((a, b) => a.pos.distanceTo(p.pos) - b.pos.distanceTo(p.pos)).slice(0, 4 + rk * 2);
+    const escorts = this.byDistance(this.targetsNear(prey.pos, 11, (e) => e !== prey && !e.isBoss), p.pos).slice(0, 4 + rk * 2);
     const total = 650 + escorts.length * 170 + 900;
     p.iframes = Math.max(p.iframes, total / 1000 + 0.4);
     g.slowMo(total / 1000, 0.3);
@@ -726,7 +725,7 @@ class TojiKit extends Kit {
     const t = this.target(14);
     const decoy = new Afterimage(g, p, p.pos);
     g.allies.push(decoy);
-    for (const e of g.enemies) if (!e.dead && e.target === p && e.pos.distanceTo(p.pos) < 20) e.target = decoy;
+    for (const e of this.near(p.pos, 20, (e) => e.target === p)) e.target = decoy;
     this.vanish(1.2);
     if (t) this.after(0.25, () => { if (!t.dead) { const a = Math.atan2(t.pos.x - p.pos.x, t.pos.z - p.pos.z); const spot = this.safeSpot(t.pos.x + Math.sin(a) * (t.radius + 1), t.pos.z + Math.cos(a) * (t.radius + 1), t.pos.y); if (spot) this.blinkTo(spot); p.facing = Math.atan2(t.pos.x - p.pos.x, t.pos.z - p.pos.z); } });
     else this.speedDash();
@@ -799,9 +798,8 @@ class TojiKit extends Kit {
   }
   execute() {
     const g = this.game, p = this.p;
-    let t = null, best = 2;
-    for (const e of g.enemies) { if (e.dead || e.untargetable || e.isDummy) continue; if (e.pos.distanceTo(p.pos) > 12) continue; const f = e.hp / e.maxHp; if (f < best) { best = f; t = e; } }
-    t ??= this.target(12);
+    // the most wounded curse in reach
+    const t = this.best((e) => -e.hp / e.maxHp, (e) => !e.untargetable && !e.isDummy && e.pos.distanceTo(p.pos) <= 12) ?? this.target(12);
     if (!t) { g.toast?.('No curse in reach'); g.audio?.ui('back'); return false; }
     this.closeIn(t, GREEN);
     this.showTool('katana', 0.7);

@@ -184,8 +184,7 @@ class TodoKit extends Kit {
     this.openT = Math.max(0, this.openT - dt);
     if (this.openT > 0 && Math.random() < 0.5) g.particles.burst(this.handPos(), { count: 1, color: SWAP, speed: 1.5, life: 0.25, size: 0.1, shape: 1 });
     // dizzy stars over confused curses
-    for (const e of g.enemies) {
-      if (e.dead || !(e.confusedT > 0)) continue;
+    for (const e of this.living((e) => e.confusedT > 0)) {
       e.confusedT -= dt;
       if (Math.random() < 0.35) { const a = g.time * 6 + e.pos.x; g.particles.glow.spawn({ x: e.pos.x + Math.cos(a) * 0.5, y: e.pos.y + e.height + 0.3, z: e.pos.z + Math.sin(a) * 0.5, vx: -Math.sin(a) * 1.2, vy: 0.1, vz: Math.cos(a) * 1.2, life: 0.35, r: 2.6, g: 2.4, b: 0.6, size: 0.12, drag: 1, sizeEnd: 0.3, shape: 'square' }); }
     }
@@ -206,7 +205,7 @@ class TodoKit extends Kit {
       return;
     }
     // no target: swap the two nearest curses with each other
-    const near = g.enemies.filter((e) => !e.dead && !e.untargetable && e.pos.distanceTo(p.pos) < 12).sort((a, b) => a.pos.distanceTo(p.pos) - b.pos.distanceTo(p.pos));
+    const near = this.byDistance(this.targetsNear(p.pos, 12), p.pos);
     if (near.length >= 2) { this.swapPair(near[0], near[1], 8); this.openT = 1; return; }
     // fake-out clap: everyone close flinches
     for (const e of g.combat.query(p.pos, tmp.set(0, 0, 1), 3, Math.PI)) this.confuse(e, 0.6);
@@ -219,7 +218,7 @@ class TodoKit extends Kit {
       if (p.dead) return;
       this.cast(0.16, true);
       this.clapFx(p.pos, 0.8);
-      const pool = g.enemies.filter((e) => !e.dead && !e.untargetable && e.pos.distanceTo(p.pos) < 14);
+      const pool = this.targetsNear(p.pos, 14);
       if (!pool.length) return;
       // pick two random participants — sometimes Todo himself
       const parts = [...pool, ...(Math.random() < 0.35 ? [p] : [])];
@@ -256,7 +255,7 @@ class TodoKit extends Kit {
         p.action = { type: 'attack', step: { style: 'slam', strike: 0.3, windup: 0.1 }, style: 'slam', dur: 0.4, elapsed: 0, t: 0, windup: 0.1, strike: 0.3, struck: true, moveScale: 0 };
         const R = 3.2 + rk * 0.7;
         const n = g.combat.aoe(to, R, 26 + rk * 10, p, { melee: true, knock: 9, stagger: 0.8 });
-        for (const e of g.enemies) if (!e.dead && !e.isBoss && e.pos.distanceTo(to) < R) { e.vel.y = Math.max(e.vel.y, 8); this.confuse(e, 0.8); }
+        for (const e of this.near(to, R, (e) => !e.isBoss)) { e.vel.y = Math.max(e.vel.y, 8); this.confuse(e, 0.8); }
         g.fx.shockwave(to, VIOLET, R + 1); g.fx.screenWave(to, 0.6, 0.35);
         g.shake(0.45); g.hitStop(n ? 0.08 : 0.03); g.audio?.impact(1.7);
         this.openT = 1.4;
@@ -372,7 +371,7 @@ class TodoKit extends Kit {
     const c = p.pos.clone();
     for (let k = 0; k < 14; k++) this.after(k * 0.03, () => g.audio?.noise?.({ dur: 0.04, gain: 0.3, type: 'bandpass', freq: 2400 + Math.random() * 1200, q: 3 }));
     for (let r = 0; r < 3; r++) this.after(0.35 + r * 0.4, () => {
-      const pool = g.enemies.filter((e) => !e.dead && !e.untargetable && e.pos.distanceTo(c) < R);
+      const pool = this.targetsNear(c, R);
       for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
       for (let i = 0; i + 1 < pool.length; i += 2) this.swapPair(pool[i], pool[i + 1], 16);
       if (pool.length % 2 === 1) { const e = pool[pool.length - 1]; g.combat.damageEnemy(e, 16, p, { stagger: 0.5, color: '#9ad8ff' }); this.confuse(e, 1.2); }
@@ -438,7 +437,7 @@ class TodoKit extends Kit {
     this.buff('swap_guard', 4, {
       incoming: (a, src) => {
         if (used) return a;
-        const other = g.enemies.filter((e) => !e.dead && !e.untargetable && e !== src && e.pos.distanceTo(p.pos) < 14).sort((x, y) => x.pos.distanceTo(p.pos) - y.pos.distanceTo(p.pos))[0];
+        const other = this.nearest(p.pos, (e) => !e.untargetable && e !== src, 14);
         if (!other) return a;
         used = true; this.buffs.get('swap_guard').left = 0;
         this.clapFx(p.pos, 1.2);
@@ -545,7 +544,7 @@ class TodoKit extends Kit {
   }
   swapFlash() {
     const g = this.game, p = this.p;
-    const pool = g.enemies.filter((e) => !e.dead && !e.untargetable && e.pos.distanceTo(p.pos) < 14).sort((a, b) => a.pos.distanceTo(p.pos) - b.pos.distanceTo(p.pos)).slice(0, 3);
+    const pool = this.byDistance(this.targetsNear(p.pos, 14), p.pos).slice(0, 3);
     if (!pool.length) { g.toast?.('No curse in reach'); g.audio?.ui('back'); return false; }
     p.iframes = Math.max(p.iframes, pool.length * 0.3 + 0.3);
     pool.forEach((e, i) => this.after(i * 0.28, () => {
@@ -627,7 +626,7 @@ class TodoKit extends Kit {
       this.cast(0.12, true);
       this.clapFx(p.pos, 1.1);
       // shuffle: swap with the target, or swap a bystander in front of the fist
-      const others = g.enemies.filter((o) => o !== e && !o.dead && !o.untargetable && o.pos.distanceTo(e.pos) < 10);
+      const others = this.targetsNear(e.pos, 10, (o) => o !== e);
       const roll = Math.random();
       let victim = e;
       if (others.length && roll < 0.35) { const o = others[Math.floor(Math.random() * others.length)]; this.swapEntities(o, e); this.confuse(o, 1); victim = Math.random() < 0.5 ? o : e; }

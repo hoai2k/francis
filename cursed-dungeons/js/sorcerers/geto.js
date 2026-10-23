@@ -420,8 +420,7 @@ class GetoKit extends Kit {
     g.fx.rings.spawn(tmp.set(at.x, at.y + 0.08, at.z), { color: 0xff8aa8, r0: 0.5, r1: R, dur: 0.5, thick: 0.08 });
     // the question binds: no one moves until it is answered
     const bound = [];
-    for (const e of g.enemies) {
-      if (e.dead || e.untargetable || e.pos.distanceTo(at) > R) continue;
+    for (const e of this.targetsNear(at, R)) {
       e.cancelAttack?.();
       e.sealT = Math.max(e.sealT ?? 0, e.isBoss ? hold * 0.5 : hold);
       bound.push(e);
@@ -572,8 +571,8 @@ class GetoKit extends Kit {
     s.object.scale.multiplyScalar(1.15);
     // every curse nearby turns on it
     g.fx.rings.spawn(tmp.set(s.pos.x, s.pos.y + 0.1, s.pos.z), { color: VIOLET, r0: 0.5, r1: 10, dur: 0.5, thick: 0.12 });
-    for (const e of g.enemies) if (!e.dead && !e.isBoss && e.pos.distanceTo(s.pos) < 10) e.target = s;
-    this.buff('bulwark_taunt', 6, { onTick: () => { if (s.dead) return; for (const e of g.enemies) if (!e.dead && !e.isBoss && e.target === p && e.pos.distanceTo(s.pos) < 8) e.target = s; } });
+    for (const e of this.near(s.pos, 10, (e) => !e.isBoss)) e.target = s;
+    this.buff('bulwark_taunt', 6, { onTick: () => { if (s.dead) return; for (const e of this.near(s.pos, 8, (e) => !e.isBoss && e.target === p)) e.target = s; } });
     g.audio?.energy('summon'); g.shake(0.25);
   }
   mantaRide() {
@@ -781,8 +780,7 @@ class GetoKit extends Kit {
   }
   absorbAbility() {
     const g = this.game, p = this.p;
-    let best = null, bd = 9;
-    for (const e of g.enemies) { if (e.dead || e.untargetable || e.isBoss || e.isDummy) continue; const d = e.pos.distanceTo(p.pos); if (d < bd && e.hp / e.maxHp < 0.4) { bd = d; best = e; } }
+    const best = this.nearest(p.pos, (e) => !e.untargetable && !e.isBoss && !e.isDummy && e.hp / e.maxHp < 0.4, 9);
     if (!best) { g.toast?.('No curse weak enough to absorb (below 40%)'); g.audio?.ui('back'); return false; }
     this.cast(0.45, true);
     const at = best.pos.clone().setY(best.pos.y + best.height * 0.5);

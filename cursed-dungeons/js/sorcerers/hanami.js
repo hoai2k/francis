@@ -129,14 +129,14 @@ class HanamiKit extends Kit {
         for (let i = 0; i < 3; i++) { const a = Math.random() * Math.PI * 2, rr = Math.random() * d.radius; g.particles.glow.spawn({ x: d.center.x + Math.cos(a) * rr, y: d.center.y + 0.5 + Math.random() * 4, z: d.center.z + Math.sin(a) * rr, vx: 1, vy: -0.4, vz: 0.5, life: 2, r: 2.4, g: 1.2, b: 1.8, size: 0.14, drag: 0.5, sizeEnd: 0.8, shape: 'square' }); }
         for (let i = 0; i < 2; i++) { const a = Math.random() * Math.PI * 2, rr = Math.random() * d.radius; g.particles.glow.spawn({ x: d.center.x + Math.cos(a) * rr, y: d.center.y + 0.3, z: d.center.z + Math.sin(a) * rr, vy: 1 + Math.random(), life: 2.2, r: 2.6, g: 2.5, b: 1.6, size: 0.1, gravity: -0.2, drag: 0.5, sizeEnd: 0.4 }); }
         // the sap: every curse inside loses Cursed Energy continuously
-        for (const e of g.enemies) if (!e.dead && !e.isDummy && g.domainSys.inside(e.pos)) {
+        for (const e of this.inDomain()) {
           e.cd = (e.cd ?? 0) + dt * 0.5; e.slowT = Math.max(e.slowT ?? 0, 0.3);
           if (Math.random() < dt * 3) g.particles.burst(tmp.copy(e.pos).setY(e.pos.y + e.height * 0.7), { count: 2, color: SAP, speed: 0, dir: tmp.clone().subVectors(this.p.pos, e.pos).setY(0.4).normalize().multiplyScalar(5), spread: 0.15, life: 0.8, size: 0.14, shape: 1 });
         }
         if (d.tick > 0) return;
         d.tick = 0.7;
         let drained = 0, n = 0;
-        for (const e of g.enemies) if (!e.dead && !e.isDummy && g.domainSys.inside(e.pos)) {
+        for (const e of this.inDomain()) {
           n++;
           // sure-hit wooden attack: roots tear up under the curse
           const at = e.pos.clone(); at.y = this.groundAt(at.x, at.z, at.y);
@@ -235,7 +235,7 @@ class HanamiKit extends Kit {
     const g = this.game, p = this.p;
     at.y = this.groundAt(at.x, at.z, at.y);
     g.combat.aoe(at, R, dmg * this.rootMul, p, { knock: 3, stagger: 0.5 });
-    for (const e of g.enemies) if (!e.dead && !e.isBoss && e.pos.distanceTo(at) < R + 0.3) e.vel.y = Math.max(e.vel.y, 7);
+    for (const e of this.near(at, R + 0.3, (e) => !e.isBoss)) e.vel.y = Math.max(e.vel.y, 7);
     for (let k = 0; k < 2; k++) this.rootStab(at.clone().add(new THREE.Vector3((Math.random() - 0.5) * R, 0, (Math.random() - 0.5) * R)), 1.4 + Math.random() * 0.8, 0.3 + Math.random() * 0.15);
     const c = at.clone().setY(at.y + 0.2);
     g.particles.burst(c, { count: 10, color: WOOD, additive: false, speed: 6, spread: 0.25, dir: tmp.set(0, 2, 0), life: 0.5, size: 0.35, sizeEnd: 0.15, gravity: 10, intensity: 1 });
@@ -276,7 +276,7 @@ class HanamiKit extends Kit {
   // -------------------------------------------------------------- Cursed Buds
   buds() {
     const g = this.game, p = this.p, rk = this.rank('buds');
-    const foes = g.enemies.filter((e) => !e.dead && !e.untargetable && e.pos.distanceTo(p.pos) < 14).sort((a, b) => a.pos.distanceTo(p.pos) - b.pos.distanceTo(p.pos)).slice(0, 4 + rk);
+    const foes = this.byDistance(this.targetsNear(p.pos, 14), p.pos).slice(0, 4 + rk);
     if (!foes.length) { g.toast?.('No curses to plant on'); g.audio?.ui('back'); return false; }
     this.cast(0.4, true);
     for (const [i, e] of foes.entries()) {
@@ -511,7 +511,7 @@ class HanamiKit extends Kit {
   }
   burstBloom() {
     const g = this.game, p = this.p;
-    const list = g.enemies.filter((e) => !e.dead && e.budT > 0);
+    const list = [...this.living((e) => e.budT > 0)];
     if (!list.length) { g.toast?.('No budded curses'); g.audio?.ui('back'); return false; }
     this.cast(0.4, true);
     let healed = 0;

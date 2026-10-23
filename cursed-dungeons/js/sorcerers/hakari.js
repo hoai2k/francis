@@ -199,7 +199,7 @@ class HakariKit extends Kit {
     this.parlour = { grp, screen, bulbs, train, mats: [frame, gold, bulbG, bulbP, body, stripe, win], roll: 1.2, pity: 0, spin: null };
     screen.userData.draw([7, 7, 7], 'IDLE DEATH GAMBLE');
     // the sure-hit: the rules are forced into every curse's head
-    for (const e of g.enemies) if (!e.dead && !e.isDummy && g.domainSys.inside(e.pos)) g.fx.damageNumber(e.pos.clone().setY(e.pos.y + e.height * 0.3), 0, { text: '📜 RULES', color: '#9affb8' });
+    for (const e of this.inDomain()) g.fx.damageNumber(e.pos.clone().setY(e.pos.y + e.height * 0.3), 0, { text: '📜 RULES', color: '#9affb8' });
     g.toast?.('🎰 The rules of Idle Death Gamble are transmitted to everyone inside', 'big');
   }
   closeParlour(g) {
@@ -394,7 +394,7 @@ class HakariKit extends Kit {
     const face = Math.atan2(p.aimDir.x, p.aimDir.z);
     const n = 4 + this.rank('shutter');
     const dmg = 20 + this.rank('shutter') * 8;
-    const sure = g.domainSys?.sureHit(p) ? g.enemies.filter((e) => !e.dead && !e.isDummy && g.domainSys.inside(e.pos)).slice(0, n) : null;
+    const sure = g.domainSys?.sureHit(p) ? [...this.inDomain()].slice(0, n) : null;
     for (let i = 0; i < n; i++) setTimeout(() => {
       const at = sure && sure[i] ? sure[i].pos.clone() : p.pos.clone().addScaledVector(p.aimDir, 1.8 + i * 1.6);
       this.shutter(at, face, dmg);
@@ -412,7 +412,7 @@ class HakariKit extends Kit {
       if (i >= hits || p.dead || p.downed) { p.action = null; return; }
       const fwd = tmp.set(Math.sin(p.facing), 0, Math.cos(p.facing));
       const front = p.pos.clone().addScaledVector(fwd, 1.2).setY(p.pos.y + 1.1 + (Math.random() - 0.5) * 0.6);
-      const targets = g.domainSys?.sureHit(p) ? g.enemies.filter((e) => !e.dead && !e.isDummy && g.domainSys.inside(e.pos)) : g.combat.query(p.pos, fwd, 2.9, 0.9);
+      const targets = g.domainSys?.sureHit(p) ? [...this.inDomain()] : g.combat.query(p.pos, fwd, 2.9, 0.9);
       for (const e of targets) g.combat.damageEnemy(e, 7 + this.rank('rough') * 2, p, { melee: true, knock: fwd.clone().multiplyScalar(i === hits - 1 ? 10 : 1.2), stagger: 0.3 });
       // jagged, rough cursed energy
       g.fx.slashLine(front.clone().addScaledVector(fwd, -0.6), new THREE.Vector3(fwd.x + (Math.random() - 0.5), (Math.random() - 0.5) * 0.6, fwd.z + (Math.random() - 0.5)).normalize(), 1.6, i % 2 ? GREEN : 0xd8ffe0, 0.3, 0.12, Math.random() * 3);

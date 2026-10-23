@@ -198,7 +198,7 @@ class MiwaKit extends Kit {
       const R = 4.8 + rk * 0.6;
       const dir = tmp.set(Math.sin(p.facing), 0, Math.cos(p.facing));
       p.action = { type: 'attack', step: { style: 'swingR', strike: 0.35, windup: 0.1 }, style: 'swingR', dur: 0.35, elapsed: 0, t: 0.1, windup: 0.1, strike: 0.35, struck: true, moveScale: 0.2 };
-      const hits = g.domainSys?.sureHit(p) ? g.enemies.filter((e) => !e.dead && !e.isDummy && g.domainSys.inside(e.pos)) : g.combat.query(p.pos, dir, R, 1.75);
+      const hits = g.domainSys?.sureHit(p) ? [...this.inDomain()] : g.combat.query(p.pos, dir, R, 1.75);
       for (const e of hits) {
         g.combat.damageEnemy(e, (42 + rk * 14) * bonus, p, { knock: tmp2.subVectors(e.pos, p.pos).setY(0).normalize().multiplyScalar(9), stagger: 0.9 });
         g.fx.hitSpark(e.pos.clone().setY(e.pos.y + e.height * 0.55), null, { color: SKY, big: true });
