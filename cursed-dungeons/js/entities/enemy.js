@@ -11,11 +11,13 @@
 // bodhisattva's blessing (buff).
 //
 // Every attack is telegraphed (a ground marker that fills during the
-// wind-up) and can be dodged by leaving it. Close-range attackers share the
+// wind-up) and can be dodged by leaving it. The attacks themselves (timings,
+// telegraphs, wind-up, hit, active phase) live in enemyAttacks.js. Close-range attackers share the
 // attack-token rule: only MAX_ATTACKERS of them engage one target at once.
 import * as THREE from 'three/webgpu';
 import { moveEntity, groundAhead } from '../physics.js';
 import { buildCurseModel, CURSES, addEliteShell } from './curses.js';
+import { ATTACKS } from './enemyAttacks.js';
 import { FLASH_MATERIAL } from './character.js';
 import { damp, dampAngle, clamp, angleDiff } from '../util.js';
 
@@ -274,16 +276,45 @@ export class Enemy {
   }
   alliesNear(r) { return this.game.enemies.filter((e) => e !== this && !e.dead && !e.isBoss && !e.isDummy && e.def && e.pos.distanceTo(this.pos) < r); }
 
+  // one frame; returns false once the body has finished dying (main.js then removes it)
   update(dt) {
+    if (this.dead) return this.updateDead(dt);
+    if (this.updateHeld(dt)) return true;
     const g = this.game;
-    if (this.dead) {
-      this.deathT += dt;
-      this.rig.swap(null);
-      this.object.scale.setScalar(Math.max(0.01, 1 - this.deathT * 2.2) * (this.rig.spec.scale ?? 1));
-      this.object.position.y -= dt * 0.8;
-      this.rig.animate({ dt, speed: 0, vel: this.vel, action: { type: 'death', t: Math.min(1, this.deathT * 2) } });
-      return this.deathT < 0.5;
-    }
+    this.spawnT = Math.max(0, this.spawnT - dt);
+    this.stateT += dt; this.cd -= dt; this.flashT -= dt; this.slowT = (this.slowT ?? 0) - dt;
+    this.blinkCd -= dt;
+    this.empowerT = Math.max(0, this.empowerT - dt); this.guardT = Math.max(0, this.guardT - dt);
+    this.revealT = Math.max(0, this.revealT - dt); this.retreatT = Math.max(0, this.retreatT - dt);
+    this.liftWant = 0; this.guarding = false;
+    const t = this.pickTarget();
+    const move = MOVE.set(0, 0, 0);
+    const skipMove = this.updateState(dt, t, move);
+    if (this.spawnT > 0 || this.def.rooted) move.set(0, 0, 0);
+    if (!skipMove) this.moveBody(dt, move);
+    this.liftOff = this.state === 'active' ? this.liftWant : damp(this.liftOff, this.liftWant, 8, dt);
+    // visuals
+    this.updateCloak();
+    this.rig.swap(this.flashT > 0 ? FLASH_MATERIAL : this.cloaked ? CLOAK_MATERIAL : null);
+    this.animate(dt);
+    if (this.def.ai === 'summon' && this.rig.extras.orbs) this.rig.extras.orbs.rotation.y += dt * 2;
+    // cursed smoke leaking (not from a cloaked or buried curse)
+    this.smokeT = (this.smokeT ?? Math.random()) - dt;
+    if (this.smokeT <= 0 && !this.cloaked && !this.burrowed) { this.smokeT = this.elite ? 0.08 : 0.22; g.fx.curseSmoke(this, this.elite ? ELITE_AFFIX[this.elite].color : null); }
+    this.statusFx(dt);
+    return true;
+  }
+  updateDead(dt) {
+    this.deathT += dt;
+    this.rig.swap(null);
+    this.object.scale.setScalar(Math.max(0.01, 1 - this.deathT * 2.2) * (this.rig.spec.scale ?? 1));
+    this.object.position.y -= dt * 0.8;
+    this.rig.animate({ dt, speed: 0, vel: this.vel, action: { type: 'death', t: Math.min(1, this.deathT * 2) } });
+    return this.deathT < 0.5;
+  }
+  // held in place by a technique (Unlimited Void, Prison Realm); returns true when held this frame
+  updateHeld(dt) {
+    const g = this.game;
     if (g.frozen && g.domainSys.inside(this.pos)) { // Unlimited Void: everything stops
       this.rig.swap(this.flashT > 0 ? FLASH_MATERIAL : null); this.flashT -= dt;
       if (this.state !== 'active') this.moveBody(dt, tmp.set(0, 0, 0));
@@ -296,14 +327,11 @@ export class Enemy {
       if (this.state !== 'active') this.moveBody(dt, tmp2.set(0, 0, 0));
       return true;
     }
-    this.spawnT = Math.max(0, this.spawnT - dt);
-    this.stateT += dt; this.cd -= dt; this.flashT -= dt; this.slowT = (this.slowT ?? 0) - dt;
-    this.blinkCd -= dt;
-    this.empowerT = Math.max(0, this.empowerT - dt); this.guardT = Math.max(0, this.guardT - dt);
-    this.revealT = Math.max(0, this.revealT - dt); this.retreatT = Math.max(0, this.retreatT - dt);
-    this.liftWant = 0; this.guarding = false;
-    const t = this.pickTarget();
-    const move = MOVE.set(0, 0, 0);
+    return false;
+  }
+  // the attack state machine (stagger, wind-up, active, recover), else the archetype's AI;
+  // fills `move` and returns true when the body was moved already
+  updateState(dt, t, move) {
     const ai = this.def.ai;
     if ((this.state === 'windup' || this.state === 'active') && !this.action) this.state = 'idle';   // (an attack cancelled by a stun / seal)
     let skipMove = false;
@@ -319,173 +347,166 @@ export class Enemy {
     } else if (this.state === 'recover') {
       if (this.stateT > (this.action?.recover ?? 0.35)) { this.state = 'idle'; this.action = null; }
       if (this.lunge) { move.copy(this.lunge); this.lunge.multiplyScalar(Math.exp(-dt * 8)); }
-    } else if (t) {
-      const d = t.pos.distanceTo(this.pos);
-      const toT = tmp.subVectors(t.pos, this.pos);
-      switch (ai) {
-        case 'melee': case 'tank':
-          // Only a few curses may attack the same target at once; the rest
-          // circle at a short distance and wait their turn.
-          if (!this.isBoss && !this.hasToken(t)) { this.waitRing(t, d, toT, this.def.range + 2.2, move); this.faceTo(t.pos, dt); break; }
-          if (d > this.def.range * 0.9) move.copy(this.steer(toT)); else move.copy(this.steer(toT, 0.1));
-          this.faceTo(t.pos, dt);
-          if (d < this.def.range + 0.2 && this.cd <= 0) this.startAttack(ai === 'tank' ? 'slam' : 'bite');
-          break;
-        case 'blob':
-          move.copy(this.steer(toT, 1));
-          this.faceTo(t.pos, dt);
-          if (d < this.def.range + 0.4) this.startAttack('inflate');
-          break;
-        case 'ranged': case 'summon': {
-          this.kite(t, d, toT, this.def.keep, this.def.range, move);
-          this.faceTo(t.pos, dt);
-          if (this.cd <= 0 && d < this.def.range + 1) this.startAttack(ai === 'summon' && this.summonCount < 3 ? 'summon' : 'spit');
-          break;
-        }
-        case 'teleport':
-          if (this.blinkCd <= 0 && d > 3) { this.blink(false); break; }
-          move.copy(this.steer(toT, d > 2 ? 1 : 0.1));
-          this.faceTo(t.pos, dt);
-          if (d < this.def.range + 0.3 && this.cd <= 0) this.startAttack('slash');
-          break;
-        case 'fly': {
-          // hover in an orbit round the target; token holders tighten in and dive
-          const tok = this.hasToken(t);
-          const ring = tok && this.cd < 0.8 ? 3.4 : 5.6;
-          const side = tmp3.set(-toT.z, 0, toT.x).normalize().multiplyScalar(Math.sin(this.stateT * 0.45 + this.home.x * 3) > 0 ? 1 : -1);
-          const radial = tmp.copy(toT).normalize().multiplyScalar(clamp((d - ring) * 0.6, -1, 1));
-          move.copy(this.steer(radial.add(side), 0.9));
-          this.faceTo(t.pos, dt);
-          if (tok && this.cd <= 0 && d < this.def.range + 0.5) this.startAttack('dive');
-          break;
-        }
-        case 'crawl':
-          move.copy(this.steer(toT, 1));
-          this.faceTo(t.pos, dt, 5);
-          if (d < this.def.range + 0.3) this.startAttack('burst');
-          break;
-        case 'leap': {
-          const tok = this.hasToken(t);
-          if (d < 2.0 && this.cd <= 0 && tok) { this.startAttack('slash'); break; }
-          if (tok && this.cd <= 0 && d < this.def.range && d > 2.6) { this.startAttack('pounce'); break; }
-          this.kite(t, d, toT, this.def.keep, this.def.range, move, 0.6);
-          this.faceTo(t.pos, dt);
-          break;
-        }
-        case 'burrow': {
-          const tok = this.hasToken(t);
-          if (tok && this.cd <= 0 && d > 3.6 && d < 16) { this.startAttack('dig'); break; }
-          if (!tok) { this.waitRing(t, d, toT, 4.5, move); this.faceTo(t.pos, dt); break; }
-          move.copy(this.steer(toT, d > this.def.range * 0.9 ? 1 : 0.1));
-          this.faceTo(t.pos, dt);
-          if (d < this.def.range + 0.2 && this.cd <= 0) this.startAttack('bite');
-          break;
-        }
-        case 'turret':
-          this.faceTo(t.pos, dt, 3);
-          if (this.cd <= 0 && d < 3.0) this.startAttack('chomp');
-          else if (this.cd <= 0 && d < this.def.range) this.startAttack('volley');
-          break;
-        case 'ember': {
-          // scuttles in zigzags, leaving burning ground; flares up when close
-          const tok = this.hasToken(t);
-          const zig = tmp3.set(-toT.z, 0, toT.x).normalize().multiplyScalar(Math.sin(g.time * 2.2 + this.home.x) * 0.8);
-          if (!tok) this.waitRing(t, d, toT, 4.5, move);
-          else move.copy(this.steer(tmp.copy(toT).normalize().add(zig), d > 1.6 ? 1 : 0.1));
-          this.faceTo(t.pos, dt);
-          if (tok && d < this.def.range + 0.3 && this.cd <= 0) this.startAttack('flare');
-          this.dropFire(dt);
-          break;
-        }
-        case 'grave': {
-          this.kite(t, d, toT, this.def.keep, this.def.range, move, 0.45);
-          this.faceTo(t.pos, dt);
-          if (this.cd <= 0 && d < this.def.range && !(t.coffinT > 0) && g.time > (t.coffinFree ?? 0)) this.startAttack('coffin');
-          break;
-        }
-        case 'beam': {
-          const face = Math.atan2(toT.x, toT.z);
-          const clear = this.clearLen(face, d + 1, 1.6) >= d - 0.6;
-          if (!clear) move.copy(this.steer(toT, 0.8));           // no line of sight: reposition
-          else this.kite(t, d, toT, this.def.keep, this.def.range, move, 0.35);
-          this.faceTo(t.pos, dt);
-          if (clear && this.cd <= 0 && d < this.def.range) this.startAttack('beam');
-          break;
-        }
-        case 'charge': {
-          const tok = this.hasToken(t), face = Math.atan2(toT.x, toT.z);
-          this.kite(t, d, toT, this.def.keep, this.def.range * 0.8, move, 0.7);
-          this.faceTo(t.pos, dt, 6);
-          if (tok && this.cd <= 0 && d < this.def.range && this.clearLen(face, d, 0.8) > Math.min(d, 5)) this.startAttack('charge');
-          break;
-        }
-        case 'lunge': {
-          const tok = this.hasToken(t), face = Math.atan2(toT.x, toT.z);
-          if (d < 2.0) move.copy(this.steer(tmp3.copy(toT).negate(), 0.9));
-          else this.kite(t, d, toT, this.def.keep, this.def.range - 0.6, move, 0.5);
-          this.faceTo(t.pos, dt);
-          if (tok && this.cd <= 0 && d < this.def.range - 0.4 && d > 1.8 && this.clearLen(face, d, 1.8) >= d - 0.5) this.startAttack('lunge');
-          break;
-        }
-        case 'guard': {
-          const ward = this.findWard();
-          if (ward) {
-            // stand between the ward and the target, shield up, and cover everyone nearby
-            const goal = tmp3.copy(t.pos).sub(ward.pos).setY(0); const gl = goal.length();
-            goal.multiplyScalar(gl > 0.01 ? Math.min(1.8, gl * 0.5) / gl : 0).add(ward.pos).sub(this.pos).setY(0);
-            if (goal.length() > 0.4) move.copy(this.steer(goal, goal.length() > 3 ? 1.1 : 0.6));
-            this.faceTo(t.pos, dt, 6);
-            this.guardAura(dt);
-            if (d < this.def.range + 0.3 && this.cd <= 0) this.startAttack('slam');
-            break;
-          }
-          if (!this.hasToken(t)) { this.waitRing(t, d, toT, this.def.range + 2.2, move); this.faceTo(t.pos, dt); break; }
-          move.copy(this.steer(toT, d > this.def.range * 0.9 ? 1 : 0.1));
-          this.faceTo(t.pos, dt);
-          if (d < this.def.range + 0.2 && this.cd <= 0) this.startAttack('slam');
-          break;
-        }
-        case 'ambush': {
-          // slinks round behind the target while cloaked; strikes from close, then withdraws
-          if (this.retreatT > 0) { const away = (this._away ??= new THREE.Vector3()).copy(this.pos).sub(toT); move.copy(this.steer(tmp3.copy(toT).negate(), 1.1)); this.faceTo(away, dt, 6); break; }
-          const tok = this.hasToken(t);
-          if (tok && this.cd <= 0 && d < 4.2) { this.startAttack('ambush'); break; }
-          const tf = t.facing ?? 0;
-          const goal = tmp3.set(t.pos.x - Math.sin(tf) * 2.6, 0, t.pos.z - Math.cos(tf) * 2.6).sub(this.pos).setY(0);
-          if (!tok || this.cd > 0) { if (d < 5) goal.copy(toT).negate(); else goal.set(-toT.z, 0, toT.x).add(tmp.copy(toT).multiplyScalar(0.3)); }
-          move.copy(this.steer(goal, 1.05));
-          this.faceTo(t.pos, dt);
-          break;
-        }
-        case 'buff': {
-          const allies = this.alliesNear(8);
-          if (d < 5) move.copy(this.steer(tmp3.copy(toT).negate(), 1));
-          else this.kite(t, d, toT, this.def.keep, this.def.range + 3, move, 0.4);
-          this.faceTo(t.pos, dt);
-          if (this.cd <= 0) { if (allies.length) this.startAttack('bless'); else if (d < this.def.range) this.startAttack('spit'); }
-          break;
-        }
+    } else if (t) this.think(dt, t, move);
+    else this.roam(dt, move);
+    return skipMove;
+  }
+  // the archetype AIs: close in, keep distance, circle, pick the next attack
+  think(dt, t, move) {
+    const g = this.game, ai = this.def.ai;
+    const d = t.pos.distanceTo(this.pos);
+    const toT = tmp.subVectors(t.pos, this.pos);
+    switch (ai) {
+      case 'melee': case 'tank':
+        // Only a few curses may attack the same target at once; the rest
+        // circle at a short distance and wait their turn.
+        if (!this.isBoss && !this.hasToken(t)) { this.waitRing(t, d, toT, this.def.range + 2.2, move); this.faceTo(t.pos, dt); break; }
+        if (d > this.def.range * 0.9) move.copy(this.steer(toT)); else move.copy(this.steer(toT, 0.1));
+        this.faceTo(t.pos, dt);
+        if (d < this.def.range + 0.2 && this.cd <= 0) this.startAttack(ai === 'tank' ? 'slam' : 'bite');
+        break;
+      case 'blob':
+        move.copy(this.steer(toT, 1));
+        this.faceTo(t.pos, dt);
+        if (d < this.def.range + 0.4) this.startAttack('inflate');
+        break;
+      case 'ranged': case 'summon': {
+        this.kite(t, d, toT, this.def.keep, this.def.range, move);
+        this.faceTo(t.pos, dt);
+        if (this.cd <= 0 && d < this.def.range + 1) this.startAttack(ai === 'summon' && this.summonCount < 3 ? 'summon' : 'spit');
+        break;
       }
-    } else {
-      // idle wander near home (a burrowed hand surfaces first)
-      if (this.burrowed && this.state !== 'windup') this.startAttack('emerge');
-      this.wanderT -= dt;
-      if (this.wanderT <= 0) { this.wanderT = 2 + Math.random() * 3; this.wander = new THREE.Vector3(Math.random() - 0.5, 0, Math.random() - 0.5).normalize().multiplyScalar(Math.random() < 0.4 ? 0 : 0.35); if (this.pos.distanceTo(this.home) > 5) this.wander = tmp.subVectors(this.home, this.pos).setY(0).normalize().multiplyScalar(0.35); }
-      if (this.wander && !this.def.rooted) { move.copy(this.steer(this.wander, 0.35)); if (this.wander.lengthSq() > 0) this.facing = dampAngle(this.facing, Math.atan2(this.wander.x, this.wander.z), 4, dt); }
+      case 'teleport':
+        if (this.blinkCd <= 0 && d > 3) { this.blink(false); break; }
+        move.copy(this.steer(toT, d > 2 ? 1 : 0.1));
+        this.faceTo(t.pos, dt);
+        if (d < this.def.range + 0.3 && this.cd <= 0) this.startAttack('slash');
+        break;
+      case 'fly': {
+        // hover in an orbit round the target; token holders tighten in and dive
+        const tok = this.hasToken(t);
+        const ring = tok && this.cd < 0.8 ? 3.4 : 5.6;
+        const side = tmp3.set(-toT.z, 0, toT.x).normalize().multiplyScalar(Math.sin(this.stateT * 0.45 + this.home.x * 3) > 0 ? 1 : -1);
+        const radial = tmp.copy(toT).normalize().multiplyScalar(clamp((d - ring) * 0.6, -1, 1));
+        move.copy(this.steer(radial.add(side), 0.9));
+        this.faceTo(t.pos, dt);
+        if (tok && this.cd <= 0 && d < this.def.range + 0.5) this.startAttack('dive');
+        break;
+      }
+      case 'crawl':
+        move.copy(this.steer(toT, 1));
+        this.faceTo(t.pos, dt, 5);
+        if (d < this.def.range + 0.3) this.startAttack('burst');
+        break;
+      case 'leap': {
+        const tok = this.hasToken(t);
+        if (d < 2.0 && this.cd <= 0 && tok) { this.startAttack('slash'); break; }
+        if (tok && this.cd <= 0 && d < this.def.range && d > 2.6) { this.startAttack('pounce'); break; }
+        this.kite(t, d, toT, this.def.keep, this.def.range, move, 0.6);
+        this.faceTo(t.pos, dt);
+        break;
+      }
+      case 'burrow': {
+        const tok = this.hasToken(t);
+        if (tok && this.cd <= 0 && d > 3.6 && d < 16) { this.startAttack('dig'); break; }
+        if (!tok) { this.waitRing(t, d, toT, 4.5, move); this.faceTo(t.pos, dt); break; }
+        move.copy(this.steer(toT, d > this.def.range * 0.9 ? 1 : 0.1));
+        this.faceTo(t.pos, dt);
+        if (d < this.def.range + 0.2 && this.cd <= 0) this.startAttack('bite');
+        break;
+      }
+      case 'turret':
+        this.faceTo(t.pos, dt, 3);
+        if (this.cd <= 0 && d < 3.0) this.startAttack('chomp');
+        else if (this.cd <= 0 && d < this.def.range) this.startAttack('volley');
+        break;
+      case 'ember': {
+        // scuttles in zigzags, leaving burning ground; flares up when close
+        const tok = this.hasToken(t);
+        const zig = tmp3.set(-toT.z, 0, toT.x).normalize().multiplyScalar(Math.sin(g.time * 2.2 + this.home.x) * 0.8);
+        if (!tok) this.waitRing(t, d, toT, 4.5, move);
+        else move.copy(this.steer(tmp.copy(toT).normalize().add(zig), d > 1.6 ? 1 : 0.1));
+        this.faceTo(t.pos, dt);
+        if (tok && d < this.def.range + 0.3 && this.cd <= 0) this.startAttack('flare');
+        this.dropFire(dt);
+        break;
+      }
+      case 'grave': {
+        this.kite(t, d, toT, this.def.keep, this.def.range, move, 0.45);
+        this.faceTo(t.pos, dt);
+        if (this.cd <= 0 && d < this.def.range && !(t.coffinT > 0) && g.time > (t.coffinFree ?? 0)) this.startAttack('coffin');
+        break;
+      }
+      case 'beam': {
+        const face = Math.atan2(toT.x, toT.z);
+        const clear = this.clearLen(face, d + 1, 1.6) >= d - 0.6;
+        if (!clear) move.copy(this.steer(toT, 0.8));           // no line of sight: reposition
+        else this.kite(t, d, toT, this.def.keep, this.def.range, move, 0.35);
+        this.faceTo(t.pos, dt);
+        if (clear && this.cd <= 0 && d < this.def.range) this.startAttack('beam');
+        break;
+      }
+      case 'charge': {
+        const tok = this.hasToken(t), face = Math.atan2(toT.x, toT.z);
+        this.kite(t, d, toT, this.def.keep, this.def.range * 0.8, move, 0.7);
+        this.faceTo(t.pos, dt, 6);
+        if (tok && this.cd <= 0 && d < this.def.range && this.clearLen(face, d, 0.8) > Math.min(d, 5)) this.startAttack('charge');
+        break;
+      }
+      case 'lunge': {
+        const tok = this.hasToken(t), face = Math.atan2(toT.x, toT.z);
+        if (d < 2.0) move.copy(this.steer(tmp3.copy(toT).negate(), 0.9));
+        else this.kite(t, d, toT, this.def.keep, this.def.range - 0.6, move, 0.5);
+        this.faceTo(t.pos, dt);
+        if (tok && this.cd <= 0 && d < this.def.range - 0.4 && d > 1.8 && this.clearLen(face, d, 1.8) >= d - 0.5) this.startAttack('lunge');
+        break;
+      }
+      case 'guard': {
+        const ward = this.findWard();
+        if (ward) {
+          // stand between the ward and the target, shield up, and cover everyone nearby
+          const goal = tmp3.copy(t.pos).sub(ward.pos).setY(0); const gl = goal.length();
+          goal.multiplyScalar(gl > 0.01 ? Math.min(1.8, gl * 0.5) / gl : 0).add(ward.pos).sub(this.pos).setY(0);
+          if (goal.length() > 0.4) move.copy(this.steer(goal, goal.length() > 3 ? 1.1 : 0.6));
+          this.faceTo(t.pos, dt, 6);
+          this.guardAura(dt);
+          if (d < this.def.range + 0.3 && this.cd <= 0) this.startAttack('slam');
+          break;
+        }
+        if (!this.hasToken(t)) { this.waitRing(t, d, toT, this.def.range + 2.2, move); this.faceTo(t.pos, dt); break; }
+        move.copy(this.steer(toT, d > this.def.range * 0.9 ? 1 : 0.1));
+        this.faceTo(t.pos, dt);
+        if (d < this.def.range + 0.2 && this.cd <= 0) this.startAttack('slam');
+        break;
+      }
+      case 'ambush': {
+        // slinks round behind the target while cloaked; strikes from close, then withdraws
+        if (this.retreatT > 0) { const away = (this._away ??= new THREE.Vector3()).copy(this.pos).sub(toT); move.copy(this.steer(tmp3.copy(toT).negate(), 1.1)); this.faceTo(away, dt, 6); break; }
+        const tok = this.hasToken(t);
+        if (tok && this.cd <= 0 && d < 4.2) { this.startAttack('ambush'); break; }
+        const tf = t.facing ?? 0;
+        const goal = tmp3.set(t.pos.x - Math.sin(tf) * 2.6, 0, t.pos.z - Math.cos(tf) * 2.6).sub(this.pos).setY(0);
+        if (!tok || this.cd > 0) { if (d < 5) goal.copy(toT).negate(); else goal.set(-toT.z, 0, toT.x).add(tmp.copy(toT).multiplyScalar(0.3)); }
+        move.copy(this.steer(goal, 1.05));
+        this.faceTo(t.pos, dt);
+        break;
+      }
+      case 'buff': {
+        const allies = this.alliesNear(8);
+        if (d < 5) move.copy(this.steer(tmp3.copy(toT).negate(), 1));
+        else this.kite(t, d, toT, this.def.keep, this.def.range + 3, move, 0.4);
+        this.faceTo(t.pos, dt);
+        if (this.cd <= 0) { if (allies.length) this.startAttack('bless'); else if (d < this.def.range) this.startAttack('spit'); }
+        break;
+      }
     }
-    if (this.spawnT > 0 || this.def.rooted) move.set(0, 0, 0);
-    if (!skipMove) this.moveBody(dt, move);
-    this.liftOff = this.state === 'active' ? this.liftWant : damp(this.liftOff, this.liftWant, 8, dt);
-    // visuals
-    this.updateCloak();
-    this.rig.swap(this.flashT > 0 ? FLASH_MATERIAL : this.cloaked ? CLOAK_MATERIAL : null);
-    this.animate(dt);
-    if (this.def.ai === 'summon' && this.rig.extras.orbs) this.rig.extras.orbs.rotation.y += dt * 2;
-    // cursed smoke leaking (not from a cloaked or buried curse)
-    this.smokeT = (this.smokeT ?? Math.random()) - dt;
-    if (this.smokeT <= 0 && !this.cloaked && !this.burrowed) { this.smokeT = this.elite ? 0.08 : 0.22; g.fx.curseSmoke(this, this.elite ? ELITE_AFFIX[this.elite].color : null); }
-    this.statusFx(dt);
-    return true;
+  }
+  // no target: wander near home (a burrowed hand surfaces first)
+  roam(dt, move) {
+    if (this.burrowed && this.state !== 'windup') this.startAttack('emerge');
+    this.wanderT -= dt;
+    if (this.wanderT <= 0) { this.wanderT = 2 + Math.random() * 3; this.wander = new THREE.Vector3(Math.random() - 0.5, 0, Math.random() - 0.5).normalize().multiplyScalar(Math.random() < 0.4 ? 0 : 0.35); if (this.pos.distanceTo(this.home) > 5) this.wander = tmp.subVectors(this.home, this.pos).setY(0).normalize().multiplyScalar(0.35); }
+    if (this.wander && !this.def.rooted) { move.copy(this.steer(this.wander, 0.35)); if (this.wander.lengthSq() > 0) this.facing = dampAngle(this.facing, Math.atan2(this.wander.x, this.wander.z), 4, dt); }
   }
   // blessed (empowered) curses burn red; buried hands churn the floor; cloaked shadows shimmer
   statusFx(dt) {
@@ -572,32 +593,12 @@ export class Enemy {
   }
 
   // ---------------------------------------------------------------- attacks
+  // Every attack is an entry in ATTACKS (enemyAttacks.js); these run its phases.
   startAttack(kind) {
     const g = this.game;
     const d = this.def, t = this.target;
-    const A = {
-      bite: { windup: d.windup, recover: 0.35, style: 'swingR', range: d.range + 0.3 },
-      slam: { windup: d.windup, recover: 0.7, style: 'slam', range: 3, marker: 'circleFront' },
-      inflate: { windup: d.windup, recover: 0.1, anim: 'none', marker: 'circle', radius: 3 },
-      spit: { windup: d.windup, recover: 0.4, anim: 'cast' },
-      summon: { windup: d.windup + 0.4, recover: 0.6, anim: 'raise', marker: 'summon' },
-      slash: { windup: d.windup, recover: 0.4, style: 'swingL', range: d.range + 0.4, marker: 'cone' },
-      // the wider bestiary
-      dive: { windup: d.windup, recover: 0.7, anim: 'none', radius: 1.3, marker: 'target' },
-      burst: { windup: d.windup, recover: 0.1, anim: 'none', marker: 'circle', radius: 2.6 },
-      pounce: { windup: d.windup, recover: 0.8, anim: 'none', radius: 2.1, marker: 'target' },
-      coffin: { windup: d.windup, recover: 0.6, anim: 'raise', radius: 1.6, marker: 'target', color: 0xd040ff },
-      beam: { windup: d.windup, recover: 0.6, anim: 'none', marker: 'rect', width: 1.1, track: 0.58, max: d.range + 2 },
-      dig: { windup: 0.45, recover: 0, anim: 'none' },
-      emerge: { windup: 0.9, recover: 0.8, anim: 'none', marker: 'here', radius: 1.9 },
-      charge: { windup: d.windup, recover: 1.0, anim: 'none', marker: 'rect', width: 2.0, track: 0.45, max: 14 },
-      lunge: { windup: d.windup, recover: 0.6, anim: 'none', marker: 'rect', width: 1.4, track: 0.5, max: d.range },
-      chomp: { windup: 0.7, recover: 0.7, anim: 'none', marker: 'circleFront', radius: 2.5, front: 1.3 },
-      volley: { windup: d.windup, recover: 0.5, anim: 'none' },
-      flare: { windup: d.windup, recover: 0.5, anim: 'raise', marker: 'circle', radius: 2.4 },
-      bless: { windup: d.windup, recover: 0.6, anim: 'raise', marker: 'circle', radius: 7, color: 0x4aff7a },
-      ambush: { windup: d.windup, recover: 0.5, style: 'swingR', range: d.range, marker: 'cone' },
-    }[kind];
+    const atk = ATTACKS[kind];
+    const A = atk.spec(d);
     this.action = { kind, ...A };
     this.state = 'windup'; this.stateT = 0;
     if (A.marker === 'circleFront') {
@@ -609,9 +610,9 @@ export class Enemy {
     } else if (A.marker === 'cone') {
       this.marker = g.markers.spawn({ pos: this.pos, radius: A.range, dur: A.windup, shape: 'cone', arc: 0.35, facing: this.facing, follow: this });
     } else if (A.marker === 'target' && t) {
-      // a fixed circle where the target stands now (a little lead for the pounce)
+      // a fixed circle where the target stands now (led a little for a pounce)
       const c = t.pos.clone();
-      if (kind === 'pounce' && t.vel) c.addScaledVector(tmp.set(t.vel.x, 0, t.vel.z), 0.25);
+      if (A.lead && t.vel) c.addScaledVector(tmp.set(t.vel.x, 0, t.vel.z), A.lead);
       const gy = g.world.standY(c.x, c.z, t.pos.y, 2);
       if (!isFinite(gy)) c.copy(t.pos); else c.y = gy;
       this.action.center = c;
@@ -620,229 +621,35 @@ export class Enemy {
       this.action.center = this.pos.clone();
       this.marker = g.markers.spawn({ pos: this.pos, radius: A.radius, dur: A.windup });
     } else if (A.marker === 'rect') {
-      this.action.len = this.clearLen(this.facing, A.max, kind === 'beam' ? 1.6 : 0.9);
-      this.marker = g.markers.spawn({ pos: this.pos, shape: 'rect', width: A.width, length: Math.max(0.5, this.action.len), facing: this.facing, dur: A.windup, color: kind === 'beam' ? 0xff6a20 : 0xff2020 });
+      this.action.len = this.clearLen(this.facing, A.max, A.aimY ?? 0.9);
+      this.marker = g.markers.spawn({ pos: this.pos, shape: 'rect', width: A.width, length: Math.max(0.5, this.action.len), facing: this.facing, dur: A.windup, color: A.color ?? 0xff2020 });
     }
-    if (kind === 'inflate' || kind === 'burst') g.audio?.charge(A.windup, kind === 'burst' ? 1.3 : 0.8);
-    if (kind === 'summon') g.audio?.energy('summon');
-    if (kind === 'beam') g.audio?.charge(A.windup, 0.6);
-    if (kind === 'coffin') g.audio?.tone({ freq: 220, to: 180, dur: 1.2, gain: 0.12, type: 'triangle', rev: 0.6 });
-    if (kind === 'bless') g.audio?.tone({ freq: 330, to: 660, dur: A.windup, gain: 0.1, type: 'sine', rev: 0.6 });
-    if (kind === 'dive') g.audio?.tone({ freq: 160, to: 420, dur: A.windup, gain: 0.06, type: 'sawtooth', filter: 1500 });
-    if (kind === 'dig') g.audio?.noise({ dur: 0.45, gain: 0.25, type: 'lowpass', freq: 600, sweep: 200 });
-    if (kind === 'ambush') this.revealT = Math.max(this.revealT, 0.5);
+    atk.start?.(this, this.action);
     // eyes flare during wind-up
     if (d.grade <= '2') g.audio?.warn();
   }
   // per-frame work during a wind-up: tracking lines, crouches, the buried hand's rumble
   windupStep(dt, t) {
-    const a = this.action, g = this.game; if (!a) return;
-    const k = Math.min(1, this.stateT / a.windup);
-    switch (a.kind) {
-      case 'beam': case 'charge': case 'lunge':
-        if (k < a.track && t) {
-          this.faceTo(t.pos, dt, 8);
-          a.len = this.clearLen(this.facing, a.max, a.kind === 'beam' ? 1.6 : 0.9);
-          this.aimRect(this.marker, this.facing, Math.max(0.5, a.len), a.width);
-        } else if (!a.locked) { a.locked = true; a.lockFace = true; g.audio?.warn(); }
-        if (a.kind === 'beam' && Math.random() < 0.5) {
-          // a thin aiming thread from the eye along the line
-          const s = Math.random() * a.len;
-          g.particles.glow.emit(this.pos.x + Math.sin(this.facing) * s, this.pos.y + 1.0 + (1 - s / Math.max(1, a.len)) * 1.2, this.pos.z + Math.cos(this.facing) * s, 0, 0, 0, 0.25, 2.4, 0.9, 0.2, 0.08, 0, 1, 0.1, 0);
-        }
-        break;
-      case 'dive': this.liftWant = 0.5 * k; if (a.center) this.faceTo(a.center, dt, 8); break;
-      case 'pounce': this.liftWant = -0.15 * k; if (a.center) this.faceTo(a.center, dt, 8); break;
-      case 'dig': this.liftWant = -1.4 * k; if (Math.random() < 0.6) g.fx.debris(tmp.copy(this.pos).setY(this.pos.y + 0.2), 0x5a4a3a, 1); break;
-      case 'emerge':
-        if (Math.random() < 0.7) g.fx.debris(tmp.set(this.pos.x + (Math.random() - 0.5) * 2.4, this.pos.y + 0.1, this.pos.z + (Math.random() - 0.5) * 2.4), 0x5a4a3a, 1);
-        if (Math.random() < 0.15) g.shake(0.06);
-        break;
-    }
+    const a = this.action; if (!a) return;
+    ATTACKS[a.kind].windup?.(this, a, dt, t, Math.min(1, this.stateT / a.windup));
   }
   // per-frame work while an attack is in motion; returns true when it moved the body itself
   activeStep(dt, t, move) {
-    const a = this.action, g = this.game;
+    const a = this.action;
     if (!a) { this.state = 'idle'; return false; }
     a.t = (a.t ?? 0) + dt;
-    const done = () => { this.state = 'recover'; this.stateT = 0; };
-    switch (a.kind) {
-      case 'dive': case 'pounce': {
-        // straight down onto (or an arc over to) the marked circle
-        const k = Math.min(1, a.t / a.dur), e = a.kind === 'dive' ? k * k : k;
-        this.pos.x = a.from.x + (a.center.x - a.from.x) * e;
-        this.pos.z = a.from.z + (a.center.z - a.from.z) * e;
-        this.pos.y = a.from.y + (a.center.y - a.from.y) * e;
-        this.vel.set(0, 0, 0); this.visY = this.pos.y;
-        if (a.kind === 'dive') { this.floorY = this.pos.y; this.liftWant = 0.5 - (this.rig.float - 0.15 + 0.5) * e; }
-        else this.liftWant = 4 * k * (1 - k) * 2.4;
-        if (k >= 1) {
-          this.liftWant = a.kind === 'dive' ? -(this.rig.float - 0.15) : 0;
-          const R = a.radius;
-          if (a.kind === 'pounce') { g.fx.shockwave(a.center, 0xc8ff5a, R + 0.6); g.fx.landDust(a.center, 8); g.shake(0.25); g.audio?.impact(1.4); }
-          else { g.fx.splat(tmp.copy(a.center).setY(a.center.y + 0.3), 0xff4a2a); g.audio?.impact(0.6); }
-          for (const p of g.hostileTargets()) if (!p.dead && p.pos.distanceTo(a.center) < R + (p.radius ?? 0.35)) this.hitPlayer(p, this.dmg, tmp.subVectors(p.pos, a.center).setY(0).normalize().multiplyScalar(a.kind === 'pounce' ? 8 : 4));
-          this.grounded = true;
-          done();
-        }
-        return true;
-      }
-      case 'tunnel': {
-        // burrowed: race under the floor toward the target, then telegraph the emergence
-        this.liftWant = -1.4;
-        if (!t || a.t > 3.2) { this.startAttack('emerge'); return false; }
-        const toT = tmp.subVectors(t.pos, this.pos).setY(0);
-        if (toT.length() < 0.8) { this.startAttack('emerge'); return false; }
-        move.copy(this.steer(toT, 1.7));
-        this.faceTo(t.pos, dt);
-        return false;
-      }
-      case 'charge': {
-        const fwd = tmp.set(Math.sin(this.facing), 0, Math.cos(this.facing));
-        const sp = 15;
-        a.dist = (a.dist ?? 0) + sp * dt;
-        const ahead = groundAhead(g.world, this.pos.x + fwd.x * 1.2, this.pos.y, this.pos.z + fwd.z * 1.2, 2.2);
-        if (!ahead || this.hitWall || a.dist > a.len + 0.5) {
-          if (this.hitWall) { g.shake(0.2); g.fx.debris(tmp3.copy(this.pos).addScaledVector(fwd, 0.8).setY(this.pos.y + 0.6), 0x8a8a8a, 4); }
-          this.vel.set(0, this.vel.y, 0); this.knock.set(0, 0, 0);
-          done(); return false;
-        }
-        move.copy(fwd).multiplyScalar(sp);
-        this.vel.x = move.x; this.vel.z = move.z;
-        a.hit = a.hit ?? new Set();
-        for (const p of g.hostileTargets()) {
-          if (p.dead || a.hit.has(p)) continue;
-          if (p.pos.distanceTo(this.pos) < this.radius + (p.radius ?? 0.35) + 0.5) {
-            a.hit.add(p);
-            const side = tmp3.set(fwd.z, 0, -fwd.x); if (side.dot(tmp2.subVectors(p.pos, this.pos)) < 0) side.negate();
-            this.hitPlayer(p, this.dmg, side.multiplyScalar(9).addScaledVector(fwd, 5));
-            g.audio?.impact(1.6); g.shake(0.25);
-          }
-        }
-        if (Math.random() < 0.8) g.fx.landDust(this.pos, 3);
-        return false;
-      }
-      case 'lunge': {
-        // the head shoots out along the line, bites, and reels back in
-        const dur = 0.6, k = Math.min(1, a.t / dur);
-        this.neckExt = (k < 0.22 ? k / 0.22 : k < 0.5 ? 1 : 1 - (k - 0.5) / 0.5) * Math.max(0.5, a.len - 0.4);
-        if (!a.hitDone && k >= 0.2) {
-          a.hitDone = true;
-          const fwd = tmp.set(Math.sin(this.facing), 0, Math.cos(this.facing));
-          for (const p of g.hostileTargets()) if (!p.dead && this.inRect(p, this.facing, a.len, a.width)) this.hitPlayer(p, this.dmg, fwd.clone().multiplyScalar(6));
-          g.fx.slashLine(tmp3.copy(this.pos).setY(this.pos.y + 2.3), fwd, a.len, 0xff3a4a, 0.25, 0.18);
-          g.audio?.energy('slash');
-        }
-        if (k >= 1) { this.neckExt = 0; done(); }
-        return false;
-      }
-    }
-    done();
+    const active = ATTACKS[a.kind].active;
+    if (active) return !!active(this, a, dt, t, move);
+    this.state = 'recover'; this.stateT = 0;
     return false;
   }
+  // the wind-up is over: the attack lands (or sets off, for the ones with an active phase)
   release() {
-    const g = this.game, a = this.action, t = this.target;
+    const a = this.action, t = this.target;
     this.marker = null;
     this.state = 'recover'; this.stateT = 0;
     this.cd = this.def.cd * (0.8 + Math.random() * 0.4) * (this.elite === 'swift' ? 0.7 : 1) * (this.empowerT > 0 ? 0.75 : 1);
-    const fwd = tmp.set(Math.sin(this.facing), 0, Math.cos(this.facing));
-    switch (a.kind) {
-      case 'bite': case 'slash': case 'ambush': {
-        this.lunge = fwd.clone().multiplyScalar(a.kind === 'slash' ? 7 : a.kind === 'ambush' ? 9 : 6);
-        for (const p of g.hostileTargets()) {
-          if (p.dead) continue;
-          const to = tmp2.subVectors(p.pos, this.pos); const dist = to.setY(0).length();
-          if (dist < a.range + p.radius && Math.abs(angleDiff(this.facing, Math.atan2(to.x, to.z))) < 1.0) this.hitPlayer(p, this.dmg, fwd.clone().multiplyScalar(5));
-        }
-        g.fx.slashArc(this.pos, this.facing, a.kind === 'slash' ? 0xd05aff : a.kind === 'ambush' ? 0xb07aff : 0xff4a4a, a.range, 0.3, 0.16);
-        g.audio?.swing(0);
-        if (a.kind === 'ambush') { this.retreatT = 1.6; this.revealT = Math.max(this.revealT, 1.0); }
-        break;
-      }
-      case 'slam': case 'chomp': {
-        const c = a.center, R = (a.radius ?? 2.6) + 0.2;
-        g.fx.shockwave(c, a.kind === 'chomp' ? 0xff4a5a : 0xff8a4a, R + 0.4);
-        g.shake(0.3);
-        g.audio?.impact(1.8);
-        for (const p of g.hostileTargets()) if (!p.dead && p.pos.distanceTo(c) < R + p.radius) this.hitPlayer(p, this.dmg * (a.kind === 'chomp' ? 1.5 : 1), tmp2.subVectors(p.pos, c).setY(0).normalize().multiplyScalar(10));
-        break;
-      }
-      case 'inflate': this.hp = 0; this.die({}); break;
-      case 'spit': if (t) this.fireSpit(t, 0); g.audio?.energy('spit'); break;
-      case 'volley': if (t) for (const o of [-0.28, 0, 0.28]) this.fireSpit(t, o); g.audio?.energy('spit'); break;
-      case 'summon': {
-        const n = 2 + (Math.random() < 0.5 ? 1 : 0);
-        for (let i = 0; i < n; i++) {
-          const a2 = this.facing + (i - (n - 1) / 2) * 0.9;
-          const p = this.pos.clone().add(new THREE.Vector3(Math.sin(a2) * 1.8, 0, Math.cos(a2) * 1.8));
-          const gy = g.world.standY(p.x, p.z, this.pos.y); if (!isFinite(gy)) continue;
-          p.y = gy;
-          g.spawnEnemy('imp', p, { summoned: true });
-          g.fx.summonCircle(p, 0xff6ad8);
-          this.summonCount++;
-        }
-        break;
-      }
-      case 'dive': case 'pounce':
-        if (!a.center) break;
-        a.from = this.pos.clone(); a.t = 0; a.dur = a.kind === 'dive' ? 0.3 : 0.55;
-        this.state = 'active';
-        if (a.kind === 'pounce') { g.audio?.whoosh(1); g.fx.landDust(this.pos, 6); }
-        break;
-      case 'burst': this.wombBurst(); break;
-      case 'coffin': {
-        const c = a.center; if (!c) break;
-        g.fx.shockwave(c, 0xc060ff, 2.2);
-        g.particles.burst(tmp2.copy(c).setY(c.y + 0.3), { count: 24, color: 0xb05aff, speed: 3, up: 2, life: 0.7, size: 0.18, drag: 2 });
-        for (const p of g.hostileTargets()) if (!p.dead && !p.downed && p.isPlayer && p.pos.distanceTo(c) < a.radius + (p.radius ?? 0.35) && !(p.coffinT > 0) && p.iframes <= 0) this.trapInCoffin(p);
-        break;
-      }
-      case 'beam': {
-        const from = tmp3.copy(this.pos).setY(this.pos.y + 2.1);
-        g.fx.slashLine(from, tmp2.set(Math.sin(this.facing), -1.1 / Math.max(2, a.len), Math.cos(this.facing)).normalize(), a.len, 0xffb040, 0.7, 0.35);
-        g.fx.slashLine(from, tmp2, a.len, 0xffffff, 0.3, 0.3, Math.PI / 2);
-        g.lights?.flash(from, 0xffa040, 10, 8, 0.3);
-        g.audio?.energy('blue');
-        g.shake(0.15);
-        for (const p of g.hostileTargets()) if (!p.dead && this.inRect(p, this.facing, a.len, a.width)) this.hitPlayer(p, this.dmg, fwd.clone().multiplyScalar(7));
-        break;
-      }
-      case 'dig':
-        this.burrowed = true; this.untargetable = true;
-        this.action = { kind: 'tunnel', t: 0, anim: 'none' };
-        this.state = 'active';
-        g.fx.debris(tmp2.copy(this.pos).setY(this.pos.y + 0.3), 0x5a4a3a, 6);
-        break;
-      case 'emerge': {
-        const c = a.center ?? this.pos;
-        this.burrowed = false; this.untargetable = false;
-        this.pos.x = c.x; this.pos.z = c.z; this.liftOff = -0.8;
-        g.fx.debris(tmp2.copy(c).setY(c.y + 0.4), 0x5a4a3a, 12); g.fx.shockwave(c, 0xa08a6a, 2.4); g.shake(0.3); g.audio?.impact(1.6);
-        for (const p of g.hostileTargets()) if (!p.dead && p.pos.distanceTo(c) < a.radius + (p.radius ?? 0.35)) this.hitPlayer(p, this.dmg, tmp2.subVectors(p.pos, c).setY(0).normalize().multiplyScalar(8));
-        break;
-      }
-      case 'charge': case 'lunge':
-        a.t = 0; a.dist = 0; a.hit = new Set(); this.hitWall = false;
-        this.state = 'active';
-        if (a.kind === 'charge') g.audio?.energy('red');
-        break;
-      case 'flare': {
-        g.fx.explosion(this.pos, 0xff6a1a, 2.2); g.audio?.energy('fire'); g.shake(0.2);
-        for (const p of g.hostileTargets()) if (!p.dead && p.pos.distanceTo(this.pos) < a.radius + (p.radius ?? 0.35)) this.hitPlayer(p, this.dmg, tmp2.subVectors(p.pos, this.pos).setY(0).normalize().multiplyScalar(7));
-        g.hazards.add({ pos: this.pos, radius: 1.6, dps: this.dmg * 0.5, dur: 3, color: 0xff6a1a });
-        break;
-      }
-      case 'bless': {
-        g.fx.shockwave(this.pos, 0x5aff8a, a.radius);
-        g.audio?.energy('heal');
-        for (const e of this.alliesNear(a.radius)) {
-          e.hp = Math.min(e.maxHp, e.hp + e.maxHp * 0.15);
-          e.empowerT = 8;
-          g.fx.heal(e.pos, 0x6aff8a);
-        }
-        break;
-      }
-    }
+    ATTACKS[a.kind].release?.(this, a, t, tmp.set(Math.sin(this.facing), 0, Math.cos(this.facing)));
   }
   fireSpit(t, angle = 0) {
     const g = this.game;
