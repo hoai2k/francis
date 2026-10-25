@@ -110,21 +110,50 @@ vec3 windOffset(vec3 wp, float amount) {
     return o * strength * 0.07;
 }
 
-// Sum of directional waves; returns height in roughly -1..1.
+float hash12(vec2 p) {
+    vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+    p3 += dot(p3, p3.yzx + 33.33);
+    return fract((p3.x + p3.y) * p3.z);
+}
+
+float vnoise(vec2 p) {
+    vec2 i = floor(p), f = fract(p);
+    vec2 u = f * f * (3.0 - 2.0 * f);
+    return mix(mix(hash12(i), hash12(i + vec2(1.0, 0.0)), u.x),
+               mix(hash12(i + vec2(0.0, 1.0)), hash12(i + vec2(1.0, 1.0)), u.x), u.y);
+}
+
+// Water surface: two slow swells plus four octaves of wind-driven ripples,
+// each octave rotated and drifting its own way so no pattern repeats.
 float waterHeight(vec2 p) {
     float t = frameTimeCounter;
-    float h = 0.0;
-    h += sin(dot(p, vec2(0.82, 0.57)) * 0.85 + t * 1.10) * 0.50;
-    h += sin(dot(p, vec2(-0.48, 0.88)) * 1.45 + t * 1.55) * 0.30;
-    h += sin(dot(p, vec2(0.97, -0.24)) * 2.70 + t * 2.10) * 0.16;
-    h += sin(dot(p, vec2(-0.21, -0.98)) * 4.30 + t * 2.70) * 0.09;
-    h += sin(dot(p, vec2(0.66, 0.75)) * 7.10 + t * 3.60) * 0.05;
-    h += sin(dot(p, vec2(-0.90, 0.43)) * 11.3 + t * 4.40) * 0.03;
+    float h = sin(dot(p, vec2(0.82, 0.57)) * 0.55 + t * 0.8) * 0.30
+            + sin(dot(p, vec2(-0.48, 0.88)) * 0.90 + t * 1.1) * 0.18;
+    vec2 q = p * 1.1;
+    float amp = 0.55;
+    const mat2 rot = mat2(0.8, -0.6, 0.6, 0.8);
+    for (int i = 0; i < 4; i++) {
+        float n = vnoise(q + t * vec2(0.45, 0.30) * (1.0 + float(i) * 0.7));
+        h += (1.0 - abs(n * 2.0 - 1.0) - 0.5) * amp;  // ridged: sharp crests, soft troughs
+        q = rot * q * 2.07;
+        amp *= 0.45;
+    }
     return h;
 }
 
+// Bright caustic network: light focused by the waves onto the floor.
+float caustics(vec2 p) {
+    float t = frameTimeCounter * 0.7;
+    vec2 q = p * 1.6;
+    float a = vnoise(q + vec2(t * 0.6, t * 0.3) + vnoise(q * 0.7 - t * 0.2) * 1.5);
+    float b = vnoise(q * 1.3 - vec2(t * 0.4, -t * 0.5) + vnoise(q * 0.9 + t * 0.25) * 1.5);
+    float ra = 1.0 - abs(a * 2.0 - 1.0);
+    float rb = 1.0 - abs(b * 2.0 - 1.0);
+    return pow(ra, 6.0) + pow(rb, 6.0) + pow(ra * rb, 3.0) * 1.5;
+}
+
 vec3 waterNormal(vec2 p, float strength) {
-    const float e = 0.04;
+    const float e = 0.03;
     float dx = (waterHeight(p + vec2(e, 0.0)) - waterHeight(p - vec2(e, 0.0))) / (2.0 * e);
     float dz = (waterHeight(p + vec2(0.0, e)) - waterHeight(p - vec2(0.0, e))) / (2.0 * e);
     return normalize(vec3(-dx * strength, 1.0, -dz * strength));

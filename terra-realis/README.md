@@ -7,14 +7,16 @@ Live: https://hoai2k.github.io/francis/terra-realis/
 
 ## What's in it
 
-- `pack/`: the resource pack (50 blocks). Every texture has LabPBR 1.3 maps:
+- `pack/`: the resource pack (132 textures: stone and soil families, eight woods, gems and metals,
+  Nether and End blocks, wool, hay and plants such as grass, ferns and flowers). Every texture has LabPBR 1.3 maps:
   `_n` (normal, AO, height, with relief depth scaled per material) and `_s` (smoothness, F0/metal id, porosity/SSS, emission).
   Animated water and lava, a soft sun sprite, and a pack icon.
 - `shaderpack/`: the shader pack for Iris or OptiFine. It has soft PCF shadows, an
   analytic sky with sunsets, parallax occlusion mapping with self-shadowing (surfaces have
   real depth: sunken mortar, gaps between cobbles, bark furrows), PBR lighting from the pack's maps (GGX specular, real metals,
   subsurface scattering on foliage, emissive blocks), waving plants and leaves, wavy water
-  with depth absorption, screen-space reflections, god rays, wet surfaces in rain, fog,
+  with refraction, caustics, sunlight that fades with depth, shore foam and depth absorption,
+  screen-space reflections, god rays, wet surfaces in rain, fog,
   bloom and ACES tonemapping. It covers the Overworld, Nether and End, with LOW to ULTRA
   profiles and sliders in the shader options.
 - `index.html` / `app.js`: the preview page. It renders a small diorama with the pack's

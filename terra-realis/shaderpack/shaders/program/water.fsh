@@ -31,7 +31,7 @@ void main() {
 #ifdef WATER_WAVES
         if (abs(worldGeoN.y) > 0.5) {
             vec2 wp = playerPos.xz + cameraPosition.xz;
-            float strength = 0.11 * WATER_WAVE_HEIGHT * exp(-length(playerPos) * 0.012);
+            float strength = 0.16 * WATER_WAVE_HEIGHT * exp(-length(playerPos) * 0.015);
             vec3 wn = waterNormal(wp, strength);
             wn.y *= sign(worldGeoN.y);
             N = normalize(mat3(gbufferModelView) * wn);

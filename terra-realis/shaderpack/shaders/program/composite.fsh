@@ -77,18 +77,63 @@ void main() {
     bool water = mask > 0.55;
     bool glass = !water && mask > 0.15;
 
-    // ---- water body: light absorbed over the thickness behind the surface ----
+    // ---- water body: refraction, caustics, absorption over depth, shore foam ----
     if (water && isEyeInWater == 0) {
-        float dist1 = depth1 >= 1.0 ? far : length(screenToView(texcoord, depth1));
+        float skyLight = clamp((mask - 0.6) / 0.4, 0.0, 1.0);
+        vec2 uv = texcoord;
+#ifdef WATER_REFRACTION
+        {
+            // bend the view by how far the wave normal leans from flat water
+            vec3 N = decodeNormal(data.rg);
+            vec3 flatN = normalize(upPosition);
+            if (abs(dot(N, flatN)) < 0.5) flatN = N;
+            vec2 lean = (N - flatN * sign(dot(N, flatN))).xy;
+            float d1 = depth1 >= 1.0 ? far : length(screenToView(texcoord, depth1));
+            float th = clamp((d1 - dist0) * 0.4, 0.0, 1.0);
+            vec2 ruv = texcoord + lean * 0.06 * th / max(1.0, dist0 * 0.06);
+            if (ruv.x > 0.0 && ruv.x < 1.0 && ruv.y > 0.0 && ruv.y < 1.0 && texture2D(colortex1, ruv).b > 0.55
+                && texture2D(depthtex1, ruv).r > depth0)
+                uv = ruv;
+        }
+        col = texture2D(colortex0, uv).rgb;
+#endif
+        float d1uv = texture2D(depthtex1, uv).r;
+        vec3 view1 = screenToView(uv, d1uv);
+        float dist1 = d1uv >= 1.0 ? far : length(view1);
         float thickness = max(dist1 - dist0, 0.0);
         vec3 absorb = exp(-thickness * vec3(0.55, 0.20, 0.16));
-        float skyLight = clamp((mask - 0.6) / 0.4, 0.0, 1.0);
 #if defined NETHER || defined END
         vec3 deepCol = vec3(0.005, 0.02, 0.025);
+        vec3 surfLight = vec3(0.12);
 #else
         vec3 deepCol = vec3(0.004, 0.03, 0.04) * (skyAmbientColor() * 2.0 + directLightColor() * 0.1) * skyLight;
+        vec3 surfLight = skyAmbientColor() * skyLight * 1.2 + directLightColor() * 0.45 * skyLight;
+#ifdef WATER_CAUSTICS
+        if (d1uv < 1.0) {
+            // Sunlight reaching the bed: dimmed and tinted by the water above it,
+            // focused into a moving caustic net.
+            vec3 surfW = viewToPlayer(view0) + cameraPosition;
+            vec3 bedW = viewToPlayer(view1) + cameraPosition;
+            vec3 Lw = normalize(mat3(gbufferModelViewInverse) * shadowLightPosition);
+            float dh = max(surfW.y - bedW.y, 0.0);
+            float path = dh / max(Lw.y, 0.25);
+            vec3 lightT = exp(-path * vec3(0.45, 0.12, 0.09));
+            float c = caustics(bedW.xz + Lw.xz * path);
+            float sunVis = clamp(luma(directLightColor()) * 0.6, 0.0, 1.0) * skyLight;
+            col *= mix(vec3(1.0), lightT * (0.4 + 1.8 * c * exp(-dh * 0.15)), 0.75 * sunVis);
+        }
+#endif
 #endif
         col = col * absorb + deepCol * (1.0 - absorb);
+#ifdef WATER_FOAM
+        {
+            vec3 w0 = viewToPlayer(view0) + cameraPosition;
+            float edge = smoothstep(0.7, 0.0, thickness);
+            float fn = vnoise(w0.xz * 3.0 + frameTimeCounter * 0.25) * 0.6 + vnoise(w0.xz * 9.0 - frameTimeCounter * 0.4) * 0.4;
+            float foam = edge * smoothstep(0.55, 0.75, fn + edge * 0.45);
+            col = mix(col, vec3(0.85) * surfLight, foam * 0.9);
+        }
+#endif
     }
 
     // ---- reflections on water and glass ----
@@ -117,6 +162,13 @@ void main() {
 
     // ---- fog ----
     if (isEyeInWater == 1) {
+#if defined WATER_CAUSTICS && !defined NETHER && !defined END
+        if (depth0 < 1.0) {
+            vec3 wp = viewToPlayer(view0) + cameraPosition;
+            float sunVis = clamp(luma(directLightColor()) * 0.6, 0.0, 1.0) * (eyeBrightnessSmooth.y / 240.0);
+            col *= 1.0 + caustics(wp.xz) * 0.8 * sunVis * exp(-dist0 * 0.05);
+        }
+#endif
         vec3 waterFog = vec3(0.01, 0.06, 0.08) * (eyeBrightnessSmooth.y / 240.0 * 0.9 + 0.1);
 #if !defined NETHER && !defined END
         waterFog *= skyAmbientColor() * 2.5 + directLightColor() * 0.2;

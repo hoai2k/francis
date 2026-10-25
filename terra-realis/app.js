@@ -154,9 +154,10 @@
   // Preview: the diorama
   // ------------------------------------------------------------------
   const SX = 22, SY = 16, SZ = 22, WATER_Y = 6;
-  const GRASS = srgb('#91BD59'), OAK_FOL = srgb('#77AB2F'), SPRUCE_FOL = srgb('#619961');
+  const GRASS = srgb('#91BD59'), OAK_FOL = srgb('#77AB2F'), SPRUCE_FOL = srgb('#619961'), BIRCH_FOL = srgb('#80A755');
 
-  // Block table. flags: 1 foliage (subsurface), 2 leaves (cutout, wind)
+  // Block table. flags: 1 foliage (subsurface), 2 leaves (cutout, wind),
+  // 3 cross-model plant (sways from the base), 4 upper half of a tall plant
   const DEFS = [
     null,
     { n: 'grass', top: 'grass_block_top', side: 'grass_block_side', bottom: 'dirt', overlay: 'grass_block_side_overlay', topTint: GRASS, flags: 1 },
@@ -194,6 +195,18 @@
     { n: 'clay', all: 'clay' },
     { n: 'obsidian', all: 'obsidian' },
     { n: 'spruce_planks', all: 'spruce_planks' },
+    { n: 'birch_log', top: 'birch_log_top', side: 'birch_log', bottom: 'birch_log_top' },
+    { n: 'birch_leaves', all: 'birch_leaves', tint: BIRCH_FOL, flags: 2, transparent: true },
+    { n: 'dirt_path', top: 'dirt_path_top', side: 'dirt_path_side', bottom: 'dirt' },
+    { n: 'diamond_block', all: 'diamond_block' },
+    { n: 'amethyst_block', all: 'amethyst_block' },
+    { n: 'moss_block', all: 'moss_block' },
+    { n: 'short_grass', cross: 'short_grass', tint: GRASS, flags: 3, transparent: true },
+    { n: 'fern', cross: 'fern', tint: GRASS, flags: 3, transparent: true },
+    { n: 'tall_grass_bottom', cross: 'tall_grass_bottom', tint: GRASS, flags: 3, transparent: true },
+    { n: 'tall_grass_top', cross: 'tall_grass_top', tint: GRASS, flags: 4, transparent: true },
+    { n: 'dandelion', cross: 'dandelion', flags: 3, transparent: true },
+    { n: 'poppy', cross: 'poppy', flags: 3, transparent: true },
   ];
   const ID = {};
   DEFS.forEach((d, i) => { if (d) ID[d.n] = i; });
@@ -277,7 +290,7 @@
     };
     tree(5, 6, 'oak_log', 'oak_leaves', 5, false);
     tree(17, 16, 'spruce_log', 'spruce_leaves', 6, true);
-    tree(3, 17, 'oak_log', 'oak_leaves', 4, false);
+    tree(3, 17, 'birch_log', 'birch_leaves', 5, false);
 
     // ruined wall
     for (let x = 8; x <= 13; x++) {
@@ -292,7 +305,7 @@
     for (let z = 9; z <= 17; z++) {
       const x = 8 + Math.round(Math.sin(z * 0.6));
       const y = surf(x, z) - 1;
-      if (get(x, y, z) === ID.grass) set(x, y, z, r() < 0.3 ? 'mossy_cobblestone' : r() < 0.5 ? 'gravel' : 'cobblestone');
+      if (get(x, y, z) === ID.grass) set(x, y, z, r() < 0.65 ? 'dirt_path' : r() < 0.5 ? 'mossy_cobblestone' : 'gravel');
     }
     {
       const y0 = surf(10, 12);
@@ -300,7 +313,7 @@
       lampPos = [10.5, y0 + 2.5, 12.5];
     }
     // display blocks
-    [['gold_block', 3, 10], ['iron_block', 4, 11], ['copper_block', 3, 12], ['obsidian', 4, 9]].forEach(([b, x, z]) => {
+    [['gold_block', 3, 10], ['iron_block', 4, 11], ['copper_block', 3, 12], ['diamond_block', 4, 9], ['amethyst_block', 2, 11]].forEach(([b, x, z]) => {
       set(x, surf(x, z), z, b);
     });
     // brick + plank shed corner
@@ -311,6 +324,17 @@
     }
     // dock into the pond
     for (let x = 11; x <= 14; x++) if (H(x, 6) <= WATER_Y) set(x, WATER_Y + 1, 6, 'oak_planks');
+    // ground cover: grass tufts, ferns, tall grass and a few flowers on open grass
+    for (let z = 0; z < SZ; z++) for (let x = 0; x < SX; x++) {
+      const y = surf(x, z);
+      if (get(x, y - 1, z) !== ID.grass || get(x, y, z) !== 0) continue;
+      const q = r();
+      if (q < 0.30) set(x, y, z, 'short_grass');
+      else if (q < 0.36) set(x, y, z, 'fern');
+      else if (q < 0.41 && get(x, y + 1, z) === 0) { set(x, y, z, 'tall_grass_bottom'); set(x, y + 1, z, 'tall_grass_top'); }
+      else if (q < 0.45) set(x, y, z, r() < 0.5 ? 'dandelion' : 'poppy');
+      else if (q < 0.47) set(x, y - 1, z, 'moss_block');
+    }
   }
   let lampPos = [10.5, 10, 12.5];
 
@@ -334,6 +358,21 @@
       const id = get(x, y, z);
       if (!id) continue;
       const d = DEFS[id];
+      if (d.cross) {
+        // two crossed double-sided quads, lit as if facing up (how plants are usually shaded)
+        const layer = layerOf[d.cross];
+        const tint = d.tint || [1, 1, 1];
+        for (const [ax, az, bx, bz] of [[0.15, 0.15, 0.85, 0.85], [0.85, 0.15, 0.15, 0.85]]) {
+          const t = norm([bx - ax, 0, bz - az]);
+          const base = v.length / STRIDE;
+          for (const [u, w] of [[0, 0], [1, 0], [1, 1], [0, 1]]) {
+            const p = [x + ax + (bx - ax) * u, y + 1 - w, z + az + (bz - az) * u];
+            v.push(...p, 0, 1, 0, ...t, 0, -1, 0, u, w, layer, -1, ...tint, d.flags, 1);
+          }
+          ind.push(base, base + 1, base + 2, base, base + 2, base + 3, base, base + 2, base + 1, base, base + 3, base + 2);
+        }
+        continue;
+      }
       for (const f of FACES) {
         const nx = x + f.n[0], ny = y + f.n[1], nz = z + f.n[2];
         const nb = get(nx, ny, nz);
@@ -433,18 +472,40 @@ vec3 windOffset(vec3 wp, float amount) {
   o.y = sin(t * 2.1 + wp.x + wp.z) * 0.08;
   return o * s * 0.07;
 }
+float hash12(vec2 p) {
+  vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+  p3 += dot(p3, p3.yzx + 33.33);
+  return fract((p3.x + p3.y) * p3.z);
+}
+float vnoise(vec2 p) {
+  vec2 i = floor(p), f = fract(p);
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(mix(hash12(i), hash12(i + vec2(1.0, 0.0)), u.x), mix(hash12(i + vec2(0.0, 1.0)), hash12(i + vec2(1.0, 1.0)), u.x), u.y);
+}
 float waterHeight(vec2 p) {
-  float t = uTime, h = 0.0;
-  h += sin(dot(p, vec2(0.82, 0.57)) * 0.85 + t * 1.10) * 0.50;
-  h += sin(dot(p, vec2(-0.48, 0.88)) * 1.45 + t * 1.55) * 0.30;
-  h += sin(dot(p, vec2(0.97, -0.24)) * 2.70 + t * 2.10) * 0.16;
-  h += sin(dot(p, vec2(-0.21, -0.98)) * 4.30 + t * 2.70) * 0.09;
-  h += sin(dot(p, vec2(0.66, 0.75)) * 7.10 + t * 3.60) * 0.05;
-  h += sin(dot(p, vec2(-0.90, 0.43)) * 11.3 + t * 4.40) * 0.03;
+  float t = uTime;
+  float h = sin(dot(p, vec2(0.82, 0.57)) * 0.55 + t * 0.8) * 0.30 + sin(dot(p, vec2(-0.48, 0.88)) * 0.90 + t * 1.1) * 0.18;
+  vec2 q = p * 1.1;
+  float amp = 0.55;
+  const mat2 rot = mat2(0.8, -0.6, 0.6, 0.8);
+  for (int i = 0; i < 4; i++) {
+    float n = vnoise(q + t * vec2(0.45, 0.30) * (1.0 + float(i) * 0.7));
+    h += (1.0 - abs(n * 2.0 - 1.0) - 0.5) * amp;
+    q = rot * q * 2.07;
+    amp *= 0.45;
+  }
   return h;
 }
+float caustics(vec2 p) {
+  float t = uTime * 0.7;
+  vec2 q = p * 1.6;
+  float a = vnoise(q + vec2(t * 0.6, t * 0.3) + vnoise(q * 0.7 - t * 0.2) * 1.5);
+  float b = vnoise(q * 1.3 - vec2(t * 0.4, -t * 0.5) + vnoise(q * 0.9 + t * 0.25) * 1.5);
+  float ra = 1.0 - abs(a * 2.0 - 1.0), rb = 1.0 - abs(b * 2.0 - 1.0);
+  return pow(ra, 6.0) + pow(rb, 6.0) + pow(ra * rb, 3.0) * 1.5;
+}
 vec3 waterNormal(vec2 p, float strength) {
-  const float e = 0.04;
+  const float e = 0.03;
   float dx = (waterHeight(p + vec2(e, 0.0)) - waterHeight(p - vec2(e, 0.0))) / (2.0 * e);
   float dz = (waterHeight(p + vec2(0.0, e)) - waterHeight(p - vec2(0.0, e))) / (2.0 * e);
   return normalize(vec3(-dx * strength, 1.0, -dz * strength));
@@ -490,7 +551,10 @@ out vec3 vPos; out vec3 vN; out vec3 vT; out vec3 vB; out vec2 vUV;
 flat out float vLayer; flat out float vOverlay; out vec3 vTint; flat out float vFlags; out float vAO;
 void main() {
   vec3 p = aPos;
-  if (aFlags > 1.5 && uMode > 0.5) p += windOffset(p, 0.45);
+  if (uMode > 0.5) {
+    if (aFlags > 2.5) p += windOffset(aPos, 0.9) * (aFlags > 3.5 ? 2.0 - aUV.y : 1.0 - aUV.y);
+    else if (aFlags > 1.5) p += windOffset(p, 0.45);
+  }
   vPos = p; vN = aN; vT = aT; vB = aB; vUV = aUV; vLayer = aLayer; vOverlay = aOverlay;
   vTint = aTint; vFlags = aFlags; vAO = aAO;
   gl_Position = uVP * vec4(p, 1.0);
@@ -504,6 +568,8 @@ uniform float uMode;    // 0 vanilla look, 1 shaders
 uniform float uPbr;
 uniform float uClipY;   // reflection pass: drop everything below the water
 uniform float uLampOn;
+uniform sampler2D uGround;  // per column: ground top height, +128 if the column holds water
+uniform float uWaterTop;
 in vec3 vPos; in vec3 vN; in vec3 vT; in vec3 vB; in vec2 vUV;
 flat in float vLayer; flat in float vOverlay; in vec3 vTint; flat in float vFlags; in float vAO;
 out vec4 frag;
@@ -614,17 +680,29 @@ void main() {
   float geoL = smoothstep(-0.02, 0.12, dot(geoN, L));
   float shadow = (dot(geoN, L) > 0.0 || sss > 0.0) ? getShadow(vPos, geoN, max(dot(geoN, L), 0.0)) : 0.0;
   vec3 light = uLightCol * shadow * pomShadow;
+  vec3 uwAmb = vec3(1.0);
+  if (vPos.y < uWaterTop) {
+    ivec2 cell = ivec2(floor(vPos.xz - geoN.xz * 0.01));
+    if (cell.x >= 0 && cell.y >= 0 && cell.x < ${SX} && cell.y < ${SZ} && texelFetch(uGround, cell, 0).r * 255.0 > 127.5) {
+      float dh = uWaterTop - vPos.y;
+      float path = dh / max(L.y, 0.25);
+      float c = caustics(vPos.xz + L.xz * path);
+      light *= exp(-path * vec3(0.45, 0.12, 0.09)) * (0.4 + 1.8 * c * exp(-dh * 0.15));
+      uwAmb = exp(-dh * vec3(0.30, 0.10, 0.08));
+    }
+  }
   vec3 F = fresnelSchlick(max(dot(normalize(V + L), V), 0.0), F0);
-  vec3 col = diff * (1.0 - F) * NdotL * geoL * light;
-  col += F * ggx(N, V, L, max(rough, 0.04)) * NdotL * geoL * light;
+  float plant = step(2.5, vFlags);  // thin sprites: softer direct light, no sky sheen
+  vec3 col = diff * (1.0 - F) * NdotL * geoL * light * (1.0 - 0.35 * plant);
+  col += F * ggx(N, V, L, max(rough, 0.04)) * NdotL * geoL * light * (1.0 - plant);
   col += diff * sss * light * (0.25 + 1.5 * pow(max(dot(-V, L), 0.0), 6.0)) * 0.5;
   float skyL = vAO;
-  vec3 amb = uSkyAmb * skyL * (0.55 + 0.45 * N.y);
+  vec3 amb = uSkyAmb * skyL * (0.55 + 0.45 * N.y) * uwAmb;
   col += diff * amb * ao;
   vec3 R = reflect(-V, N);
   vec3 env = skyColorAt(normalize(vec3(R.x, abs(R.y), R.z)), uSunDir) * 0.6;
   vec3 Fa = fresnelSchlick(max(dot(N, V), 0.0), F0);
-  col += Fa * mix(amb * 1.4, env, (1.0 - rough) * (1.0 - rough)) * ao * vAO;
+  col += Fa * mix(amb * 1.4, env, (1.0 - rough) * (1.0 - rough)) * ao * vAO * (1.0 - plant);
   col += diff * lampL * max(dot(N, normalize(uLamp - vPos)), 0.0) * ao;
   col += albedo * emis * 6.0;
   col += diff * vec3(0.012, 0.012, 0.016) * ao;
@@ -642,7 +720,8 @@ in vec3 aPos; in vec2 aUV; in float aLayer; in float aFlags;
 out vec2 vUV; flat out float vLayer;
 void main() {
   vec3 p = aPos;
-  if (aFlags > 1.5) p += windOffset(p, 0.45);
+  if (aFlags > 2.5) p += windOffset(aPos, 0.9) * (aFlags > 3.5 ? 2.0 - aUV.y : 1.0 - aUV.y);
+  else if (aFlags > 1.5) p += windOffset(p, 0.45);
   vUV = aUV; vLayer = aLayer;
   gl_Position = uVP * vec4(p, 1.0);
 }`;
@@ -706,35 +785,60 @@ void main() { vPos = aPos; vN = aN; gl_Position = uVP * vec4(aPos, 1.0); }`;
 uniform vec3 uCam;
 uniform vec2 uRes;
 uniform sampler2D uRefl;
+uniform sampler2D uScene;   // opaque scene, copied before the water is drawn
 uniform sampler2D uGround;
-uniform float uPass;   // 0: multiply what is behind, 1: add light
 uniform float uMode;
 in vec3 vPos; in vec3 vN;
 out vec4 frag;
+float colData(ivec2 c) { return texelFetch(uGround, clamp(c, ivec2(0), ivec2(${SX - 1}, ${SZ - 1})), 0).r * 255.0; }
+bool isWater(ivec2 c) {
+  if (c.x < 0 || c.y < 0 || c.x >= ${SX} || c.y >= ${SZ}) return true;  // open water past the edge
+  return colData(c) > 127.5;
+}
 void main() {
   vec3 V = normalize(uCam - vPos);
   bool top = vN.y > 0.5;
-  if (uMode < 0.5) {
-    frag = uPass < 0.5 ? vec4(vec3(0.35), 1.0) : vec4(vec3(0.03, 0.08, 0.35) * mix(0.2, 1.0, dayFactor(uSunDir.y)), 1.0);
-    return;
-  }
-  vec3 N = top ? waterNormal(vPos.xz, 0.11 * exp(-length(uCam - vPos) * 0.012)) : vN;
-  float fres = 0.02 + 0.98 * pow(1.0 - max(dot(N, V), 0.0), 5.0);
-  // water thickness along the view ray down to the pond floor
-  float ground = texelFetch(uGround, ivec2(clamp(floor(vPos.xz), vec2(0.0), vec2(${SX - 1}.0, ${SZ - 1}.0))), 0).r * 255.0;
-  float depth = top ? max(vPos.y - ground, 0.0) / max(V.y, 0.25) : max(vPos.y - ground, 0.0) * 0.5 + 1.5;
-  vec3 transmit = exp(-depth * vec3(0.65, 0.26, 0.22));
-  if (uPass < 0.5) {
-    frag = vec4(transmit * (1.0 - fres), 1.0);
-    return;
-  }
-  vec3 scatter = vec3(0.006, 0.05, 0.055) * (uSkyAmb * 2.0 + uLightCol * 0.15) * (1.0 - transmit) * (1.0 - fres);
   vec2 suv = gl_FragCoord.xy / uRes;
+  if (uMode < 0.5) {
+    vec3 behind = texture(uScene, suv).rgb;
+    frag = vec4(behind * 0.35 + vec3(0.03, 0.08, 0.35) * mix(0.2, 1.0, dayFactor(uSunDir.y)), 1.0);
+    return;
+  }
+  float dist = length(uCam - vPos);
+  vec3 N = top ? waterNormal(vPos.xz, 0.16 * exp(-dist * 0.015)) : vN;
+  float fres = 0.02 + 0.98 * pow(1.0 - max(dot(N, V), 0.0), 5.0);
+  ivec2 cell = ivec2(floor(vPos.xz - vN.xz * 0.01));
+  float ground = mod(colData(cell), 128.0);
+  float vdepth = max(vPos.y - ground, 0.0);
+  float depth = top ? vdepth / max(V.y, 0.25) : vdepth * 0.5 + 1.5;
+  vec3 transmit = exp(-depth * vec3(0.65, 0.26, 0.22));
+
+  // refraction: look through the wave-bent surface
+  vec2 lean = top ? N.xz : vec2(0.0);
+  vec3 behind = texture(uScene, suv + lean * 0.07 * clamp(vdepth * 0.5, 0.0, 1.0) / max(1.0, dist * 0.04)).rgb;
+
+  vec3 scatter = vec3(0.006, 0.05, 0.055) * (uSkyAmb * 2.0 + uLightCol * 0.15) * (1.0 - transmit);
   vec3 refl = top ? texture(uRefl, suv + N.xz * 0.035).rgb : skyColorAt(reflect(-V, N), uSunDir);
   vec3 L = uLightDir;
   float sh = getShadow(vPos, vec3(0.0, 1.0, 0.0), 1.0);
   vec3 spec = fresnelSchlick(max(dot(normalize(V + L), V), 0.0), vec3(0.02)) * ggx(N, V, L, 0.05) * max(dot(N, L), 0.0) * uLightCol * sh;
-  frag = vec4(scatter + refl * fres + min(spec, vec3(60.0)), 1.0);
+  vec3 col = (behind * transmit + scatter) * (1.0 - fres) + refl * fres + min(spec, vec3(60.0));
+
+  if (top) {
+    // foam along the shore: distance to the nearest land edge of this cell
+    vec2 f = fract(vPos.xz);
+    float d = 1.0;
+    if (!isWater(cell + ivec2(-1, 0))) d = min(d, f.x);
+    if (!isWater(cell + ivec2(1, 0))) d = min(d, 1.0 - f.x);
+    if (!isWater(cell + ivec2(0, -1))) d = min(d, f.y);
+    if (!isWater(cell + ivec2(0, 1))) d = min(d, 1.0 - f.y);
+    float n = vnoise(vPos.xz * 3.0 + uTime * 0.25) * 0.6 + vnoise(vPos.xz * 9.0 - uTime * 0.4) * 0.4;
+    float edge = smoothstep(0.35, 0.0, d + (n - 0.5) * 0.12);
+    float foam = edge * smoothstep(0.5, 0.72, n + edge * 0.4);
+    vec3 foamLight = uSkyAmb * 1.2 + uLightCol * 0.45 * sh;
+    col = mix(col, vec3(0.85) * foamLight, foam * 0.9);
+  }
+  frag = vec4(col, 1.0);
 }`;
 
   const POST_FS = `${COMMON}
@@ -884,7 +988,7 @@ void main() {
 
   const COLOR_FMT = hdrOK ? gl.RGBA16F : gl.RGBA8;
   let W = 0, H = 0, samples = 0;
-  let msFB, msColor, msDepth, hdrFB, hdrTex, reflFB, reflTex, reflDepth, levels = 1;
+  let msFB, msColor, msDepth, hdrFB, hdrTex, reflFB, reflTex, reflDepth, copyFB, copyTex, levels = 1;
 
   function resize() {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -893,9 +997,9 @@ void main() {
     if (w === W && h === H) return;
     W = canvas.width = w;
     H = canvas.height = h;
-    for (const o of [msFB, hdrFB, reflFB]) if (o) gl.deleteFramebuffer(o);
+    for (const o of [msFB, hdrFB, reflFB, copyFB]) if (o) gl.deleteFramebuffer(o);
     for (const o of [msColor, msDepth, reflDepth]) if (o) gl.deleteRenderbuffer(o);
-    for (const o of [hdrTex, reflTex]) if (o) gl.deleteTexture(o);
+    for (const o of [hdrTex, reflTex, copyTex]) if (o) gl.deleteTexture(o);
 
     samples = Math.min(4, gl.getParameter(gl.MAX_SAMPLES));
     msFB = gl.createFramebuffer();
@@ -920,6 +1024,16 @@ void main() {
     gl.bindFramebuffer(gl.FRAMEBUFFER, hdrFB);
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, hdrTex, 0);
 
+    copyTex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, copyTex);
+    gl.texStorage2D(gl.TEXTURE_2D, 1, COLOR_FMT, W, H);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    copyFB = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, copyFB);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, copyTex, 0);
+
     const rw = Math.max(1, W >> 1), rh = Math.max(1, H >> 1);
     reflTex = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, reflTex);
@@ -940,7 +1054,7 @@ void main() {
   // ------------------------------------------------------------------
   // Preview: textures
   // ------------------------------------------------------------------
-  const LAYERS = [...new Set(DEFS.filter(Boolean).flatMap((d) => [d.all, d.top, d.side, d.bottom, d.overlay]).filter(Boolean))];
+  const LAYERS = [...new Set(DEFS.filter(Boolean).flatMap((d) => [d.all, d.top, d.side, d.bottom, d.overlay, d.cross]).filter(Boolean))];
   const layerOf = {};
   LAYERS.forEach((n, i) => { layerOf[n] = i; });
 
@@ -1082,6 +1196,8 @@ void main() {
     gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D_ARRAY, texNrm); setI(prog, 'uNrm', 1);
     gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D_ARRAY, texSpec); setI(prog, 'uSpec', 2);
     gl.activeTexture(gl.TEXTURE3); gl.bindTexture(gl.TEXTURE_2D, shadowTex); setI(prog, 'uShadow', 3);
+    gl.activeTexture(gl.TEXTURE5); gl.bindTexture(gl.TEXTURE_2D, groundTex); setI(prog, 'uGround', 5);
+    setU(prog, 'uWaterTop', WATER_Y + 0.875);
     gl.bindVertexArray(sceneVAO.vao);
     gl.drawElements(gl.TRIANGLES, sceneVAO.count, gl.UNSIGNED_INT, 0);
   }
@@ -1181,7 +1297,11 @@ void main() {
     gl.cullFace(gl.BACK);
     drawScene(progs.scene, vp, eye, L, -1e9, mode);
 
-    // water: multiply what is behind by its transmittance, then add reflected/scattered light
+    // water: copy the opaque scene so the water can refract it, then draw the surface on top
+    gl.bindFramebuffer(gl.READ_FRAMEBUFFER, msFB);
+    gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, copyFB);
+    gl.blitFramebuffer(0, 0, W, H, 0, 0, W, H, gl.COLOR_BUFFER_BIT, gl.NEAREST);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, msFB);
     const wp = progs.water;
     gl.useProgram(wp.p);
     setU(wp, 'uVP', vp);
@@ -1192,16 +1312,10 @@ void main() {
     gl.activeTexture(gl.TEXTURE3); gl.bindTexture(gl.TEXTURE_2D, shadowTex); setI(wp, 'uShadow', 3);
     gl.activeTexture(gl.TEXTURE4); gl.bindTexture(gl.TEXTURE_2D, reflTex); setI(wp, 'uRefl', 4);
     gl.activeTexture(gl.TEXTURE5); gl.bindTexture(gl.TEXTURE_2D, groundTex); setI(wp, 'uGround', 5);
+    gl.activeTexture(gl.TEXTURE6); gl.bindTexture(gl.TEXTURE_2D, copyTex); setI(wp, 'uScene', 6);
     gl.bindVertexArray(waterVAO.vao);
     gl.depthMask(false);
-    gl.enable(gl.BLEND);
-    gl.blendFunc(gl.ZERO, gl.SRC_COLOR);
-    setU(wp, 'uPass', 0);
     gl.drawElements(gl.TRIANGLES, waterVAO.count, gl.UNSIGNED_INT, 0);
-    gl.blendFunc(gl.ONE, gl.ONE);
-    setU(wp, 'uPass', 1);
-    gl.drawElements(gl.TRIANGLES, waterVAO.count, gl.UNSIGNED_INT, 0);
-    gl.disable(gl.BLEND);
     gl.depthMask(true);
 
     // resolve MSAA, build bloom mips, tonemap to the screen
@@ -1236,7 +1350,8 @@ void main() {
       groundTex = gl.createTexture();
       gl.bindTexture(gl.TEXTURE_2D, groundTex);
       gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, SX, SZ, 0, gl.RED, gl.UNSIGNED_BYTE, groundTop);
+      const groundData = groundTop.map((g, i) => g + (isWater[i] ? 128 : 0));
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, SX, SZ, 0, gl.RED, gl.UNSIGNED_BYTE, groundData);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
       msg.textContent = '';

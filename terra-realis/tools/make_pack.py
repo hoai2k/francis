@@ -183,6 +183,11 @@ class Pack:
 
         alb = np.clip(albedo * (1 - ao_into_albedo + ao_into_albedo * ao)[..., None], 0, 1)
         a = np.ones(h.shape) if alpha is None else np.clip(alpha, 0, 1)
+        if alpha is not None and (a < 0.5).any() and (a > 0.5).any():
+            # Bleed colour into transparent pixels so mipmaps don't get dark fringes.
+            w = (a > 0.5).astype(float)
+            fill = np.dstack([blur(alb[..., c] * w, 4) for c in range(3)]) / np.maximum(blur(w, 4), 1e-4)[..., None]
+            alb = np.where(w[..., None] > 0, alb, np.clip(fill, 0, 1))
         img = np.dstack([alb, a])
         self._png(folder / f"{name}.png", img)
 
@@ -942,6 +947,610 @@ def pack_icon(root):
 
 # --------------------------------------------------------------------------
 
+# --------------------------------------------------------------------------
+# More blocks: stone family, sedimentary, dirt family, wood, minerals,
+# Nether/End, plants. Built from the same primitives as above.
+# --------------------------------------------------------------------------
+
+def border_dist(panels=1):
+    x, y = grid()
+    pw = N / panels
+    lx, ly = x % pw, y % pw
+    return np.minimum(np.minimum(lx, pw - lx), np.minimum(ly, pw - ly))
+
+
+def masonry_layout(rows, cols, offset=True, jitter_seed=None):
+    """Brick/tile layout. Returns distance to the nearest joint (px) and a brick id."""
+    x, y = grid()
+    rh, bw = N / rows, N / cols
+    row = np.floor(y / rh).astype(int)
+    off = (row % 2) * bw / 2 if offset else 0
+    bx = np.floor(((x + off) % N) / bw).astype(int)
+    lx = (x + off) % bw
+    ly = y % rh
+    d = np.minimum(np.minimum(lx, bw - lx), np.minimum(ly, rh - ly))
+    return d, row * cols + bx
+
+
+def masonry(p, name, seed, face, rows, cols, offset=True, gap=3.0, bevel=10.0, mortar=(40, 38, 36),
+            smooth=0.3, f0=0.04, porosity=0.3, depth=8, tone_var=0.15, chip=4.0):
+    """face(seed) -> (col, h) surface of a single brick/tile material."""
+    d, bid = masonry_layout(rows, cols, offset)
+    s = N / 256
+    erosion = spectral(seed, 1.6) * chip * s
+    d = d - erosion * 0.5
+    block = smoothstep(gap * s, gap * s + 1.5, d)
+    bev = smoothstep(gap * s, (gap + bevel) * s, d)
+    col, h = face(seed + 1)
+    r = np.random.default_rng(seed + 2)
+    tone = 1 + (r.random(rows * cols) - 0.5) * 2 * tone_var
+    col = col * tone[bid % (rows * cols)][..., None]
+    mcol = rgb(*mortar) * (0.8 + 0.4 * spectral(seed + 3, 0.8))[..., None]
+    col = col * block[..., None] + mcol * (1 - block[..., None])
+    hh = 0.3 * h + 0.7 * bev
+    p.save(name, col, np.clip(hh, 0, 1), smooth * block + 0.15 * (1 - block), f0=f0, porosity=porosity, depth=depth)
+
+
+def face_stone(stops, beta=2.0, fine=0.35):
+    def f(seed):
+        h = (1 - fine) * spectral(seed, beta) + fine * spectral(seed + 1, 0.9, fmin=10)
+        return ramp(h, stops), h
+    return f
+
+
+def speckled_parts(seed, base_stops, speck_cols):
+    t = 0.6 * spectral(seed + 3, 2.2) + 0.4 * spectral(seed + 8, 1.2, fmin=6, fmax=40)
+    col = ramp(t, base_stops)
+    h = 0.5 * spectral(seed + 5, 2.2) + 0.5 * spectral(seed + 4, 1.0, fmin=12)
+    for i, (prob, c) in enumerate(speck_cols):
+        g = 0.75 * spectral(seed + 20 + i, 1.2, fmin=6, fmax=34) + 0.25 * spectral(seed + 40 + i, 2.0)
+        thr = np.percentile(g, 100 * (1 - prob))
+        m = smoothstep(thr, thr + 0.03, g)
+        shade = 0.8 + 0.4 * spectral(seed + 60 + i, 1.0, fmin=8)
+        col = col * (1 - m[..., None]) + (rgb(*c) * shade[..., None]) * m[..., None]
+        h = h + 0.12 * m
+    return col, np.clip(h, 0, 1)
+
+
+def polished(p, name, col, h, seed, smooth=0.7, border=14):
+    d = border_dist()
+    s = N / 256
+    bev = smoothstep(1 * s, border * s, d)
+    groove = smoothstep(3 * s, 0, d)
+    col = col * (1 - 0.35 * groove)[..., None]
+    scratches = smoothstep(0.9, 0.99, spectral(seed + 70, 0.4, sx=0.15))
+    hh = 0.12 * h + 0.88 * bev
+    p.save(name, col, hh, smooth - 0.25 * scratches - 0.2 * (1 - bev), f0=0.045, porosity=0.05, depth=5,
+           ao_into_albedo=0.4)
+
+
+ANDESITE = ([(0, rgb(110, 110, 110)), (1, rgb(150, 150, 148))], [(0.15, (60, 60, 62)), (0.12, (200, 200, 198))])
+GRANITE = ([(0, rgb(140, 92, 74)), (1, rgb(180, 122, 100))], [(0.18, (40, 34, 34)), (0.15, (220, 196, 186)), (0.2, (196, 110, 90))])
+DIORITE = ([(0, rgb(200, 200, 198)), (1, rgb(236, 236, 234))], [(0.18, (50, 50, 54)), (0.15, (140, 140, 140))])
+
+
+def smooth_stone(p):
+    col, h, _ = stone_base(900, tone=(160, 160, 158), contrast=0.08)
+    d = border_dist()
+    s = N / 256
+    frame = smoothstep(10 * s, 6 * s, d) * smoothstep(1 * s, 4 * s, d)
+    col = col * (1 - 0.18 * frame)[..., None]
+    p.save("smooth_stone", col, 0.2 * h + 0.6 + 0.2 * smoothstep(1 * s, 8 * s, d) - 0.15 * frame,
+           0.45, f0=0.04, porosity=0.15, depth=3)
+
+
+def sedimentary(p, prefix, seed, stops):
+    """Sandstone: side with bedding layers and a cap band, plus top and bottom."""
+    x, y = grid()
+    warp = spectral(seed, 2.6) * 10
+    layers = 0.5 + 0.5 * np.sin(2 * math.pi * 9 * (y + warp) / N)
+    grain = spectral(seed + 1, 0.4, fmin=30)
+    big = spectral(seed + 2, 2.4)
+    t = 0.45 * layers + 0.25 * grain + 0.3 * big
+    col = ramp(t, stops)
+    s = N / 256
+    cap = smoothstep(46 * s, 42 * s, y)
+    col = col * (1 + 0.08 * cap)[..., None]
+    joint = smoothstep(4 * s, 0, np.abs(y - 44 * s))
+    col = col * (1 - 0.35 * joint)[..., None]
+    pits = smoothstep(0.85, 0.95, spectral(seed + 3, 0.6, fmin=8))
+    h = 0.4 * layers + 0.2 * grain + 0.3 * big + 0.15 * cap - 0.3 * joint - 0.3 * pits
+    p.save(f"{prefix}", col * (1 - 0.3 * pits)[..., None], np.clip(h, 0, 1), 0.2, f0=0.04, porosity=0.9, depth=6)
+    # top: smooth, wind-polished with a frame
+    t2 = 0.5 * big + 0.3 * grain + 0.2 * spectral(seed + 4, 1.4)
+    d = border_dist()
+    frame = smoothstep(12 * s, 8 * s, d)
+    col2 = ramp(t2, stops) * (1 - 0.15 * frame)[..., None]
+    p.save(f"{prefix}_top", col2, 0.5 + 0.3 * t2 - 0.2 * frame, 0.25, f0=0.04, porosity=0.9, depth=3)
+    # bottom: rough, pitted
+    t3 = 0.4 * big + 0.6 * grain
+    pits3 = smoothstep(0.78, 0.92, spectral(seed + 5, 0.8, fmin=6))
+    p.save(f"{prefix}_bottom", ramp(t3, stops) * (1 - 0.35 * pits3)[..., None], np.clip(t3 - 0.5 * pits3, 0, 1),
+           0.15, f0=0.04, porosity=1.0, depth=7)
+    # cut: two smooth slabs
+    masonry(p, f"cut_{prefix}", seed + 10, face_stone(stops, 2.4, 0.4), 2, 1, offset=False, gap=2.0, bevel=6,
+            mortar=tuple(int(c * 255 * 0.55) for c in stops[0][1]), smooth=0.25, porosity=0.9, depth=5)
+
+
+def dirt_variant(p, name, seed, pebbles=70, peb_size=(2, 8), tint=None, wet=0.0, roots=False):
+    crumb = spectral(seed, 1.2, fmin=6)
+    big = spectral(seed + 1, 2.4)
+    t = 0.6 * big + 0.4 * crumb
+    stops = [(0, rgb(58, 40, 26)), (0.45, rgb(98, 70, 46)), (1, rgb(132, 98, 66))]
+    col = ramp(t, stops)
+    if tint is not None:
+        col = col * np.array(tint)
+    h = 0.4 * big + 0.6 * crumb
+    pts = np.random.default_rng(seed + 2).random((pebbles, 2)) * N
+    f1, _, idx = voronoi(pts)
+    r = np.random.default_rng(seed + 3)
+    rad = (peb_size[0] + r.random(len(pts)) * (peb_size[1] - peb_size[0])) * N / 256
+    peb = smoothstep(rad[idx], rad[idx] * 0.4, f1)
+    pcol = ramp(r.random(len(pts))[idx], [(0, rgb(80, 76, 70)), (0.5, rgb(128, 118, 102)), (1, rgb(160, 152, 140))])
+    col = col * (1 - peb[..., None]) + pcol * peb[..., None]
+    h = h * (1 - peb) + (0.6 + 0.4 * peb) * peb
+    if roots:
+        rt = 1 - np.abs(spectral(seed + 5, 2.0, sx=0.4) * 2 - 1)
+        rt2 = 1 - np.abs(spectral(seed + 6, 2.0, sy=0.4) * 2 - 1)
+        root = np.maximum(smoothstep(0.93, 0.98, rt), smoothstep(0.94, 0.985, rt2))
+        col = col * (1 - root[..., None]) + rgb(150, 112, 74) * root[..., None]
+        h = h + 0.25 * root
+    col = col * (1 - 0.35 * wet)
+    return col, np.clip(h, 0, 1), peb
+
+
+def top_strip(base_col, base_h, cover_col, cover_h, seed, depth_px=(14, 40)):
+    """Overlay an irregular band of another material along the top edge."""
+    x, y = grid()
+    s = N / 256
+    edge = (depth_px[0] + (depth_px[1] - depth_px[0]) * spectral(seed, 1.8)[0][None, :].repeat(N, 0)) * s
+    m = smoothstep(edge + 2, edge - 2, y)
+    shade = blur(m, 3) * (1 - m)
+    col = base_col * (1 - m[..., None]) + cover_col * m[..., None]
+    col = col * (1 - 0.35 * shade[..., None])
+    h = base_h * (1 - m) + (0.55 + 0.45 * cover_h) * m
+    return col, np.clip(h, 0, 1), m
+
+
+def soil_family(p):
+    col, h, peb = dirt_variant(p, None, 1000, pebbles=180, peb_size=(3, 10))
+    p.save("coarse_dirt", col, h, 0.15 + 0.3 * peb, f0=0.03, porosity=0.85, depth=8)
+    col, h, peb = dirt_variant(p, None, 1010, roots=True)
+    p.save("rooted_dirt", col, h, 0.15, f0=0.03, porosity=0.85, depth=7)
+
+    # podzol: needle and leaf litter
+    b, bh, c = blades(1020, 5000, (6, 16), 1.6)
+    litter = np.where(c > 0, b, 0.3)
+    lc = ramp(litter, [(0, rgb(48, 30, 16)), (0.5, rgb(104, 66, 32)), (1, rgb(150, 98, 50))])
+    lh = blur(np.where(c > 0, bh, 0.0), 0.6)
+    p.save("podzol_top", lc, lh, 0.15, f0=0.03, porosity=0.8, depth=5)
+    dcol, dh, _ = dirt_variant(p, None, 1021)
+    col, h, _ = top_strip(dcol, dh, lc, lh, 1022)
+    p.save("podzol_side", col, h, 0.15, f0=0.03, porosity=0.8, depth=6)
+
+    # mycelium: grey-violet fungal felt
+    fz = 0.6 * spectral(1030, 0.6, fmin=12) + 0.4 * spectral(1031, 2.2)
+    spores = smoothstep(0.86, 0.96, spectral(1032, 0.2, fmin=40))
+    mc = ramp(fz, [(0, rgb(86, 70, 84)), (0.6, rgb(124, 108, 120)), (1, rgb(150, 138, 148))]) + 0.18 * spores[..., None]
+    p.save("mycelium_top", mc, fz, 0.1, f0=0.03, sss=0.2, depth=3)
+    col, h, _ = top_strip(dcol, dh, mc, fz, 1033, (10, 30))
+    p.save("mycelium_side", col, h, 0.12, f0=0.03, porosity=0.6, depth=6)
+
+    # moss block (not biome-tinted)
+    fuzz = spectral(1040, 0.5)
+    clumps = spectral(1041, 2.2)
+    t = 0.55 * fuzz + 0.45 * clumps
+    mcol = ramp(t, [(0, rgb(40, 62, 22)), (0.55, rgb(84, 112, 40)), (1, rgb(130, 150, 64))])
+    p.save("moss_block", mcol, t, 0.08, f0=0.03, sss=0.55, depth=5)
+
+    # dirt path: compacted, lighter, with wheel ruts
+    pcol, ph, peb = dirt_variant(p, None, 1050, pebbles=40, tint=(1.18, 1.12, 1.0))
+    x, _ = grid()
+    rut = np.exp(-((x / N - 0.3) ** 2) / 0.004) + np.exp(-((x / N - 0.72) ** 2) / 0.004)
+    pcol = pcol * (1 - 0.12 * rut)[..., None]
+    ph = 0.4 + 0.35 * ph - 0.2 * rut
+    p.save("dirt_path_top", pcol, ph, 0.25, f0=0.035, porosity=0.6, depth=4)
+    col, h, _ = top_strip(dcol, dh, pcol, ph, 1051, (24, 34))
+    p.save("dirt_path_side", col, h, 0.2, f0=0.03, porosity=0.7, depth=6)
+
+    # farmland: tilled furrows
+    for name, wet in (("farmland", 0.0), ("farmland_moist", 1.0)):
+        fcol, fh, _ = dirt_variant(p, None, 1060, pebbles=30, wet=0.15 + 0.35 * wet)
+        _, y = grid()
+        warp = spectral(1061, 2.4) * 8
+        furrow = 0.5 + 0.5 * np.cos(2 * math.pi * 4 * (y + warp) / N)
+        fcol = fcol * (0.7 + 0.3 * furrow)[..., None]
+        fh = 0.45 * fh + 0.55 * furrow
+        p.save(name, fcol, fh, 0.15 + 0.45 * wet * (1 - furrow), f0=0.03 + 0.01 * wet, porosity=0.9 - 0.5 * wet, depth=9)
+
+    # grass block side under snow
+    snow_h = 0.6 * spectral(220, 2.4) + 0.4 * spectral(221, 1.0, fmin=10)
+    scol = ramp(snow_h, [(0, rgb(200, 212, 228)), (0.6, rgb(236, 242, 250)), (1, rgb(252, 253, 255))])
+    col, h, m = top_strip(dcol, dh, scol, snow_h, 1070, (30, 60))
+    p.save("grass_block_snow", col, h, 0.2 + 0.2 * m, f0=0.03, porosity=0.6 * (1 - m), sss=0.5 * m, depth=6)
+
+    # mud: wet, glossy, dark
+    mh = 0.6 * spectral(1080, 2.4) + 0.4 * spectral(1081, 1.0, fmin=8)
+    mcol = ramp(mh, [(0, rgb(40, 34, 32)), (0.5, rgb(62, 54, 50)), (1, rgb(84, 74, 66))])
+    puddle = smoothstep(0.35, 0.2, mh)
+    p.save("mud", mcol, mh, 0.55 + 0.4 * puddle, f0=0.03, porosity=0.2, depth=5)
+    # packed mud: dried, with straw fibres
+    pk = 0.6 * spectral(1090, 2.2) + 0.4 * spectral(1091, 1.0, fmin=8)
+    pcol = ramp(pk, [(0, rgb(120, 86, 64)), (0.5, rgb(150, 112, 84)), (1, rgb(176, 136, 104))])
+    straw = np.zeros((N, N))
+    for i in range(3):
+        f = spectral(1092 + i, 2.0, sx=0.3 if i % 2 else 3.0, sy=3.0 if i % 2 else 0.3)
+        straw = np.maximum(straw, smoothstep(0.035, 0.0, np.abs(f - 0.5)) * smoothstep(0.5, 0.7, spectral(1095 + i, 1.5)))
+    pcol = pcol * (1 - straw[..., None]) + rgb(196, 168, 100) * straw[..., None]
+    p.save("packed_mud", pcol, pk + 0.15 * straw, 0.2, f0=0.035, porosity=0.8, depth=4)
+
+    def mud_face(seed):
+        hh = 0.6 * spectral(seed, 2.0) + 0.4 * spectral(seed + 1, 1.0, fmin=10)
+        return ramp(hh, [(0, rgb(124, 92, 70)), (0.5, rgb(152, 116, 88)), (1, rgb(176, 140, 108))]), hh
+    masonry(p, "mud_bricks", 1100, mud_face, 4, 2, gap=4, bevel=6, mortar=(96, 74, 58), smooth=0.2, porosity=0.8)
+
+
+def stone_family(p):
+    smooth_stone(p)
+    for name, (stops, specks), seed in (("andesite", ANDESITE, 500), ("granite", GRANITE, 510), ("diorite", DIORITE, 520)):
+        col, h = speckled_parts(seed, stops, specks)
+        polished(p, f"polished_{name}", col, h, seed)
+
+    deep = [(0, rgb(32, 32, 38)), (0.5, rgb(68, 68, 74)), (1, rgb(98, 98, 104))]
+    # cobbled deepslate: dark angular cobbles
+    h, gap, idx, rnd, surf = cobble_parts(1200, cells=6)
+    col = ramp(rnd[idx], deep) * (0.75 + 0.4 * surf)[..., None]
+    col = col * (1 - gap[..., None]) + rgb(16, 16, 20) * gap[..., None]
+    p.save("cobbled_deepslate", col, h, 0.3, f0=0.045, porosity=0.2, depth=9)
+    masonry(p, "deepslate_bricks", 1210, face_stone(deep, 2.0), 4, 2, gap=3, bevel=8, mortar=(18, 18, 22), smooth=0.3)
+    masonry(p, "deepslate_tiles", 1220, face_stone(deep, 2.0), 4, 4, offset=False, gap=3, bevel=6,
+            mortar=(14, 14, 18), smooth=0.35)
+    col, h = face_stone(deep, 2.2, 0.2)(1230)
+    polished(p, "polished_deepslate", col, h, 1230, smooth=0.6)
+
+    tuff_c, tuff_h = speckled_parts(1240, [(0, rgb(90, 92, 84)), (1, rgb(122, 124, 112))],
+                                    [(0.12, (60, 58, 52)), (0.1, (150, 146, 128))])
+    vesicles = smoothstep(0.84, 0.94, spectral(1241, 0.8, fmin=10))
+    p.save("tuff", tuff_c * (1 - 0.4 * vesicles)[..., None], np.clip(tuff_h - 0.5 * vesicles, 0, 1), 0.2,
+           f0=0.04, porosity=0.6, depth=6)
+    cal = 0.6 * spectral(1250, 2.2) + 0.4 * spectral(1251, 1.6, fmin=5)
+    veins = smoothstep(0.03, 0.0, np.abs(spectral(1252, 2.2) - 0.5))
+    ccol = ramp(cal, [(0, rgb(210, 212, 208)), (1, rgb(240, 242, 238))]) * (1 - 0.15 * veins)[..., None]
+    p.save("calcite", ccol, cal, 0.45, f0=0.045, porosity=0.2, sss=0.15, depth=3)
+
+    sedimentary(p, "sandstone", 1300, [(0, rgb(196, 172, 122)), (0.5, rgb(218, 200, 150)), (1, rgb(234, 220, 176))])
+    sedimentary(p, "red_sandstone", 1310, [(0, rgb(150, 70, 30)), (0.5, rgb(184, 98, 44)), (1, rgb(206, 126, 66))])
+
+    # terracotta: fired clay, matte, gently mottled
+    tc = 0.6 * spectral(1320, 2.4) + 0.4 * spectral(1321, 1.0, fmin=10)
+    p.save("terracotta", ramp(tc, [(0, rgb(132, 74, 50)), (1, rgb(166, 98, 70))]), tc, 0.3, f0=0.04, porosity=0.5, depth=2)
+    wc = 0.6 * spectral(1330, 2.6) + 0.4 * spectral(1331, 0.6, fmin=20)
+    p.save("white_concrete", ramp(wc, [(0, rgb(196, 198, 198)), (1, rgb(222, 224, 224))]), wc, 0.35, f0=0.04,
+           porosity=0.3, depth=1.5)
+
+
+def wood_family(p):
+    DARK_OAK = [(0, rgb(46, 28, 14)), (0.5, rgb(70, 44, 22)), (1, rgb(96, 64, 34))]
+    JUNGLE = [(0, rgb(120, 76, 50)), (0.5, rgb(156, 106, 72)), (1, rgb(184, 132, 94))]
+    ACACIA = [(0, rgb(150, 70, 34)), (0.5, rgb(186, 98, 52)), (1, rgb(212, 124, 72))]
+    planks(p, "dark_oak_planks", DARK_OAK, 1400)
+    planks(p, "jungle_planks", JUNGLE, 1410)
+    planks(p, "acacia_planks", ACACIA, 1420)
+
+    logs = [
+        ("dark_oak_log", (1430, (20, 14, 8), (44, 32, 20), (74, 58, 40)), DARK_OAK),
+        ("jungle_log", (1440, (44, 34, 18), (86, 70, 40), (126, 108, 70)), JUNGLE),
+        ("acacia_log", (1450, (54, 50, 44), (96, 90, 80), (130, 124, 112)), ACACIA),
+        ("spruce_log", (110, (24, 16, 10), (54, 38, 24), (86, 64, 44)), SPRUCE),
+    ]
+    for name, args, stops in logs:
+        if name != "spruce_log":
+            p.save(name, *bark(*args)[:2], 0.12, 0.03, 0.6, depth=10)
+        log_top(p, f"{name}_top", stops, args, args[0] + 5)
+
+    # birch: white bark with dark horizontal lenticels and scars
+    base = 0.6 * spectral(1460, 2.2) + 0.4 * spectral(1461, 0.8, fmin=10)
+    col = ramp(base, [(0, rgb(196, 192, 182)), (1, rgb(236, 234, 226))])
+    dash = smoothstep(0.82, 0.9, spectral(1462, 1.4, sx=8.0, fmin=4))
+    scars = smoothstep(0.72, 0.85, spectral(1463, 2.4, sx=2.5))
+    dark = np.clip(dash + scars, 0, 1)
+    col = col * (1 - dark[..., None]) + rgb(40, 36, 32) * dark[..., None]
+    peel = smoothstep(0.86, 0.95, spectral(1464, 1.8, sx=4.0))
+    col = col * (1 - 0.15 * peel[..., None]) + rgb(200, 150, 110) * 0.15 * peel[..., None]
+    p.save("birch_log", col, 0.7 * base + 0.3 - 0.5 * dark + 0.1 * peel, 0.25, 0.03, 0.4, depth=6)
+    log_top(p, "birch_log_top", BIRCH, (1465, (40, 36, 32), (190, 186, 176), (232, 230, 222)), 1466)
+
+    # stripped oak: bare vertical grain
+    c, t, lines = wood_grain(1470, OAK, rings=8)
+    c, t = np.transpose(c, (1, 0, 2)), t.T
+    p.save("stripped_oak_log", c, 0.6 + 0.4 * t, 0.35, f0=0.04, porosity=0.25, depth=4)
+    log_top(p, "stripped_oak_log_top", OAK, (1471, (112, 78, 44), (156, 116, 70), (186, 146, 94)), 1472)
+
+
+def gem_block(p, name, seed, stops, smooth, f0=None, metal=None, emission=0.0, cells=60, sss=0.0):
+    d = border_dist()
+    s = N / 256
+    bev = smoothstep(2 * s, 16 * s, d)
+    x, y = warped_grid(seed, 2)
+    pts = np.random.default_rng(seed + 1).random((cells, 2)) * N
+    f1, f2, idx = voronoi(pts, x, y)
+    facet = np.random.default_rng(seed + 2).random(cells)
+    edge = smoothstep(0, 3, f2 - f1)
+    t = np.clip(0.25 + 0.6 * facet[idx] * edge + 0.15 * spectral(seed + 3, 1.0) + 0.15 * (1 - bev), 0, 1)
+    col = ramp(t, stops) * (0.7 + 0.3 * bev)[..., None]
+    h = 0.55 * bev + 0.35 * edge * facet[idx] + 0.1
+    kw = dict(emission=emission * t if emission else None, depth=5, ao_into_albedo=0.3)
+    if metal is not None:
+        p.save(name, col, h, smooth * (0.8 + 0.2 * edge), metal=metal, **kw)
+    else:
+        p.save(name, col, h, smooth * (0.8 + 0.2 * edge), f0=f0, sss=sss, **kw)
+
+
+def mineral_family(p):
+    gem_block(p, "diamond_block", 1500, [(0, rgb(40, 150, 150)), (0.6, rgb(110, 225, 220)), (1, rgb(225, 255, 252))], 0.95, f0=0.17)
+    gem_block(p, "emerald_block", 1510, [(0, rgb(10, 100, 40)), (0.6, rgb(50, 200, 100)), (1, rgb(170, 255, 190))], 0.92, f0=0.07)
+    gem_block(p, "redstone_block", 1520, [(0, rgb(110, 6, 4)), (0.6, rgb(200, 24, 14)), (1, rgb(255, 90, 60))], 0.6, f0=0.05, emission=0.15)
+    gem_block(p, "amethyst_block", 1530, [(0, rgb(70, 40, 120)), (0.6, rgb(142, 96, 200)), (1, rgb(214, 180, 255))], 0.85, f0=0.05, cells=140, sss=0.2)
+    gem_block(p, "coal_block", 1540, [(0, rgb(8, 8, 10)), (0.7, rgb(28, 28, 32)), (1, rgb(70, 70, 76))], 0.5, f0=0.05, cells=90)
+    lap = 0.6 * spectral(1550, 1.8) + 0.4 * spectral(1551, 0.8, fmin=10)
+    lcol = ramp(lap, [(0, rgb(14, 34, 110)), (0.6, rgb(36, 70, 170)), (1, rgb(70, 110, 220))])
+    pyrite = smoothstep(0.9, 0.97, spectral(1552, 0.4, fmin=20))
+    lcol = lcol * (1 - pyrite[..., None]) + rgb(220, 180, 80) * pyrite[..., None]
+    d = border_dist()
+    bev = smoothstep(2 * N / 256, 14 * N / 256, d)
+    p.save("lapis_block", lcol * (0.75 + 0.25 * bev)[..., None], 0.6 * bev + 0.3 * lap, 0.55 + 0.3 * pyrite,
+           metal=np.where(pyrite > 0.5, 231, 12), depth=5)
+    metal_block(p, "netherite_block", 1560, [(0, rgb(40, 36, 38)), (1, rgb(88, 80, 82))], 255, 0.72)
+
+    for name, seed, stops, metal in (("raw_iron_block", 1570, [(0, rgb(120, 90, 74)), (1, rgb(216, 182, 158))], 230),
+                                     ("raw_gold_block", 1580, [(0, rgb(160, 110, 20)), (1, rgb(250, 214, 90))], 231)):
+        h, gap, idx, rnd, surf = cobble_parts(seed, cells=7)
+        col = ramp(rnd[idx] * 0.6 + 0.4 * surf, stops)
+        col = col * (1 - 0.6 * gap[..., None])
+        shine = smoothstep(0.6, 0.85, surf) * (1 - gap)
+        p.save(name, col, h, 0.35 + 0.4 * shine, metal=np.where(shine > 0.4, metal, 20), depth=9)
+
+    # quartz: polished white with faint veins
+    q = 0.7 * spectral(1590, 2.6) + 0.3 * spectral(1591, 0.8, fmin=12)
+    veins = smoothstep(0.02, 0.0, np.abs(spectral(1592, 2.0) - 0.5)) * 0.6
+    qcol = ramp(q, [(0, rgb(222, 216, 208)), (1, rgb(244, 240, 234))]) * (1 - 0.12 * veins)[..., None]
+    polished(p, "quartz_block_side", qcol, q, 1590, smooth=0.75, border=4)
+    polished(p, "quartz_block_top", qcol, q, 1593, smooth=0.75, border=16)
+    polished(p, "quartz_block_bottom", qcol * 0.97, q, 1594, smooth=0.7, border=4)
+
+    # prismarine: shifting teal mineral tiles
+    pr = spectral(1600, 1.6)
+    h, gap, idx, rnd, surf = cobble_parts(1601, cells=4)
+    pcol = ramp(0.5 * pr + 0.5 * rnd[idx], [(0, rgb(52, 110, 100)), (0.5, rgb(90, 160, 148)), (1, rgb(140, 200, 180))])
+    pcol = pcol * (1 - 0.5 * gap[..., None])
+    p.save("prismarine", pcol, h, 0.55, f0=0.05, porosity=0.1, depth=7)
+
+    def dp_face(seed):
+        hh = spectral(seed, 1.8)
+        return ramp(hh, [(0, rgb(26, 62, 52)), (1, rgb(56, 100, 84))]), hh
+    masonry(p, "dark_prismarine", 1610, dp_face, 4, 2, gap=2.5, bevel=5, mortar=(14, 34, 30), smooth=0.55)
+
+
+def nether_end_family(p):
+    # netherrack: fleshy, porous rock
+    x, y = warped_grid(1700, 8)
+    f1, f2, idx = voronoi(jittered(1701, 9, 1.0), x, y)
+    lump = smoothstep(0, 9, f2 - f1)
+    pores = smoothstep(0.82, 0.93, spectral(1702, 0.6, fmin=12))
+    t = 0.5 * lump + 0.3 * spectral(1703, 1.2) + 0.2 * np.random.default_rng(1704).random(81)[idx]
+    col = ramp(t, [(0, rgb(70, 20, 20)), (0.5, rgb(112, 36, 34)), (1, rgb(150, 62, 58))]) * (1 - 0.5 * pores)[..., None]
+    p.save("netherrack", col, np.clip(t - 0.5 * pores, 0, 1), 0.25, f0=0.04, porosity=0.5, depth=8)
+
+    def nb_face(seed):
+        hh = 0.6 * spectral(seed, 2.0) + 0.4 * spectral(seed + 1, 1.0, fmin=10)
+        return ramp(hh, [(0, rgb(36, 14, 18)), (0.5, rgb(52, 22, 26)), (1, rgb(76, 34, 38))]), hh
+    masonry(p, "nether_bricks", 1710, nb_face, 8, 4, gap=3, bevel=4, mortar=(18, 8, 10), smooth=0.3)
+
+    ss = 0.5 * spectral(1720, 2.2) + 0.5 * spectral(1721, 0.6, fmin=16)
+    holes = smoothstep(0.82, 0.92, spectral(1722, 1.6, fmin=6))
+    col = ramp(ss, [(0, rgb(52, 38, 30)), (0.5, rgb(84, 64, 50)), (1, rgb(112, 88, 70))]) * (1 - 0.6 * holes)[..., None]
+    p.save("soul_sand", col, np.clip(ss - 0.7 * holes, 0, 1), 0.1, f0=0.03, porosity=1.0, depth=8)
+
+    bs, bsh, _ = stone_base(1730, tone=(44, 40, 46), contrast=0.35)
+    p.save("blackstone", bs, bsh, 0.3, f0=0.045, porosity=0.2, depth=6)
+    x, y = warped_grid(1731, 10)
+    f1, f2, idx = voronoi(jittered(1732, 5), x, y)
+    poly = smoothstep(0, 4, f2 - f1)
+    p.save("blackstone_top", bs * (0.6 + 0.4 * poly)[..., None], 0.4 * bsh + 0.6 * poly, 0.32, f0=0.045, depth=6)
+
+    es = 0.6 * spectral(1740, 2.2) + 0.4 * spectral(1741, 0.8, fmin=10)
+    pits = smoothstep(0.8, 0.9, spectral(1742, 1.0, fmin=8))
+    col = ramp(es, [(0, rgb(196, 192, 136)), (1, rgb(232, 230, 176))]) * (1 - 0.45 * pits)[..., None]
+    p.save("end_stone", col, np.clip(es - 0.6 * pits, 0, 1), 0.25, f0=0.04, porosity=0.4, depth=7)
+
+    col_s = spectral(1750, 2.0, sy=14.0)
+    ridged = 1 - np.abs(col_s * 2 - 1)
+    bas = ramp(0.6 * ridged + 0.4 * spectral(1751, 1.0, fmin=8), [(0, rgb(34, 34, 38)), (0.5, rgb(76, 76, 82)), (1, rgb(110, 110, 116))])
+    p.save("basalt_side", bas, ridged, 0.3, f0=0.045, porosity=0.2, depth=8)
+    x, y = warped_grid(1752, 3)
+    f1, f2, _ = voronoi(jittered(1753, 3, 0.4), x, y)
+    hexes = smoothstep(0, 5, f2 - f1)
+    btop = ramp(0.7 * hexes + 0.3 * spectral(1754, 1.0, fmin=8), [(0, rgb(24, 24, 28)), (1, rgb(96, 96, 102))])
+    p.save("basalt_top", btop, hexes, 0.3, f0=0.045, depth=7)
+
+    # magma: cooled crust plates over glowing cracks
+    x, y = warped_grid(1760, 6)
+    f1, f2, idx = voronoi(jittered(1761, 6, 1.0), x, y)
+    crack = smoothstep(5, 0, f2 - f1)
+    crust = ramp(spectral(1762, 1.2), [(0, rgb(40, 20, 14)), (1, rgb(96, 46, 26))])
+    hot = ramp(crack, [(0, rgb(150, 40, 6)), (1, rgb(255, 170, 50))])
+    col = crust * (1 - crack[..., None]) + hot * crack[..., None]
+    p.save("magma", col, 1 - crack, 0.35, f0=0.05, emission=crack, depth=7, ao_into_albedo=0.2)
+
+    # crying obsidian: obsidian with glowing violet tears
+    x, y = warped_grid(1770, 6)
+    f1, f2, idx = voronoi(jittered(1771, 7, 1.0), x, y)
+    tone = np.random.default_rng(1772).random(49)
+    t = 0.5 * tone[idx] + 0.5 * spectral(1773, 1.2)
+    col = ramp(t, [(0, rgb(6, 5, 10)), (0.7, rgb(24, 14, 36)), (1, rgb(60, 36, 90))])
+    tears = smoothstep(0.75, 0.9, spectral(1774, 1.6, sy=0.3)) * smoothstep(0.4, 0.7, spectral(1775, 2.0))
+    col = col * (1 - tears[..., None]) + rgb(160, 60, 255) * tears[..., None]
+    p.save("crying_obsidian", col, 0.6 * smoothstep(0, 4, f2 - f1) + 0.3 * tone[idx], 0.9, f0=0.05,
+           emission=tears, depth=5, ao_into_albedo=0.3)
+
+
+def textile_family(p):
+    # wool: dense tangled fibres
+    fib = np.zeros((N, N))
+    for i in range(4):
+        f = spectral(1800 + i, 2.0, sx=0.5 if i % 2 else 2.0, sy=2.0 if i % 2 else 0.5, fmin=3)
+        fib = np.maximum(fib, smoothstep(0.05, 0.0, np.abs(f - 0.5)) * (0.6 + 0.4 * spectral(1805 + i, 1.5)))
+    tufts = spectral(1810, 1.8, fmin=4)
+    wool = 0.35 * fib + 0.45 * tufts + 0.2 * spectral(1811, 2.4)
+    p.save("white_wool", ramp(wool, [(0, rgb(200, 202, 204)), (1, rgb(240, 242, 242))]), wool, 0.05, f0=0.03,
+           porosity=0.6, sss=0.35, depth=4)
+
+    # hay: straw stalks bound by bands
+    x, y = grid()
+    stalks = np.zeros((N, N))
+    for i in range(3):
+        f = spectral(1820 + i, 1.6, sx=0.08, sy=4.0, fmin=4)
+        stalks = np.maximum(stalks, smoothstep(0.06, 0.0, np.abs(f - 0.5)))
+    s = 0.5 * stalks + 0.5 * spectral(1825, 0.8, sx=0.1, fmin=6)
+    col = ramp(s, [(0, rgb(150, 112, 30)), (0.6, rgb(206, 170, 60)), (1, rgb(236, 206, 100))])
+    sc = N / 256
+    band = np.zeros((N, N))
+    for by in (60, 196):
+        band = np.maximum(band, smoothstep(10 * sc, 6 * sc, np.abs(y - by * sc)))
+    col = col * (1 - band[..., None]) + rgb(110, 40, 26) * (0.8 + 0.4 * s)[..., None] * band[..., None]
+    p.save("hay_block_side", col, 0.6 * s + 0.3 * band, 0.15, f0=0.035, porosity=0.7, sss=0.2, depth=7)
+    ends = np.random.default_rng(1826).random((400, 2)) * N
+    f1, f2, idx = voronoi(ends)
+    tube = smoothstep(3.5 * sc, 1.5 * sc, f1)
+    hole = smoothstep(1.4 * sc, 0.6 * sc, f1)
+    tcol = ramp(spectral(1827, 1.0), [(0, rgb(120, 86, 20)), (1, rgb(210, 172, 70))])
+    tcol = tcol * (0.5 + 0.5 * tube)[..., None] * (1 - 0.6 * hole)[..., None]
+    p.save("hay_block_top", tcol, tube - hole, 0.15, f0=0.035, porosity=0.7, depth=6)
+
+
+# ---- plants (cross-model sprites, alpha cutout) ----
+
+def _flip(arrs):
+    return [a[::-1] for a in arrs]
+
+
+def plant_save(p, name, col, cover, height, sss=0.45, smooth=0.12):
+    p.save(name, col, height, smooth, f0=0.03, sss=sss * cover, alpha=(cover > 0.5).astype(float), depth=2,
+           ao_into_albedo=0.3)
+
+
+def grass_sprite(p, name, seed, count, reach):
+    b, h, c = blades(seed, count, None, 3.0, hang=reach)
+    b, h, c = _flip([b, h, c])  # grow up from the bottom edge
+    _, y = grid()
+    # darker at the base, as in a real tuft
+    g = np.clip((0.35 + 0.65 * b) * (0.8 + 0.25 * (1 - y / N)), 0, 1)
+    plant_save(p, name, np.dstack([g, g, g]), c, h)
+
+
+def draw_leaflet(canvas, alpha, cx, cy, L, W, ang, color, z=None, zbuf=None):
+    n = canvas.shape[0]
+    R = int(L) + 2
+    x0, y0 = int(cx) - R, int(cy) - R
+    xs = np.clip(np.arange(x0, x0 + 2 * R), 0, n - 1)
+    ys = np.clip(np.arange(y0, y0 + 2 * R), 0, n - 1)
+    lx, ly = np.meshgrid(np.arange(x0, x0 + 2 * R) - cx, np.arange(y0, y0 + 2 * R) - cy)
+    u = lx * math.cos(ang) + ly * math.sin(ang)
+    v = -lx * math.sin(ang) + ly * math.cos(ang)
+    tt = np.clip(u / L, -1, 1)
+    halfw = W * np.sqrt(np.maximum(1 - tt * tt, 0))
+    inside = (np.abs(u) <= L) & (np.abs(v) <= halfw)
+    sub = canvas[np.ix_(ys, xs)]
+    shade = (0.8 + 0.2 * np.sign(v))[..., None] * (0.85 + 0.15 * (u / L + 1) / 2)[..., None]
+    sub = np.where(inside[..., None], np.array(color) * shade, sub)
+    canvas[np.ix_(ys, xs)] = sub
+    alpha[np.ix_(ys, xs)] = np.maximum(alpha[np.ix_(ys, xs)], inside.astype(float))
+
+
+def draw_stem(canvas, alpha, pts, width, color):
+    n = canvas.shape[0]
+    for (xa, ya), (xb, yb) in zip(pts[:-1], pts[1:]):
+        steps = int(max(abs(xb - xa), abs(yb - ya)) * 2) + 1
+        for t in np.linspace(0, 1, steps):
+            x, y = xa + (xb - xa) * t, ya + (yb - ya) * t
+            r = width / 2
+            x0, x1 = int(max(x - r, 0)), int(min(x + r + 1, n))
+            y0, y1 = int(max(y - r, 0)), int(min(y + r + 1, n))
+            canvas[y0:y1, x0:x1] = color
+            alpha[y0:y1, x0:x1] = 1
+
+
+def fern(p):
+    n = N
+    s = n / 256
+    canvas = np.zeros((n, n, 3))
+    alpha = np.zeros((n, n))
+    r = np.random.default_rng(1900)
+    for k in range(7):
+        ang = -math.pi / 2 + (k - 3) * 0.32 + (r.random() - 0.5) * 0.15
+        length = (150 + r.random() * 80) * s
+        bend = (k - 3) * 0.06
+        pts = []
+        x, y = n / 2 + (r.random() - 0.5) * 20 * s, n - 2
+        a = ang
+        for i in range(24):
+            pts.append((x, y))
+            x += math.cos(a) * length / 24
+            y += math.sin(a) * length / 24
+            a += bend
+        draw_stem(canvas, alpha, pts, 2.2 * s, (0.35, 0.35, 0.35))
+        for i, (px, py) in enumerate(pts[2:], start=2):
+            tfrac = i / len(pts)
+            L = (16 - 12 * tfrac) * s
+            seg_a = math.atan2(pts[min(i + 1, len(pts) - 1)][1] - py, pts[min(i + 1, len(pts) - 1)][0] - px)
+            for side in (-1, 1):
+                la = seg_a + side * 1.1
+                cx, cy = px + math.cos(la) * L, py + math.sin(la) * L
+                b = 0.75 + 0.25 * r.random()
+                draw_leaflet(canvas, alpha, cx, cy, L, L * 0.35, la, (b, b, b))
+    h = blur(alpha, 1.5)
+    plant_save(p, "fern", canvas, alpha, h)
+
+
+def flower(p, name, seed, petal_col, center_col, petals=5, petal_len=26, head_y=70):
+    n = N
+    s = n / 256
+    r = np.random.default_rng(seed)
+    canvas = np.zeros((n, n, 3))
+    alpha = np.zeros((n, n))
+    stem_col = (0.24, 0.42, 0.14)
+    cx = n / 2
+    hy = head_y * s
+    pts = [(cx + math.sin(t * 2.5) * 6 * s, n - 1 - t * (n - 1 - hy)) for t in np.linspace(0, 1, 20)]
+    draw_stem(canvas, alpha, pts, 4 * s, stem_col)
+    for side, yy in ((-1, 200), (1, 170), (-1, 140)):
+        la = math.pi / 2 + side * 1.0 + math.pi
+        draw_leaflet(canvas, alpha, cx + side * 26 * s, yy * s, 30 * s, 8 * s, la if side > 0 else la - math.pi * 0.0,
+                     (0.22 + 0.06 * r.random(), 0.44, 0.15))
+    hx, hy2 = pts[-1]
+    for k in range(petals * 2):
+        a = k / (petals * 2) * 2 * math.pi + r.random() * 0.2
+        L = petal_len * s * (0.8 + 0.3 * r.random())
+        pc = np.array(petal_col) * (0.8 + 0.25 * r.random())
+        draw_leaflet(canvas, alpha, hx + math.cos(a) * L * 0.8, hy2 + math.sin(a) * L * 0.55, L, L * 0.45, a, tuple(pc))
+    draw_leaflet(canvas, alpha, hx, hy2, 9 * s, 9 * s, 0, center_col)
+    h = blur(alpha, 1.5)
+    p.save(name, np.clip(canvas, 0, 1), h, 0.2, f0=0.03, sss=0.4 * alpha, alpha=alpha, depth=2, ao_into_albedo=0.2)
+
+
+def plant_family(p):
+    grass_sprite(p, "short_grass", 1950, 260, (90, 200))
+    grass_sprite(p, "tall_grass_bottom", 1960, 320, (200, 300))
+    grass_sprite(p, "tall_grass_top", 1970, 180, (60, 220))
+    fern(p)
+    flower(p, "dandelion", 1980, (1.0, 0.78, 0.08), (0.9, 0.6, 0.02), petals=12, petal_len=16)
+    flower(p, "poppy", 1990, (0.82, 0.08, 0.05), (0.08, 0.06, 0.04), petals=4, petal_len=30)
+
+
+EXTRA_STEPS = [stone_family, soil_family, wood_family, mineral_family, nether_end_family, textile_family,
+               plant_family]
+
+
 def main():
     global N
     ap = argparse.ArgumentParser()
@@ -992,6 +1601,7 @@ def main():
         lambda p: ice(p),
         lambda p: ice(p, "packed_ice", alpha=1.0, seed=235),
     ]
+    steps += EXTRA_STEPS
     for i, fn in enumerate(steps):
         fn(p)
         print(f"  [{i + 1}/{len(steps)}] done", flush=True)

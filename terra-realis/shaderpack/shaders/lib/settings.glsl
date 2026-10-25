@@ -29,8 +29,11 @@ const float wetnessHalfLife = 300.0;
 // ---- Water ----
 #define WATER_WAVES
 #define WATER_WAVE_HEIGHT 1.0 // [0.25 0.5 0.75 1.0 1.5 2.0]
-#define WATER_ALPHA 0.35 // [0.15 0.25 0.35 0.5 0.7]
+#define WATER_ALPHA 0.2 // [0.1 0.15 0.2 0.3 0.5 0.7]
 #define REFLECTIONS          // screen-space reflections on water and glass
+#define WATER_REFRACTION     // the bottom wobbles through the waves
+#define WATER_CAUSTICS       // moving light patterns on the bed
+#define WATER_FOAM           // foam where water meets the shore
 
 // ---- Atmosphere ----
 #define GODRAYS
