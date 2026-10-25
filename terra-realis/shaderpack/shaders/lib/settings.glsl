@@ -16,6 +16,11 @@ const float wetnessHalfLife = 300.0;
 // ---- Materials ----
 #define PBR_NORMALS          // LabPBR normal maps
 #define PBR_SPECULAR         // LabPBR specular maps (smoothness, F0, metals, SSS, emission)
+#define POM                  // parallax occlusion mapping: real-looking depth from the height map
+#define POM_DEPTH 1.0 // [0.5 0.75 1.0 1.25 1.5 2.0]
+#define POM_SAMPLES 32 // [16 24 32 48 64]
+#define POM_DISTANCE 24.0 // [12.0 16.0 24.0 32.0 48.0]
+#define POM_SHADOWS          // the relief casts small shadows on itself
 #define RAIN_PUDDLES         // surfaces turn wet and glossy in rain
 #define WAVING_PLANTS
 #define WAVING_LEAVES

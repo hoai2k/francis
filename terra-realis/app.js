@@ -509,15 +509,54 @@ flat in float vLayer; flat in float vOverlay; in vec3 vTint; flat in float vFlag
 out vec4 frag;
 void main() {
   if (vPos.y < uClipY) discard;
-  vec4 a = texture(uAlb, vec3(vUV, vLayer));
-  vec4 nm = texture(uNrm, vec3(vUV, vLayer));
-  vec4 sp = texture(uSpec, vec3(vUV, vLayer));
+  vec2 uv = vUV;
+  vec2 dx = dFdx(vUV), dy = dFdy(vUV);
+  float pomShadow = 1.0;
+  // Parallax occlusion mapping from the LabPBR height (normal alpha: 1 = surface, 0 = 1/4 block deep)
+  vec3 T = normalize(vT), Bt = normalize(vB), Nf = normalize(vN);
+  vec3 toFrag = vPos - uCam;
+  float fragDist = length(toFrag);
+  vec3 tView = vec3(dot(T, toFrag), dot(Bt, toFrag), dot(Nf, toFrag)) / fragDist;
+  float depthScale = 0.25 * (1.0 - smoothstep(26.0, 40.0, fragDist));
+  if (uPbr > 0.5 && uMode > 0.5 && vFlags < 1.5 && vOverlay < 0.0 && tView.z < -0.02 && depthScale > 0.001) {
+    const float layers = 32.0;
+    vec2 delta = tView.xy / -tView.z * depthScale / layers;
+    float rayH = 1.0;
+    float h = textureGrad(uNrm, vec3(uv, vLayer), dx, dy).a;
+    for (int i = 0; i < 32; i++) {
+      if (h >= rayH) break;
+      uv += delta;
+      rayH -= 1.0 / layers;
+      h = textureGrad(uNrm, vec3(uv, vLayer), dx, dy).a;
+    }
+    vec2 prev = uv - delta;
+    float after = h - rayH;
+    float before = textureGrad(uNrm, vec3(prev, vLayer), dx, dy).a - (rayH + 1.0 / layers);
+    uv = mix(uv, prev, clamp(after / (after - before + 1e-5), 0.0, 1.0));
+    vec3 tL = vec3(dot(T, uLightDir), dot(Bt, uLightDir), dot(Nf, uLightDir));
+    if (tL.z > 0.0) {
+      float sh = textureGrad(uNrm, vec3(uv, vLayer), dx, dy).a;
+      vec2 sdelta = tL.xy / tL.z * depthScale / layers;
+      vec2 sc = uv;
+      float blocked = 0.0;
+      for (int i = 0; i < 16; i++) {
+        sc += sdelta;
+        sh += 1.0 / layers;
+        if (sh >= 1.0) break;
+        blocked = max(blocked, clamp((textureGrad(uNrm, vec3(sc, vLayer), dx, dy).a - sh) * layers * 0.5, 0.0, 1.0));
+      }
+      pomShadow = 1.0 - blocked;
+    }
+  }
+  vec4 a = textureGrad(uAlb, vec3(uv, vLayer), dx, dy);
+  vec4 nm = textureGrad(uNrm, vec3(uv, vLayer), dx, dy);
+  vec4 sp = textureGrad(uSpec, vec3(uv, vLayer), dx, dy);
   vec3 albedo = a.rgb;
   if (vOverlay >= 0.0) {
-    vec4 o = texture(uAlb, vec3(vUV, vOverlay));
+    vec4 o = textureGrad(uAlb, vec3(uv, vOverlay), dx, dy);
     albedo = mix(albedo, o.rgb * vTint, o.a);
-    nm = mix(nm, texture(uNrm, vec3(vUV, vOverlay)), o.a);
-    sp = mix(sp, texture(uSpec, vec3(vUV, vOverlay)), o.a);
+    nm = mix(nm, textureGrad(uNrm, vec3(uv, vOverlay), dx, dy), o.a);
+    sp = mix(sp, textureGrad(uSpec, vec3(uv, vOverlay), dx, dy), o.a);
   } else {
     albedo *= vTint;
   }
@@ -574,7 +613,7 @@ void main() {
   float NdotL = max(dot(N, L), 0.0);
   float geoL = smoothstep(-0.02, 0.12, dot(geoN, L));
   float shadow = (dot(geoN, L) > 0.0 || sss > 0.0) ? getShadow(vPos, geoN, max(dot(geoN, L), 0.0)) : 0.0;
-  vec3 light = uLightCol * shadow;
+  vec3 light = uLightCol * shadow * pomShadow;
   vec3 F = fresnelSchlick(max(dot(normalize(V + L), V), 0.0), F0);
   vec3 col = diff * (1.0 - F) * NdotL * geoL * light;
   col += F * ggx(N, V, L, max(rough, 0.04)) * NdotL * geoL * light;

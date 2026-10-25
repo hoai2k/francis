@@ -186,7 +186,12 @@ class Pack:
         img = np.dstack([alb, a])
         self._png(folder / f"{name}.png", img)
 
-        nmap = np.dstack([nx * 0.5 + 0.5, ny * 0.5 + 0.5, ao, (1 + h * 254) / 255.0])
+        # LabPBR height: alpha 255 = surface, 0 = 25% of a block deep. Scale the
+        # relief per material so parallax depth matches the bump depth
+        # (sand stays shallow, cobblestone and bark get deep gaps).
+        relief = min(depth * 2.5 / 256.0, 0.2)
+        ha = 1.0 - (1.0 - h) * relief / 0.25
+        nmap = np.dstack([nx * 0.5 + 0.5, ny * 0.5 + 0.5, ao, (1 + ha * 254) / 255.0])
         self._png(folder / f"{name}_n.png", nmap)
 
         sm = np.broadcast_to(np.clip(smooth, 0, 1), h.shape)
@@ -503,10 +508,11 @@ def planks(p, name, stops, seed):
         shift = int(r.random() * N)
         c = np.roll(c, shift, 1)
         t = np.roll(t, shift, 1)
+        fine = np.roll(fine, shift, 1)
         c = c * (0.88 + 0.24 * r.random())
         sl = slice(i * bh, (i + 1) * bh)
         col[sl] = c[sl]
-        hgt[sl] = 0.7 + 0.2 * np.clip(t[sl], 0, 1)
+        hgt[sl] = 0.62 + 0.3 * np.clip(t[sl], 0, 1) + 0.08 * fine[sl]
         # end joint on some boards
         if r.random() < 0.6:
             jx = int(r.random() * N)
@@ -528,7 +534,7 @@ def planks(p, name, stops, seed):
     hgt = np.clip(hgt - 0.6 * gap, 0, 1)
     wear = spectral(seed + 99, 2.2)
     col *= (0.92 + 0.12 * wear)[..., None]
-    p.save(name, col, hgt, 0.32 + 0.15 * wear, f0=0.04, porosity=0.2, depth=4)
+    p.save(name, col, hgt, 0.32 + 0.15 * wear, f0=0.04, porosity=0.2, depth=7)
 
 
 OAK = [(0, rgb(112, 78, 44)), (0.4, rgb(156, 116, 70)), (0.75, rgb(186, 146, 94)), (1, rgb(206, 170, 116))]
