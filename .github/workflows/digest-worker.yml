@@ -9,9 +9,11 @@ name: Daily Digest worker
 # on to the Worker when set: YOUTUBE_API_KEY (YouTube search) and
 # REFRESH_TOKEN (allows POST /refresh).
 
+# Deploys from the `deploy` branch, like the site (see "Deploy state" in
+# CLAUDE.md): pushing to main runs nothing.
 on:
   push:
-    branches: [main]
+    branches: [deploy]
     paths: ['digest/server/**', '!**.md', '.github/workflows/digest-worker.yml']
   workflow_dispatch:
 
