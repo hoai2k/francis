@@ -1,0 +1,18 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "francis-digest",
+  "main": "src/index.js",
+  "compatibility_date": "2026-09-01",
+  "workers_dev": true,
+  "observability": { "enabled": true },
+  // Workers AI, for the short recap above each interest.
+  "ai": { "binding": "AI" },
+  // Where digests are kept. The deploy workflow fills in the id (it creates
+  // the namespace "francis-digest" the first time); for a manual deploy, run
+  // `npx wrangler kv namespace create francis-digest` and paste the id here.
+  "kv_namespaces": [{ "binding": "DIGEST", "id": "KV_NAMESPACE_ID" }],
+  // The Worker itself: each interest is built in a separate invocation.
+  "services": [{ "binding": "SELF", "service": "francis-digest" }],
+  // Build the day's digest at 10:07 UTC (6:07 in New York in summer, 5:07 in winter).
+  "triggers": { "crons": ["7 10 * * *"] }
+}

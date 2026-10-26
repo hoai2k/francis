@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Daily Digest</title>
+  <meta name="description" content="Every morning: the new updates, videos, news and wiki activity for the games I follow.">
+  <meta name="theme-color" content="#07060d">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' fill='%2307060d'/><rect x='2' y='2' width='12' height='3' fill='%23ff3a5a'/><rect x='2' y='7' width='8' height='2' fill='%234fc8ff'/><rect x='2' y='11' width='10' height='2' fill='%23ffd24a'/></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@900&display=swap&text=%E6%AF%8E%E6%97%A5%E3%81%BE%E3%81%A8%E3%82%81%E6%9B%B4%E6%96%B0%E5%8B%95%E7%94%BB%E3%83%8B%E3%83%A5%E3%83%BC%E3%82%B9" rel="stylesheet">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="grid-bg" aria-hidden="true"></div>
+  <div class="scan" aria-hidden="true"></div>
+  <header class="top">
+    <a class="logo" href="../"><i></i>FRANCIS STUDIO</a>
+    <nav class="days" aria-label="Choose a day">
+      <button id="prev" type="button" aria-label="Previous day">◀</button>
+      <span id="date">…</span>
+      <button id="next" type="button" aria-label="Next day">▶</button>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero">
+      <p class="kicker">UPDATES · VIDEOS · NEWS · EVERY MORNING</p>
+      <h1 class="glitch big" data-text="DAILY">DAILY</h1><br>
+      <span class="glitch sub" data-text="DIGEST">DIGEST</span>
+      <span class="jp">毎日まとめ</span>
+      <ul class="stats" id="stats"></ul>
+    </section>
+
+    <div class="ticker" id="ticker" aria-hidden="true" hidden><div></div></div>
+
+    <nav class="chips" id="chips" aria-label="Show one interest"></nav>
+
+    <div id="status" class="status" role="status"></div>
+    <div id="sections"></div>
+  </main>
+
+  <footer>
+    gathered once a day from Steam, YouTube, Roblox, Mojang, Fandom wikis, Reddit and Google News<br>
+    recaps written by Workers AI from the headlines alone · <b>DAILY DIGEST</b>
+  </footer>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

@@ -1,0 +1,77 @@
+name: Daily Digest worker
+
+# Tests and deploys digest/server, the francis-digest Cloudflare Worker that
+# builds the Daily Digest each morning (its own cron trigger, so no Actions
+# minutes are spent on the daily run). Runs only when the Worker changes.
+#
+# Needs the repository secrets CLOUDFLARE_API_TOKEN (Workers Scripts: Edit,
+# Workers KV Storage: Edit) and CLOUDFLARE_ACCOUNT_ID. Optional secrets, passed
+# on to the Worker when set: YOUTUBE_API_KEY (YouTube search) and
+# REFRESH_TOKEN (allows POST /refresh).
+
+on:
+  push:
+    branches: [main]
+    paths: ['digest/server/**', '!**.md', '.github/workflows/digest-worker.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: digest-worker
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15  # a hung run otherwise bills up to 6 h
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+      REFRESH_TOKEN: ${{ secrets.REFRESH_TOKEN }}
+    defaults:
+      run:
+        working-directory: digest/server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npm test
+      - if: env.CLOUDFLARE_API_TOKEN == ''
+        run: echo "::warning::CLOUDFLARE_API_TOKEN is not set, so francis-digest was not deployed. Add it and CLOUDFLARE_ACCOUNT_ID under Settings -> Secrets and variables -> Actions."
+      - name: Find or create the KV namespace
+        if: env.CLOUDFLARE_API_TOKEN != ''
+        run: |
+          find_id() { npx wrangler kv namespace list | jq -r '.[] | select(.title == "francis-digest") | .id' | head -1; }
+          id=$(find_id)
+          if [ -z "$id" ]; then npx wrangler kv namespace create francis-digest; id=$(find_id); fi
+          [ -n "$id" ] || { echo "::error::Could not find or create the francis-digest KV namespace"; exit 1; }
+          sed -i "s/KV_NAMESPACE_ID/$id/" wrangler.jsonc
+      - name: Deploy
+        if: env.CLOUDFLARE_API_TOKEN != ''
+        run: |
+          # The Worker binds to itself (SELF). If it doesn't exist yet, that
+          # binding can't resolve, so the very first deploy goes out without it.
+          if ! npx wrangler deploy; then
+            sed '/"services"/d' wrangler.jsonc > wrangler.first.jsonc
+            npx wrangler deploy -c wrangler.first.jsonc
+            npx wrangler deploy
+          fi
+      - name: Pass on optional secrets
+        if: env.CLOUDFLARE_API_TOKEN != ''
+        run: |
+          [ -z "$YOUTUBE_API_KEY" ] || printf '%s' "$YOUTUBE_API_KEY" | npx wrangler secret put YOUTUBE_API_KEY
+          [ -z "$REFRESH_TOKEN" ] || printf '%s' "$REFRESH_TOKEN" | npx wrangler secret put REFRESH_TOKEN
+      - name: Check the live Worker
+        if: env.CLOUDFLARE_API_TOKEN != ''
+        run: |
+          base=https://francis-digest.hoai2k.workers.dev
+          sleep 5
+          # The first request builds the first digest if there is none yet.
+          code=$(curl -sS -o latest.json -w '%{http_code}' --max-time 90 "$base/digest/latest")
+          echo "::notice title=/digest/latest ($code)::$(jq -c '{day, interests: [.interests[]? | {name, items: (.items|length), recap: (.summary != null), problems: (.problems|length)}]}' latest.json | head -c 900)"
+          [ "$code" = 200 ]
