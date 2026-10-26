@@ -15,6 +15,10 @@
 // A channel ID is in the page source of youtube.com/@handle ("externalId").
 // accent is the interest's colour on the page; icon is one emoji; loading is
 // what the page says while this interest is being gathered.
+//
+// feature (optional) adds a video of the day to the top of the page: the
+// most-viewed video found by searching YouTube for `query`, uploaded since
+// the previous digest, whose title contains one of `match`.
 
 export const INTERESTS = [
   {
@@ -66,6 +70,7 @@ export const INTERESTS = [
     id: "jujutsu-shenanigans",
     name: "Jujutsu Shenanigans",
     loading: "Expanding the domain…",
+    feature: { title: "JJS video of the day", query: "jujutsu shenanigans", match: ["jujutsu shenanigans", "jjs"] },
     icon: "👊",
     accent: "#ff4f7b",
     sources: [

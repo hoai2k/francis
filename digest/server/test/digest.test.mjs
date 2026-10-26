@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { blocks, field, plain, news, youtube, steam, roblox, fandom, minecraftNews, reddit } from "../src/sources.js";
 import { tidyItems, windowStart, buildSection, FIRST_WINDOW, MAX_WINDOW } from "../src/digest.js";
 import { tidy, summaryMessages } from "../src/summary.js";
+import { agoMs, viewCount, searchResults, choose, pickVideo } from "../src/feature.js";
 import worker, { startBuild, buildOne, finishBuild, forgetNewest, recap, validDay } from "../src/index.js";
 
 const NOW = Date.parse("2026-10-26T10:07:00Z");
@@ -153,6 +154,7 @@ test("recap: the model sees the items, and its answer is tidied", () => {
 });
 
 const IDS = ["prehistoric-kingdom", "minecraft", "planet-zoo-2", "jujutsu-shenanigans"];
+const JOBS = [...IDS, "video:jujutsu-shenanigans"];
 
 /** What the page does on the first visit of a day: start, every section, finish. */
 async function visit(env, day, now, fetchImpl) {
@@ -175,12 +177,13 @@ test("the first visit of a day builds it section by section; later visits get th
 
   const start = await startBuild(env, "2026-10-26", NOW);
   assert.equal(start.body.status, "building");
-  assert.deepEqual(start.body.interests.map((i) => [i.id, i.done]), IDS.map((id) => [id, false]));
+  assert.deepEqual(start.body.interests.map((i) => [i.id, i.done]), JOBS.map((id) => [id, false]));
+  assert.equal(start.body.interests[4].name, "JJS video of the day");
   assert.ok(start.body.interests[0].sources.includes("Steam"));
   assert.equal(start.body.interests[0].loading, "Digging up fossils…");
   assert.equal(start.body.since, new Date(NOW - FIRST_WINDOW).toISOString());
 
-  assert.deepEqual((await finishBuild(env, "2026-10-26")).body.missing, IDS); // nothing gathered yet
+  assert.deepEqual((await finishBuild(env, "2026-10-26")).body.missing, JOBS); // nothing gathered yet
 
   const pk = await buildOne(env, "2026-10-26", "prehistoric-kingdom", fetchImpl);
   assert.equal(pk.body.items[0].title, "Update 2");
@@ -190,11 +193,12 @@ test("the first visit of a day builds it section by section; later visits get th
   assert.equal((await startBuild(env, "2026-10-26", NOW + HOUR)).body.interests[0].done, true);
   assert.equal((await buildOne(env, "2026-10-26", "nope", fetchImpl)).status, 404);
 
-  for (const id of IDS.slice(1)) await buildOne(env, "2026-10-26", id, fetchImpl);
+  for (const id of JOBS.slice(1)) await buildOne(env, "2026-10-26", id, fetchImpl);
   const d1 = (await finishBuild(env, "2026-10-26")).body;
   assert.equal(d1.day, "2026-10-26");
   assert.equal(d1.until, new Date(NOW).toISOString()); // the window closed when the build started
   assert.deepEqual(d1.interests.map((s) => s.id), IDS);
+  assert.deepEqual(d1.featured, []); // no YouTube in this world: no video of the day
   assert.deepEqual(JSON.parse(kv.m.get("days")), ["2026-10-26"]);
   assert.ok(![...kv.m.keys()].some((k) => k.startsWith("plan:") || k.startsWith("section:")));
 
@@ -292,4 +296,80 @@ test("routes: reads, build requests for plausible days only, and a guarded refre
   assert.equal((await post("/refresh", {})).status, 401);
   const ok = await call("/refresh", { method: "POST", headers: { Authorization: "Bearer s3cret" } });
   assert.deepEqual(await ok.json(), { cleared: "2026-10-26" });
+});
+
+/** A YouTube search page with the given videos, shaped like the real one. */
+function searchPage(videos) {
+  const r = (v) => `{"videoRenderer":{"videoId":"${v.id}","thumbnail":{},"title":{"runs":[{"text":${JSON.stringify(v.title)}}]},`
+    + `"longBylineText":{},"publishedTimeText":{"simpleText":"${v.ago}"},"lengthText":{"accessibility":{"accessibilityData":{"label":"8 minutes"}},"simpleText":"8:52"},`
+    + `"viewCountText":{"simpleText":"${v.views}"},"ownerText":{"runs":[{"text":${JSON.stringify(v.by)}}]}}}`;
+  return `<html><script>var ytInitialData = {"contents":[${videos.map(r).join(",")}]};</script></html>`;
+}
+
+test("video of the day: YouTube search pages are read without parsing them whole", () => {
+  assert.equal(agoMs("12h ago"), 12 * HOUR);
+  assert.equal(agoMs("19 min ago"), 19 * 60_000);
+  assert.equal(agoMs("2 days ago"), 48 * HOUR);
+  assert.equal(agoMs("Streamed 3 hours ago"), 3 * HOUR);
+  assert.equal(agoMs("1 month ago"), 30 * 24 * HOUR);
+  assert.ok(Number.isNaN(agoMs("")));
+  assert.equal(viewCount("88,404 views"), 88404);
+  assert.equal(viewCount("1.2M views"), 1_200_000);
+  assert.equal(viewCount("No views"), 0);
+  const vids = searchResults(searchPage([
+    { id: "aaaaaaaaaaa", title: "Toji \"guide\" in JJS", ago: "5h ago", views: "1,000 views", by: "A" },
+    { id: "bbbbbbbbbbb", title: "Live", ago: "", views: "", by: "B" }, // a live stream: no upload time
+  ]), NOW);
+  assert.deepEqual(vids, [{ id: "aaaaaaaaaaa", title: "Toji \"guide\" in JJS", by: "A", views: 1000, length: "8:52", date: new Date(NOW - 5 * HOUR).toISOString() }]);
+});
+
+test("video of the day: newest window first, most views, on topic, never repeated", () => {
+  const v = (id, title, hoursAgo, views) => ({ id, title, views, date: new Date(NOW - hoursAgo * HOUR).toISOString() });
+  const cands = [
+    v("old-hit", "JJS montage", 60, 900_000),
+    v("new-top", "Jujutsu Shenanigans Toji", 5, 50_000),
+    v("new-low", "jjs tips", 3, 2_000),
+    v("off-top", "Minecraft speedrun", 2, 5_000_000),
+    v("ancient", "JJS 2024", 24 * 30, 9_000_000),
+  ];
+  const opts = { since: NOW - 24 * HOUR, until: NOW, match: ["jujutsu shenanigans", "jjs"] };
+  assert.equal(choose(cands, opts).id, "new-top");
+  assert.equal(choose(cands, { ...opts, skip: ["new-top"] }).id, "new-low");
+  assert.equal(choose(cands, { ...opts, skip: ["new-top", "new-low"] }).id, "old-hit"); // nothing new: the past week
+  assert.equal(choose([cands[3], cands[4]], opts), null);
+});
+
+test("video of the day: the same pick for a rebuilt day, a different one the next day", async () => {
+  const page = searchPage([
+    { id: "aaaaaaaaaaa", title: "JJS Toji", ago: "5h ago", views: "50,000 views", by: "A" },
+    { id: "bbbbbbbbbbb", title: "Jujutsu Shenanigans tips", ago: "3h ago", views: "2,000 views", by: "B" },
+  ]);
+  const calls = [];
+  const fetchImpl = fakeFetch({ "https://www.youtube.com/results": page }, calls);
+  const interest = { id: "jjs", name: "JJS", icon: "👊", accent: "#f00", feature: { title: "JJS video of the day", query: "jujutsu shenanigans", match: ["jjs", "jujutsu shenanigans"] } };
+  const state = memState();
+  const ctx = { since: NOW - 24 * HOUR, until: NOW, fetch: fetchImpl, env: {}, state };
+  const a = await pickVideo(interest, ctx, "2026-10-26");
+  assert.equal(a.video.id, "aaaaaaaaaaa");
+  assert.equal(a.video.url, "https://www.youtube.com/watch?v=aaaaaaaaaaa");
+  assert.equal(a.video.views, 50000);
+  assert.equal(calls.length, 2); // today's uploads and this week's
+  assert.equal((await pickVideo(interest, ctx, "2026-10-26")).video.id, "aaaaaaaaaaa");
+  assert.equal((await pickVideo(interest, ctx, "2026-10-27")).video.id, "bbbbbbbbbbb");
+  const blocked = await pickVideo(interest, { ...ctx, fetch: fakeFetch({}) }, "2026-10-28");
+  assert.equal(blocked.video, null);
+  assert.equal(blocked.problems[0].error, "YouTube search answered 404");
+});
+
+test("the day's build carries the video of the day into the digest", async () => {
+  const kv = fakeKV();
+  const env = { DIGEST: kv };
+  const page = searchPage([{ id: "ccccccccccc", title: "JJS Halloween update", ago: "2h ago", views: "7,000 views", by: "C" }]);
+  const fetchImpl = fakeFetch({ "https://www.youtube.com/results": page });
+  const d = await visit(env, "2026-10-26", NOW, fetchImpl);
+  assert.equal(d.featured.length, 1);
+  assert.equal(d.featured[0].interest, "jujutsu-shenanigans");
+  assert.equal(d.featured[0].title, "JJS video of the day");
+  assert.equal(d.featured[0].video.id, "ccccccccccc");
+  assert.ok(!d.interests.some((s) => s.kind === "feature"));
 });

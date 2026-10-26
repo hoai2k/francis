@@ -14,6 +14,10 @@ AI writes a short recap of each interest.
 - **◀ ▶** in the top bar step through earlier days (about four months are kept).
 - The chips under the ticker show one interest at a time; the page remembers
   the choice.
+- **Now showing** at the top is the Jujutsu Shenanigans video of the day:
+  the most-watched JJS video uploaded since the previous digest (or in the
+  past week, if nothing new), never one featured before. Press it to play it
+  in place.
 - **NEW** marks anything published since your last visit.
 - **✨ Write today's AI recaps** asks for a one- or two-sentence summary of each
   interest. It appears only on the newest day, until someone presses it.
@@ -52,6 +56,24 @@ the work:
    - `POST /recap` (writes the newest digest's recaps once, then returns the saved ones)
    - `POST /refresh` (forgets the newest digest, so the next visit gathers it
      again over the same stretch of time; needs the `REFRESH_TOKEN` secret)
+
+## Video of the day
+
+An interest with a `feature` in `server/src/interests.js` gets one:
+
+```js
+feature: { title: "JJS video of the day", query: "jujutsu shenanigans", match: ["jujutsu shenanigans", "jjs"] },
+```
+
+The build picks it as its own step (`POST /build/section` with id
+`video:<interest>`). It reads YouTube's search results for `query`, today's
+and this week's, which needs no key. It keeps videos whose title contains
+one of `match`, and takes the one with the most views from those uploaded
+since the previous digest, else from the past week. The last 30 picks are
+remembered so none comes back. With the `YOUTUBE_API_KEY` secret it uses the
+YouTube Data API's most-viewed search instead (100 units a day). The page
+loads YouTube's player (privacy-enhanced mode) only when someone presses
+play.
 
 ## Adding an interest
 

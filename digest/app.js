@@ -150,8 +150,13 @@ async function gather(start) {
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
         const section = await postJson("/build/section", { day: start.day, id: i.id });
-        const n = section.items.length;
-        mark(section.problems?.length ? "done warn" : "done", `${n ? `${n} NEW` : "QUIET"}${section.problems?.length ? " ⚠" : " ✓"}`);
+        const warn = section.problems?.length ? " ⚠" : " ✓";
+        if (section.kind === "feature") {
+          mark(section.video ? "done" : "done warn", section.video ? "PICKED ✓" : "NONE TODAY");
+        } else {
+          const n = section.items.length;
+          mark(section.problems?.length ? "done warn" : "done", `${n ? `${n} NEW` : "QUIET"}${warn}`);
+        }
         finished++;
         progress();
         return;
@@ -195,10 +200,14 @@ function render() {
     stat(count("news") + count("post"), "NEWS", "NEWS"),
   ].join("");
 
-  const headlines = all.flatMap((s) => s.items
+  const featured = digest.featured || [];
+  const headlines = [
+    ...featured.map((f) => `🎬 ${f.title}: ${f.video.title}`),
+    ...all.flatMap((s) => s.items
     .filter((it) => it.kind === "update" || it.kind === "news")
     .slice(0, 4)
-    .map((it) => `${s.icon} ${it.title}`));
+    .map((it) => `${s.icon} ${it.title}`)),
+  ];
   $("ticker").hidden = !headlines.length;
   if (headlines.length) {
     const spans = headlines.map((h) => `<span>${esc(h.toUpperCase())}</span>`).join("");
@@ -215,7 +224,8 @@ function render() {
   $("recapbar").hidden = Boolean(DATA || digest.recapped || digest.day !== days[0] || !items.length);
 
   const shown = filter === "all" ? all : all.filter((s) => s.id === filter);
-  $("sections").innerHTML = shown.map(section).join("");
+  const spotlight = featured.filter((f) => filter === "all" || f.interest === filter);
+  $("sections").innerHTML = spotlight.map(nowShowing).join("") + shown.map(section).join("");
 }
 
 function section(s, index) {
@@ -251,6 +261,47 @@ function section(s, index) {
     ${parts.join("")}
   </section>`;
 }
+
+/** The video of the day: a big thumbnail that becomes the player when pressed. */
+function nowShowing(f) {
+  const v = f.video;
+  const id = /^[\w-]{11}$/.test(v.id) ? v.id : "";
+  const meta = [
+    v.by,
+    v.views != null && `${Number(v.views).toLocaleString()} views`,
+    v.length,
+    ago(v.date, digest.until),
+  ].filter(Boolean).map(esc).join(" · ");
+  return `<section class="spotlight" style="--accent:${esc(f.accent)}">
+    <h2 class="section-title"><span>NOW SHOWING</span><span class="jp">今日の動画</span></h2>
+    <div class="feature">
+      <button class="screen" type="button" data-video="${esc(id)}" aria-label="Play ${esc(v.title)}">
+        ${img(v.thumb)}<span class="playbtn" aria-hidden="true">▶</span>
+      </button>
+      <div class="copy">
+        <span class="badge">${esc(f.icon)} ${esc(f.title.toUpperCase())}</span>
+        <h3><a href="${esc(safeUrl(v.url))}" target="_blank" rel="noopener">${esc(v.title)}</a></h3>
+        <p class="meta">${meta}</p>
+        <p class="why">The most-watched new ${esc(f.name)} video since the last digest.</p>
+      </div>
+    </div>
+  </section>`;
+}
+
+// Pressing the thumbnail swaps in YouTube's player (privacy-enhanced mode), so
+// nothing from YouTube loads until someone wants to watch.
+$("sections").addEventListener("click", (e) => {
+  const b = e.target.closest(".screen[data-video]");
+  if (!b || !b.dataset.video) return;
+  const frame = document.createElement("iframe");
+  frame.src = `https://www.youtube-nocookie.com/embed/${b.dataset.video}?autoplay=1&rel=0`;
+  frame.title = b.getAttribute("aria-label").replace(/^Play /, "");
+  frame.allow = "autoplay; encrypted-media; picture-in-picture; fullscreen";
+  frame.allowFullscreen = true;
+  const screen = Object.assign(document.createElement("div"), { className: "screen playing" });
+  screen.append(frame);
+  b.replaceWith(screen);
+});
 
 const img = (src, cls = "") => (src ? `<img${cls ? ` class="${cls}"` : ""} src="${esc(safeUrl(src))}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : "");
 

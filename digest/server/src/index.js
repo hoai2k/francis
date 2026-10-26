@@ -9,7 +9,8 @@
 //   POST /build {day}         start (or look up) the digest for the visitor's day:
 //                             { status: "done", digest } or
 //                             { status: "building", interests: [...] }
-//   POST /build/section {day, id}   gather one interest; saved, so each runs once a day
+//   POST /build/section {day, id}   gather one interest, or pick a video of the day
+//                             (id "video:<interest>"); saved, so each runs once a day
 //   POST /build/finish {day}  put the sections together and store the digest
 //   POST /recap               write the AI recaps for the newest digest, once
 //   POST /refresh             forget the newest digest so the next visit rebuilds it;
@@ -25,6 +26,7 @@
 import { buildSection, windowStart } from "./digest.js";
 import { INTERESTS } from "./interests.js";
 import { summarize } from "./summary.js";
+import { pickVideo } from "./feature.js";
 
 const KEEP_DAYS = 120;
 const DAY_MS = 86_400_000;
@@ -64,6 +66,21 @@ const describeInterest = (i) => ({
   sources: [...new Set(i.sources.map((s) => SOURCE_LABEL[s.type] || s.type))],
 });
 
+const FEATURE = "video:";
+
+/** The build steps for a plan: each interest, then each video of the day. */
+function jobs(plan) {
+  const interests = INTERESTS.filter((i) => plan.interests.includes(i.id));
+  return [
+    ...interests.map((i) => ({ id: i.id, interest: i })),
+    ...interests.filter((i) => i.feature).map((i) => ({ id: `${FEATURE}${i.id}`, interest: i, feature: true })),
+  ];
+}
+
+const describeJob = (j) => (j.feature
+  ? { id: j.id, name: j.interest.feature.title, icon: "🎬", accent: j.interest.accent, loading: "Picking the best new video…", sources: ["YouTube"] }
+  : describeInterest(j.interest));
+
 /** POST /build: the digest if it exists, else the plan for building it. */
 export async function startBuild(env, day, now = Date.now()) {
   const kv = env.DIGEST;
@@ -82,9 +99,9 @@ export async function startBuild(env, day, now = Date.now()) {
     plan = { day, since, until: now, interests: INTERESTS.map((i) => i.id) };
     await kv.put(`plan:${day}`, JSON.stringify(plan), TEMP);
   }
-  const interests = await Promise.all(INTERESTS.filter((i) => plan.interests.includes(i.id)).map(async (i) => ({
-    ...describeInterest(i),
-    done: Boolean(await kv.get(`section:${day}:${i.id}`)),
+  const interests = await Promise.all(jobs(plan).map(async (j) => ({
+    ...describeJob(j),
+    done: Boolean(await kv.get(`section:${day}:${j.id}`)),
   })));
   return { status: 200, body: { status: "building", day, since: new Date(plan.since).toISOString(), interests } };
 }
@@ -93,15 +110,16 @@ export async function startBuild(env, day, now = Date.now()) {
 export async function buildOne(env, day, id, fetchImpl = globalThis.fetch) {
   const kv = env.DIGEST;
   const plan = await readJson(kv, `plan:${day}`, null);
-  const interest = INTERESTS.find((i) => i.id === id);
-  if (!plan || !interest || !plan.interests.includes(id)) return { status: 404, body: { error: "not_found" } };
+  const job = plan && jobs(plan).find((j) => j.id === id);
+  if (!job) return { status: 404, body: { error: "not_found" } };
   const saved = await readJson(kv, `section:${day}:${id}`, null);
   if (saved) return { status: 200, body: saved };
   const state = {
     get: (k) => kv.get(`state:${k}`, "json"),
     put: (k, v) => kv.put(`state:${k}`, JSON.stringify(v)),
   };
-  const section = await buildSection(interest, plan, { fetch: fetchImpl, env, state });
+  const ctx = { since: plan.since, until: plan.until, fetch: fetchImpl, env, state };
+  const section = job.feature ? await pickVideo(job.interest, ctx, day) : await buildSection(job.interest, plan, ctx);
   await kv.put(`section:${day}:${id}`, JSON.stringify(section), TEMP);
   return { status: 200, body: section };
 }
@@ -113,7 +131,7 @@ export async function finishBuild(env, day) {
   if (done) return { status: 200, body: done };
   const plan = await readJson(kv, `plan:${day}`, null);
   if (!plan) return { status: 404, body: { error: "not_found" } };
-  const ids = plan.interests.filter((id) => INTERESTS.some((i) => i.id === id));
+  const ids = jobs(plan).map((j) => j.id);
   const sections = await Promise.all(ids.map((id) => readJson(kv, `section:${day}:${id}`, null)));
   const missing = ids.filter((_, n) => !sections[n]);
   if (missing.length) return { status: 409, body: { error: "missing_sections", missing } };
@@ -122,7 +140,8 @@ export async function finishBuild(env, day) {
     since: new Date(plan.since).toISOString(),
     until: new Date(plan.until).toISOString(),
     built: new Date().toISOString(),
-    interests: sections,
+    featured: sections.filter((s) => s.kind === "feature" && s.video),
+    interests: sections.filter((s) => s.kind !== "feature"),
   };
   const days = await readJson(kv, "days", []);
   const list = [day, ...days.filter((d) => d !== day)].sort().reverse();
