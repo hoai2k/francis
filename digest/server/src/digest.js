@@ -3,7 +3,6 @@
 
 import { INTERESTS } from "./interests.js";
 import { READERS } from "./sources.js";
-import { summarize } from "./summary.js";
 
 const HOUR = 3_600_000;
 export const FIRST_WINDOW = 36 * HOUR; // the very first digest looks back this far
@@ -52,7 +51,7 @@ export async function buildSection(interest, { since, until }, { fetch, env, sta
     name: interest.name,
     icon: interest.icon,
     accent: interest.accent,
-    summary: await summarize(env, interest, tidy),
+    summary: null, // written on request: POST /recap
     items: tidy,
     problems,
   };

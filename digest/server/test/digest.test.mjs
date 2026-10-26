@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { blocks, field, plain, news, youtube, steam, roblox, fandom, minecraftNews, reddit } from "../src/sources.js";
 import { tidyItems, windowStart, buildDigest, FIRST_WINDOW, MAX_WINDOW } from "../src/digest.js";
 import { tidy, summaryMessages } from "../src/summary.js";
-import worker, { runDigest } from "../src/index.js";
+import worker, { runDigest, recap } from "../src/index.js";
 
 const NOW = Date.parse("2026-10-26T10:07:00Z");
 const HOUR = 3_600_000;
@@ -159,7 +159,7 @@ test("runDigest stores the day, keeps a rebuild's window, and builds sections th
   const sections = [];
   const env = {
     DIGEST: kv,
-    AI: { run: async (model, { messages }) => ({ response: `"Recap of ${messages[1].content.split("\n")[0]}"` }) },
+    AI: { run: async () => { throw new Error("the daily build must not call the model"); } },
   };
   // SELF hands the section request back to the Worker, as the binding does.
   env.SELF = { fetch: async (url, init) => { sections.push(url); return worker.fetch(new Request(url, init), env, { waitUntil() {} }); } };
@@ -172,7 +172,7 @@ test("runDigest stores the day, keeps a rebuild's window, and builds sections th
     assert.deepEqual(JSON.parse(kv.m.get("days")), ["2026-10-26"]);
     const pk = d1.interests.find((s) => s.id === "prehistoric-kingdom");
     assert.equal(pk.items[0].title, "Update 2");
-    assert.equal(pk.summary, "Recap of Topic: Prehistoric Kingdom");
+    assert.equal(pk.summary, null);
     const d2 = await runDigest(env, NOW + 2 * HOUR, fetchImpl);
     assert.equal(d2.since, d1.since);
     const d3 = await runDigest(env, NOW + 24 * HOUR, fetchImpl);
@@ -196,4 +196,58 @@ test("routes: public reads, a guarded refresh, and no public section builds", as
   assert.equal((await call("/digest/2026-10-25")).status, 404);
   assert.equal((await call("/refresh", { method: "POST" })).status, 401);
   assert.equal((await call("/section", { method: "POST", body: "{}" })).status, 405);
+  assert.equal((await call("/recap")).status, 405);
+});
+
+test("recaps are written only on request, once per digest, and kept through a rebuild", async () => {
+  const kv = fakeKV();
+  const steamData = { appnews: { newsitems: [{ title: "Update 2", url: "https://s/1", date: (NOW - HOUR) / 1000, contents: "" }] } };
+  const fetchImpl = fakeFetch({ "https://api.steampowered.com/": steamData });
+  let calls = 0;
+  let failing = true;
+  const env = {
+    DIGEST: kv,
+    AI: { run: async (model, { messages }) => {
+      calls++;
+      if (failing) throw new Error("model down");
+      return { response: `"Recap of ${messages[1].content.split("\n")[0]}"` };
+    } },
+  };
+  const post = () => worker.fetch(new Request("https://francis-digest.hoai2k.workers.dev/recap", { method: "POST" }), env, { waitUntil() {} });
+
+  assert.equal((await post()).status, 404); // nothing to recap yet
+  await runDigest(env, NOW, fetchImpl);
+  assert.equal(calls, 0); // the daily build never runs the model
+
+  // Steam answers for the two interests with a Steam source: two model calls.
+  assert.equal((await post()).status, 502); // every recap failed: the day stays open
+  assert.equal(calls, 2);
+  failing = false;
+  const res = await post();
+  assert.equal(res.status, 200);
+  const d = await res.json();
+  assert.equal(calls, 4);
+  assert.ok(d.recapped);
+  assert.equal(d.interests.find((s) => s.id === "prehistoric-kingdom").summary, "Recap of Topic: Prehistoric Kingdom");
+  assert.equal(d.interests.find((s) => s.id === "minecraft").summary, null); // nothing new, no call
+
+  assert.equal((await (await post()).json()).recapped, d.recapped);
+  assert.equal(calls, 4); // asking again reuses the saved recaps
+
+  const rebuilt = await runDigest(env, NOW + 2 * HOUR, fetchImpl);
+  assert.equal(rebuilt.recapped, d.recapped);
+  assert.equal(rebuilt.interests.find((s) => s.id === "prehistoric-kingdom").summary, "Recap of Topic: Prehistoric Kingdom");
+
+  // The next day's digest starts without recaps and can have its own, once.
+  steamData.appnews.newsitems[0].date = (NOW + 23 * HOUR) / 1000;
+  const next = await runDigest(env, NOW + 24 * HOUR, fetchImpl);
+  assert.equal(next.recapped, undefined);
+  await recap(env);
+  await recap(env);
+  assert.equal(calls, 6);
+  // An older day can't be recapped any more.
+  const old = JSON.parse(kv.m.get("digest:2026-10-26"));
+  assert.equal(old.recapped, d.recapped);
+  assert.equal((await post()).status, 200);
+  assert.equal(calls, 6);
 });

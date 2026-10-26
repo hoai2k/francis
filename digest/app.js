@@ -126,6 +126,9 @@ function render() {
     ...all.map((s) => `<button class="chip" type="button" data-id="${esc(s.id)}" aria-pressed="${filter === s.id}" style="--accent:${esc(s.accent)}"><span class="ic">${esc(s.icon)}</span>${esc(s.name.toUpperCase())} <span class="n">${s.items.length}</span></button>`),
   ].join("");
 
+  // Recaps cost AI credits, so they are written only when asked, once, for the newest day.
+  $("recapbar").hidden = Boolean(DATA || digest.recapped || digest.day !== days[0] || !items.length);
+
   const shown = filter === "all" ? all : all.filter((s) => s.id === filter);
   $("sections").innerHTML = shown.map(section).join("");
 }
@@ -197,6 +200,31 @@ function row(it) {
     ${img(it.thumb, "mini")}
   </a>${links}</li>`;
 }
+
+$("recapbtn").addEventListener("click", async () => {
+  const btn = $("recapbtn");
+  const note = $("recapnote");
+  btn.disabled = true;
+  btn.textContent = "✍️ WRITING…";
+  note.textContent = "This takes a few seconds.";
+  try {
+    const res = await fetch(`${API}/recap`, { method: "POST" });
+    if (res.status === 409) { // someone else pressed it just now
+      await new Promise((r) => setTimeout(r, 6000));
+      digest = await getJson(`${API}/digest/${digest.day}`);
+    } else if (res.ok) {
+      digest = await res.json();
+    } else {
+      throw new Error(`HTTP ${res.status}`);
+    }
+    render();
+  } catch {
+    note.textContent = "The AI didn’t answer. Try again in a minute.";
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "✨ WRITE TODAY’S AI RECAPS";
+  }
+});
 
 $("chips").addEventListener("click", (e) => {
   const b = e.target.closest(".chip");

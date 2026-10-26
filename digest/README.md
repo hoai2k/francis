@@ -1,8 +1,8 @@
 # Daily Digest
 
 Every morning, one page with what's new for the games I follow: game updates,
-videos, news, Reddit posts and wiki activity, grouped by interest. Each
-interest gets a short recap written by AI.
+videos, news, Reddit posts and wiki activity, grouped by interest. On request,
+AI writes a short recap of each interest.
 
 **Live:** https://hoai2k.github.io/francis/digest/
 
@@ -12,6 +12,8 @@ interest gets a short recap written by AI.
 - The chips under the ticker show one interest at a time; the page remembers
   the choice.
 - **NEW** marks anything published since your last visit.
+- **✨ Write today's AI recaps** asks for a one- or two-sentence summary of each
+  interest. It appears only on the newest day, until someone presses it.
 - Each interest notes any source it couldn't read that day.
 
 ## How it works
@@ -25,15 +27,20 @@ the work:
    binding. That keeps every run within the free plan's CPU limit as more
    interests are added. The interest's sources are read in parallel, and
    only what was published since the previous digest is kept.
-3. Workers AI (`@cf/meta/llama-3.2-3b-instruct`, ported from Ai-Ching's
-   oracle in `hoai2k/mini`) writes one or two sentences from that day's
-   headlines. If the model fails, the interest has no recap and everything
-   else still shows.
+3. The daily build uses no AI. Recaps are written only when someone presses
+   the button: `POST /recap` runs Workers AI (`@cf/meta/llama-3.2-3b-instruct`,
+   ported from Ai-Ching's oracle in `hoai2k/mini`) once for the newest digest,
+   for each interest that has something new, and saves the result. Pressing
+   it again, or for an older day, never calls the model again, so it costs at
+   most one run per day, and nothing on days nobody asks. A rebuild of the
+   same day keeps its recaps. If the model fails for every interest, the day
+   stays open so a later press can try again.
 4. The digest is stored in the `francis-digest` KV namespace. The page reads it
    from `https://francis-digest.hoai2k.workers.dev`:
    - `GET /days`
    - `GET /digest/latest` (builds a digest when there is none, or when the newest is over 26 hours old)
    - `GET /digest/YYYY-MM-DD`
+   - `POST /recap` (writes the newest digest's recaps once, then returns the saved ones)
    - `POST /refresh` (rebuilds today's digest; needs the `REFRESH_TOKEN` secret)
 
 ## Adding an interest

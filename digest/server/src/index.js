@@ -5,6 +5,8 @@
 //   GET  /digest/latest     the newest digest (built on the spot if there is none yet,
 //                           or if the newest is more than a day and a bit old)
 //   GET  /digest/YYYY-MM-DD one day's digest
+//   POST /recap             write the AI recaps for the newest digest, once: later calls
+//                           return the saved ones, so Workers AI runs at most once a day
 //   POST /refresh           rebuild today's digest; needs "Authorization: Bearer <REFRESH_TOKEN>"
 //
 // Digests live in the DIGEST KV namespace: "days" (a list), "digest:<day>"
@@ -17,6 +19,7 @@
 
 import { buildDigest, buildSection, dayOf, windowStart } from "./digest.js";
 import { INTERESTS } from "./interests.js";
+import { summarize } from "./summary.js";
 
 const KEEP_DAYS = 120;
 const STALE = 26 * 3_600_000;
@@ -61,6 +64,11 @@ export async function runDigest(env, now = Date.now(), fetchImpl = globalThis.fe
     return out.section;
   } : undefined;
   const digest = await buildDigest({ since, until: now }, { fetch: fetchImpl, env, state, section });
+  // A rebuild keeps the day's recaps rather than paying for new ones.
+  if (existing?.recapped) {
+    digest.recapped = existing.recapped;
+    for (const s of digest.interests) s.summary = existing.interests.find((e) => e.id === s.id)?.summary ?? null;
+  }
 
   const list = [today, ...days.filter((d) => d !== today)].sort().reverse();
   await kv.put(`digest:${today}`, JSON.stringify(digest));
@@ -85,6 +93,36 @@ async function latest(env, ctx) {
   }
 }
 
+/**
+ * Recaps for the newest digest, written once. Only the newest day can get
+ * them and a digest is recapped only once, so the model runs at most once
+ * per daily digest however often the button is pressed.
+ */
+export async function recap(env) {
+  const days = await readJson(env.DIGEST, "days", []);
+  const digest = days[0] ? await readJson(env.DIGEST, `digest:${days[0]}`, null) : null;
+  if (!digest) return { status: 404, body: { error: "no_digest" } };
+  if (digest.recapped) return { status: 200, body: digest };
+  if (!env.AI) return { status: 503, body: { error: "unavailable" } };
+  if (await env.DIGEST.get("recapping")) return { status: 409, body: { error: "busy" } };
+  await env.DIGEST.put("recapping", "1", { expirationTtl: 120 });
+  try {
+    await Promise.all(digest.interests.map(async (s) => {
+      const interest = INTERESTS.find((i) => i.id === s.id) || s;
+      s.summary = await summarize(env, interest, s.items);
+    }));
+    // If the model answered for none of them, leave the day open to try again.
+    if (digest.interests.some((s) => s.items.length) && !digest.interests.some((s) => s.summary)) {
+      return { status: 502, body: { error: "model_failed" } };
+    }
+    digest.recapped = new Date().toISOString();
+    await env.DIGEST.put(`digest:${digest.day}`, JSON.stringify(digest));
+    return { status: 200, body: digest };
+  } finally {
+    await env.DIGEST.delete("recapping");
+  }
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -102,6 +140,12 @@ export default {
       const state = { get: async (k) => memory[k], put: async (k, v) => { changed[k] = v; } };
       const section = await buildSection(interest, { since, until }, { fetch: globalThis.fetch, env, state });
       return json({ section, state: changed });
+    }
+
+    if (path === "/recap") {
+      if (request.method !== "POST") return json({ error: "method_not_allowed" }, 405);
+      const { status, body } = await recap(env);
+      return json(body, status);
     }
 
     if (path === "/refresh") {
