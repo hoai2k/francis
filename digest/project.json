@@ -3,6 +3,7 @@
   "description": "Once a day: the new updates, videos, news and wiki activity for Prehistoric Kingdom, Minecraft, Planet Zoo 2 and Jujutsu Shenanigans, with a short AI recap of each.",
   "date": "2026-10-26",
   "tag": "APP · DAILY DIGEST",
+  "kind": "site",
   "accent": "#ffd24a",
   "posters": [
     "poster-1.jpg"

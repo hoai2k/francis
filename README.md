@@ -32,6 +32,8 @@ never game or app code.
 2. Put an `index.html` in it. Use **relative paths** for all assets
    (`./script.js`, not `/script.js`) because the site is served from `/francis/`.
 3. Optionally add `project.json` with a `title` and `description` for the index page.
+   Add `"kind": "site"` for a website rather than a game (e.g. `digest`): it
+   gets a small link in the top bar instead of a gallery card.
 4. Commit and push to `main`, then `git push origin main:deploy` to publish it
    (see "Deploy state" in CLAUDE.md).
 

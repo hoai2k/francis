@@ -41,6 +41,9 @@ a { color: inherit; }
 .logo i { width: 14px; height: 14px; display: inline-block; background: linear-gradient(135deg, var(--hot) 50%, var(--cool) 50%); box-shadow: 0 0 12px var(--hot); }
 .top nav a { color: var(--muted); text-decoration: none; padding: 8px 0; }
 .top nav a:hover { color: var(--fg); }
+.top nav { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 8px 20px; }
+.top nav a.site-link { color: var(--accent); border: 1px solid var(--accent); padding: 7px 10px; }
+.top nav a.site-link:hover { color: var(--bg); background: var(--accent); }
 
 main { max-width: 1200px; margin: 0 auto; padding: 0 16px 64px; }
 

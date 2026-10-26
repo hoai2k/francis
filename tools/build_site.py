@@ -19,7 +19,9 @@ Only title/description are commonly needed; without a title the <title> from
 its index.html (or the directory name) is used. "posters" are 16:9 images
 inside the project folder, cycled on the gallery cards; the newest project
 (by date) is featured at the top. A "url" points the card at a game hosted
-elsewhere instead of at the project's own folder.
+elsewhere instead of at the project's own folder. "kind": "site" marks a
+website rather than a game or episode: it gets a small link in the top bar
+instead of a card, and is never featured.
 """
 
 import html
@@ -98,6 +100,20 @@ def _is_game(m):
     return m.get("kind") == "game" or "GAME" in str(m.get("tag", "")).upper()
 
 
+def _is_site(m):
+    """Websites (e.g. the Daily Digest) get a top-bar link, not a card."""
+    return m.get("kind") == "site"
+
+
+def _site_links(sites):
+    e = html.escape
+    return "".join(
+        f'<a class="site-link" href="{e(_href(n, m))}" style="--accent:{e(m.get("accent", "#4fc8ff"))}"'
+        f' title="{e(m["description"])}">{e(m["title"].upper())}</a>'
+        for n, m in sorted(sites, key=lambda p: p[1]["title"])
+    )
+
+
 def _card(name, m, number):
     e = html.escape
     accent = e(m.get("accent", "#4fc8ff"))
@@ -124,6 +140,8 @@ def _card(name, m, number):
 def render_index(projects):
     """Render the root gallery page from tools/site/index.html."""
     e = html.escape
+    sites = [p for p in projects if _is_site(p[1])]
+    projects = [p for p in projects if not _is_site(p[1])]
     ordered = sorted(projects, key=lambda p: (p[1].get("date", ""), p[1].get("episode", 0)), reverse=True)
     featured = ""
     if ordered:
@@ -146,7 +164,8 @@ def render_index(projects):
     stats = f'<li><b>{len(projects)}</b> EPISODES</li>' + (f"<li><b>{minutes}</b> OF ANIMATION</li>" if minutes else "") + "<li><b>100%</b> CODE-DRAWN</li>"
     template = (Path(__file__).parent / "site" / "index.html").read_text()
     return (template.replace("{{FEATURED}}", featured).replace("{{CARDS}}", cards)
-            .replace("{{TICKER}}", ticker).replace("{{STATS}}", stats))
+            .replace("{{TICKER}}", ticker).replace("{{STATS}}", stats)
+            .replace("{{SITE_LINKS}}", _site_links(sites)))
 
 
 def main():
