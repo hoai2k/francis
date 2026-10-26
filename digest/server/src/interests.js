@@ -6,19 +6,21 @@
 //   { type: "youtube-search", query }        YouTube search (only when YOUTUBE_API_KEY is set)
 //   { type: "news", query, match? }          Google News; headlines must contain the quoted
 //                                            part of the query (or match, or the whole query)
-//   { type: "reddit", sub }                  the subreddit's top posts of the day
+//   { type: "reddit", sub }                  the subreddit's top posts since the last digest
 //   { type: "roblox", universe }             a Roblox game's updates (universe ID, not place ID)
 //   { type: "fandom", wiki }                 a Fandom wiki's new pages and busiest pages
 //   { type: "minecraft", edition }           Mojang's patch notes ("java" or "bedrock")
 //   { type: "minecraft-news" }               official Minecraft news (as in the launcher)
 //
 // A channel ID is in the page source of youtube.com/@handle ("externalId").
-// accent is the interest's colour on the page; icon is one emoji.
+// accent is the interest's colour on the page; icon is one emoji; loading is
+// what the page says while this interest is being gathered.
 
 export const INTERESTS = [
   {
     id: "prehistoric-kingdom",
     name: "Prehistoric Kingdom",
+    loading: "Digging up fossils…",
     icon: "🦖",
     accent: "#7bd88f",
     sources: [
@@ -32,6 +34,7 @@ export const INTERESTS = [
   {
     id: "minecraft",
     name: "Minecraft",
+    loading: "Mining for snapshots…",
     icon: "⛏️",
     accent: "#5fd35f",
     sources: [
@@ -47,6 +50,7 @@ export const INTERESTS = [
   {
     id: "planet-zoo-2",
     name: "Planet Zoo 2",
+    loading: "Feeding the giraffes…",
     icon: "🦒",
     accent: "#ffb547",
     sources: [
@@ -61,6 +65,7 @@ export const INTERESTS = [
   {
     id: "jujutsu-shenanigans",
     name: "Jujutsu Shenanigans",
+    loading: "Expanding the domain…",
     icon: "👊",
     accent: "#ff4f7b",
     sources: [

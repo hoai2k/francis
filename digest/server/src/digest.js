@@ -1,15 +1,12 @@
-// Builds one day's digest: every source of every interest, read in parallel,
-// keeping what was published since the previous digest.
+// Builds one interest's part of a day's digest: its sources read in
+// parallel, keeping what was published since the previous digest.
 
-import { INTERESTS } from "./interests.js";
 import { READERS } from "./sources.js";
 
 const HOUR = 3_600_000;
 export const FIRST_WINDOW = 36 * HOUR; // the very first digest looks back this far
-export const MAX_WINDOW = 72 * HOUR; // after a gap, never look back further than this
+export const MAX_WINDOW = 7 * 24 * HOUR; // after days without a visit, look back at most a week
 const MAX_ITEMS = 40; // per interest
-
-export const dayOf = (t) => new Date(t).toISOString().slice(0, 10);
 
 const ORDER = { update: 0, news: 1, video: 2, post: 3, wiki: 4 };
 
@@ -54,33 +51,6 @@ export async function buildSection(interest, { since, until }, { fetch, env, sta
     summary: null, // written on request: POST /recap
     items: tidy,
     problems,
-  };
-}
-
-/**
- * The digest for the window [since, until). section(interest) builds one
- * interest; by default in this invocation, but the Worker hands each one to
- * a fresh invocation so that no single run uses much CPU.
- */
-export async function buildDigest({ since, until }, deps) {
-  const { interests = INTERESTS } = deps;
-  const section = deps.section || ((interest) => buildSection(interest, { since, until }, deps));
-  const sections = await Promise.all(interests.map(async (interest) => {
-    try {
-      return await section(interest);
-    } catch (e) {
-      return {
-        id: interest.id, name: interest.name, icon: interest.icon, accent: interest.accent,
-        summary: null, items: [], problems: [{ source: "digest", error: String(e?.message || e).slice(0, 160) }],
-      };
-    }
-  }));
-  return {
-    day: dayOf(until),
-    since: new Date(since).toISOString(),
-    until: new Date(until).toISOString(),
-    built: new Date().toISOString(),
-    interests: sections,
   };
 }
 

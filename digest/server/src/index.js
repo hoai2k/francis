@@ -1,28 +1,34 @@
-// francis-digest: builds the Daily Digest (digest/ in hoai2k/francis) once a
-// day on a cron trigger and serves it to the page.
+// francis-digest: serves the Daily Digest (digest/ in hoai2k/francis) and
+// builds each day's digest on demand: the first visit of a day builds it,
+// driven by the page so it can show progress. Nothing runs on days nobody
+// visits.
 //
-//   GET  /days              the days that have a digest, newest first
-//   GET  /digest/latest     the newest digest (built on the spot if there is none yet,
-//                           or if the newest is more than a day and a bit old)
-//   GET  /digest/YYYY-MM-DD one day's digest
-//   POST /recap             write the AI recaps for the newest digest, once: later calls
-//                           return the saved ones, so Workers AI runs at most once a day
-//   POST /refresh           rebuild today's digest; needs "Authorization: Bearer <REFRESH_TOKEN>"
+//   GET  /days                the days that have a digest, newest first
+//   GET  /digest/latest       the newest digest
+//   GET  /digest/YYYY-MM-DD   one day's digest
+//   POST /build {day}         start (or look up) the digest for the visitor's day:
+//                             { status: "done", digest } or
+//                             { status: "building", interests: [...] }
+//   POST /build/section {day, id}   gather one interest; saved, so each runs once a day
+//   POST /build/finish {day}  put the sections together and store the digest
+//   POST /recap               write the AI recaps for the newest digest, once
+//   POST /refresh             forget the newest digest so the next visit rebuilds it;
+//                             needs "Authorization: Bearer <REFRESH_TOKEN>"
 //
-// Digests live in the DIGEST KV namespace: "days" (a list), "digest:<day>"
-// and "state" (what the readers remember between runs, such as a Roblox
-// game's last update time).
-//
-// Each interest is built in its own invocation of this Worker, through the
-// SELF service binding (POST https://internal/section), so that one run never
-// parses every feed: the free plan allows 10 ms of CPU per invocation.
+// Each interest is gathered in its own request, so that no single
+// invocation parses every feed: the free plan allows 10 ms of CPU per
+// invocation. KV (DIGEST) holds "days", "digest:<day>", a day's build plan
+// and finished sections while it is being built ("plan:<day>",
+// "section:<day>:<id>", kept a day), and what readers remember between
+// runs ("state:<key>", such as a Roblox game's name).
 
-import { buildDigest, buildSection, dayOf, windowStart } from "./digest.js";
+import { buildSection, windowStart } from "./digest.js";
 import { INTERESTS } from "./interests.js";
 import { summarize } from "./summary.js";
 
 const KEEP_DAYS = 120;
-const STALE = 26 * 3_600_000;
+const DAY_MS = 86_400_000;
+const TEMP = { expirationTtl: 2 * 86_400 }; // plans and sections outlive their day, then go
 
 const HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -37,60 +43,110 @@ async function readJson(kv, key, fallback) {
   return v ?? fallback;
 }
 
-/** Build (or rebuild) the digest for the day of `now` and store it. */
-export async function runDigest(env, now = Date.now(), fetchImpl = globalThis.fetch) {
-  const kv = env.DIGEST;
-  const today = dayOf(now);
-  const days = await readJson(kv, "days", []);
-  const existing = days.includes(today) ? await readJson(kv, `digest:${today}`, null) : null;
-  let since;
-  if (existing) {
-    since = Date.parse(existing.since); // a rebuild covers the same window, up to now
-  } else {
-    const prevDay = days.find((d) => d < today);
-    since = windowStart(prevDay ? await readJson(kv, `digest:${prevDay}`, null) : null, now);
-  }
-
-  const memory = await readJson(kv, "state", {});
-  const state = { get: async (k) => memory[k], put: async (k, v) => { memory[k] = v; } };
-  const section = env.SELF ? async (interest) => {
-    const res = await env.SELF.fetch("https://internal/section", {
-      method: "POST",
-      body: JSON.stringify({ id: interest.id, since, until: now, state: memory }),
-    });
-    if (!res.ok) throw new Error(`section build answered ${res.status}`);
-    const out = await res.json();
-    Object.assign(memory, out.state);
-    return out.section;
-  } : undefined;
-  const digest = await buildDigest({ since, until: now }, { fetch: fetchImpl, env, state, section });
-  // A rebuild keeps the day's recaps rather than paying for new ones.
-  if (existing?.recapped) {
-    digest.recapped = existing.recapped;
-    for (const s of digest.interests) s.summary = existing.interests.find((e) => e.id === s.id)?.summary ?? null;
-  }
-
-  const list = [today, ...days.filter((d) => d !== today)].sort().reverse();
-  await kv.put(`digest:${today}`, JSON.stringify(digest));
-  await kv.put("days", JSON.stringify(list.slice(0, KEEP_DAYS)));
-  await kv.put("state", JSON.stringify(memory));
-  await Promise.all(list.slice(KEEP_DAYS).map((d) => kv.delete(`digest:${d}`)));
-  return digest;
+/**
+ * The visitor's day ("YYYY-MM-DD" in their time zone) if it is plausible:
+ * within a day and a half of now, so nobody can build far-off days.
+ */
+export function validDay(day, now = Date.now()) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(day))) return null;
+  const noon = Date.parse(`${day}T12:00:00Z`);
+  return Number.isFinite(noon) && Math.abs(noon - now) <= 1.5 * DAY_MS ? day : null;
 }
 
-/** The newest digest, building one first when there is none or it is stale. */
-async function latest(env, ctx) {
-  const days = await readJson(env.DIGEST, "days", []);
-  const newest = days[0] ? await readJson(env.DIGEST, `digest:${days[0]}`, null) : null;
-  if (newest && Date.now() - Date.parse(newest.until) < STALE) return newest;
-  // Only one build at a time; others get the stale digest (or a "building" answer).
-  if (await env.DIGEST.get("building")) return newest;
-  await env.DIGEST.put("building", "1", { expirationTtl: 120 });
-  try {
-    return await runDigest(env);
-  } finally {
-    ctx.waitUntil(env.DIGEST.delete("building"));
+const SOURCE_LABEL = {
+  steam: "Steam", youtube: "YouTube", "youtube-search": "YouTube", news: "Google News", reddit: "Reddit",
+  roblox: "Roblox", fandom: "Fandom wiki", minecraft: "Mojang", "minecraft-news": "Minecraft.net",
+};
+
+/** What the progress screen shows for an interest while it is gathered. */
+const describeInterest = (i) => ({
+  id: i.id, name: i.name, icon: i.icon, accent: i.accent, loading: i.loading,
+  sources: [...new Set(i.sources.map((s) => SOURCE_LABEL[s.type] || s.type))],
+});
+
+/** POST /build: the digest if it exists, else the plan for building it. */
+export async function startBuild(env, day, now = Date.now()) {
+  const kv = env.DIGEST;
+  const done = await readJson(kv, `digest:${day}`, null);
+  if (done) return { status: 200, body: { status: "done", digest: done } };
+  const days = await readJson(kv, "days", []);
+  if (days[0] && days[0] > day) return { status: 409, body: { error: "newer_digest_exists", day: days[0] } };
+  let plan = await readJson(kv, `plan:${day}`, null);
+  if (plan && !plan.until) { // left by /refresh: the same window, up to now
+    plan.until = now;
+    await kv.put(`plan:${day}`, JSON.stringify(plan), TEMP);
   }
+  if (!plan) {
+    const prevDay = days.find((d) => d < day);
+    const since = windowStart(prevDay ? await readJson(kv, `digest:${prevDay}`, null) : null, now);
+    plan = { day, since, until: now, interests: INTERESTS.map((i) => i.id) };
+    await kv.put(`plan:${day}`, JSON.stringify(plan), TEMP);
+  }
+  const interests = await Promise.all(INTERESTS.filter((i) => plan.interests.includes(i.id)).map(async (i) => ({
+    ...describeInterest(i),
+    done: Boolean(await kv.get(`section:${day}:${i.id}`)),
+  })));
+  return { status: 200, body: { status: "building", day, since: new Date(plan.since).toISOString(), interests } };
+}
+
+/** POST /build/section: one interest's section, gathered once and saved. */
+export async function buildOne(env, day, id, fetchImpl = globalThis.fetch) {
+  const kv = env.DIGEST;
+  const plan = await readJson(kv, `plan:${day}`, null);
+  const interest = INTERESTS.find((i) => i.id === id);
+  if (!plan || !interest || !plan.interests.includes(id)) return { status: 404, body: { error: "not_found" } };
+  const saved = await readJson(kv, `section:${day}:${id}`, null);
+  if (saved) return { status: 200, body: saved };
+  const state = {
+    get: (k) => kv.get(`state:${k}`, "json"),
+    put: (k, v) => kv.put(`state:${k}`, JSON.stringify(v)),
+  };
+  const section = await buildSection(interest, plan, { fetch: fetchImpl, env, state });
+  await kv.put(`section:${day}:${id}`, JSON.stringify(section), TEMP);
+  return { status: 200, body: section };
+}
+
+/** POST /build/finish: the stored digest, once every section is in. */
+export async function finishBuild(env, day) {
+  const kv = env.DIGEST;
+  const done = await readJson(kv, `digest:${day}`, null);
+  if (done) return { status: 200, body: done };
+  const plan = await readJson(kv, `plan:${day}`, null);
+  if (!plan) return { status: 404, body: { error: "not_found" } };
+  const ids = plan.interests.filter((id) => INTERESTS.some((i) => i.id === id));
+  const sections = await Promise.all(ids.map((id) => readJson(kv, `section:${day}:${id}`, null)));
+  const missing = ids.filter((_, n) => !sections[n]);
+  if (missing.length) return { status: 409, body: { error: "missing_sections", missing } };
+  const digest = {
+    day,
+    since: new Date(plan.since).toISOString(),
+    until: new Date(plan.until).toISOString(),
+    built: new Date().toISOString(),
+    interests: sections,
+  };
+  const days = await readJson(kv, "days", []);
+  const list = [day, ...days.filter((d) => d !== day)].sort().reverse();
+  await kv.put(`digest:${day}`, JSON.stringify(digest));
+  await kv.put("days", JSON.stringify(list.slice(0, KEEP_DAYS)));
+  await Promise.all([
+    kv.delete(`plan:${day}`),
+    ...ids.map((id) => kv.delete(`section:${day}:${id}`)),
+    ...list.slice(KEEP_DAYS).map((d) => kv.delete(`digest:${d}`)),
+  ]);
+  return { status: 200, body: digest };
+}
+
+/** POST /refresh: forget the newest digest so the next visit builds it again. */
+export async function forgetNewest(env) {
+  const kv = env.DIGEST;
+  const days = await readJson(kv, "days", []);
+  if (!days[0]) return { cleared: null };
+  const old = await readJson(kv, `digest:${days[0]}`, null);
+  // Keep its window's start, so the rebuild covers the same stretch of time.
+  if (old) await kv.put(`plan:${days[0]}`, JSON.stringify({ day: days[0], since: Date.parse(old.since), until: null, interests: INTERESTS.map((i) => i.id) }), TEMP);
+  await kv.delete(`digest:${days[0]}`);
+  await kv.put("days", JSON.stringify(days.slice(1)));
+  return { cleared: days[0] };
 }
 
 /**
@@ -124,55 +180,50 @@ export async function recap(env) {
 }
 
 export default {
-  async fetch(request, env, ctx) {
+  async fetch(request, env) {
     const url = new URL(request.url);
     const path = url.pathname.replace(/\/+$/, "") || "/";
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: HEADERS });
+    const NO_STORE = { "Cache-Control": "no-store" };
 
-    if (path === "/") return json({ name: "francis-digest", routes: ["/days", "/digest/latest", "/digest/YYYY-MM-DD"] });
+    if (path === "/") return json({ name: "francis-digest", routes: ["/days", "/digest/latest", "/digest/YYYY-MM-DD", "/build"] });
 
-    // Only reachable through the SELF binding: the public host is workers.dev.
-    if (path === "/section" && url.hostname === "internal" && request.method === "POST") {
-      const { id, since, until, state: memory = {} } = await request.json();
-      const interest = INTERESTS.find((i) => i.id === id);
-      if (!interest) return json({ error: "not_found" }, 404);
-      const changed = {};
-      const state = { get: async (k) => memory[k], put: async (k, v) => { changed[k] = v; } };
-      const section = await buildSection(interest, { since, until }, { fetch: globalThis.fetch, env, state });
-      return json({ section, state: changed });
+    if (request.method === "POST") {
+      let body = {};
+      try { body = await request.json(); } catch { /* no body */ }
+      const answer = ({ status, body: out }) => json(out, status, NO_STORE);
+
+      if (path === "/build" || path === "/build/section" || path === "/build/finish") {
+        const day = validDay(body.day);
+        if (!day) return json({ error: "bad_day" }, 400);
+        if (path === "/build") return answer(await startBuild(env, day));
+        if (path === "/build/finish") return answer(await finishBuild(env, day));
+        return answer(await buildOne(env, day, String(body.id || "")));
+      }
+      if (path === "/recap") return answer(await recap(env));
+      if (path === "/refresh") {
+        const token = env.REFRESH_TOKEN;
+        if (!token || request.headers.get("Authorization") !== `Bearer ${token}`) return json({ error: "unauthorized" }, 401);
+        return json(await forgetNewest(env));
+      }
+      return json({ error: "not_found" }, 404);
     }
 
-    if (path === "/recap") {
-      if (request.method !== "POST") return json({ error: "method_not_allowed" }, 405);
-      const { status, body } = await recap(env);
-      return json(body, status);
-    }
+    if (request.method !== "GET" || /^\/(build|recap|refresh)/.test(path)) return json({ error: "method_not_allowed" }, 405);
 
-    if (path === "/refresh") {
-      if (request.method !== "POST") return json({ error: "method_not_allowed" }, 405);
-      const token = env.REFRESH_TOKEN;
-      if (!token || request.headers.get("Authorization") !== `Bearer ${token}`) return json({ error: "unauthorized" }, 401);
-      return json(await runDigest(env));
-    }
-
-    if (request.method !== "GET") return json({ error: "method_not_allowed" }, 405);
-
-    if (path === "/days") return json(await readJson(env.DIGEST, "days", []), 200, { "Cache-Control": "max-age=300" });
+    if (path === "/days") return json(await readJson(env.DIGEST, "days", []), 200, NO_STORE);
 
     if (path === "/digest/latest") {
-      const d = await latest(env, ctx);
-      return d ? json(d, 200, { "Cache-Control": "max-age=300" }) : json({ error: "building" }, 503, { "Retry-After": "30" });
+      const days = await readJson(env.DIGEST, "days", []);
+      const d = days[0] ? await readJson(env.DIGEST, `digest:${days[0]}`, null) : null;
+      return d ? json(d, 200, NO_STORE) : json({ error: "not_found" }, 404);
     }
 
     const m = path.match(/^\/digest\/(\d{4}-\d{2}-\d{2})$/);
     if (m) {
       const d = await readJson(env.DIGEST, `digest:${m[1]}`, null);
-      return d ? json(d, 200, { "Cache-Control": "max-age=3600" }) : json({ error: "not_found" }, 404);
+      return d ? json(d, 200, NO_STORE) : json({ error: "not_found" }, 404);
     }
     return json({ error: "not_found" }, 404);
-  },
-
-  async scheduled(event, env, ctx) {
-    ctx.waitUntil(runDigest(env, event.scheduledTime));
   },
 };

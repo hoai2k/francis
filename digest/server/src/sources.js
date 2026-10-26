@@ -146,7 +146,8 @@ export function newsMatch(src) {
 }
 
 export async function news(src, ctx) {
-  const q = encodeURIComponent(`${src.query} when:2d`);
+  const days = Math.min(7, Math.max(2, Math.ceil((ctx.until - ctx.since) / 86_400_000) + 1));
+  const q = encodeURIComponent(`${src.query} when:${days}d`);
   const must = newsMatch(src);
   const xml = await get(ctx, `https://news.google.com/rss/search?q=${q}&hl=en-US&gl=US&ceid=US:en`);
   return blocks(xml, "item")
@@ -164,7 +165,8 @@ export async function news(src, ctx) {
 // ---------------------------------------------------------------- Reddit
 
 export async function reddit(src, ctx) {
-  const xml = await get(ctx, `https://www.reddit.com/r/${src.sub}/top/.rss?t=day&limit=10`);
+  const span = ctx.until - ctx.since > 36 * 3_600_000 ? "week" : "day"; // after a gap, the week's best
+  const xml = await get(ctx, `https://www.reddit.com/r/${src.sub}/top/.rss?t=${span}&limit=10`);
   return blocks(xml, "entry")
     .map((e) => {
       const thumb = field(e, "media:thumbnail", "url");
@@ -178,7 +180,7 @@ export async function reddit(src, ctx) {
         thumb: thumb || undefined,
       };
     })
-    // Top of the day may include posts from just before the window; keep them.
+    // The top list may include posts from just before the window; keep them.
     .filter((it) => Date.parse(it.date) >= ctx.since - 86_400_000)
     .slice(0, 6);
 }

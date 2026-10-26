@@ -1,8 +1,8 @@
 name: Daily Digest worker
 
 # Tests and deploys digest/server, the francis-digest Cloudflare Worker that
-# builds the Daily Digest each morning (its own cron trigger, so no Actions
-# minutes are spent on the daily run). Runs only when the Worker changes.
+# builds the Daily Digest on the first visit of each day (no Actions minutes
+# are spent on it). Runs only when the Worker changes.
 #
 # Needs the repository secrets CLOUDFLARE_API_TOKEN (Workers Scripts: Edit,
 # Workers KV Storage: Edit) and CLOUDFLARE_ACCOUNT_ID. Optional secrets, passed
@@ -55,14 +55,7 @@ jobs:
           sed -i "s/KV_NAMESPACE_ID/$id/" wrangler.jsonc
       - name: Deploy
         if: env.CLOUDFLARE_API_TOKEN != ''
-        run: |
-          # The Worker binds to itself (SELF). If it doesn't exist yet, that
-          # binding can't resolve, so the very first deploy goes out without it.
-          if ! npx wrangler deploy; then
-            sed '/"services"/d' wrangler.jsonc > wrangler.first.jsonc
-            npx wrangler deploy -c wrangler.first.jsonc
-            npx wrangler deploy
-          fi
+        run: npx wrangler deploy
       - name: Pass on optional secrets
         if: env.CLOUDFLARE_API_TOKEN != ''
         run: |
@@ -73,7 +66,7 @@ jobs:
         run: |
           base=https://francis-digest.hoai2k.workers.dev
           sleep 5
-          # The first request builds the first digest if there is none yet.
-          code=$(curl -sS -o latest.json -w '%{http_code}' --max-time 90 "$base/digest/latest")
-          echo "::notice title=/digest/latest ($code)::$(jq -c '{day, interests: [.interests[]? | {name, items: (.items|length), recap: (.summary != null), problems: (.problems|length)}]}' latest.json | head -c 900)"
+          # Reads only: digests are built by the first visit of the day.
+          code=$(curl -sS -o days.json -w '%{http_code}' "$base/days")
+          echo "::notice title=/days ($code)::$(head -c 300 days.json)"
           [ "$code" = 200 ]

@@ -1,5 +1,6 @@
 // Daily Digest page: reads the day's digest from the francis-digest Worker
-// (digest/server) and lays it out per interest.
+// (digest/server) and lays it out per interest. The first visit of a day
+// builds that day's digest, one interest at a time, with a progress screen.
 //   ?api=<url>    read from another copy of the Worker (e.g. http://localhost:8787)
 //   ?data=<file>  show a digest JSON file instead (from server/tools/preview.mjs)
 //   #YYYY-MM-DD   open that day
@@ -53,33 +54,117 @@ async function getJson(url) {
   return res.json();
 }
 
+async function postJson(path, body) {
+  const res = await fetch(`${API}${path}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const out = await res.json().catch(() => ({}));
+  if (!res.ok) throw Object.assign(new Error(out.error || `HTTP ${res.status}`), { status: res.status, body: out });
+  return out;
+}
+
+/** Today in the visitor's time zone: a new digest starts at their midnight. */
+function localDay() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
 async function load(day) {
   $("status").innerHTML = '<span class="loading">LOADING TODAY’S DROP…</span>';
   try {
     if (DATA) {
       digest = await getJson(DATA);
       days = [digest.day];
+    } else if (day) {
+      digest = await getJson(`${API}/digest/${day}`);
     } else {
-      const [list, d] = await Promise.all([
-        days.length ? days : getJson(`${API}/days`).catch(() => []),
-        getJson(`${API}/digest/${day || "latest"}`),
-      ]);
-      days = list.length ? list : [d.day];
-      digest = d;
+      let start = null;
+      try {
+        start = await postJson("/build", { day: localDay() });
+      } catch (e) {
+        if (e.body?.error !== "newer_digest_exists") throw e; // a clock ahead of this one built it
+      }
+      if (start?.status === "building") digest = await gather(start);
+      else digest = start?.digest || await getJson(`${API}/digest/latest`);
     }
+    if (!DATA) days = await getJson(`${API}/days`).catch(() => [digest.day]);
+    if (!days.includes(digest.day)) days = [digest.day, ...days];
     $("status").innerHTML = "";
     render();
   } catch (e) {
     digest = null;
     $("sections").innerHTML = "";
+    $("chips").innerHTML = "";
     $("ticker").hidden = true;
-    $("status").innerHTML = e.status === 503
-      ? '<span class="big">🛠️</span><p><strong>Today’s digest is being put together.</strong></p><p>Give it a few seconds and reload.</p>'
+    $("recapbar").hidden = true;
+    $("status").innerHTML = e.gather
+      ? '<span class="big">🧩</span><p><strong>Some games couldn’t be gathered.</strong></p><p>The ones that worked are saved, so trying again only fetches the rest.</p><p><button class="retry" type="button" id="retry">TRY AGAIN</button></p>'
       : e.status === 404
         ? `<span class="big">📭</span><p><strong>No digest for ${esc(dayLabel(day))}.</strong></p><p><a href="#">Back to the newest</a></p>`
         : '<span class="big">📡</span><p><strong>Can’t reach the digest server.</strong></p><p>It may not be deployed yet, or the connection dropped. Try again in a minute.</p>';
+    $("retry")?.addEventListener("click", () => load(day));
   }
   updateNav();
+}
+
+/**
+ * The first visit of the day: gather each interest (saved on the server as
+ * it finishes, so a reload or another visitor never repeats one), showing
+ * progress, then put the digest together.
+ */
+async function gather(start) {
+  $("sections").innerHTML = "";
+  $("chips").innerHTML = "";
+  $("ticker").hidden = true;
+  $("recapbar").hidden = true;
+  $("stats").innerHTML = '<li><b>…</b> GATHERING</li>';
+  $("date").textContent = dayLabel(start.day);
+  const since = new Date(start.since).toLocaleString(undefined, { weekday: "long", hour: "numeric", minute: "2-digit" });
+  $("status").innerHTML = `<div class="build">
+    <h2>GATHERING TODAY’S DROP</h2>
+    <p>First visit of the day, so the digest is being put together now: everything since <strong>${esc(since)}</strong>.</p>
+    <div class="bar" aria-hidden="true"><i id="barfill"></i></div>
+    <div class="pct" id="pct" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">0%</div>
+    <ul class="steps">${start.interests.map((i) => `<li id="step-${esc(i.id)}" style="--accent:${esc(i.accent)}">
+      <span class="ic" aria-hidden="true">${esc(i.icon)}</span>
+      <div><b>${esc(i.name)}</b><span class="what">${esc(i.loading || "Looking around…")} <em>${esc(i.sources.join(" · "))}</em></span></div>
+      <span class="st">WAITING</span></li>`).join("")}</ul>
+  </div>`;
+
+  let finished = 0;
+  const total = start.interests.length;
+  const progress = () => {
+    const pct = Math.round((finished / total) * 100);
+    $("barfill").style.width = `${Math.max(pct, 4)}%`;
+    $("pct").textContent = `${pct}%`;
+    $("pct").setAttribute("aria-valuenow", String(pct));
+  };
+  progress();
+
+  const failed = [];
+  await Promise.all(start.interests.map(async (i, n) => {
+    const step = $(`step-${i.id}`);
+    const mark = (cls, text) => { step.className = cls; step.querySelector(".st").textContent = text; };
+    await wait(n * 350); // spread out, so sites like Reddit don't see a burst
+    mark("busy", "LOOKING…");
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const section = await postJson("/build/section", { day: start.day, id: i.id });
+        const n = section.items.length;
+        mark(section.problems?.length ? "done warn" : "done", `${n ? `${n} NEW` : "QUIET"}${section.problems?.length ? " ⚠" : " ✓"}`);
+        finished++;
+        progress();
+        return;
+      } catch {
+        if (attempt === 0) await wait(1500);
+      }
+    }
+    mark("fail", "FAILED ✕");
+    failed.push(i.id);
+  }));
+  if (failed.length) throw Object.assign(new Error("gather failed"), { gather: true });
+  $("pct").textContent = "PUTTING IT TOGETHER…";
+  return postJson("/build/finish", { day: start.day });
 }
 
 function updateNav() {

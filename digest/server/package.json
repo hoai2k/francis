@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev -c wrangler.dev.jsonc --test-scheduled",
+    "dev": "wrangler dev -c wrangler.dev.jsonc",
     "deploy": "wrangler deploy",
     "test": "node --test test/*.test.mjs",
     "preview": "node tools/preview.mjs"

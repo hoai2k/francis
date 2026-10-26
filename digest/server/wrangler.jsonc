@@ -5,14 +5,13 @@
   "compatibility_date": "2026-09-01",
   "workers_dev": true,
   "observability": { "enabled": true },
-  // Workers AI, for the short recap above each interest.
+  // Workers AI, for the short recaps written on request (POST /recap).
   "ai": { "binding": "AI" },
   // Where digests are kept. The deploy workflow fills in the id (it creates
   // the namespace "francis-digest" the first time); for a manual deploy, run
   // `npx wrangler kv namespace create francis-digest` and paste the id here.
   "kv_namespaces": [{ "binding": "DIGEST", "id": "KV_NAMESPACE_ID" }],
-  // The Worker itself: each interest is built in a separate invocation.
-  "services": [{ "binding": "SELF", "service": "francis-digest" }],
-  // Build the day's digest at 10:07 UTC (6:07 in New York in summer, 5:07 in winter).
-  "triggers": { "crons": ["7 10 * * *"] }
+  // No schedule: the first visit of a day builds that day's digest. The empty
+  // list also removes the daily trigger earlier versions had.
+  "triggers": { "crons": [] }
 }

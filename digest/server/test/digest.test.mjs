@@ -1,9 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { blocks, field, plain, news, youtube, steam, roblox, fandom, minecraftNews, reddit } from "../src/sources.js";
-import { tidyItems, windowStart, buildDigest, FIRST_WINDOW, MAX_WINDOW } from "../src/digest.js";
+import { tidyItems, windowStart, buildSection, FIRST_WINDOW, MAX_WINDOW } from "../src/digest.js";
 import { tidy, summaryMessages } from "../src/summary.js";
-import worker, { runDigest, recap } from "../src/index.js";
+import worker, { startBuild, buildOne, finishBuild, forgetNewest, recap, validDay } from "../src/index.js";
 
 const NOW = Date.parse("2026-10-26T10:07:00Z");
 const HOUR = 3_600_000;
@@ -120,13 +120,12 @@ test("Minecraft launcher news: day-dated articles, launcher tracking removed", a
 });
 
 test("a source that fails is listed as a problem; the rest still arrive", async () => {
-  const interests = [{ id: "x", name: "X", icon: "x", accent: "#fff", sources: [{ type: "reddit", sub: "x" }, { type: "steam", appid: 1 }] }];
+  const interest = { id: "x", name: "X", icon: "x", accent: "#fff", sources: [{ type: "reddit", sub: "x" }, { type: "steam", appid: 1 }] };
   const data = { appnews: { newsitems: [{ title: "Hi", url: "https://s/1", date: (NOW - HOUR) / 1000, contents: "" }] } };
-  const d = await buildDigest(win, { fetch: fakeFetch({ "https://api.steampowered.com/": data }), env: {}, state: memState(), interests });
-  assert.equal(d.day, "2026-10-26");
-  assert.equal(d.interests[0].items.length, 1);
-  assert.deepEqual(d.interests[0].problems, [{ source: "r/x", error: "www.reddit.com answered 404" }]);
-  assert.equal(d.interests[0].summary, null); // no AI binding: no recap
+  const sec = await buildSection(interest, win, { fetch: fakeFetch({ "https://api.steampowered.com/": data }), env: {}, state: memState() });
+  assert.equal(sec.items.length, 1);
+  assert.deepEqual(sec.problems, [{ source: "r/x", error: "www.reddit.com answered 404" }]);
+  assert.equal(sec.summary, null); // recaps are written only on request
   await assert.rejects(reddit({ sub: "x" }, { ...win, fetch: fakeFetch({}) }));
 });
 
@@ -140,10 +139,11 @@ test("items: repeated links and repeated headlines are dropped, newest first", (
   assert.deepEqual(items.map((i) => i.url), ["https://y/1?utm_source=x", "https://a/1"]);
 });
 
-test("the window starts at the previous digest, never more than three days back", () => {
+test("the window starts at the previous digest, never more than a week back", () => {
   assert.equal(windowStart(null, NOW), NOW - FIRST_WINDOW);
   assert.equal(windowStart({ until: new Date(NOW - 24 * HOUR).toISOString() }, NOW), NOW - 24 * HOUR);
-  assert.equal(windowStart({ until: new Date(NOW - 200 * HOUR).toISOString() }, NOW), NOW - MAX_WINDOW);
+  assert.equal(windowStart({ until: new Date(NOW - 300 * HOUR).toISOString() }, NOW), NOW - MAX_WINDOW);
+  assert.equal(MAX_WINDOW, 7 * 24 * HOUR);
 });
 
 test("recap: the model sees the items, and its answer is tidied", () => {
@@ -152,57 +152,65 @@ test("recap: the model sees the items, and its answer is tidied", () => {
   assert.equal(tidy("Here's a recap: \"Snapshot 5 adds ice balls.\""), "Snapshot 5 adds ice balls.");
 });
 
-test("runDigest stores the day, keeps a rebuild's window, and builds sections through SELF", async () => {
+const IDS = ["prehistoric-kingdom", "minecraft", "planet-zoo-2", "jujutsu-shenanigans"];
+
+/** What the page does on the first visit of a day: start, every section, finish. */
+async function visit(env, day, now, fetchImpl) {
+  const start = await startBuild(env, day, now);
+  if (start.body.status === "done") return start.body.digest;
+  for (const i of start.body.interests) await buildOne(env, day, i.id, fetchImpl);
+  return (await finishBuild(env, day)).body;
+}
+
+function steamWorld(at) {
+  const data = { appnews: { newsitems: [{ title: "Update 2", url: "https://s/1", date: at / 1000, contents: "" }] } };
+  const calls = [];
+  return { data, calls, fetchImpl: fakeFetch({ "https://api.steampowered.com/": data }, calls) };
+}
+
+test("the first visit of a day builds it section by section; later visits get the stored digest", async () => {
   const kv = fakeKV();
-  const steamData = { appnews: { newsitems: [{ title: "Update 2", url: "https://s/1", date: (NOW - HOUR) / 1000, contents: "" }] } };
-  const fetchImpl = fakeFetch({ "https://api.steampowered.com/": steamData });
-  const sections = [];
-  const env = {
-    DIGEST: kv,
-    AI: { run: async () => { throw new Error("the daily build must not call the model"); } },
-  };
-  // SELF hands the section request back to the Worker, as the binding does.
-  env.SELF = { fetch: async (url, init) => { sections.push(url); return worker.fetch(new Request(url, init), env, { waitUntil() {} }); } };
-  const realFetch = globalThis.fetch;
-  globalThis.fetch = fetchImpl; // the section route reads with the global fetch
-  try {
-    const d1 = await runDigest(env, NOW, fetchImpl);
-    assert.equal(sections.length, 4);
-    assert.ok(sections.every((u) => u === "https://internal/section"));
-    assert.deepEqual(JSON.parse(kv.m.get("days")), ["2026-10-26"]);
-    const pk = d1.interests.find((s) => s.id === "prehistoric-kingdom");
-    assert.equal(pk.items[0].title, "Update 2");
-    assert.equal(pk.summary, null);
-    const d2 = await runDigest(env, NOW + 2 * HOUR, fetchImpl);
-    assert.equal(d2.since, d1.since);
-    const d3 = await runDigest(env, NOW + 24 * HOUR, fetchImpl);
-    assert.equal(d3.since, d2.until);
-    assert.deepEqual(JSON.parse(kv.m.get("days")), ["2026-10-27", "2026-10-26"]);
-  } finally {
-    globalThis.fetch = realFetch;
-  }
+  const env = { DIGEST: kv, AI: { run: async () => { throw new Error("building must not call the model"); } } };
+  const { calls, fetchImpl } = steamWorld(NOW - HOUR);
+
+  const start = await startBuild(env, "2026-10-26", NOW);
+  assert.equal(start.body.status, "building");
+  assert.deepEqual(start.body.interests.map((i) => [i.id, i.done]), IDS.map((id) => [id, false]));
+  assert.ok(start.body.interests[0].sources.includes("Steam"));
+  assert.equal(start.body.interests[0].loading, "Digging up fossils…");
+  assert.equal(start.body.since, new Date(NOW - FIRST_WINDOW).toISOString());
+
+  assert.deepEqual((await finishBuild(env, "2026-10-26")).body.missing, IDS); // nothing gathered yet
+
+  const pk = await buildOne(env, "2026-10-26", "prehistoric-kingdom", fetchImpl);
+  assert.equal(pk.body.items[0].title, "Update 2");
+  const fetched = calls.length;
+  assert.deepEqual((await buildOne(env, "2026-10-26", "prehistoric-kingdom", fetchImpl)).body, JSON.parse(JSON.stringify(pk.body)));
+  assert.equal(calls.length, fetched); // a section is gathered once; repeats are served from KV
+  assert.equal((await startBuild(env, "2026-10-26", NOW + HOUR)).body.interests[0].done, true);
+  assert.equal((await buildOne(env, "2026-10-26", "nope", fetchImpl)).status, 404);
+
+  for (const id of IDS.slice(1)) await buildOne(env, "2026-10-26", id, fetchImpl);
+  const d1 = (await finishBuild(env, "2026-10-26")).body;
+  assert.equal(d1.day, "2026-10-26");
+  assert.equal(d1.until, new Date(NOW).toISOString()); // the window closed when the build started
+  assert.deepEqual(d1.interests.map((s) => s.id), IDS);
+  assert.deepEqual(JSON.parse(kv.m.get("days")), ["2026-10-26"]);
+  assert.ok(![...kv.m.keys()].some((k) => k.startsWith("plan:") || k.startsWith("section:")));
+
+  const again = await startBuild(env, "2026-10-26", NOW + 5 * HOUR);
+  assert.equal(again.body.status, "done");
+  assert.equal(again.body.digest.built, d1.built);
+
+  // Three quiet days later the next visit picks up where the last digest stopped.
+  const d2 = await visit(env, "2026-10-29", NOW + 72 * HOUR, fetchImpl);
+  assert.equal(d2.since, d1.until);
+  assert.deepEqual(JSON.parse(kv.m.get("days")), ["2026-10-29", "2026-10-26"]);
+  assert.equal((await startBuild(env, "2026-10-28", NOW + 72 * HOUR)).status, 409); // never behind the newest
 });
 
-test("routes: public reads, a guarded refresh, and no public section builds", async () => {
+test("recaps are written only on request, once per digest", async () => {
   const kv = fakeKV();
-  kv.m.set("days", JSON.stringify(["2026-10-26"]));
-  kv.m.set("digest:2026-10-26", JSON.stringify({ day: "2026-10-26", until: new Date().toISOString(), interests: [] }));
-  const env = { DIGEST: kv, REFRESH_TOKEN: "s3cret" };
-  const call = (path, init) => worker.fetch(new Request(`https://francis-digest.hoai2k.workers.dev${path}`, init), env, { waitUntil() {} });
-  assert.deepEqual(await (await call("/days")).json(), ["2026-10-26"]);
-  const latest = await call("/digest/latest");
-  assert.equal((await latest.json()).day, "2026-10-26");
-  assert.equal(latest.headers.get("Access-Control-Allow-Origin"), "*");
-  assert.equal((await call("/digest/2026-10-25")).status, 404);
-  assert.equal((await call("/refresh", { method: "POST" })).status, 401);
-  assert.equal((await call("/section", { method: "POST", body: "{}" })).status, 405);
-  assert.equal((await call("/recap")).status, 405);
-});
-
-test("recaps are written only on request, once per digest, and kept through a rebuild", async () => {
-  const kv = fakeKV();
-  const steamData = { appnews: { newsitems: [{ title: "Update 2", url: "https://s/1", date: (NOW - HOUR) / 1000, contents: "" }] } };
-  const fetchImpl = fakeFetch({ "https://api.steampowered.com/": steamData });
   let calls = 0;
   let failing = true;
   const env = {
@@ -213,41 +221,75 @@ test("recaps are written only on request, once per digest, and kept through a re
       return { response: `"Recap of ${messages[1].content.split("\n")[0]}"` };
     } },
   };
-  const post = () => worker.fetch(new Request("https://francis-digest.hoai2k.workers.dev/recap", { method: "POST" }), env, { waitUntil() {} });
+  const post = () => worker.fetch(new Request("https://francis-digest.hoai2k.workers.dev/recap", { method: "POST" }), env);
+  const world = steamWorld(NOW - HOUR);
 
   assert.equal((await post()).status, 404); // nothing to recap yet
-  await runDigest(env, NOW, fetchImpl);
-  assert.equal(calls, 0); // the daily build never runs the model
+  await visit(env, "2026-10-26", NOW, world.fetchImpl);
+  assert.equal(calls, 0);
 
   // Steam answers for the two interests with a Steam source: two model calls.
   assert.equal((await post()).status, 502); // every recap failed: the day stays open
   assert.equal(calls, 2);
   failing = false;
-  const res = await post();
-  assert.equal(res.status, 200);
-  const d = await res.json();
+  const d = await (await post()).json();
   assert.equal(calls, 4);
   assert.ok(d.recapped);
   assert.equal(d.interests.find((s) => s.id === "prehistoric-kingdom").summary, "Recap of Topic: Prehistoric Kingdom");
   assert.equal(d.interests.find((s) => s.id === "minecraft").summary, null); // nothing new, no call
-
   assert.equal((await (await post()).json()).recapped, d.recapped);
   assert.equal(calls, 4); // asking again reuses the saved recaps
 
-  const rebuilt = await runDigest(env, NOW + 2 * HOUR, fetchImpl);
-  assert.equal(rebuilt.recapped, d.recapped);
-  assert.equal(rebuilt.interests.find((s) => s.id === "prehistoric-kingdom").summary, "Recap of Topic: Prehistoric Kingdom");
-
   // The next day's digest starts without recaps and can have its own, once.
-  steamData.appnews.newsitems[0].date = (NOW + 23 * HOUR) / 1000;
-  const next = await runDigest(env, NOW + 24 * HOUR, fetchImpl);
+  world.data.appnews.newsitems[0].date = (NOW + 23 * HOUR) / 1000;
+  const next = await visit(env, "2026-10-27", NOW + 24 * HOUR, world.fetchImpl);
   assert.equal(next.recapped, undefined);
   await recap(env);
   await recap(env);
   assert.equal(calls, 6);
-  // An older day can't be recapped any more.
-  const old = JSON.parse(kv.m.get("digest:2026-10-26"));
-  assert.equal(old.recapped, d.recapped);
-  assert.equal((await post()).status, 200);
-  assert.equal(calls, 6);
+  assert.equal(JSON.parse(kv.m.get("digest:2026-10-26")).recapped, d.recapped); // the old day is untouched
+});
+
+test("refresh forgets the newest digest, so the next visit gathers it again", async () => {
+  const kv = fakeKV();
+  const env = { DIGEST: kv };
+  const { calls, fetchImpl } = steamWorld(NOW - HOUR);
+  const d1 = await visit(env, "2026-10-26", NOW, fetchImpl);
+  const fetched = calls.length;
+  assert.deepEqual(await forgetNewest(env), { cleared: "2026-10-26" });
+  assert.equal((await startBuild(env, "2026-10-26", NOW + HOUR)).body.status, "building");
+  const d2 = await visit(env, "2026-10-26", NOW + HOUR, fetchImpl);
+  assert.ok(calls.length > fetched);
+  assert.equal(d2.since, d1.since);
+  assert.equal(d2.until, new Date(NOW + HOUR).toISOString());
+});
+
+test("routes: reads, build requests for plausible days only, and a guarded refresh", async () => {
+  const kv = fakeKV();
+  kv.m.set("days", JSON.stringify(["2026-10-26"]));
+  kv.m.set("digest:2026-10-26", JSON.stringify({ day: "2026-10-26", interests: [] }));
+  const env = { DIGEST: kv, REFRESH_TOKEN: "s3cret" };
+  const call = (path, init) => worker.fetch(new Request(`https://francis-digest.hoai2k.workers.dev${path}`, init), env);
+  const post = (path, body) => call(path, { method: "POST", body: JSON.stringify(body) });
+
+  assert.deepEqual(await (await call("/days")).json(), ["2026-10-26"]);
+  const latest = await call("/digest/latest");
+  assert.equal((await latest.json()).day, "2026-10-26");
+  assert.equal(latest.headers.get("Access-Control-Allow-Origin"), "*");
+  assert.equal(latest.headers.get("Cache-Control"), "no-store");
+  assert.equal((await call("/digest/2026-10-25")).status, 404);
+
+  assert.equal(validDay("2026-10-27", NOW), "2026-10-27");
+  assert.equal(validDay("2026-10-25", NOW), "2026-10-25");
+  assert.equal(validDay("2026-10-29", NOW), null);
+  assert.equal(validDay("26-10-2026", NOW), null);
+  assert.equal((await post("/build", { day: "2001-01-01" })).status, 400);
+  const today = new Date().toISOString().slice(0, 10);
+  const started = await (await post("/build", { day: today })).json();
+  assert.ok(["building", "done"].includes(started.status) || started.error === "newer_digest_exists");
+
+  assert.equal((await call("/recap")).status, 405);
+  assert.equal((await post("/refresh", {})).status, 401);
+  const ok = await call("/refresh", { method: "POST", headers: { Authorization: "Bearer s3cret" } });
+  assert.deepEqual(await ok.json(), { cleared: "2026-10-26" });
 });
